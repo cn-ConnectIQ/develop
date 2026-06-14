@@ -1,0 +1,42 @@
+export { prisma } from "./client";
+export {
+  BoothStatus,
+  ConnectionSource,
+  EventStatus,
+  EventType,
+  FeedItemType,
+  IntentCategory,
+  InvitationStatus,
+  InviteCampaignStatus,
+  InviteChannel,
+  InviteRecordStatus,
+  InteractionChannelType,
+  LeadStatus,
+  LotteryEntrySource,
+  LotteryStatus,
+  LotteryType,
+  ParticipantInviteStatus,
+  ParticipantRole,
+  PointsReason,
+  PollStatus,
+  PollType,
+  RegistrationSource,
+  RegistrationStatus,
+  SnSessionStatus,
+  TicketStatus,
+  UserAccountStatus,
+  WebhookStatus,
+} from "@prisma/client";
+/** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
+export { UserRole as PrismaUserRole } from "@prisma/client";
+export type {
+  Booth,
+  Event,
+  IntentTag,
+  Lead,
+  Lottery,
+  Organization,
+  Participant,
+  Prisma,
+  User,
+} from "@prisma/client";

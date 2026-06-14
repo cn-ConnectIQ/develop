@@ -1,0 +1,14 @@
+/* Connect-admin.html design tokens */
+:root {
+  --admin-sidebar-bg: #1a1a2e;
+  --admin-sidebar-accent: #2d3561;
+  --admin-content-bg: #f5f5f3;
+  --admin-border: #d3d1c7;
+  --admin-border-soft: #e4e2da;
+  --admin-ink: #1a1a2e;
+  --admin-gray: #5f5e5a;
+  --admin-gray-2: #8a8983;
+  --admin-sidebar-text: #b6bad4;
+  --admin-sidebar-muted: #6b709a;
+  --admin-sidebar-icon: #8a90b4;
+}
