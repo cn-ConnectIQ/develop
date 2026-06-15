@@ -4,6 +4,10 @@ export type BigscreenDisplayConfig = {
   hiddenResponseIds: string[];
   pinnedResponseIds: string[];
   answeredResponseIds: string[];
+  responseMeta?: Record<
+    string,
+    { hostNote?: string; publicReply?: string; tags?: string[] }
+  >;
 };
 
 export const DEFAULT_DISPLAY_CONFIG: BigscreenDisplayConfig = {
@@ -12,6 +16,7 @@ export const DEFAULT_DISPLAY_CONFIG: BigscreenDisplayConfig = {
   hiddenResponseIds: [],
   pinnedResponseIds: [],
   answeredResponseIds: [],
+  responseMeta: {},
 };
 
 export function displaySettingKey(pollId: string) {
@@ -29,6 +34,10 @@ export function parseDisplayConfig(value: unknown): BigscreenDisplayConfig {
     answeredResponseIds: Array.isArray(v.answeredResponseIds)
       ? v.answeredResponseIds
       : [],
+    responseMeta:
+      v.responseMeta && typeof v.responseMeta === "object"
+        ? (v.responseMeta as BigscreenDisplayConfig["responseMeta"])
+        : {},
   };
 }
 
@@ -40,22 +49,37 @@ export type QnaQuestion = {
   pinned: boolean;
   answered: boolean;
   featured: boolean;
+  onScreen: boolean;
   createdAt: string;
 };
 
 export function buildQnaQuestions(
-  responses: Array<{ id: string; textAnswer: string | null; createdAt: Date }>,
+  responses: Array<{
+    id: string;
+    textAnswer: string | null;
+    isOnScreen?: boolean;
+    createdAt: Date;
+  }>,
   display: BigscreenDisplayConfig,
 ): QnaQuestion[] {
-  const grouped = new Map<string, { id: string; count: number; createdAt: Date }>();
+  const grouped = new Map<
+    string,
+    { id: string; count: number; createdAt: Date; onScreen: boolean }
+  >();
   for (const r of responses) {
     const text = r.textAnswer?.trim();
     if (!text) continue;
     const existing = grouped.get(text);
     if (existing) {
       existing.count += 1;
+      if (r.isOnScreen) existing.onScreen = true;
     } else {
-      grouped.set(text, { id: r.id, count: 1, createdAt: r.createdAt });
+      grouped.set(text, {
+        id: r.id,
+        count: 1,
+        createdAt: r.createdAt,
+        onScreen: r.isOnScreen ?? false,
+      });
     }
   }
 
@@ -68,6 +92,7 @@ export function buildQnaQuestions(
       pinned: display.pinnedResponseIds.includes(meta.id),
       answered: display.answeredResponseIds.includes(meta.id),
       featured: display.featuredResponseId === meta.id,
+      onScreen: meta.onScreen,
       createdAt: meta.createdAt.toISOString(),
     }))
     .sort((a, b) => {

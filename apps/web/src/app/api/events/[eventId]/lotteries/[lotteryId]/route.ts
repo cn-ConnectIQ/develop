@@ -9,9 +9,29 @@ import {
 import {
   assertStatusTransition,
   getLotteryOrThrow,
+  listLotteryWinners,
   requireLotteryManageAccess,
 } from "@/lib/interaction/lottery-service";
 import { patchLotterySchema } from "@/lib/interaction/schemas";
+
+export const GET = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  const lotteryId = context?.params?.lotteryId;
+  if (!eventId || !lotteryId) {
+    return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  await requireEventAccess(eventId);
+
+  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+  const winners = await listLotteryWinners(eventId, lotteryId);
+
+  return createSuccessResponse({
+    ...lottery,
+    winners,
+    entryCount: lottery.entryCount,
+  });
+});
 
 export const PATCH = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;

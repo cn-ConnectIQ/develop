@@ -1,4 +1,3 @@
-import { prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
@@ -6,14 +5,12 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { buildQnaQuestions } from "@/lib/bigscreen-display";
-import { getPollDisplayConfig } from "@/lib/bigscreen-service";
-import {
-  aggregatePollOptions,
-  aggregateWordCloud,
-} from "@/lib/bigscreen-results";
+import { getPollRealtimeResults } from "@/lib/poll-realtime-results";
 
-export const GET = withErrorHandler(async (_request, context) => {
+const SSE_INTERVAL_MS = 2000;
+
+/** 投票实时结果（JSON 或 SSE） */
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const pollId = context?.params?.pollId;
   if (!eventId || !pollId) {
@@ -22,59 +19,52 @@ export const GET = withErrorHandler(async (_request, context) => {
 
   await requireEventAccess(eventId);
 
-  const poll = await prisma.poll.findFirst({
-    where: { id: pollId, eventId },
-    include: {
-      options: { orderBy: { displayOrder: "asc" } },
-      responses: {
-        select: {
-          id: true,
-          optionId: true,
-          textAnswer: true,
-          createdAt: true,
-        },
-      },
+  const accept = request.headers.get("accept") ?? "";
+  const stream =
+    accept.includes("text/event-stream") ||
+    new URL(request.url).searchParams.get("stream") === "sse";
+
+  if (!stream) {
+    const data = await getPollRealtimeResults(eventId, pollId);
+    return createSuccessResponse(data);
+  }
+
+  const encoder = new TextEncoder();
+  let closed = false;
+
+  const streamBody = new ReadableStream({
+    async start(controller) {
+      const push = async () => {
+        if (closed) return;
+        try {
+          const data = await getPollRealtimeResults(eventId, pollId);
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ data })}\n\n`),
+          );
+        } catch (error) {
+          console.error(error);
+        }
+      };
+
+      await push();
+      const timer = setInterval(push, SSE_INTERVAL_MS);
+
+      request.signal.addEventListener("abort", () => {
+        closed = true;
+        clearInterval(timer);
+        controller.close();
+      });
+    },
+    cancel() {
+      closed = true;
     },
   });
 
-  if (!poll) {
-    return createErrorResponse("投票不存在", ErrorCode.NOT_FOUND, 404);
-  }
-
-  const display = await getPollDisplayConfig(eventId, pollId, poll.showResults);
-  const total = poll.responses.length;
-
-  let options: ReturnType<typeof aggregatePollOptions> = [];
-  let wordCloud: ReturnType<typeof aggregateWordCloud> = [];
-  let qnaQuestions: ReturnType<typeof buildQnaQuestions> = [];
-
-  if (poll.type === "WORD_CLOUD") {
-    wordCloud = aggregateWordCloud(poll.responses);
-  } else if (poll.type === "QNA") {
-    qnaQuestions = buildQnaQuestions(poll.responses, display);
-  } else {
-    options = aggregatePollOptions(poll.options, poll.responses);
-  }
-
-  const featuredQuestion =
-    qnaQuestions.find((q) => q.featured && !q.hidden) ??
-    qnaQuestions.find((q) => !q.hidden) ??
-    null;
-
-  return createSuccessResponse({
-    pollId: poll.id,
-    title: poll.title,
-    type: poll.type,
-    status: poll.status,
-    showResults: display.showResults,
-    display,
-    closesAt: poll.closesAt?.toISOString() ?? null,
-    createdAt: poll.createdAt.toISOString(),
-    total,
-    options,
-    wordCloud,
-    qnaQuestions,
-    featuredQuestion,
-    updatedAt: new Date().toISOString(),
+  return new Response(streamBody, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
   });
 });

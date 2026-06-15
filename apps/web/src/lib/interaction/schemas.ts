@@ -6,7 +6,7 @@ export const lotteryPrizeSchema = z.object({
   name: z.string().min(1),
   prize: z.string().min(1),
   count: z.number().int().positive().default(1),
-  image_url: z.string().url().optional(),
+  image_url: z.string().optional(),
 });
 
 export const createLotterySchema = z.object({

@@ -802,6 +802,7 @@ model PollResponse {
   optionId      String?  @map("option_id")
   textAnswer    String?  @map("text_answer")
   rating        Int?
+  isOnScreen    Boolean  @default(false) @map("is_on_screen")
   createdAt     DateTime @default(now()) @map("created_at")
 
   poll        Poll         @relation(fields: [pollId], references: [id], onDelete: Cascade)

@@ -35,6 +35,7 @@ export async function updatePollDisplayConfig(
     pinnedResponseIds: patch.pinnedResponseIds ?? current.pinnedResponseIds,
     answeredResponseIds:
       patch.answeredResponseIds ?? current.answeredResponseIds,
+    responseMeta: patch.responseMeta ?? current.responseMeta ?? {},
   };
 
   await prisma.eventSetting.upsert({

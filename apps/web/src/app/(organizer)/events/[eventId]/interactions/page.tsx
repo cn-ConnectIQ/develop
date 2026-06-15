@@ -1,4 +1,5 @@
-import { InteractionsPageClient } from "@/components/interactions/InteractionsPageClient";
+import { Suspense } from "react";
+import { InteractionsManagerClient } from "@/components/interactions/InteractionsManagerClient";
 
 export default async function InteractionsPage({
   params,
@@ -6,5 +7,15 @@ export default async function InteractionsPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  return <InteractionsPageClient eventId={eventId} />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[calc(100vh-56px)] items-center justify-center text-sm text-text-muted">
+          加载中…
+        </div>
+      }
+    >
+      <InteractionsManagerClient eventId={eventId} />
+    </Suspense>
+  );
 }

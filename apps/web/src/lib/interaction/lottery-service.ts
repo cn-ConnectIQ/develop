@@ -359,3 +359,96 @@ export async function listLotteryWinners(eventId: string, lotteryId: string) {
     avatarUrl: null,
   }));
 }
+
+/** 预估符合参与条件的参会者数量 */
+export async function countLotteryEligible(
+  eventId: string,
+  lotteryId: string,
+) {
+  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+
+  const totalParticipants = await prisma.participant.count({
+    where: { eventId },
+  });
+
+  if (lottery.status === "OPEN" || lottery.status === "DRAWING") {
+    const entryCount = await prisma.lotteryEntry.count({ where: { lotteryId } });
+    return {
+      eligible: entryCount,
+      total: totalParticipants,
+      percentage:
+        totalParticipants > 0
+          ? Math.round((entryCount / totalParticipants) * 1000) / 10
+          : 0,
+      source: "entries" as const,
+    };
+  }
+
+  let eligible = totalParticipants;
+
+  if (lottery.type === "CHECKIN_BASED" || lottery.requireCheckin) {
+    const checkedIn = await prisma.checkIn.findMany({
+      where: { eventId },
+      select: { participantId: true },
+      distinct: ["participantId"],
+    });
+    let participantIds = checkedIn.map((c) => c.participantId);
+
+    if (lottery.eligibleRoles.length > 0) {
+      if (lottery.eligibleRoles.includes("VIP")) {
+        eligible = await prisma.participant.count({
+          where: {
+            eventId,
+            tickets: {
+              some: {
+                ticketType: {
+                  name: { contains: "VIP", mode: "insensitive" },
+                },
+              },
+            },
+          },
+        });
+      } else {
+        const filtered = await prisma.participant.findMany({
+          where: {
+            eventId,
+            id: { in: participantIds },
+            role: {
+              in: lottery.eligibleRoles.filter(
+                (r) => r === "ATTENDEE" || r === "SPEAKER",
+              ) as ("ATTENDEE" | "SPEAKER")[],
+            },
+          },
+          select: { id: true },
+        });
+        eligible = filtered.length;
+      }
+    } else {
+      eligible = participantIds.length;
+    }
+  } else if (lottery.type === "ACTIVITY_BASED" && lottery.requirePollId) {
+    const responses = await prisma.pollResponse.findMany({
+      where: { pollId: lottery.requirePollId },
+      select: { participantId: true },
+      distinct: ["participantId"],
+    });
+    eligible = responses.filter((r) => r.participantId).length;
+  } else if (lottery.type === "QUIZ_BASED" && lottery.quizPollId) {
+    const responses = await prisma.pollResponse.findMany({
+      where: { pollId: lottery.quizPollId },
+      select: { participantId: true },
+      distinct: ["participantId"],
+    });
+    eligible = responses.filter((r) => r.participantId).length;
+  }
+
+  return {
+    eligible,
+    total: totalParticipants,
+    percentage:
+      totalParticipants > 0
+        ? Math.round((eligible / totalParticipants) * 1000) / 10
+        : 0,
+    source: "estimate" as const,
+  };
+}

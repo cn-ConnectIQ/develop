@@ -20,7 +20,7 @@ const createPollSchema = z.object({
   publishAfterMinutes: z.number().min(1).max(1440).optional(),
 });
 
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
@@ -28,9 +28,14 @@ export const GET = withErrorHandler(async (_request, context) => {
 
   await requireEventAccess(eventId);
 
+  const typeFilter = new URL(request.url).searchParams.get("type");
+
   const [polls, sessions] = await Promise.all([
     prisma.poll.findMany({
-      where: { eventId },
+      where: {
+        eventId,
+        ...(typeFilter ? { type: typeFilter as PollType } : {}),
+      },
       orderBy: [
         { status: "asc" },
         { displayOrder: "asc" },

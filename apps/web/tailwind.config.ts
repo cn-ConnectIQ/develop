@@ -23,6 +23,21 @@ const config: Config = {
         "text-muted": "#5F5E5A",
         "text-tertiary": "#888780",
       },
+      keyframes: {
+        wiggle: {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "33%": { transform: "rotate(-3deg)" },
+          "66%": { transform: "rotate(3deg)" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+      },
+      animation: {
+        wiggle: "wiggle 0.5s ease-in-out",
+        float: "float 3s ease-in-out infinite",
+      },
     },
   },
 };
