@@ -47,6 +47,7 @@ function mapPeerUser(input: {
   company: string | null;
   profile?: { company: string | null } | null;
 }): ApiConnectionUser {
+  const { userId, name, company, profile } = input;
   return {
     id: userId ?? `peer-${name}`,
     name,

@@ -181,7 +181,7 @@ export async function remindReferral(userId: string, referralId: string) {
     throw new ApiError("仅引荐人可发送提醒", ErrorCode.FORBIDDEN, 403);
   }
   if (row.status !== ReferralStatus.PENDING) {
-    throw new ApiError("当前状态不可提醒", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("当前状态不可提醒", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   await prisma.$transaction([
@@ -207,7 +207,7 @@ export async function acceptReferral(userId: string, referralId: string) {
     throw new ApiError("仅接收方可接受引荐", ErrorCode.FORBIDDEN, 403);
   }
   if (row.status !== ReferralStatus.PENDING) {
-    throw new ApiError("当前状态不可接受", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("当前状态不可接受", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const updated = await prisma.businessReferral.update({
@@ -238,7 +238,7 @@ export async function declineReferral(
   }
 
   if (row.status !== ReferralStatus.PENDING) {
-    throw new ApiError("当前状态不可变更", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("当前状态不可变更", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const updated = await prisma.businessReferral.update({

@@ -12,9 +12,9 @@ import {
 } from "@/lib/org-public-service";
 
 export const GET = withErrorHandler(async (request, context) => {
-  const { slug } = await context.params;
+  const slug = context?.params?.slug;
   if (!slug) {
-    return createErrorResponse("缺少 slug", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 slug", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   try {

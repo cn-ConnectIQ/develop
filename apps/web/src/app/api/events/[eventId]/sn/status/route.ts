@@ -2,6 +2,7 @@ import { ErrorCode } from "@connectiq/types";
 import { prisma } from "@connectiq/database";
 import {
   ApiError,
+  createErrorResponse,
   createSuccessResponse,
   requireAuth,
   withErrorHandler,
@@ -34,7 +35,10 @@ async function resolveUserId(request: Request): Promise<string> {
 }
 
 export const GET = withErrorHandler(async (request, context) => {
-  const { eventId } = await context.params;
+  const eventId = context?.params?.eventId;
+  if (!eventId) {
+    return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
+  }
   const userId = await resolveUserId(request);
   const status = await getEventSnStatus(eventId, userId);
   return createSuccessResponse(status);

@@ -34,7 +34,7 @@ function buildNegativeReason(input: SubmitAiFeedbackInput): string {
 
 export async function submitAiFeedback(userId: string, input: SubmitAiFeedbackInput) {
   if (!input.reason_tags.length) {
-    throw new ApiError("请选择反馈原因", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("请选择反馈原因", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const type =

@@ -41,7 +41,7 @@ export const GET = withErrorHandler(async (request) => {
   const limit = Number(searchParams.get("limit") ?? "30");
 
   if (status !== ConnectionStatus.ACTIVE) {
-    return createErrorResponse("暂不支持该状态筛选", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("暂不支持该状态筛选", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const connections = await listActiveConnections(userId, limit);

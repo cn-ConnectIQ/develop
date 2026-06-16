@@ -50,9 +50,9 @@ async function resolveUserId(request: Request): Promise<string> {
 }
 
 export const POST = withErrorHandler(async (request, context) => {
-  const { slug: orgId } = await context.params;
+  const orgId = context?.params?.slug;
   if (!orgId) {
-    return createErrorResponse("缺少 orgId", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 orgId", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const userId = await resolveUserId(request);
@@ -61,9 +61,9 @@ export const POST = withErrorHandler(async (request, context) => {
 });
 
 export const DELETE = withErrorHandler(async (request, context) => {
-  const { slug: orgId } = await context.params;
+  const orgId = context?.params?.slug;
   if (!orgId) {
-    return createErrorResponse("缺少 orgId", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 orgId", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const userId = await resolveUserId(request);

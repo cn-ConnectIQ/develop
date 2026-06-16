@@ -40,7 +40,7 @@ export async function updateMeetingStatus(
 
   const allowedNext = allowed[meeting.status] ?? [];
   if (!allowedNext.includes(status)) {
-    throw new ApiError("当前状态不可变更", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("当前状态不可变更", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   return prisma.meeting.update({
@@ -64,7 +64,7 @@ export async function cancelMeeting(
     meeting.status !== MeetingStatus.PENDING &&
     meeting.status !== MeetingStatus.CONFIRMED
   ) {
-    throw new ApiError("当前状态不可取消", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("当前状态不可取消", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const otherUserId =

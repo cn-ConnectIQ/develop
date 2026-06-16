@@ -308,7 +308,7 @@ export async function redeemPointsReward(
 
   const balance = profile?.pointsBalance ?? 0;
   if (balance < rewardDef.cost) {
-    throw new ApiError("积分不足", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError("积分不足", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const note = JSON.stringify({

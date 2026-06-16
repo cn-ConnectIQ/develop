@@ -105,7 +105,7 @@ async function exchangeWxCode(code: string): Promise<{ openid: string; sessionKe
   const data = (await res.json()) as { openid?: string; errcode?: number; errmsg?: string };
 
   if (!data.openid) {
-    throw new ApiError(data.errmsg ?? "微信登录失败", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError(data.errmsg ?? "微信登录失败", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   return { openid: data.openid };
@@ -150,7 +150,7 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
 
   const phone = phoneData.phone_info?.purePhoneNumber ?? phoneData.phone_info?.phoneNumber;
   if (!phone) {
-    throw new ApiError(phoneData.errmsg ?? "获取手机号失败", ErrorCode.BAD_REQUEST, 400);
+    throw new ApiError(phoneData.errmsg ?? "获取手机号失败", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   return phone;

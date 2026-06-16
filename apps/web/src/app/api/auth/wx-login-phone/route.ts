@@ -10,7 +10,7 @@ import { miniWxLoginWithPhone } from "@/lib/mini-auth-service";
 export const POST = withErrorHandler(async (request) => {
   const body = (await request.json()) as { wxCode?: string; phoneCode?: string };
   if (!body.wxCode || !body.phoneCode) {
-    return createErrorResponse("缺少 wxCode 或 phoneCode", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 wxCode 或 phoneCode", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   try {

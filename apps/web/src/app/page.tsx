@@ -1,3 +1,4 @@
+import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { getPostLoginRedirectPath } from "@/lib/auth-redirect";
 import { redirect } from "next/navigation";

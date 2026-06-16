@@ -47,7 +47,7 @@ export const POST = withErrorHandler(async (request, context) => {
   };
 
   if (!body.reason?.trim()) {
-    return createErrorResponse("请选择取消原因", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("请选择取消原因", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const meeting = await cancelMeeting(

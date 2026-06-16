@@ -41,7 +41,7 @@ export const GET = withErrorHandler(async (request) => {
   const limit = Number(searchParams.get("limit") ?? "20");
 
   if (role !== "introducer" && role !== "recipient") {
-    return createErrorResponse("role 参数无效", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("role 参数无效", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const result = await listReferrals(userId, role, limit);

@@ -47,7 +47,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
   };
 
   if (!body.status) {
-    return createErrorResponse("缺少 status", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 status", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const meeting = await updateMeetingStatus(userId, id, body.status, body.rating);

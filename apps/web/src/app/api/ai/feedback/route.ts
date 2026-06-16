@@ -47,10 +47,10 @@ export const POST = withErrorHandler(async (request) => {
   };
 
   if (!body.reference_id) {
-    return createErrorResponse("缺少 reference_id", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 reference_id", ErrorCode.VALIDATION_ERROR, 400);
   }
   if (!Array.isArray(body.reason_tags) || body.reason_tags.length === 0) {
-    return createErrorResponse("请选择反馈原因", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("请选择反馈原因", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const result = await submitAiFeedback(userId, {

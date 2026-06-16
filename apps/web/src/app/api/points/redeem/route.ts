@@ -39,7 +39,7 @@ export const POST = withErrorHandler(async (request) => {
   const body = (await request.json()) as { reward_id?: string };
 
   if (!body.reward_id) {
-    return createErrorResponse("缺少 reward_id", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 reward_id", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const result = await redeemPointsReward(userId, body.reward_id);

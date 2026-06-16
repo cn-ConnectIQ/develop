@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function AccountSuspendedPage() {
   return (
@@ -29,9 +30,12 @@ export default function AccountSuspendedPage() {
           </p>
         </div>
         <div className="mt-6">
-          <Button variant="outline" asChild>
-            <Link href="/login">返回登录</Link>
-          </Button>
+          <Link
+            href="/login"
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            返回登录
+          </Link>
         </div>
       </div>
     </div>

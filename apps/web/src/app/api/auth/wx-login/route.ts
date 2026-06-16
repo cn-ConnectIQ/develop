@@ -10,7 +10,7 @@ import { miniWxLogin } from "@/lib/mini-auth-service";
 export const POST = withErrorHandler(async (request) => {
   const body = (await request.json()) as { code?: string };
   if (!body.code) {
-    return createErrorResponse("缺少 code", ErrorCode.BAD_REQUEST, 400);
+    return createErrorResponse("缺少 code", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   try {

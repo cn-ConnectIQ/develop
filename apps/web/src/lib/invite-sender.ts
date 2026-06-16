@@ -75,9 +75,9 @@ export async function sendEmail(
   record: RecordWithRelations,
   subject: string,
   plainText: string,
-) {
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const ctx = buildMessageContext(record);
-  return sendInviteEmail({
+  const result = await sendInviteEmail({
     to: record.destination,
     subject,
     participantName: ctx.name,
@@ -88,6 +88,10 @@ export async function sendEmail(
     activationLink: ctx.link,
     plainText,
   });
+  return {
+    success: result.sent,
+    messageId: result.sent ? `email-${Date.now()}` : undefined,
+  };
 }
 
 export async function sendWechatTemplateMessage(

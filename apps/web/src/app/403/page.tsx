@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function ForbiddenPage() {
   return (
@@ -23,9 +24,12 @@ export default function ForbiddenPage() {
           扫码下载小程序
         </Link>
         <div className="mt-4">
-          <Button variant="outline" asChild>
-            <Link href="/login">返回登录</Link>
-          </Button>
+          <Link
+            href="/login"
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            返回登录
+          </Link>
         </div>
       </div>
     </div>
