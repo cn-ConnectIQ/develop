@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { MemberTier, OrgJoinSource } from "@connectiq/database";
-import { JOIN_SOURCE_LABELS } from "@/lib/org-member-service";
+import { JOIN_SOURCE_LABELS } from "@/lib/member-constants";
 import { cn } from "@/lib/utils";
 
 export const JOIN_SOURCE_BADGE: Record<OrgJoinSource, string> = {

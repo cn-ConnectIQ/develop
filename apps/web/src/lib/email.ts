@@ -70,3 +70,30 @@ ${message}
 ConnectIQ 团队`;
   return sendEmail(to, subject, body);
 }
+
+export async function sendInviteEmail(params: {
+  to: string;
+  subject: string;
+  participantName: string;
+  eventName: string;
+  eventDate: string;
+  eventLocation: string;
+  organizerName: string;
+  activationLink: string;
+  plainText: string;
+}) {
+  const body =
+    params.plainText ||
+    `您好 ${params.participantName}，
+
+${params.organizerName} 邀请您参加「${params.eventName}」。
+
+时间：${params.eventDate}
+地点：${params.eventLocation}
+
+请点击链接激活参会资格：
+${params.activationLink}
+
+ConnectIQ 团队`;
+  return sendEmail(params.to, params.subject, body);
+}

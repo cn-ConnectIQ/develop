@@ -17,11 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ACCOUNT_TYPE_LABELS,
-  maskCreditCode,
-  type OrgProfileData,
-} from "@/lib/org-profile-service";
+import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
+import { maskOrgCreditCode as maskCreditCode } from "@/lib/mask-utils";
+import type { OrgProfileData } from "@/lib/org-profile-types";
 import { cn } from "@/lib/utils";
 
 type ProfileForm = {

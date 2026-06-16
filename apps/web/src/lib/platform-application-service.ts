@@ -13,6 +13,10 @@ import {
   sendApplicationApprovedEmail,
   sendApplicationRejectedEmail,
 } from "@/lib/email";
+import {
+  maskApplicationCreditCode as maskCreditCode,
+  maskPhone,
+} from "@/lib/mask-utils";
 import { sendNotificationSms } from "@/lib/sms";
 
 export class PlatformApplicationError extends Error {
@@ -24,16 +28,7 @@ export class PlatformApplicationError extends Error {
   }
 }
 
-export function maskPhone(phone: string | null | undefined) {
-  if (!phone || phone.length < 7) return phone ?? "—";
-  return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
-}
-
-export function maskCreditCode(code: string | null | undefined) {
-  if (!code) return null;
-  if (code.length <= 8) return code;
-  return `${code.slice(0, 6)}****${code.slice(-2)}`;
-}
+export { maskCreditCode, maskPhone };
 
 /** 组织 slug 基础段（中文名取 unicode hex + 时间戳，英文直接规范化） */
 export function generateOrgSlug(name: string): string {

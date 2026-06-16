@@ -1,27 +1,8 @@
-import { type AccountType, prisma } from "@connectiq/database";
+import { prisma } from "@connectiq/database";
+import type { OrgProfileData } from "@/lib/org-profile-types";
 
-export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
-  CONFERENCE_ORGANIZER: "会议主办方",
-  EXPO_ORGANIZER: "展览主办方",
-  EXHIBITOR: "参展商",
-};
-
-export type OrgProfileData = {
-  id: string;
-  name: string;
-  slug: string;
-  logoUrl: string | null;
-  coverUrl: string | null;
-  bio: string | null;
-  website: string | null;
-  contactEmail: string | null;
-  accountType: AccountType;
-  orgCreditCode: string | null;
-  isVerified: boolean;
-  memberCount: number;
-  eventCount: number;
-  followerCount: number;
-};
+export type { OrgProfileData } from "@/lib/org-profile-types";
+export { maskOrgCreditCode as maskCreditCode } from "@/lib/mask-utils";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -39,12 +20,6 @@ export function validateOrgSlug(slug: string) {
   if (slug.length > 48) return "链接最多 48 个字符";
   if (!SLUG_PATTERN.test(slug)) return "仅支持小写字母、数字和连字符";
   return null;
-}
-
-export function maskCreditCode(code: string | null) {
-  if (!code) return "—";
-  if (code.length <= 6) return code;
-  return `${code.slice(0, 3)}***${code.slice(-3)}`;
 }
 
 function serializeOrg(org: Awaited<ReturnType<typeof fetchOrg>>): OrgProfileData {

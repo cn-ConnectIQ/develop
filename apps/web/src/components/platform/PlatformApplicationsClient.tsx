@@ -23,7 +23,10 @@ import {
   ApplicationReviewSheet,
   type ApplicationRow,
 } from "@/components/platform/ApplicationReviewSheet";
-import { maskCreditCode, maskPhone } from "@/lib/platform-application-service";
+import {
+  maskApplicationCreditCode as maskCreditCode,
+  maskPhone,
+} from "@/lib/mask-utils";
 import type { AccountType } from "@connectiq/database";
 import { cn } from "@/lib/utils";
 
