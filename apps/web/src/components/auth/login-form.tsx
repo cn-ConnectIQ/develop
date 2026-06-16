@@ -10,6 +10,7 @@ import {
   getPostLoginRedirectPath,
   setAuthRoleCookies,
 } from "@/lib/auth-redirect";
+import { SEED_PASSWORD, SEED_TEST_ACCOUNTS } from "@/lib/test-accounts";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,14 +48,14 @@ export function LoginForm() {
 
   const phoneForm = useForm<PhoneFormValues>({
     resolver: zodResolver(phoneSchema),
-    defaultValues: { phone: "13800000002", code: "" },
+    defaultValues: { phone: SEED_TEST_ACCOUNTS.conferenceOrganizer.phone, code: "" },
   });
 
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
     defaultValues: {
-      email: "admin@connectiq.test",
-      password: "ConnectIQ2024!",
+      email: SEED_TEST_ACCOUNTS.platformAdmin.email,
+      password: SEED_PASSWORD,
     },
   });
 
@@ -186,7 +187,9 @@ export function LoginForm() {
                 {phoneForm.formState.isSubmitting ? "登录中..." : "登录"}
               </Button>
               <p className="text-center text-xs text-text-tertiary">
-                首次登录将自动创建账号
+                本地开发：获取验证码后查看终端日志中的 6 位码
+                <br />
+                线上环境建议使用「账号密码」登录
               </p>
             </form>
           </TabsContent>
@@ -220,11 +223,17 @@ export function LoginForm() {
                 {emailForm.formState.isSubmitting ? "登录中..." : "登录"}
               </Button>
               <p className="text-xs text-text-tertiary">
-                测试账号：admin / organizer1 / expo / exhibitor @connectiq.test
+                密码（全部测试账号）：{SEED_PASSWORD}
                 <br />
-                密码：ConnectIQ2024!
+                平台管理员：{SEED_TEST_ACCOUNTS.platformAdmin.email}
                 <br />
-                平台概览页需使用 <strong>admin@connectiq.test</strong>（平台管理员）
+                会议主办方：{SEED_TEST_ACCOUNTS.conferenceOrganizer.email}
+                <br />
+                展览主办方：{SEED_TEST_ACCOUNTS.expoOrganizer.email}
+                <br />
+                参展商：{SEED_TEST_ACCOUNTS.exhibitor.email}
+                <br />
+                需先运行 <code className="text-[11px]">pnpm db:seed</code> 写入测试数据
               </p>
             </form>
           </TabsContent>

@@ -181,6 +181,7 @@ async function upsertUser(params: {
       phone: params.phone,
       name: params.name,
       userType: params.userType,
+      passwordHash,
     },
     create: {
       email,
@@ -679,7 +680,14 @@ async function main() {
 
   // ── 汇总 ────────────────────────────────────────────────────
   console.log("\n✅ Seed 完成\n");
-  console.log("── 登录账号（验证码开发环境控制台输出）──");
+  console.log("── 账号密码登录（推荐）──");
+  console.log(`  密码（全部账号）: ${SEED_PASSWORD}`);
+  console.log("  邮箱格式: {手机号}@phone.connectiq.local");
+  console.log("  平台管理员:     13800000001@phone.connectiq.local");
+  console.log("  会议主办方:     13800000002@phone.connectiq.local");
+  console.log("  展览主办方:     13800000003@phone.connectiq.local");
+  console.log("  参展商:         13800000004@phone.connectiq.local");
+  console.log("\n── 手机号验证码登录 ──");
   console.log("  平台管理员:     13800000001");
   console.log("  会议主办方:     13800000002  李经理");
   console.log("  展览主办方:     13800000003  王总监");
