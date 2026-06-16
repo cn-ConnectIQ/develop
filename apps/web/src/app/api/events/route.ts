@@ -82,6 +82,13 @@ function buildOrganizerWhere(session: { user: { id: string; role: AppUserRole } 
 
 function serializeEvent(
   event: Awaited<ReturnType<typeof prisma.event.findMany>>[number] & {
+    org?: {
+      id: string;
+      name: string;
+      slug: string;
+      logoUrl: string | null;
+      isVerified: boolean;
+    } | null;
     _count: {
       participants: number;
       checkIns: number;
@@ -134,6 +141,15 @@ function serializeEvent(
         }
       : null,
     readiness,
+    org: event.org
+      ? {
+          id: event.org.id,
+          name: event.org.name,
+          slug: event.org.slug,
+          logo_url: event.org.logoUrl,
+          is_verified: event.org.isVerified,
+        }
+      : null,
     _count: {
       participants: event._count.participants,
       checkIns: event._count.checkIns,
@@ -185,6 +201,15 @@ export const GET = withErrorHandler(async (request) => {
     where,
     orderBy: [{ startDate: "asc" }, { createdAt: "desc" }],
     include: {
+      org: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          logoUrl: true,
+          isVerified: true,
+        },
+      },
       _count: {
         select: {
           participants: true,
