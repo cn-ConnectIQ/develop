@@ -299,6 +299,18 @@ export const authOptions: NextAuthOptions = {
           token.userType = user.userType as PrismaUserType;
           token.userId = user.id;
           token.phone = user.phone ?? null;
+          if (user.userType === PrismaUserType.ACCOUNT_ADMIN) {
+            try {
+              const orgSession = await hydrateAccountAdminToken(user.id);
+              token.ownedOrgs = orgSession.ownedOrgs;
+              token.activeOrgId = orgSession.activeOrgId;
+              token.activeOrgSlug = orgSession.activeOrgSlug;
+              token.activeOrgType = orgSession.activeOrgType;
+              token.activeAdminStatus = orgSession.activeAdminStatus;
+            } catch (hydrateError) {
+              console.error("[auth] org hydrate fallback failed:", hydrateError);
+            }
+          }
         }
       }
 

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Phone } from "lucide-react";
+import { toast } from "sonner";
 import {
   getPostLoginRedirectPath,
   setAuthRoleCookies,
@@ -42,9 +43,18 @@ const emailSchema = z.object({
 type PhoneFormValues = z.infer<typeof phoneSchema>;
 type EmailFormValues = z.infer<typeof emailSchema>;
 
+const TEST_ACCOUNT_OPTIONS = [
+  { key: "platformAdmin", label: "001 平台管理员", account: SEED_TEST_ACCOUNTS.platformAdmin },
+  { key: "conferenceOrganizer", label: "002 会议主办方", account: SEED_TEST_ACCOUNTS.conferenceOrganizer },
+  { key: "expoOrganizer", label: "003 展览主办方", account: SEED_TEST_ACCOUNTS.expoOrganizer },
+  { key: "exhibitor", label: "004 参展商", account: SEED_TEST_ACCOUNTS.exhibitor },
+] as const;
+
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [selectedAccount, setSelectedAccount] =
+    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("conferenceOrganizer");
 
   const phoneForm = useForm<PhoneFormValues>({
     resolver: zodResolver(phoneSchema),
@@ -54,10 +64,20 @@ export function LoginForm() {
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
     defaultValues: {
-      email: SEED_TEST_ACCOUNTS.platformAdmin.email,
+      email: SEED_TEST_ACCOUNTS.conferenceOrganizer.email,
       password: SEED_PASSWORD,
     },
   });
+
+  function applyTestAccount(key: (typeof TEST_ACCOUNT_OPTIONS)[number]["key"]) {
+    const option = TEST_ACCOUNT_OPTIONS.find((item) => item.key === key);
+    if (!option) return;
+    setSelectedAccount(key);
+    phoneForm.setValue("phone", option.account.phone);
+    emailForm.setValue("email", option.account.email);
+    emailForm.setValue("password", SEED_PASSWORD);
+    setError(null);
+  }
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -66,16 +86,28 @@ export function LoginForm() {
   }, [countdown]);
 
   async function redirectAfterLogin() {
-    for (let attempt = 0; attempt < 10; attempt++) {
+    for (let attempt = 0; attempt < 15; attempt++) {
       const session = await getSession();
       if (session?.user?.id) {
         setAuthRoleCookies(session.user);
+        try {
+          const res = await fetch("/api/me/home-route");
+          if (res.ok) {
+            const json = await res.json();
+            if (json.data?.path) {
+              window.location.href = json.data.path as string;
+              return;
+            }
+          }
+        } catch {
+          // fallback below
+        }
         window.location.href = getPostLoginRedirectPath(session.user);
         return;
       }
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
-    setError("登录失败，请重试");
+    setError("登录会话未就绪，请刷新页面后重试");
   }
 
   async function sendCode() {
@@ -93,6 +125,10 @@ export function LoginForm() {
     if (!res.ok) {
       setError(json.error ?? "发送失败");
       return;
+    }
+    if (json.data?.devCode) {
+      phoneForm.setValue("code", json.data.devCode);
+      toast.info(`测试验证码：${json.data.devCode}`, { duration: 8000 });
     }
     setCountdown(60);
   }
@@ -138,11 +174,65 @@ export function LoginForm() {
         <CardDescription>管理后台</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <Tabs defaultValue="phone">
-          <TabsList className="mb-6 grid w-full grid-cols-2">
-            <TabsTrigger value="phone">手机号登录</TabsTrigger>
+        <Tabs defaultValue="email">
+          <TabsList className="mb-4 grid w-full grid-cols-2">
             <TabsTrigger value="email">账号密码</TabsTrigger>
+            <TabsTrigger value="phone">手机号登录</TabsTrigger>
           </TabsList>
+
+          <div className="mb-4 space-y-2">
+            <Label htmlFor="test-account">测试账号</Label>
+            <select
+              id="test-account"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={selectedAccount}
+              onChange={(e) =>
+                applyTestAccount(
+                  e.target.value as (typeof TEST_ACCOUNT_OPTIONS)[number]["key"],
+                )
+              }
+            >
+              {TEST_ACCOUNT_OPTIONS.map((item) => (
+                <option key={item.key} value={item.key}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-text-tertiary">
+              线上环境请优先使用「账号密码」；密码均为 {SEED_PASSWORD}
+            </p>
+          </div>
+
+          <TabsContent value="email">
+            <form onSubmit={onEmailSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">邮箱</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  {...emailForm.register("email")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">密码</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  {...emailForm.register("password")}
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button
+                type="submit"
+                className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                disabled={emailForm.formState.isSubmitting}
+              >
+                {emailForm.formState.isSubmitting ? "登录中..." : "登录"}
+              </Button>
+            </form>
+          </TabsContent>
 
           <TabsContent value="phone">
             <form onSubmit={onPhoneSubmit} className="space-y-4">
@@ -194,53 +284,7 @@ export function LoginForm() {
                 {phoneForm.formState.isSubmitting ? "登录中..." : "登录"}
               </Button>
               <p className="text-center text-xs text-text-tertiary">
-                本地开发：获取验证码后查看终端日志中的 6 位码
-                <br />
-                线上环境建议使用「账号密码」登录
-              </p>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="email">
-            <form onSubmit={onEmailSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">邮箱</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  {...emailForm.register("email")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">密码</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  {...emailForm.register("password")}
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button
-                type="submit"
-                className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                disabled={emailForm.formState.isSubmitting}
-              >
-                {emailForm.formState.isSubmitting ? "登录中..." : "登录"}
-              </Button>
-              <p className="text-xs text-text-tertiary">
-                密码（全部测试账号）：{SEED_PASSWORD}
-                <br />
-                平台管理员：{SEED_TEST_ACCOUNTS.platformAdmin.email}
-                <br />
-                会议主办方：{SEED_TEST_ACCOUNTS.conferenceOrganizer.email}
-                <br />
-                展览主办方：{SEED_TEST_ACCOUNTS.expoOrganizer.email}
-                <br />
-                参展商：{SEED_TEST_ACCOUNTS.exhibitor.email}
-                <br />
-                需先运行 <code className="text-[11px]">pnpm db:seed</code> 写入测试数据
+                未配置短信服务时，获取验证码后会在页面提示 6 位码
               </p>
             </form>
           </TabsContent>

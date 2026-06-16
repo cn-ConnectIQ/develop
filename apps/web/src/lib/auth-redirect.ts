@@ -7,17 +7,23 @@ export { ROLE_COOKIE_USER_TYPE, ROLE_COOKIE_ADMIN_STATUS };
 
 export function getAccountAdminHomePath(
   accountType: string | null | undefined,
-  orgId: string | null | undefined,
+  _orgId?: string | null,
 ): string {
   switch (accountType) {
     case "EXPO_ORGANIZER":
-      return orgId ? `/expos/${orgId}` : "/events";
     case "EXHIBITOR":
-      return orgId ? `/exhibitor/booths/${orgId}` : "/events";
     case "CONFERENCE_ORGANIZER":
     default:
       return "/events";
   }
+}
+
+function resolveApprovedAdminStatus(user: Session["user"]): string | null {
+  if (user.activeAdminStatus) return user.activeAdminStatus;
+  const approvedOrg = user.ownedOrgs?.find(
+    (org) => org.admin_status === "APPROVED",
+  );
+  return approvedOrg?.admin_status ?? null;
 }
 
 export function getPostLoginRedirectPath(user: Session["user"]): string {
@@ -26,7 +32,7 @@ export function getPostLoginRedirectPath(user: Session["user"]): string {
       return "/platform/overview";
 
     case "ACCOUNT_ADMIN":
-      switch (user.activeAdminStatus) {
+      switch (resolveApprovedAdminStatus(user)) {
         case "APPROVED":
           return getAccountAdminHomePath(
             user.activeOrgType,

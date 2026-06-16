@@ -22,6 +22,7 @@ import type { LucideIcon } from "lucide-react";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/Header";
+import { EventProvider } from "@/hooks/useCurrentEvent";
 import { cn } from "@/lib/utils";
 
 type NavItem = {
@@ -239,18 +240,20 @@ export function PlatformAdminLayout({
 }: PlatformAdminLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className="flex h-screen overflow-hidden bg-content-bg">
-      <PlatformSidebar
-        user={user}
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed((v) => !v)}
-      />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header user={user} />
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          {children}
-        </main>
+    <EventProvider>
+      <div className="flex h-screen overflow-hidden bg-content-bg">
+        <PlatformSidebar
+          user={user}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((v) => !v)}
+        />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header user={user} />
+          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </EventProvider>
   );
 }
