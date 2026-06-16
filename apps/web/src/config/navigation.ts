@@ -127,7 +127,11 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
     return [
       {
         label: "PLATFORM",
-        items: [{ label: "活动列表", href: "/events", icon: CalendarDays }],
+        items: [
+          { label: "活动列表", href: "/events", icon: CalendarDays },
+          { label: "用户池", href: "/members", icon: Users },
+          { label: "组织主页", href: "/org-profile", icon: Settings },
+        ],
       },
     ];
   }

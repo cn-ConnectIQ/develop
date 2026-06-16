@@ -3,6 +3,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EventCategory } from "@/lib/event-utils";
 
+export type EventReviewInfo = {
+  status: string;
+  revisionNotes: string | null;
+  rejectionReason: string | null;
+};
+
 export type EventListItem = {
   id: string;
   name: string;
@@ -10,11 +16,14 @@ export type EventListItem = {
   type: string;
   category: EventCategory | null;
   status: string;
+  reviewStatus: string;
   location: string | null;
   description: string | null;
   startDate: string | null;
   endDate: string | null;
+  createdAt?: string;
   readiness: { completed: number; total: number };
+  review: EventReviewInfo | null;
   _count: {
     participants: number;
     checkIns: number;

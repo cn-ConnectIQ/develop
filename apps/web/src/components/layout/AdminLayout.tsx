@@ -6,7 +6,10 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
 import { EventProvider, useCurrentEvent } from "@/hooks/useCurrentEvent";
+import { useIsEventReviewLocked } from "@/hooks/useEventReviewLock";
+import { EventReviewBanner } from "@/components/events/EventReviewBanner";
 import { AdminContent } from "@/components/admin/admin-header";
+import { cn } from "@/lib/utils";
 
 type AdminLayoutInnerProps = {
   user: AdminUser;
@@ -25,6 +28,7 @@ function AdminLayoutInner({
 }: AdminLayoutInnerProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { currentEventId, currentEvent } = useCurrentEvent();
+  const isReviewLocked = useIsEventReviewLocked(currentEventId ?? "");
 
   return (
     <div className="flex h-screen overflow-hidden bg-content-bg">
@@ -35,6 +39,7 @@ function AdminLayoutInner({
         eventId={currentEventId}
         eventName={currentEvent?.name}
         eventType={currentEvent?.type}
+        reviewLocked={isReviewLocked}
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -46,7 +51,14 @@ function AdminLayoutInner({
           />
         )}
 
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        {isReviewLocked && currentEventId && <EventReviewBanner />}
+
+        <main
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
+            isReviewLocked && currentEventId && "pt-12",
+          )}
+        >
           {children}
         </main>
       </div>

@@ -1,12 +1,33 @@
+import Link from "next/link";
+import { ShieldOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
 export default function ForbiddenPage() {
   return (
-    <div className="flex min-h-full flex-1 items-center justify-center bg-background">
-      <main className="text-center">
-        <h1 className="text-6xl font-bold text-foreground">403</h1>
-        <p className="mt-4 text-lg text-muted-foreground">
-          无权访问此页面
+    <div className="flex min-h-screen flex-1 items-start justify-center bg-content-bg px-4">
+      <div className="mx-auto mt-32 max-w-md text-center">
+        <ShieldOff className="mx-auto size-16 text-text-muted/40" />
+        <h1 className="mt-6 text-2xl font-bold text-[var(--admin-ink)]">
+          没有访问权限
+        </h1>
+        <p className="mt-2 text-text-muted">
+          ConnectIQ 管理后台仅对已审核通过的账号管理员开放
         </p>
-      </main>
+        <p className="mt-1 text-sm text-text-muted">
+          如果你是参会者或最终用户，请使用微信小程序
+        </p>
+        <Link
+          href="#"
+          className="mt-4 inline-block text-sm text-brand-blue hover:underline"
+        >
+          扫码下载小程序
+        </Link>
+        <div className="mt-4">
+          <Button variant="outline" asChild>
+            <Link href="/login">返回登录</Link>
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

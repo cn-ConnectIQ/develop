@@ -6,7 +6,10 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Phone } from "lucide-react";
-import { getRoleDashboardPath } from "@connectiq/utils";
+import {
+  getPostLoginRedirectPath,
+  setAuthRoleCookies,
+} from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -63,11 +66,12 @@ export function LoginForm() {
 
   async function redirectAfterLogin() {
     const session = await getSession();
-    window.location.href = getRoleDashboardPath(
-      session?.user?.role ?? "",
-      session?.user?.entityId,
-      session?.user?.hasPlatformAdmin,
-    );
+    if (!session?.user) {
+      setError("登录失败，请重试");
+      return;
+    }
+    setAuthRoleCookies(session.user);
+    window.location.href = getPostLoginRedirectPath(session.user);
   }
 
   async function sendCode() {

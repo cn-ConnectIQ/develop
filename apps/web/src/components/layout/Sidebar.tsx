@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutWithCleanup } from "@/lib/auth-redirect";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import { UserRole } from "@connectiq/types";
@@ -33,7 +33,10 @@ type SidebarProps = {
   eventId?: string | null;
   eventName?: string | null;
   eventType?: string | null;
+  reviewLocked?: boolean;
 };
+
+const REVIEW_LOCKED_GROUPS = new Set(["互动管理", "Speed Networking"]);
 
 function isNavActive(
   href: string,
@@ -49,11 +52,15 @@ function SidebarNavItem({
   active,
   collapsed,
   activeClass,
+  disabled,
+  disabledTitle = "审核通过后可用",
 }: {
   item: NavItem;
   active: boolean;
   collapsed: boolean;
   activeClass: string;
+  disabled?: boolean;
+  disabledTitle?: string;
 }) {
   const Icon = item.icon;
   const className = cn(
@@ -61,6 +68,7 @@ function SidebarNavItem({
     active && "active",
     active && activeClass,
     collapsed && "justify-center px-2",
+    disabled && "cursor-not-allowed opacity-50",
   );
 
   const content = (
@@ -86,6 +94,17 @@ function SidebarNavItem({
       )}
     </>
   );
+
+  if (disabled) {
+    return (
+      <span
+        title={collapsed ? item.label : disabledTitle}
+        className={className}
+      >
+        {content}
+      </span>
+    );
+  }
 
   if (item.external) {
     return (
@@ -160,6 +179,7 @@ function EventNavGroups({
   eventName,
   searchParams,
   hash,
+  reviewLocked,
 }: {
   groups: ReturnType<typeof getEventNavigation>;
   pathname: string;
@@ -168,6 +188,7 @@ function EventNavGroups({
   eventName?: string | null;
   searchParams: { get: (key: string) => string | null } | null;
   hash: string;
+  reviewLocked?: boolean;
 }) {
   return (
     <>
@@ -189,6 +210,9 @@ function EventNavGroups({
                   active={isNavActive(item.href, pathname, searchParams, hash)}
                   collapsed={collapsed}
                   activeClass={activeClass}
+                  disabled={
+                    reviewLocked && REVIEW_LOCKED_GROUPS.has(group.label)
+                  }
                 />
               </li>
             ))}
@@ -206,6 +230,7 @@ export function Sidebar({
   eventId,
   eventName,
   eventType,
+  reviewLocked,
 }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -366,6 +391,7 @@ export function Sidebar({
             activeClass={theme.activeClass}
             searchParams={searchParams}
             hash={hash}
+            reviewLocked={reviewLocked}
             eventName={
               role === "EXHIBITOR" ? (eventName ?? "展位工作台") : eventName
             }
@@ -399,7 +425,7 @@ export function Sidebar({
               variant="ghost"
               size="icon-xs"
               className="shrink-0 text-white/50 hover:bg-white/10 hover:text-white"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => void signOutWithCleanup("/login")}
               title="退出登录"
             >
               <LogOut className="size-4" />

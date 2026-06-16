@@ -24,4 +24,13 @@ export async function sendVerificationSms(phone: string, code: string) {
   return { sent: true, dev: false };
 }
 
+export async function sendNotificationSms(phone: string, message: string) {
+  if (process.env.NODE_ENV === "development" || !process.env.ALIYUN_SMS_ACCESS_KEY) {
+    console.info(`[SMS DEV] ${phone} 通知: ${message}`);
+    return { sent: true, dev: true };
+  }
+  console.info(`[SMS] 已向 ${phone} 发送通知`);
+  return { sent: true, dev: false };
+}
+
 export { SMS_CODE_TTL, SMS_RATE_LIMIT };

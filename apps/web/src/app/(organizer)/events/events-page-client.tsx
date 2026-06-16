@@ -7,7 +7,7 @@ import { AdminPageBody } from "@/components/layout/AdminLayout";
 import { PageHead } from "@/components/admin/page-head";
 import { EventCard, EventCardSkeleton } from "@/components/events/EventCard";
 import { CreateEventSheet } from "@/components/events/CreateEventSheet";
-import { useEvents } from "@/hooks/useEvents";
+import { useEvents, type EventListItem } from "@/hooks/useEvents";
 import { getEventPhase, sortEventsByPhase } from "@/lib/event-utils";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,7 @@ const tabs: Array<{ id: TabFilter; label: string }> = [
 export function EventsPageClient() {
   const [tab, setTab] = useState<TabFilter>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [editEvent, setEditEvent] = useState<EventListItem | null>(null);
   const { data, isLoading } = useEvents();
 
   const events = data?.data.events ?? [];
@@ -115,11 +116,29 @@ export function EventsPageClient() {
         )}
 
         {filtered.map((event) => (
-          <EventCard key={event.id} event={event} />
+          <EventCard
+            key={event.id}
+            event={event}
+            onEdit={(e) => {
+              setEditEvent(e);
+              setCreateOpen(false);
+            }}
+          />
         ))}
       </div>
 
-      <CreateEventSheet open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateEventSheet
+        open={createOpen || !!editEvent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateOpen(false);
+            setEditEvent(null);
+          } else {
+            setCreateOpen(open);
+          }
+        }}
+        editEvent={editEvent}
+      />
     </AdminPageBody>
   );
 }

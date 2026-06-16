@@ -1,7 +1,8 @@
 "use client";
 
 import { Bell, ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { signOutWithCleanup } from "@/lib/auth-redirect";
+import { useSession } from "next-auth/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -114,7 +115,7 @@ export function Header({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => void signOutWithCleanup("/login")}
           >
             <LogOut className="size-4" />
             退出登录

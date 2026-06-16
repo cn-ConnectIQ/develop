@@ -25,11 +25,12 @@ import { cn } from "@/lib/utils";
 
 export type { ColumnDef };
 
-/** 行数据需包含 id；isVip / isShadow 用于特殊行样式 */
+/** 行数据需包含 id；isVip / isShadow / highlight 用于特殊行样式 */
 export type DataTableRow = {
   id: string;
   isVip?: boolean;
   isShadow?: boolean;
+  highlight?: "amber" | "blue";
 };
 
 export interface DataTableProps<T extends DataTableRow> {
@@ -60,13 +61,15 @@ export interface DataTableProps<T extends DataTableRow> {
     description?: string;
     action?: { label: string; onClick: () => void };
   };
-  rowHeight?: 48 | 52 | 56;
+  rowHeight?: 48 | 52 | 56 | 64 | 72;
 }
 
-const ROW_HEIGHT_CLASS: Record<48 | 52 | 56, string> = {
+const ROW_HEIGHT_CLASS: Record<48 | 52 | 56 | 64 | 72, string> = {
   48: "h-12",
   52: "h-[52px]",
   56: "h-14",
+  64: "h-16",
+  72: "h-[72px]",
 };
 
 const SKELETON_ROWS = 5;
@@ -80,6 +83,10 @@ function getRowClassName<T extends DataTableRow>(
     "hover:bg-gray-50",
     row.isVip && "border-l-[3px] border-l-brand-gold bg-[#FFFDF0]",
     row.isShadow && !row.isVip && "bg-[#FAFAFA]",
+    row.highlight === "amber" &&
+      "border-l-[3px] border-l-brand-amber bg-brand-amber-light/10",
+    row.highlight === "blue" &&
+      "border-l-[3px] border-l-brand-blue bg-brand-blue-light/10",
   );
 }
 

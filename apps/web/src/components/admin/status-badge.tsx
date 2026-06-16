@@ -58,6 +58,35 @@ function StatusBadge({ label, className }: StatusBadgeProps) {
   );
 }
 
+const reviewStatusLabel: Record<string, string> = {
+  DRAFT: "草稿",
+  PENDING_REVIEW: "审核中",
+  REVISION_REQUIRED: "需要修改",
+  REJECTED: "已拒绝",
+  APPROVED: "已通过",
+};
+
+const reviewStatusStyle: Record<string, string> = {
+  DRAFT: "admin-badge-soft-amber",
+  PENDING_REVIEW: "bg-brand-amber-light text-brand-amber text-xs",
+  REVISION_REQUIRED: "bg-brand-red-light text-brand-red text-xs",
+  REJECTED: "bg-content-bg text-text-muted text-xs",
+  APPROVED: "admin-badge-green",
+};
+
+export function ReviewStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+        reviewStatusStyle[status] ?? "admin-badge-soft-gray",
+      )}
+    >
+      {reviewStatusLabel[status] ?? status}
+    </span>
+  );
+}
+
 export function EventStatusBadge({ status }: { status: string }) {
   const solidStatuses = ["PUBLISHED"];
   return (

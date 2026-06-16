@@ -190,6 +190,21 @@ enum PointsReason {
   ADJUSTMENT
 }
 
+enum ReferralStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum MeetingStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
 enum FeedItemType {
   MATCH
   INSIGHT
@@ -255,6 +270,77 @@ enum InteractionChannelType {
   APP_PUSH
 }
 
+// 用户类型（区分三层角色）
+enum UserType {
+  END_USER // 移动端最终用户（参会者/买家/B2B专业人士）
+  ACCOUNT_ADMIN // 账号管理员（主办方/展会方/参展商，需审核）
+  PLATFORM_ADMIN // 平台超级管理员（ConnectIQ 内部运营）
+}
+
+// 账号管理员的审核状态
+enum AdminStatus {
+  PENDING_REVIEW // 已提交申请，等待审核
+  APPROVED // 审核通过，可正常使用管理端
+  REJECTED // 审核拒绝（附原因）
+  SUSPENDED // 已暂停（违规或其他原因）
+}
+
+// 账号类型（账号管理员的子类型）
+enum AccountType {
+  CONFERENCE_ORGANIZER // 会议/沙龙/培训主办方
+  EXPO_ORGANIZER // 展览/展会主办方
+  EXHIBITOR // 参展商（关联到某个展会）
+}
+
+// 申请审核状态
+enum ApplicationStatus {
+  PENDING // 待审核
+  APPROVED // 通过
+  REJECTED // 拒绝
+}
+
+// 活动发布审核状态
+enum ReviewStatus {
+  DRAFT // 草稿（未提交）
+  PENDING_REVIEW // 已提交，等待审核
+  APPROVED // 审核通过，活动公开
+  REJECTED // 审核拒绝
+  REVISION_REQUIRED // 需要修改后重新提交
+}
+
+// 用户加入组织的来源
+enum OrgJoinSource {
+  PARTICIPATED_EVENT // 参加了该组织举办的活动
+  LEAD_CAPTURED // 在展会上被展商扫码采集
+  INVITED // 通过该组织发送的邀请链接激活
+  FOLLOWED // 主动关注了组织账号主页
+  QR_SCANNED // 扫码参与互动（InteractionSession）
+}
+
+// 组织内用户价值层级（账号管理员视角）
+enum MemberTier {
+  VIP // 高价值，多次参与，重点维护
+  ACTIVE // 活跃，近期有参与行为
+  REGULAR // 普通用户
+  DORMANT // 沉睡用户，长期未活跃
+}
+
+// 组织内部团队角色
+enum OrgStaffRole {
+  OWNER // 创建者（唯一，不可删除）
+  ADMIN // 管理员（可管理所有功能）
+  OPERATOR // 操作员（只能管理具体活动，不能管用户池）
+  VIEWER // 只读
+}
+
+// 组织团队成员邀请状态
+enum InviteStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+  REVOKED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -286,6 +372,30 @@ model User {
   lotteryEntries             LotteryEntry[]
   lotteryWins                LotteryWinner[]
   createdInteractionSessions InteractionSession[] @relation("InteractionSessionCreator")
+  referralsIntroduced        BusinessReferral[]   @relation("ReferralIntroducer")
+  referralsReceived          BusinessReferral[]   @relation("ReferralRecipient")
+  referralsAsA                 BusinessReferral[]   @relation("ReferralUserA")
+  referralsAsB                 BusinessReferral[]   @relation("ReferralUserB")
+  meetingsHosted               Meeting[]            @relation("MeetingHost")
+  meetingsGuest                Meeting[]            @relation("MeetingGuest")
+  meetingsCancelled            Meeting[]            @relation("MeetingCancelledBy")
+
+  // 三层角色区分
+  userType UserType @default(END_USER) @map("user_type")
+
+  // 账号管理员关联的组织（END_USER 为 null）
+  orgId String?       @map("org_id")
+  org   Organization? @relation("UserAccountOrg", fields: [orgId], references: [id], onDelete: SetNull)
+
+  // 组织关联
+  ownedOrg             Organization?          @relation("OrgOwner")
+  orgMemberships       OrgMember[]
+  orgStaffRoles        OrgStaff[]             @relation("OrgStaffMember")
+  orgStaffInvites      OrgStaff[]             @relation("OrgStaffInviter")
+  submittedApplication OrganizerApplication?
+  reviewedApplications OrganizerApplication[] @relation("ApplicationReviewer")
+  submittedEventReviews EventReview[]         @relation("EventReviewSubmitter")
+  reviewedEventReviews  EventReview[]         @relation("EventReviewer")
 
   @@map("users")
 }
@@ -304,16 +414,162 @@ model UserRoleAssignment {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  logoUrl   String?  @map("logo_url")
+  id String @id @default(cuid())
+
+  // 基础信息（对外展示）
+  name         String
+  slug         String  @unique
+  logoUrl      String? @map("logo_url")
+  coverUrl     String? @map("cover_url")
+  bio          String?
+  website      String?
+  contactEmail String? @map("contact_email")
+
+  // 账号类型
+  accountType AccountType @map("account_type")
+
+  // 认证与审核
+  orgCreditCode String?     @map("org_credit_code")
+  isVerified    Boolean     @default(false) @map("is_verified")
+  adminStatus   AdminStatus @default(PENDING_REVIEW) @map("admin_status")
+
+  // 统计（冗余字段，定期从关联表汇总）
+  memberCount   Int @default(0) @map("member_count")
+  eventCount    Int @default(0) @map("event_count")
+  followerCount Int @default(0) @map("follower_count")
+
+  // 关联
+  ownerId String? @unique @map("owner_id")
+  owner   User?   @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  accountAdmins User[]                @relation("UserAccountOrg")
+  members       OrgMember[]
+  staff         OrgStaff[]
+  events        Event[]
+  application   OrganizerApplication?
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  events Event[]
-
+  @@index([accountType, adminStatus])
+  @@index([slug])
   @@map("organizations")
+}
+
+model OrgMember {
+  id     String @id @default(cuid())
+  orgId  String @map("org_id")
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 关系来源
+  joinSource    OrgJoinSource @map("join_source")
+  sourceEventId String?       @map("source_event_id")
+  sourceEvent   Event?        @relation("MemberSourceEvent", fields: [sourceEventId], references: [id], onDelete: SetNull)
+
+  // 关注状态
+  isFollowing  Boolean @default(false) @map("is_following")
+  isSubscribed Boolean @default(false) @map("is_subscribed")
+
+  // 用户价值标签（账号管理员视角，不对用户显示）
+  tier  MemberTier @default(REGULAR)
+  tags  String[]   @default([])
+  notes String?
+
+  // 活跃度统计
+  eventCount   Int       @default(0) @map("event_count")
+  firstSeenAt  DateTime  @default(now()) @map("first_seen_at")
+  lastActiveAt DateTime? @map("last_active_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([orgId, userId])
+  @@index([orgId, tier])
+  @@index([orgId, lastActiveAt])
+  @@index([orgId, isFollowing])
+  @@map("org_members")
+}
+
+model OrgStaff {
+  id     String @id @default(cuid())
+  orgId  String @map("org_id")
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+  user   User   @relation("OrgStaffMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  role      OrgStaffRole
+  invitedBy String?      @map("invited_by")
+  inviter   User?        @relation("OrgStaffInviter", fields: [invitedBy], references: [id], onDelete: SetNull)
+  status    InviteStatus @default(INVITED)
+
+  invitedAt  DateTime  @default(now()) @map("invited_at")
+  acceptedAt DateTime? @map("accepted_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([orgId, userId])
+  @@map("org_staff")
+}
+
+model OrganizerApplication {
+  id     String  @id @default(cuid())
+  userId String  @unique @map("user_id")
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String? @unique @map("org_id")
+  org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  // 申请信息
+  accountType   AccountType @map("account_type")
+  orgName       String      @map("org_name")
+  orgCreditCode String?     @map("org_credit_code")
+  orgWebsite    String?     @map("org_website")
+  contactName   String      @map("contact_name")
+  contactEmail  String      @map("contact_email")
+  contactPhone  String      @map("contact_phone")
+  description   String
+
+  // 审核
+  status          ApplicationStatus @default(PENDING)
+  rejectionReason String?           @map("rejection_reason")
+  reviewerNotes   String?           @map("reviewer_notes")
+  reviewedBy      String?           @map("reviewed_by")
+  reviewer        User?             @relation("ApplicationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?         @map("reviewed_at")
+
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([accountType, status])
+  @@map("organizer_applications")
+}
+
+model EventReview {
+  id           String @id @default(cuid())
+  eventId      String @unique @map("event_id")
+  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  submittedBy  String @map("submitted_by")
+  submitter    User?  @relation("EventReviewSubmitter", fields: [submittedBy], references: [id], onDelete: SetNull)
+
+  status          ReviewStatus @default(PENDING_REVIEW)
+  rejectionReason String?      @map("rejection_reason")
+  revisionNotes   String?      @map("revision_notes")
+  reviewerNotes   String?      @map("reviewer_notes")
+
+  reviewedBy String?   @map("reviewed_by")
+  reviewer   User?     @relation("EventReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt DateTime? @map("reviewed_at")
+
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("event_reviews")
 }
 
 model Event {
@@ -326,13 +582,16 @@ model Event {
   location       String?
   startDate      DateTime?   @map("start_date")
   endDate        DateTime?   @map("end_date")
-  organizerId    String      @map("organizer_id")
-  organizationId String?     @map("organization_id")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  organizerId String @map("organizer_id")
+  orgId       String? @map("org_id")
+  reviewStatus ReviewStatus @default(DRAFT) @map("review_status")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  organizer           User                 @relation("EventOrganizer", fields: [organizerId], references: [id])
-  organization        Organization?        @relation(fields: [organizationId], references: [id])
+  organizer User          @relation("EventOrganizer", fields: [organizerId], references: [id])
+  org       Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  review    EventReview?
+  orgMembers OrgMember[]  @relation("MemberSourceEvent")
   settings            EventSetting[]
   halls               ExpoHall[]
   booths              Booth[]
@@ -350,6 +609,8 @@ model Event {
   crmSyncJobs         CrmSyncJob[]
   aiMatchResults      AiMatchResult[]
   businessConnections BusinessConnection[]
+  businessReferrals   BusinessReferral[]
+  meetings            Meeting[]
   snSessions          SnSession[]
   inviteCampaigns     InviteCampaign[]
   lotteries           Lottery[]
@@ -1041,6 +1302,61 @@ model BusinessConnection {
   interactions ConnectionInteraction[]
 
   @@map("business_connections")
+}
+
+model BusinessReferral {
+  id                 String         @id @default(cuid())
+  introducerId       String         @map("introducer_id")
+  recipientId        String         @map("recipient_id")
+  userAId            String?        @map("user_a_id")
+  userBId            String?        @map("user_b_id")
+  userAName          String         @map("user_a_name")
+  userACompany       String?        @map("user_a_company")
+  userATitle         String?        @map("user_a_title")
+  userBName          String         @map("user_b_name")
+  userBCompany       String?        @map("user_b_company")
+  userBTitle         String?        @map("user_b_title")
+  status             ReferralStatus @default(PENDING)
+  message            String?
+  aiConfidence       Float?         @map("ai_confidence")
+  aiGeneratedMessage String?        @map("ai_generated_message")
+  eventId            String?        @map("event_id")
+  eventName          String?        @map("event_name")
+  resultConnectionId String?        @map("result_connection_id")
+  remindedAt         DateTime?      @map("reminded_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  introducer User   @relation("ReferralIntroducer", fields: [introducerId], references: [id], onDelete: Cascade)
+  recipient  User   @relation("ReferralRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  userA      User?  @relation("ReferralUserA", fields: [userAId], references: [id], onDelete: SetNull)
+  userB      User?  @relation("ReferralUserB", fields: [userBId], references: [id], onDelete: SetNull)
+  event      Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@map("business_referrals")
+}
+
+model Meeting {
+  id            String        @id @default(cuid())
+  eventId       String        @map("event_id")
+  hostUserId    String        @map("host_user_id")
+  guestUserId   String        @map("guest_user_id")
+  status        MeetingStatus @default(PENDING)
+  startsAt      DateTime      @map("starts_at")
+  endsAt        DateTime      @map("ends_at")
+  cancelReason  String?       @map("cancel_reason")
+  cancelledById String?       @map("cancelled_by_id")
+  notifyOther   Boolean       @default(true) @map("notify_other")
+  rating        Int?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  event       Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  hostUser    User  @relation("MeetingHost", fields: [hostUserId], references: [id], onDelete: Cascade)
+  guestUser   User  @relation("MeetingGuest", fields: [guestUserId], references: [id], onDelete: Cascade)
+  cancelledBy User? @relation("MeetingCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  @@map("meetings")
 }
 
 model ConnectionInteraction {

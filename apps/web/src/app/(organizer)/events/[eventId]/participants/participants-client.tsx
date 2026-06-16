@@ -28,6 +28,8 @@ import { ImportSheet } from "@/components/participants/ImportSheet";
 import { ParticipantTable } from "@/components/participants/ParticipantTable";
 import { useCurrentEvent } from "@/contexts/event-context";
 import type { ParticipantListItem } from "@/lib/participants";
+import { LockedOverlay } from "@/components/events/EventReviewBanner";
+import { useIsEventReviewLocked } from "@/hooks/useEventReviewLock";
 import { cn } from "@/lib/utils";
 
 type StatusFilter =
@@ -91,6 +93,7 @@ async function fetchParticipants(
 
 export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const { currentEvent } = useCurrentEvent();
+  const isReviewLocked = useIsEventReviewLocked(eventId);
   const searchParams = useSearchParams();
   const initialStatus = (searchParams.get("status") as StatusFilter) ?? "all";
 
@@ -208,10 +211,16 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
               <span className="text-[10px] text-text-muted">尚未同步</span>
             )}
           </div>
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="mr-1 size-4" />
-            导入 Excel
-          </Button>
+          <LockedOverlay locked={isReviewLocked} tooltip="审核通过后可用">
+            <Button
+              variant="outline"
+              disabled={isReviewLocked}
+              onClick={() => !isReviewLocked && setImportOpen(true)}
+            >
+              <Upload className="mr-1 size-4" />
+              导入 Excel
+            </Button>
+          </LockedOverlay>
           <Button
             className="bg-brand-blue text-white hover:bg-brand-blue/90"
             onClick={() => setAddOpen(true)}

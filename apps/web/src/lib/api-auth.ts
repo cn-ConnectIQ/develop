@@ -1,11 +1,224 @@
-import { prisma, PrismaUserRole as DbUserRole } from "@connectiq/database";
+import { prisma } from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
-import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
-import { authOptions, hasAnyRole } from "@/lib/auth";
 import { errorResponse, successResponse } from "@connectiq/utils";
+import { getServerSession } from "next-auth/next";
+import type { Session } from "next-auth";
+import { NextRequest, NextResponse } from "next/server";
+import { authOptions } from "./auth";
 
-/** 鉴权失败时抛出，由 withErrorHandler 统一转换为标准错误响应 */
+export type UserType = Session["user"]["userType"];
+export type AuthSession = Session;
+
+// ── 标准响应 ──
+
+export function unauthorized() {
+  return NextResponse.json(
+    { error: "请先登录", code: "UNAUTHORIZED" },
+    { status: 401 },
+  );
+}
+
+export function forbidden(msg = "没有权限执行此操作") {
+  return NextResponse.json({ error: msg, code: "FORBIDDEN" }, { status: 403 });
+}
+
+export function badRequest(msg: string) {
+  return NextResponse.json({ error: msg, code: "BAD_REQUEST" }, { status: 400 });
+}
+
+export function success<T>(data: T, meta?: Record<string, unknown>) {
+  return NextResponse.json({ data, ...(meta ? { meta } : {}) });
+}
+
+// ── 基础：获取当前会话 ──
+
+export async function getSession() {
+  return getServerSession(authOptions);
+}
+
+// ── 校验一：要求已登录（新 API，返回 null 表示未登录）──
+
+export async function requireAuthSession(
+  _request?: NextRequest,
+): Promise<Session | null> {
+  void _request;
+  const session = await getSession();
+  if (!session?.user?.id) return null;
+  return session;
+}
+
+// ── 校验二：平台管理员 ──
+
+export async function requirePlatformAdminAccess(
+  _request?: NextRequest,
+): Promise<{ session: Session } | { error: NextResponse }> {
+  void _request;
+  const session = await requireAuthSession();
+  if (!session) return { error: unauthorized() };
+  if (session.user.userType !== "PLATFORM_ADMIN") {
+    return { error: forbidden("仅平台管理员可访问") };
+  }
+  return { session };
+}
+
+// ── 校验三：账号管理员（已审核通过）──
+
+export async function requireAccountAdmin(
+  _request?: NextRequest,
+): Promise<
+  { session: Session; orgId: string } | { error: NextResponse }
+> {
+  void _request;
+  const session = await requireAuthSession();
+  if (!session) return { error: unauthorized() };
+  if (session.user.userType !== "ACCOUNT_ADMIN") {
+    return { error: forbidden("仅账号管理员可访问") };
+  }
+  if (session.user.adminStatus !== "APPROVED") {
+    return {
+      error: NextResponse.json(
+        {
+          error: "账号尚未审核通过",
+          code: "ADMIN_NOT_APPROVED",
+          adminStatus: session.user.adminStatus,
+        },
+        { status: 403 },
+      ),
+    };
+  }
+  if (!session.user.orgId) {
+    return { error: forbidden("账号未关联组织") };
+  }
+  return { session, orgId: session.user.orgId };
+}
+
+// ── 校验四：活动访问权（平台管理员或本组织账号管理员）──
+
+type EventRecord = NonNullable<Awaited<ReturnType<typeof loadEvent>>>;
+type BoothRecord = NonNullable<Awaited<ReturnType<typeof loadBooth>>>;
+
+export async function requireEventAccessCheck(
+  requestOrEventId: NextRequest | string,
+  eventId?: string,
+): Promise<
+  | { session: Session; event: EventRecord; orgId: string | null }
+  | { error: NextResponse }
+> {
+  const id =
+    typeof requestOrEventId === "string" ? requestOrEventId : eventId!;
+  void (typeof requestOrEventId === "string" ? undefined : requestOrEventId);
+
+  const session = await requireAuthSession();
+  if (!session) return { error: unauthorized() };
+
+  if (session.user.userType === "PLATFORM_ADMIN") {
+    const event = await loadEvent(id);
+    if (!event) return { error: forbidden("活动不存在") };
+    return { session, event, orgId: null };
+  }
+
+  const adminResult = await requireAccountAdmin();
+  if ("error" in adminResult) return adminResult;
+
+  const { orgId } = adminResult;
+  const event = await prisma.event.findFirst({
+    where: { id, orgId },
+  });
+  if (!event) return { error: forbidden("你没有权限访问此活动") };
+  return { session, event, orgId };
+}
+
+// ── 校验五：展位访问权 ──
+
+export async function requireBoothAccessCheck(
+  requestOrBoothId: NextRequest | string,
+  boothId?: string,
+): Promise<
+  | { session: Session; booth: BoothRecord; orgId: string }
+  | { error: NextResponse }
+> {
+  const id =
+    typeof requestOrBoothId === "string" ? requestOrBoothId : boothId!;
+  void (typeof requestOrBoothId === "string" ? undefined : requestOrBoothId);
+
+  const adminResult = await requireAccountAdmin();
+  if ("error" in adminResult) return adminResult;
+
+  const { session, orgId } = adminResult;
+
+  const booth = await prisma.booth.findFirst({
+    where: {
+      id,
+      event: { orgId },
+    },
+    include: {
+      event: { select: { id: true, orgId: true, organizerId: true } },
+    },
+  });
+  if (!booth) return { error: forbidden("你没有权限访问此展位") };
+  return { session, booth, orgId };
+}
+
+// ── 高阶包裹：统一捕获错误 ──
+
+type RouteContext = { params?: Record<string, string> };
+
+type RouteHandler = (
+  req: NextRequest,
+  ctx?: RouteContext,
+) => Promise<NextResponse | Response>;
+
+export function withErrorHandler(handler: RouteHandler) {
+  return async (
+    req: NextRequest,
+    ctx?: { params?: Promise<Record<string, string>> },
+  ) => {
+    try {
+      const resolvedCtx: RouteContext | undefined = ctx?.params
+        ? { params: await ctx.params }
+        : undefined;
+      return await handler(req, resolvedCtx);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return createErrorResponse(err.message, err.code, err.status);
+      }
+      console.error("[API Error]", err);
+      return NextResponse.json(
+        { error: "服务器内部错误", code: "INTERNAL_ERROR" },
+        { status: 500 },
+      );
+    }
+  };
+}
+
+async function loadEvent(eventId: string) {
+  return prisma.event.findUnique({ where: { id: eventId } });
+}
+
+async function loadBooth(boothId: string) {
+  return prisma.booth.findUnique({
+    where: { id: boothId },
+    include: {
+      event: { select: { id: true, orgId: true, organizerId: true } },
+    },
+  });
+}
+
+function responseToApiError(response: NextResponse, fallback: string): ApiError {
+  const status = response.status;
+  if (status === 401) {
+    return new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
+  }
+  if (status === 404) {
+    return new ApiError(fallback, ErrorCode.NOT_FOUND, 404);
+  }
+  return new ApiError(fallback, ErrorCode.FORBIDDEN, 403);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 向后兼容层：旧 API 路由仍使用 throw 语义，迁移完成后删除
+// ══════════════════════════════════════════════════════════════
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -15,16 +228,6 @@ export class ApiError extends Error {
     super(message);
   }
 }
-
-export type AuthSession = {
-  user: {
-    id: string;
-    email?: string | null;
-    name?: string | null;
-    role: UserRole;
-    entityId: string | null;
-  };
-};
 
 export type AuthResult = {
   session: AuthSession;
@@ -37,7 +240,6 @@ export type SuccessMeta = {
   cursor?: string | null;
   hasNext?: boolean;
   hasPrev?: boolean;
-  /** 业务扩展字段（如签到统计） */
   checkedIn?: number;
   pending?: number;
   vip?: number;
@@ -45,13 +247,27 @@ export type SuccessMeta = {
   invited?: number;
   notInvited?: number;
   activationRate?: number;
+  pageSize?: number;
+  totalPages?: number;
   ticketTypes?: Array<{ id: string; name: string }>;
 };
 
-type RouteContext = { params?: Record<string, string> };
+export type AppSession = AuthSession;
 
-type EventRecord = NonNullable<Awaited<ReturnType<typeof loadEvent>>>;
-type BoothRecord = NonNullable<Awaited<ReturnType<typeof loadBooth>>>;
+function deriveLegacyRole(user: Session["user"]): UserRole {
+  if (user.userType === "PLATFORM_ADMIN") return UserRole.PLATFORM_ADMIN;
+  if (user.userType === "ACCOUNT_ADMIN") {
+    switch (user.accountType) {
+      case "EXPO_ORGANIZER":
+        return UserRole.EXPO_ORGANIZER;
+      case "EXHIBITOR":
+        return UserRole.EXHIBITOR;
+      default:
+        return UserRole.ORGANIZER;
+    }
+  }
+  throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+}
 
 function normalizeRoles(
   role?: UserRole | UserRole[],
@@ -60,33 +276,10 @@ function normalizeRoles(
   return Array.isArray(role) ? role : [role];
 }
 
-function resolveRequestAndId(
-  requestOrId: Request | string,
-  id?: string,
-): { request?: Request; id: string } {
-  if (typeof requestOrId === "string") {
-    return { id: requestOrId };
-  }
-  if (!id) {
-    throw new ApiError("缺少资源 ID", ErrorCode.VALIDATION_ERROR, 400);
-  }
-  return { request: requestOrId, id };
+function hasAnyRole(role: UserRole, allowedRoles: UserRole[]): boolean {
+  return allowedRoles.includes(role);
 }
 
-async function getSession(): Promise<AuthSession | null> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !session.user.role) return null;
-  return session as AuthSession;
-}
-
-/**
- * 验证用户已登录，可选检查角色。
- *
- * @example
- * await requireAuth(request)
- * await requireAuth(request, UserRole.ORGANIZER)
- * await requireAuth([UserRole.PLATFORM_ADMIN]) // 兼容旧签名
- */
 export async function requireAuth(
   request: Request,
   requiredRole?: UserRole | UserRole[],
@@ -103,32 +296,29 @@ export async function requireAuth(
       ? normalizeRoles(requiredRole)
       : normalizeRoles(requestOrRoles);
 
-  return requireAuthSession(roles);
-}
-
-async function requireAuthSession(
-  roles?: UserRole[],
-): Promise<AuthResult> {
-  const session = await getSession();
+  const session = await requireAuthSession();
   if (!session) {
     throw new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
   }
 
-  if (roles && !hasAnyRole(session.user.role, roles)) {
-    throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+  if (roles) {
+    const legacyRole = deriveLegacyRole(session.user);
+    if (!hasAnyRole(legacyRole, roles)) {
+      throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+    }
   }
 
   return { session, user: session.user };
 }
 
-/**
- * 验证用户对活动的访问权限。
- *
- * - PLATFORM_ADMIN：直接通过
- * - ORGANIZER：event.organizerId === session.user.id
- * - EXPO_ORGANIZER：role assignment 或 entityId 关联该 event
- * - EXHIBITOR：在该活动下有展位
- */
+export async function requirePlatformAdmin(): Promise<AuthResult> {
+  const result = await requirePlatformAdminAccess();
+  if ("error" in result) {
+    throw responseToApiError(result.error, "无权访问");
+  }
+  return { session: result.session, user: result.session.user };
+}
+
 export async function requireEventAccess(
   request: Request,
   eventId: string,
@@ -140,59 +330,20 @@ export async function requireEventAccess(
   requestOrEventId: Request | string,
   eventId?: string,
 ): Promise<{ session: AuthSession; event: EventRecord }> {
-  const { id } = resolveRequestAndId(requestOrEventId, eventId);
-  const { session } = await requireAuthSession();
-
-  const loaded = await loadEvent(id);
-  if (!loaded) {
-    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
-  }
-  const event: EventRecord = loaded;
-
-  if (session.user.role === UserRole.PLATFORM_ADMIN) {
-    return { session, event };
+  const id =
+    typeof requestOrEventId === "string" ? requestOrEventId : eventId!;
+  if (!id) {
+    throw new ApiError("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  if (session.user.role === UserRole.ORGANIZER) {
-    if (event.organizerId !== session.user.id) {
-      throw new ApiError("无权访问该活动", ErrorCode.FORBIDDEN, 403);
-    }
-    return { session, event };
+  const result = await requireEventAccessCheck(id);
+  if ("error" in result) {
+    throw responseToApiError(result.error, "无权访问该活动");
   }
 
-  if (session.user.role === UserRole.EXPO_ORGANIZER) {
-    const allowed = await hasExpoOrganizerEventAccess(
-      session.user.id,
-      id,
-      session.user.entityId,
-    );
-    if (!allowed) {
-      throw new ApiError("无权访问该活动", ErrorCode.FORBIDDEN, 403);
-    }
-    return { session, event };
-  }
-
-  if (session.user.role === UserRole.EXHIBITOR) {
-    const booth = await prisma.booth.findFirst({
-      where: { eventId: id, exhibitorId: session.user.id },
-      select: { id: true },
-    });
-    if (!booth) {
-      throw new ApiError("无权访问该活动", ErrorCode.FORBIDDEN, 403);
-    }
-    return { session, event };
-  }
-
-  throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+  return { session: result.session, event: result.event };
 }
 
-/**
- * 验证用户对展位的访问权限。
- *
- * - PLATFORM_ADMIN：直接通过
- * - EXHIBITOR：booth.exhibitorId === session.user.id
- * - ORGANIZER / EXPO_ORGANIZER：可管理所属活动下的展位
- */
 export async function requireBoothAccess(
   request: Request,
   boothId: string,
@@ -204,73 +355,24 @@ export async function requireBoothAccess(
   requestOrBoothId: Request | string,
   boothId?: string,
 ): Promise<{ session: AuthSession; booth: BoothRecord }> {
-  const { id } = resolveRequestAndId(requestOrBoothId, boothId);
-  const { session } = await requireAuthSession();
-
-  const loaded = await loadBooth(id);
-  if (!loaded) {
-    throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
-  }
-  const booth: BoothRecord = loaded;
-
-  if (session.user.role === UserRole.PLATFORM_ADMIN) {
-    return { session, booth };
+  const id =
+    typeof requestOrBoothId === "string" ? requestOrBoothId : boothId!;
+  if (!id) {
+    throw new ApiError("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  if (session.user.role === UserRole.EXHIBITOR) {
-    if (booth.exhibitorId !== session.user.id) {
-      throw new ApiError("无权访问该展位", ErrorCode.FORBIDDEN, 403);
-    }
-    return { session, booth };
+  const result = await requireBoothAccessCheck(id);
+  if ("error" in result) {
+    throw responseToApiError(result.error, "无权访问该展位");
   }
 
-  if (session.user.role === UserRole.ORGANIZER) {
-    if (booth.event.organizerId !== session.user.id) {
-      throw new ApiError("无权访问该展位", ErrorCode.FORBIDDEN, 403);
-    }
-    return { session, booth };
-  }
-
-  if (session.user.role === UserRole.EXPO_ORGANIZER) {
-    const allowed = await hasExpoOrganizerEventAccess(
-      session.user.id,
-      booth.eventId,
-      session.user.entityId,
-    );
-    if (!allowed) {
-      throw new ApiError("无权访问该展位", ErrorCode.FORBIDDEN, 403);
-    }
-    return { session, booth };
-  }
-
-  throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+  return { session: result.session, booth: result.booth };
 }
 
-/** 平台管理员快捷鉴权（含拥有平台管理员角色分配的用户） */
-export async function requirePlatformAdmin() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !session.user.role) {
-    throw new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
-  }
-
-  const hasPlatformAdmin =
-    session.user.hasPlatformAdmin ??
-    session.user.role === UserRole.PLATFORM_ADMIN;
-
-  if (session.user.role !== UserRole.PLATFORM_ADMIN && !hasPlatformAdmin) {
-    throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
-  }
-
-  const authSession = session as AuthSession;
-  return { session: authSession, user: authSession.user };
-}
-
-/** 标准成功响应：{ data, meta? } */
 export function createSuccessResponse<T>(data: T, meta?: SuccessMeta) {
   return NextResponse.json(successResponse(data, meta));
 }
 
-/** 标准错误响应：{ error, code } */
 export function createErrorResponse(
   message: string,
   code: ErrorCode,
@@ -279,87 +381,10 @@ export function createErrorResponse(
   return NextResponse.json(errorResponse(message, code), { status });
 }
 
-type RouteHandler = (
-  request: Request,
-  context?: RouteContext,
-) => Promise<Response>;
-
-/**
- * 包裹 Route Handler，统一捕获 ApiError 与未预期异常。
- *
- * @example
- * export const GET = withErrorHandler(async (request, context) => {
- *   const eventId = context?.params?.eventId;
- *   const { event } = await requireEventAccess(request, eventId!);
- *   return createSuccessResponse(event);
- * });
- */
-export function withErrorHandler(handler: RouteHandler) {
-  return async (
-    request: Request,
-    context?: { params?: Promise<Record<string, string>> },
-  ) => {
-    try {
-      const resolved: RouteContext | undefined = context?.params
-        ? { params: await context.params }
-        : undefined;
-      return await handler(request, resolved);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        return createErrorResponse(error.message, error.code, error.status);
-      }
-      console.error(error);
-      return createErrorResponse(
-        "服务器内部错误",
-        ErrorCode.INTERNAL_ERROR,
-        500,
-      );
-    }
-  };
-}
-
-export function isDbRole(role: UserRole): role is DbUserRole {
-  return Object.values(DbUserRole).includes(role as DbUserRole);
-}
-
-async function loadEvent(eventId: string) {
-  return prisma.event.findUnique({ where: { id: eventId } });
-}
-
-async function loadBooth(boothId: string) {
-  return prisma.booth.findUnique({
-    where: { id: boothId },
-    include: { event: { select: { id: true, organizerId: true } } },
-  });
-}
-
-async function hasExpoOrganizerEventAccess(
-  userId: string,
-  eventId: string,
-  entityId: string | null,
-) {
-  if (entityId === eventId) return true;
-
-  const assignment = await prisma.userRoleAssignment.findFirst({
-    where: {
-      userId,
-      role: DbUserRole.EXPO_ORGANIZER,
-      entityId: eventId,
-    },
-    select: { id: true },
-  });
-  if (assignment) return true;
-
-  // 当前 session 绑定展位时，通过 Booth.event_id 反查活动权限
-  if (entityId) {
-    const booth = await prisma.booth.findFirst({
-      where: { id: entityId, eventId },
-      select: { id: true },
-    });
-    if (booth) return true;
-  }
-
-  return false;
-}
-
-export type AppSession = AuthSession;
+// 新 API 别名（与任务文档命名一致）
+export {
+  requireAuthSession as requireAuthNullable,
+  requirePlatformAdminAccess as requirePlatformAdminCheck,
+  requireEventAccessCheck as requireEventAccessNew,
+  requireBoothAccessCheck as requireBoothAccessNew,
+};

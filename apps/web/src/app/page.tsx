@@ -1,21 +1,13 @@
 import { authOptions } from "@/lib/auth";
-import { getAdminHomePath } from "@/lib/role-utils";
-import { UserRole } from "@connectiq/types";
-import { getServerSession } from "next-auth";
+import { getPostLoginRedirectPath } from "@/lib/auth-redirect";
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.role) {
+  if (!session?.user) {
     redirect("/login");
   }
 
-  redirect(
-    getAdminHomePath(
-      session.user.role as UserRole,
-      session.user.entityId ?? null,
-      session.user.hasPlatformAdmin,
-    ),
-  );
+  redirect(getPostLoginRedirectPath(session.user));
 }

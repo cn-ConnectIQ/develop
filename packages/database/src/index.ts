@@ -2,6 +2,7 @@ export { prisma } from "./client";
 export {
   BoothStatus,
   ConnectionSource,
+  ConnectionStatus,
   EventStatus,
   EventType,
   FeedItemType,
@@ -18,6 +19,8 @@ export {
   ParticipantInviteStatus,
   ParticipantRole,
   PointsReason,
+  ReferralStatus,
+  MeetingStatus,
   PollStatus,
   PollType,
   RegistrationSource,
@@ -26,6 +29,16 @@ export {
   TicketStatus,
   UserAccountStatus,
   WebhookStatus,
+  UserType,
+  AccountType,
+  AdminStatus,
+  ApplicationStatus,
+  ReviewStatus,
+  InviteStatus,
+  OrgStaffRole,
+  MemberTier,
+  OrgJoinSource,
+  AiFeedbackType,
 } from "@prisma/client";
 /** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
 export { UserRole as PrismaUserRole } from "@prisma/client";

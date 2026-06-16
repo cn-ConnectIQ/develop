@@ -15,6 +15,7 @@ import { RealtimeStats } from "@/components/dashboard/RealtimeStats";
 import { useRealtimeCheckin } from "@/hooks/useRealtimeCheckin";
 import type { DashboardAlert } from "@/lib/dashboard-types";
 import { formatElapsed, formatTimeRemaining } from "@/lib/event-utils";
+import { LockedOverlay } from "@/components/events/EventReviewBanner";
 import { cn } from "@/lib/utils";
 
 async function fetchDashboard(eventId: string) {
@@ -29,6 +30,7 @@ type DashboardData = {
     id: string;
     name: string;
     phase: string;
+    reviewStatus?: string;
     startDate: string | null;
     endDate: string | null;
   };
@@ -46,6 +48,7 @@ function QuickActionCard({
   borderClassName,
   subtitleClassName,
   external,
+  locked,
 }: {
   href: string;
   icon: typeof ScanLine;
@@ -55,10 +58,12 @@ function QuickActionCard({
   borderClassName?: string;
   subtitleClassName?: string;
   external?: boolean;
+  locked?: boolean;
 }) {
   const className = cn(
     "admin-qtile cursor-pointer bg-white",
     borderClassName,
+    locked && "pointer-events-none",
   );
 
   const content = (
@@ -75,8 +80,8 @@ function QuickActionCard({
     </>
   );
 
-  if (external) {
-    return (
+  const tile =
+    external && !locked ? (
       <a
         href={href}
         target="_blank"
@@ -85,13 +90,16 @@ function QuickActionCard({
       >
         {content}
       </a>
+    ) : (
+      <Link href={locked ? "#" : href} className={className} aria-disabled={locked}>
+        {content}
+      </Link>
     );
-  }
 
   return (
-    <Link href={href} className={className}>
-      {content}
-    </Link>
+    <LockedOverlay locked={!!locked} tooltip="审核通过后可用">
+      {tile}
+    </LockedOverlay>
   );
 }
 
@@ -109,6 +117,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
   });
 
   const isLive = data?.event.phase === "live";
+  const isReviewLocked = data?.event.reviewStatus === "PENDING_REVIEW";
   const pollSubtitle = data?.stats?.hasLivePoll
     ? data.stats.livePollTitle ?? "互动进行中"
     : "无进行中互动";
@@ -146,6 +155,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
           icon={Megaphone}
           title="发布公告"
           borderClassName="cursor-pointer"
+          locked={isReviewLocked}
         />
         <QuickActionCard
           href={`/events/${eventId}/interactions`}
@@ -153,6 +163,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
           title="发起互动"
           subtitle={pollSubtitle}
           borderClassName="cursor-pointer"
+          locked={isReviewLocked}
         />
         <QuickActionCard
           href={`/events/${eventId}/bigscreen`}

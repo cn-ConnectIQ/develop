@@ -1,9 +1,10 @@
-import { UserRole } from "@connectiq/types";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { AdminLayout } from "@/components/admin/admin-layout";
+import { PlatformAdminLayout } from "@/components/layout/PlatformAdminLayout";
+import { sessionToAdminUser } from "@/components/admin/admin-layout";
 import { authOptions } from "@/lib/auth";
 import { getRoleHomePath } from "@/lib/role-utils";
+import { UserRole } from "@connectiq/types";
 
 export default async function PlatformLayout({
   children,
@@ -12,10 +13,13 @@ export default async function PlatformLayout({
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
-  if (
-    session.user.role !== UserRole.PLATFORM_ADMIN &&
-    !session.user.hasPlatformAdmin
-  ) {
+
+  const isPlatformAdmin =
+    session.user.userType === "PLATFORM_ADMIN" ||
+    session.user.role === UserRole.PLATFORM_ADMIN ||
+    session.user.hasPlatformAdmin;
+
+  if (!isPlatformAdmin) {
     redirect(
       getRoleHomePath(
         session.user.role as UserRole,
@@ -24,5 +28,9 @@ export default async function PlatformLayout({
     );
   }
 
-  return <AdminLayout session={session}>{children}</AdminLayout>;
+  return (
+    <PlatformAdminLayout user={sessionToAdminUser(session)}>
+      {children}
+    </PlatformAdminLayout>
+  );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutWithCleanup } from "@/lib/auth-redirect";
 import { LogOut } from "lucide-react";
 import type { UserRole } from "@connectiq/types";
 import { getNavigation, getRoleLabel } from "@/config/navigation";
@@ -105,7 +105,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
             variant="ghost"
             size="icon-xs"
             className="shrink-0 text-white/50 hover:bg-white/10 hover:text-white"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => void signOutWithCleanup("/login")}
             title="退出登录"
           >
             <LogOut className="size-4" />

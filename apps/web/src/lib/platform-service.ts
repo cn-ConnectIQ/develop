@@ -48,53 +48,136 @@ function parseTags(value: unknown): string[] {
 }
 
 export async function fetchPlatformOverviewStats() {
-  const [userCount, eventCount, participantCount, leadCount, events, connCount] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.event.count(),
-      prisma.participant.count(),
-      prisma.lead.count({ where: { crmSyncStatus: "SYNCED" } }),
-      prisma.event.findMany({ select: { type: true } }),
-      prisma.businessConnection.count({
-        where: { status: { not: "DISCONNECTED" } },
-      }),
-    ]);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
 
-  const connections =
-    connCount > 0 ? connCount : Math.max(leadCount, Math.round(participantCount * 0.35));
-  const conferenceCount = events.filter((e) => e.type === "CONFERENCE").length;
-  const expoCount = events.filter((e) => e.type === "EXPO").length;
+  const [
+    totalUsers,
+    monthUsers,
+    endUsers,
+    accountAdmins,
+    pendingApplications,
+    totalEvents,
+    liveEvents,
+    pendingEventReviews,
+    totalConnections,
+    monthConnections,
+    totalOrgs,
+    approvedOrgs,
+    pendingOrgs,
+    pendingAppPreview,
+    pendingEventPreview,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { createdAt: { gte: monthStart } } }),
+    prisma.user.count({ where: { userType: "END_USER" } }),
+    prisma.user.count({ where: { userType: "ACCOUNT_ADMIN" } }),
+    prisma.organizerApplication.count({
+      where: { status: "PENDING" },
+    }),
+    prisma.event.count(),
+    prisma.event.count({
+      where: { status: { in: ["LIVE", "PUBLISHED"] } },
+    }),
+    prisma.eventReview.count({
+      where: { status: "PENDING_REVIEW" },
+    }),
+    prisma.businessConnection.count({
+      where: { status: { not: "DISCONNECTED" } },
+    }),
+    prisma.businessConnection.count({
+      where: { createdAt: { gte: monthStart }, status: { not: "DISCONNECTED" } },
+    }),
+    prisma.organization.count(),
+    prisma.organization.count({
+      where: { adminStatus: "APPROVED" },
+    }),
+    prisma.organization.count({
+      where: { adminStatus: "PENDING_REVIEW" },
+    }),
+    prisma.organizerApplication.findMany({
+      where: { status: "PENDING" },
+      orderBy: { submittedAt: "desc" },
+      take: 3,
+      select: {
+        orgName: true,
+        accountType: true,
+        submittedAt: true,
+      },
+    }),
+    prisma.eventReview.findMany({
+      where: { status: "PENDING_REVIEW" },
+      orderBy: { submittedAt: "desc" },
+      take: 3,
+      include: {
+        event: { select: { name: true, type: true, startDate: true } },
+      },
+    }),
+  ]);
 
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const weeklyNew = await prisma.user.count({
-    where: { createdAt: { gte: weekAgo } },
-  });
+  const growth = await buildGrowthSeries(6);
 
   return {
-    stats: {
-      totalUsers: userCount,
-      weeklyNewUsers: weeklyNew || Math.max(1, Math.round(userCount * 0.08)),
-      dau: Math.max(1, Math.round(userCount * 0.45)),
-      events: eventCount,
-      connections,
-      marketupConversions: leadCount || Math.round(connections * 0.78),
+    users: {
+      total: totalUsers,
+      thisMonth: monthUsers,
+      end_users: endUsers,
+      account_admins: accountAdmins,
+      pending_applications: pendingApplications,
     },
-    growth: Array.from({ length: 12 }, (_, i) => ({
-      month: `${i + 1}月`,
-      users: Math.round(userCount * (0.4 + i * 0.05)),
-      connections: Math.round(connections * (0.3 + i * 0.06)),
+    events: {
+      total: totalEvents,
+      live: liveEvents,
+      pending_review: pendingEventReviews,
+    },
+    connections: {
+      total: totalConnections,
+      thisMonth: monthConnections,
+    },
+    organizations: {
+      total: totalOrgs,
+      approved: approvedOrgs,
+      pending: pendingOrgs,
+    },
+    pendingTotal: pendingApplications + pendingEventReviews,
+    pendingApplicationsPreview: pendingAppPreview.map((item) => ({
+      orgName: item.orgName,
+      accountType: item.accountType,
+      submittedAt: item.submittedAt.toISOString(),
     })),
-    eventTypes: [
-      { name: "会议", value: conferenceCount || 1 },
-      { name: "展会", value: expoCount || 1 },
-    ],
-    pending: {
-      contentReview: 3,
-      userReports: 2,
-      tagMergeSuggestions: 5,
-      syncErrors: 1,
-    },
+    pendingEventsPreview: pendingEventPreview.map((item) => ({
+      eventName: item.event.name,
+      eventType: item.event.type,
+      startDate: item.event.startDate?.toISOString() ?? null,
+      submittedAt: item.submittedAt.toISOString(),
+    })),
+    growth,
   };
+}
+
+async function buildGrowthSeries(months: number) {
+  const now = new Date();
+  const series: Array<{ month: string; users: number; organizations: number }> =
+    [];
+
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+
+    const [users, organizations] = await Promise.all([
+      prisma.user.count({ where: { createdAt: { lt: end } } }),
+      prisma.organization.count({ where: { createdAt: { lt: end } } }),
+    ]);
+
+    series.push({
+      month: `${start.getMonth() + 1}月`,
+      users,
+      organizations,
+    });
+  }
+
+  return series;
 }
 
 export async function fetchPlatformUsers(params: {

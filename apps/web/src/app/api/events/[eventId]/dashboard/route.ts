@@ -23,6 +23,7 @@ export const GET = withErrorHandler(async (_request, context) => {
       id: event.id,
       name: event.name,
       status: event.status,
+      reviewStatus: event.reviewStatus,
       startDate: event.startDate,
       endDate: event.endDate,
       location: event.location,

@@ -90,6 +90,11 @@ function serializeEvent(
       sessions: number;
     };
     settings: Array<{ value: unknown }>;
+    review?: {
+      status: string;
+      revisionNotes: string | null;
+      rejectionReason: string | null;
+    } | null;
   },
 ) {
   const categorySetting = event.settings[0]?.value;
@@ -115,11 +120,19 @@ function serializeEvent(
     type: event.type,
     category,
     status: event.status,
+    reviewStatus: event.reviewStatus,
     description: event.description,
     location: event.location,
     startDate: event.startDate?.toISOString() ?? null,
     endDate: event.endDate?.toISOString() ?? null,
     createdAt: event.createdAt.toISOString(),
+    review: event.review
+      ? {
+          status: event.review.status,
+          revisionNotes: event.review.revisionNotes,
+          rejectionReason: event.review.rejectionReason,
+        }
+      : null,
     readiness,
     _count: {
       participants: event._count.participants,
@@ -185,6 +198,13 @@ export const GET = withErrorHandler(async (request) => {
         where: { key: "event_category" },
         take: 1,
         select: { value: true },
+      },
+      review: {
+        select: {
+          status: true,
+          revisionNotes: true,
+          rejectionReason: true,
+        },
       },
     },
   });
