@@ -26,9 +26,12 @@ export function getPostLoginRedirectPath(user: Session["user"]): string {
       return "/platform/overview";
 
     case "ACCOUNT_ADMIN":
-      switch (user.adminStatus) {
+      switch (user.activeAdminStatus) {
         case "APPROVED":
-          return getAccountAdminHomePath(user.accountType, user.orgId);
+          return getAccountAdminHomePath(
+            user.activeOrgType,
+            user.activeOrgId,
+          );
         case "PENDING_REVIEW":
           return "/register/pending";
         case "REJECTED":
@@ -49,7 +52,7 @@ export function setAuthRoleCookies(user: Session["user"]) {
   const maxAge = 60 * 60 * 24 * 30;
   const base = `path=/; max-age=${maxAge}; SameSite=Lax`;
   document.cookie = `${ROLE_COOKIE_USER_TYPE}=${encodeURIComponent(user.userType)}; ${base}`;
-  document.cookie = `${ROLE_COOKIE_ADMIN_STATUS}=${encodeURIComponent(user.adminStatus ?? "")}; ${base}`;
+  document.cookie = `${ROLE_COOKIE_ADMIN_STATUS}=${encodeURIComponent(user.activeAdminStatus ?? "")}; ${base}`;
 }
 
 export function clearAuthRoleCookies() {

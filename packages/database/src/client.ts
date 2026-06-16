@@ -4,8 +4,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
 function getConnectionString() {
-  // 运行时优先用 Transaction Pooler，避免 Supabase Session 模式 15 连接上限
-  const url = process.env.DATABASE_URL_POOLER ?? process.env.DATABASE_URL;
+  // Session Pooler（5432）优先；Transaction Pooler 仅作备选
+  const url = process.env.DATABASE_URL ?? process.env.DATABASE_URL_POOLER;
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
@@ -35,7 +35,7 @@ function createPool() {
     ssl: { rejectUnauthorized: false },
     max,
     idleTimeoutMillis: 20_000,
-    connectionTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 30_000,
   });
 }
 
@@ -53,6 +53,5 @@ export const prisma =
     log: process.env.PRISMA_LOG === "1" ? ["error", "warn"] : undefined,
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.prisma = prisma;
-}
+globalForDb.prisma = prisma;
+globalForDb.pgPool = pool;

@@ -88,6 +88,7 @@ export async function middleware(request: NextRequest) {
     (token?.userType as string | undefined);
   const adminStatus =
     request.cookies.get(ROLE_COOKIE_ADMIN_STATUS)?.value ??
+    (token?.activeAdminStatus as string | undefined) ??
     (token?.adminStatus as string | undefined) ??
     "";
 
@@ -96,7 +97,9 @@ export async function middleware(request: NextRequest) {
       syncRoleCookies(
         response,
         token.userType as string,
-        (token.adminStatus as string | undefined) ?? "",
+        (token.activeAdminStatus as string | undefined) ??
+          (token.adminStatus as string | undefined) ??
+          "",
       );
     }
     return response;

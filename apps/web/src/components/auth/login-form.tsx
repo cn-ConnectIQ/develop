@@ -66,13 +66,16 @@ export function LoginForm() {
   }, [countdown]);
 
   async function redirectAfterLogin() {
-    const session = await getSession();
-    if (!session?.user) {
-      setError("登录失败，请重试");
-      return;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const session = await getSession();
+      if (session?.user?.id) {
+        setAuthRoleCookies(session.user);
+        window.location.href = getPostLoginRedirectPath(session.user);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
     }
-    setAuthRoleCookies(session.user);
-    window.location.href = getPostLoginRedirectPath(session.user);
+    setError("登录失败，请重试");
   }
 
   async function sendCode() {
@@ -111,12 +114,16 @@ export function LoginForm() {
   const onEmailSubmit = emailForm.handleSubmit(async (values) => {
     setError(null);
     const result = await signIn("credentials", {
-      email: values.email,
-      password: values.password,
+      email: values.email.trim().toLowerCase(),
+      password: values.password.trim(),
       redirect: false,
     });
     if (result?.error) {
-      setError("邮箱或密码错误");
+      setError(
+        result.error === "CredentialsSignin"
+          ? "邮箱或密码错误（请确认已运行 pnpm db:seed 写入测试账号）"
+          : "登录失败，请稍后重试",
+      );
       return;
     }
     await redirectAfterLogin();

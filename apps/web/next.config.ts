@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     "@connectiq/types",
     "@connectiq/utils",
   ],
-  serverExternalPackages: ["pg", "@prisma/adapter-pg"],
+  serverExternalPackages: ["pg", "@prisma/adapter-pg", "bcryptjs"],
 };
 
 export default nextConfig;

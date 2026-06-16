@@ -187,14 +187,27 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         const email = credentials?.email?.trim().toLowerCase();
-        const password = credentials?.password;
+        const password = credentials?.password?.trim();
 
         if (!email || !password) return null;
 
-        const user = await prisma.user.findUnique({
+        let user = await prisma.user.findUnique({
           where: { email },
           include: { roleAssignments: true },
         });
+
+        // 兼容仅 phone 匹配、email 字段不一致的历史数据
+        if (!user) {
+          const phoneMatch = email.match(
+            /^(1[3-9]\d{9})@phone\.connectiq\.local$/,
+          );
+          if (phoneMatch) {
+            user = await prisma.user.findFirst({
+              where: { phone: phoneMatch[1] },
+              include: { roleAssignments: true },
+            });
+          }
+        }
 
         if (!user) return null;
 
@@ -208,34 +221,43 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, trigger }) {
-      if (user) {
-        token.userType = user.userType as PrismaUserType;
-        token.userId = user.id;
-        token.phone = user.phone ?? null;
+      try {
+        if (user) {
+          token.userType = user.userType as PrismaUserType;
+          token.userId = user.id;
+          token.phone = user.phone ?? null;
 
-        if (user.userType === "ACCOUNT_ADMIN") {
-          const orgSession = await hydrateAccountAdminToken(user.id);
+          if (user.userType === PrismaUserType.ACCOUNT_ADMIN) {
+            const orgSession = await hydrateAccountAdminToken(user.id);
+            token.ownedOrgs = orgSession.ownedOrgs;
+            token.activeOrgId = orgSession.activeOrgId;
+            token.activeOrgSlug = orgSession.activeOrgSlug;
+            token.activeOrgType = orgSession.activeOrgType;
+            token.activeAdminStatus = orgSession.activeAdminStatus;
+          }
+        } else if (
+          trigger === "update" &&
+          token.sub &&
+          token.userType === PrismaUserType.ACCOUNT_ADMIN
+        ) {
+          const orgSession = await hydrateAccountAdminToken(token.sub);
           token.ownedOrgs = orgSession.ownedOrgs;
           token.activeOrgId = orgSession.activeOrgId;
           token.activeOrgSlug = orgSession.activeOrgSlug;
           token.activeOrgType = orgSession.activeOrgType;
           token.activeAdminStatus = orgSession.activeAdminStatus;
+        } else if (token.sub && !token.userType) {
+          const userType = await loadUserType(token.sub);
+          if (userType) {
+            token.userType = userType;
+          }
         }
-      } else if (
-        trigger === "update" &&
-        token.sub &&
-        token.userType === "ACCOUNT_ADMIN"
-      ) {
-        const orgSession = await hydrateAccountAdminToken(token.sub);
-        token.ownedOrgs = orgSession.ownedOrgs;
-        token.activeOrgId = orgSession.activeOrgId;
-        token.activeOrgSlug = orgSession.activeOrgSlug;
-        token.activeOrgType = orgSession.activeOrgType;
-        token.activeAdminStatus = orgSession.activeAdminStatus;
-      } else if (token.sub && !token.userType) {
-        const userType = await loadUserType(token.sub);
-        if (userType) {
-          token.userType = userType;
+      } catch (error) {
+        console.error("[auth] jwt callback failed:", error);
+        if (user) {
+          token.userType = user.userType as PrismaUserType;
+          token.userId = user.id;
+          token.phone = user.phone ?? null;
         }
       }
 
