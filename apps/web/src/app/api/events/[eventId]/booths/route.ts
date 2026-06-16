@@ -8,6 +8,10 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { classifyLeadGrade } from "@/lib/booth-map";
+import {
+  resolveCompanyOrgId,
+  withLegacyExhibitor,
+} from "@/lib/exhibitor-booth-utils";
 import type { MapLabel, MapPoi } from "@/types/booth";
 
 const positionSchema = z.object({
@@ -97,10 +101,10 @@ export const GET = withErrorHandler(async (_request, context) => {
   await requireEventAccess(eventId);
 
   const [booths, settings, exhibitors, statsByBooth] = await Promise.all([
-    prisma.booth.findMany({
+    prisma.exhibitorBooth.findMany({
       where: { eventId },
       include: {
-        exhibitor: { select: { id: true, name: true, email: true } },
+        companyOrg: { select: { id: true, name: true, slug: true } },
         _count: { select: { leads: true } },
       },
       orderBy: { code: "asc" },
@@ -111,11 +115,9 @@ export const GET = withErrorHandler(async (_request, context) => {
         key: { in: ["floor_plan_url", "floor_plan_pois", "floor_plan_labels"] },
       },
     }),
-    prisma.user.findMany({
-      where: {
-        roleAssignments: { some: { role: "EXHIBITOR" } },
-      },
-      select: { id: true, name: true, email: true },
+    prisma.organization.findMany({
+      where: { accountType: "EXHIBITOR", adminStatus: "APPROVED" },
+      select: { id: true, name: true, slug: true },
       orderBy: { name: "asc" },
     }),
     getBoothStats(eventId),
@@ -130,7 +132,7 @@ export const GET = withErrorHandler(async (_request, context) => {
   const labels = parseJsonSetting<MapLabel[]>(settingMap.floor_plan_labels, []);
 
   const boothsWithStats = booths.map((booth) => ({
-    ...booth,
+    ...withLegacyExhibitor(booth),
     stats: statsByBooth.get(booth.id) ?? {
       todayVisitors: 0,
       gradeA: 0,
@@ -143,7 +145,11 @@ export const GET = withErrorHandler(async (_request, context) => {
     floorPlanUrl,
     pois,
     labels,
-    exhibitors,
+    exhibitors: exhibitors.map((org) => ({
+      id: org.id,
+      name: org.name,
+      email: `${org.slug}@org.connectiq.local`,
+    })),
   });
 });
 
@@ -165,41 +171,43 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
-  const exhibitorId =
+  const exhibitorRef =
     parsed.data.exhibitorId ??
     (
-      await prisma.user.findFirst({
-        where: {
-          roleAssignments: {
-            some: { role: "EXHIBITOR" },
-          },
-        },
+      await prisma.organization.findFirst({
+        where: { accountType: "EXHIBITOR", adminStatus: "APPROVED" },
         select: { id: true },
+        orderBy: { createdAt: "asc" },
       })
     )?.id;
 
-  if (!exhibitorId) {
+  if (!exhibitorRef) {
     return createErrorResponse("未找到可用展商", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const booth = await prisma.booth.create({
+  const companyOrgId = await resolveCompanyOrgId(exhibitorRef);
+  if (!companyOrgId) {
+    return createErrorResponse("未找到展商组织", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const booth = await prisma.exhibitorBooth.create({
     data: {
       eventId,
       name: parsed.data.name,
       code: parsed.data.code,
-      exhibitorId,
+      companyOrgId,
       hallId: parsed.data.hallId,
       status: parsed.data.status ?? "AVAILABLE",
       positionData: parsed.data.positionData as Prisma.InputJsonValue | undefined,
     },
     include: {
-      exhibitor: { select: { id: true, name: true, email: true } },
+      companyOrg: { select: { id: true, name: true, slug: true } },
       _count: { select: { leads: true } },
     },
   });
 
   return createSuccessResponse({
-    ...booth,
+    ...withLegacyExhibitor(booth),
     stats: { todayVisitors: 0, gradeA: 0, crmSynced: 0 },
   });
 });

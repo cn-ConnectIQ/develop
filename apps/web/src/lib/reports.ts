@@ -60,7 +60,7 @@ async function loadEventContext(eventId: string) {
           participant: { select: { id: true, name: true, company: true } },
         },
       }),
-      prisma.booth.findMany({
+      prisma.exhibitorBooth.findMany({
         where: { eventId },
         include: { _count: { select: { leads: true } } },
       }),

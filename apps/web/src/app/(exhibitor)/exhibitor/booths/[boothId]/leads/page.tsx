@@ -17,7 +17,7 @@ export default async function ExhibitorBoothLeadsPage({
   const { boothId } = await params;
   const { grade, status } = await searchParams;
 
-  const booth = await prisma.booth.findUnique({
+  const booth = await prisma.exhibitorBooth.findUnique({
     where: { id: boothId },
     select: {
       id: true,

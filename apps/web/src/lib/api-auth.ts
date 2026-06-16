@@ -151,7 +151,7 @@ export async function requireBoothAccessCheck(
 
   const { session, orgId } = adminResult;
 
-  const booth = await prisma.booth.findFirst({
+  const booth = await prisma.exhibitorBooth.findFirst({
     where: {
       id,
       event: { orgId },
@@ -201,7 +201,7 @@ async function loadEvent(eventId: string) {
 }
 
 async function loadBooth(boothId: string) {
-  return prisma.booth.findUnique({
+  return prisma.exhibitorBooth.findUnique({
     where: { id: boothId },
     include: {
       event: { select: { id: true, orgId: true, organizerId: true } },

@@ -1,3 +1,6 @@
+import type { UserRole } from "@connectiq/types";
+import type { DefaultSession } from "next-auth";
+
 declare module "next-auth" {
   interface Session {
     user: {
@@ -10,10 +13,10 @@ declare module "next-auth" {
       userType: "END_USER" | "ACCOUNT_ADMIN" | "PLATFORM_ADMIN";
 
       // 多组织支持（原来 orgId 改为 activeOrgId）
-      activeOrgId?: string | null; // 当前激活的组织 ID
-      activeOrgSlug?: string | null; // 当前激活组织的 slug
-      activeOrgType?: string | null; // 当前激活组织的 account_type
-      activeAdminStatus?: string | null; // 当前激活组织的 admin_status
+      activeOrgId?: string | null;
+      activeOrgSlug?: string | null;
+      activeOrgType?: string | null;
+      activeAdminStatus?: string | null;
 
       // 用户拥有的所有组织（供切换器使用，轻量摘要）
       ownedOrgs?: Array<{
@@ -24,12 +27,20 @@ declare module "next-auth" {
         account_type: string;
         admin_status: string;
       }>;
-    };
+
+      /** @deprecated 由 userType + activeOrgType 推导，供旧组件使用 */
+      role: UserRole;
+      /** @deprecated 映射 activeOrgId */
+      entityId?: string | null;
+      /** @deprecated 映射 userType === PLATFORM_ADMIN */
+      hasPlatformAdmin?: boolean;
+    } & DefaultSession["user"];
   }
 
   interface User {
     id: string;
     userType: string;
+    phone?: string | null;
     activeOrgId?: string | null;
     activeOrgSlug?: string | null;
     activeOrgType?: string | null;
@@ -65,7 +76,10 @@ declare module "next-auth/react" {
         account_type: string;
         admin_status: string;
       }>;
-    };
+      role: UserRole;
+      entityId?: string | null;
+      hasPlatformAdmin?: boolean;
+    } & DefaultSession["user"];
   }
 }
 
@@ -86,5 +100,9 @@ declare module "next-auth/jwt" {
       admin_status: string;
     }>;
     phone?: string | null;
+    /** @deprecated 由 userType + activeOrgType 推导 */
+    role?: UserRole;
+    /** @deprecated 映射 activeOrgId */
+    entityId?: string | null;
   }
 }

@@ -217,7 +217,7 @@ export async function getExpoDashboardData(expoId: string) {
     include: {
       booths: {
         orderBy: { code: "asc" },
-        include: { exhibitor: { select: { name: true } } },
+        include: { companyOrg: { select: { name: true } } },
       },
       _count: {
         select: {
@@ -233,7 +233,7 @@ export async function getExpoDashboardData(expoId: string) {
 }
 
 export async function getBoothDashboardData(boothId: string) {
-  return prisma.booth.findUnique({
+  return prisma.exhibitorBooth.findUnique({
     where: { id: boothId },
     include: { event: { select: { name: true } } },
   });

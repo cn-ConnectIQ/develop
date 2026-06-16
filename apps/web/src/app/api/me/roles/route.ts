@@ -36,7 +36,7 @@ export const GET = withErrorHandler(async () => {
         })
       : [],
     boothIds.length
-      ? prisma.booth.findMany({
+      ? prisma.exhibitorBooth.findMany({
           where: { id: { in: boothIds } },
           select: {
             id: true,

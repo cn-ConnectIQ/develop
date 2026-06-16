@@ -8,6 +8,10 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import {
+  resolveCompanyOrgId,
+  withLegacyExhibitor,
+} from "@/lib/exhibitor-booth-utils";
 
 const positionSchema = z.object({
   x: z.number().min(0).max(100),
@@ -40,19 +44,28 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数错误", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const booth = await prisma.booth.findFirst({
+  const booth = await prisma.exhibitorBooth.findFirst({
     where: { id: boothId, eventId },
   });
   if (!booth) {
     return createErrorResponse("展位不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const updated = await prisma.booth.update({
+  let companyOrgId: string | undefined;
+  if (parsed.data.exhibitorId) {
+    const resolved = await resolveCompanyOrgId(parsed.data.exhibitorId);
+    if (!resolved) {
+      return createErrorResponse("未找到展商组织", ErrorCode.VALIDATION_ERROR, 400);
+    }
+    companyOrgId = resolved;
+  }
+
+  const updated = await prisma.exhibitorBooth.update({
     where: { id: boothId },
     data: {
       name: parsed.data.name,
       code: parsed.data.code,
-      exhibitorId: parsed.data.exhibitorId,
+      ...(companyOrgId !== undefined ? { companyOrgId } : {}),
       status: parsed.data.status,
       positionData:
         parsed.data.positionData === undefined
@@ -63,12 +76,12 @@ export const PATCH = withErrorHandler(async (request, context) => {
         | undefined,
     },
     include: {
-      exhibitor: { select: { id: true, name: true } },
+      companyOrg: { select: { id: true, name: true } },
       _count: { select: { leads: true } },
     },
   });
 
-  return createSuccessResponse(updated);
+  return createSuccessResponse(withLegacyExhibitor(updated));
 });
 
 export const DELETE = withErrorHandler(async (_request, context) => {
@@ -80,13 +93,13 @@ export const DELETE = withErrorHandler(async (_request, context) => {
 
   await requireEventAccess(eventId);
 
-  const booth = await prisma.booth.findFirst({
+  const booth = await prisma.exhibitorBooth.findFirst({
     where: { id: boothId, eventId },
   });
   if (!booth) {
     return createErrorResponse("展位不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  await prisma.booth.delete({ where: { id: boothId } });
+  await prisma.exhibitorBooth.delete({ where: { id: boothId } });
   return createSuccessResponse({ deleted: true });
 });

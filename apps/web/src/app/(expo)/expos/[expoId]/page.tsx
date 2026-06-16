@@ -99,7 +99,7 @@ export default async function ExpoPage({
               {
                 key: "exhibitor",
                 header: "展商",
-                cell: (row) => row.exhibitor.name,
+                cell: (row) => row.companyOrg.name,
               },
               {
                 key: "status",

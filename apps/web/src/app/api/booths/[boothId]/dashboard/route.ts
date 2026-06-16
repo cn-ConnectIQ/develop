@@ -18,7 +18,7 @@ export const GET = withErrorHandler(async (_request, context) => {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const booth = await prisma.booth.findUnique({
+  const booth = await prisma.exhibitorBooth.findUnique({
     where: { id: boothId },
     include: {
       event: { select: { name: true } },

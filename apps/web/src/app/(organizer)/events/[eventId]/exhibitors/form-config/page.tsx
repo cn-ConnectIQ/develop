@@ -21,7 +21,7 @@ export default async function FormConfigPage({
   });
   if (!event) notFound();
 
-  const booth = await prisma.booth.findFirst({
+  const booth = await prisma.exhibitorBooth.findFirst({
     where: { eventId },
     orderBy: { code: "asc" },
     select: { id: true },

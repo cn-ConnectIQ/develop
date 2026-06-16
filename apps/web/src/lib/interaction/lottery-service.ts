@@ -58,11 +58,14 @@ export async function requireLotteryManageAccess(
     if (!lottery?.boothId) {
       throw new ApiError("展商只能管理自己展位的抽奖", ErrorCode.FORBIDDEN, 403);
     }
-    const booth = await prisma.booth.findFirst({
+  const booth = await prisma.exhibitorBooth.findFirst({
       where: {
         id: lottery.boothId,
         eventId,
-        exhibitorId: session.user.id,
+        OR: [
+          { companyOrgId: session.user.activeOrgId ?? "" },
+          { operatorUserId: session.user.id },
+        ],
       },
       select: { id: true },
     });
@@ -86,8 +89,15 @@ export async function assertExhibitorCanCreateLottery(
     throw new ApiError("展商创建抽奖必须指定 booth_id", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const booth = await prisma.booth.findFirst({
-    where: { id: boothId, eventId, exhibitorId: session.user.id },
+  const booth = await prisma.exhibitorBooth.findFirst({
+    where: {
+      id: boothId,
+      eventId,
+      OR: [
+        { companyOrgId: session.user.activeOrgId ?? "" },
+        { operatorUserId: session.user.id },
+      ],
+    },
     select: { id: true },
   });
   if (!booth) {
@@ -140,7 +150,7 @@ export async function getLotteryOrThrow(eventId: string, lotteryId: string) {
   const lottery = await prisma.lottery.findFirst({
     where: { id: lotteryId, eventId },
     include: {
-      booth: { select: { id: true, name: true, exhibitorId: true } },
+      booth: { select: { id: true, name: true, companyOrgId: true } },
     },
   });
   if (!lottery) {

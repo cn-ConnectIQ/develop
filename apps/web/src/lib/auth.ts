@@ -7,6 +7,7 @@ import {
   UserType as PrismaUserType,
 } from "@connectiq/database";
 import { prisma, PrismaUserRole } from "@connectiq/database";
+import type { UserRole as AppUserRole } from "@connectiq/types";
 import { cacheDel, cacheGet } from "@/lib/redis";
 import { smsVerifyKey } from "@/lib/sms";
 
@@ -60,6 +61,46 @@ function toOwnedOrgSummary(org: {
     account_type: org.accountType,
     admin_status: org.adminStatus,
   };
+}
+
+function toLegacyRole(
+  userType: PrismaUserType,
+  activeOrgType: string | null | undefined,
+): AppUserRole {
+  if (userType === PrismaUserType.PLATFORM_ADMIN) {
+    return PrismaUserRole.PLATFORM_ADMIN as AppUserRole;
+  }
+  if (userType === PrismaUserType.ACCOUNT_ADMIN) {
+    switch (activeOrgType) {
+      case "EXPO_ORGANIZER":
+        return PrismaUserRole.EXPO_ORGANIZER as AppUserRole;
+      case "EXHIBITOR":
+        return PrismaUserRole.EXHIBITOR as AppUserRole;
+      default:
+        return PrismaUserRole.ORGANIZER as AppUserRole;
+    }
+  }
+  return PrismaUserRole.ORGANIZER as AppUserRole;
+}
+
+function syncLegacyTokenFields(token: {
+  userType?: PrismaUserType;
+  activeOrgType?: string | null;
+  activeOrgId?: string | null;
+  role?: AppUserRole;
+  entityId?: string | null;
+}) {
+  const userType = token.userType ?? PrismaUserType.END_USER;
+  token.role = toLegacyRole(userType, token.activeOrgType);
+  token.entityId = token.activeOrgId ?? null;
+}
+
+/** @deprecated 旧角色检查，迁移完成后移除 */
+export function hasAnyRole(
+  role: AppUserRole,
+  allowedRoles: AppUserRole[],
+): boolean {
+  return allowedRoles.includes(role);
 }
 
 async function hydrateAccountAdminToken(userId: string) {
@@ -261,6 +302,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
+      syncLegacyTokenFields(token);
       return token;
     },
     async session({ session, token }) {
@@ -272,6 +314,17 @@ export const authOptions: NextAuthOptions = {
       session.user.activeAdminStatus = token.activeAdminStatus as string | null;
       session.user.ownedOrgs = token.ownedOrgs as Session["user"]["ownedOrgs"];
       session.user.phone = (token.phone as string | null) ?? null;
+
+      const userType =
+        (token.userType as PrismaUserType) ?? PrismaUserType.END_USER;
+      session.user.role = toLegacyRole(
+        userType,
+        token.activeOrgType as string | null,
+      );
+      session.user.entityId = (token.activeOrgId as string | null) ?? null;
+      session.user.hasPlatformAdmin =
+        userType === PrismaUserType.PLATFORM_ADMIN;
+
       return session;
     },
   },

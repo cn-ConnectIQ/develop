@@ -18,10 +18,10 @@ export default async function ExpoBoothsPage({
 
   if (!expo) notFound();
 
-  const booths = await prisma.booth.findMany({
+  const booths = await prisma.exhibitorBooth.findMany({
     where: { eventId: expoId },
     include: {
-      exhibitor: { select: { name: true } },
+      companyOrg: { select: { name: true } },
       _count: { select: { leads: true } },
     },
     orderBy: { code: "asc" },
@@ -48,7 +48,7 @@ export default async function ExpoBoothsPage({
               {
                 key: "exhibitor",
                 header: "展商",
-                cell: (row) => row.exhibitor.name,
+                cell: (row) => row.companyOrg.name,
               },
               {
                 key: "status",

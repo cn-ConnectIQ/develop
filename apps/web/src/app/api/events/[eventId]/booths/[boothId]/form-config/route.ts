@@ -14,6 +14,7 @@ import {
   upsertExternalSync,
 } from "@/lib/external-sync";
 import { normalizeLeadFormConfig } from "@/lib/form-config";
+import { withLegacyExhibitor } from "@/lib/exhibitor-booth-utils";
 import type { MarketupSyncConfig } from "@/types/booth";
 
 const formConfigSchema = z.object({
@@ -32,23 +33,23 @@ export const GET = withErrorHandler(async (_request, context) => {
   await requireEventAccess(eventId);
 
   const [booth, booths, externalSync, templateSetting] = await Promise.all([
-    prisma.booth.findFirst({
+    prisma.exhibitorBooth.findFirst({
       where: { id: boothId, eventId },
       select: {
         id: true,
         code: true,
         name: true,
         leadFormConfig: true,
-        exhibitor: { select: { id: true, name: true } },
+        companyOrg: { select: { id: true, name: true } },
       },
     }),
-    prisma.booth.findMany({
+    prisma.exhibitorBooth.findMany({
       where: { eventId },
       select: {
         id: true,
         code: true,
         name: true,
-        exhibitor: { select: { id: true, name: true } },
+        companyOrg: { select: { id: true, name: true } },
       },
       orderBy: { code: "asc" },
     }),
@@ -64,10 +65,10 @@ export const GET = withErrorHandler(async (_request, context) => {
 
   return createSuccessResponse({
     booth: {
-      ...booth,
+      ...withLegacyExhibitor(booth),
       leadFormConfig: normalizeLeadFormConfig(booth.leadFormConfig),
     },
-    booths,
+    booths: booths.map(withLegacyExhibitor),
     externalSync: {
       fieldMap: parseFieldMap(externalSync.fieldMap),
       syncConfig: parseSyncConfig(externalSync.syncConfig),
@@ -108,18 +109,18 @@ export const PATCH = withErrorHandler(async (request, context) => {
   }
 
   if (parsed.data.applyToAll) {
-    await prisma.booth.updateMany({
+    await prisma.exhibitorBooth.updateMany({
       where: { eventId },
       data: { leadFormConfig: config },
     });
   } else {
-    const exists = await prisma.booth.findFirst({
+    const exists = await prisma.exhibitorBooth.findFirst({
       where: { id: boothId, eventId },
     });
     if (!exists) {
       return createErrorResponse("展位不存在", ErrorCode.NOT_FOUND, 404);
     }
-    await prisma.booth.update({
+    await prisma.exhibitorBooth.update({
       where: { id: boothId },
       data: { leadFormConfig: config },
     });
