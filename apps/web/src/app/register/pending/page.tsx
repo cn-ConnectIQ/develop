@@ -45,17 +45,26 @@ export default function RegisterPendingPage() {
       if (!res.ok) return;
 
       const json = await res.json();
-      const data = json.data as ApplicationData;
+      const apps = (Array.isArray(json.data) ? json.data : []) as ApplicationData[];
 
-      if (data.status === "APPROVED") {
-        router.replace("/events");
-        return;
-      }
-      if (data.status === "REJECTED") {
-        router.replace("/register/rejected");
+      if (apps.length === 0) {
+        router.replace("/register/admin");
         return;
       }
 
+      const pending = apps.find((a) => a.status === "PENDING");
+      if (!pending) {
+        if (apps.some((a) => a.status === "REJECTED")) {
+          router.replace("/register/rejected");
+        } else if (apps.some((a) => a.status === "APPROVED")) {
+          router.replace("/events");
+        } else {
+          router.replace("/register/admin");
+        }
+        return;
+      }
+
+      const data = pending;
       setApplication(data);
     } finally {
       setLoading(false);

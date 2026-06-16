@@ -43,12 +43,20 @@ export function AdminRegisterForm() {
   const searchParams = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
   const isLoggedIn = sessionStatus === "authenticated" && !!session?.user?.id;
+  const isAddMode = searchParams.get("mode") === "add";
 
-  const initialStep = searchParams.get("step") === "2" ? 2 : 1;
+  const initialStep = isAddMode
+    ? 2
+    : searchParams.get("step") === "2"
+      ? 2
+      : 1;
   const [step, setStep] = useState<1 | 2 | 3>(initialStep as 1 | 2 | 3);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [ownedAccountTypes, setOwnedAccountTypes] = useState<
+    Set<AccountType>
+  >(new Set());
 
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -73,26 +81,50 @@ export function AdminRegisterForm() {
       const res = await fetch("/api/applications/organizer/me");
       if (!res.ok) return;
       const json = await res.json();
-      const app = json.data as ApplicationData;
-      if (app.status === "PENDING") {
+      const apps = (Array.isArray(json.data) ? json.data : []) as ApplicationData[];
+
+      const owned = new Set<AccountType>();
+      for (const app of apps) {
+        if (app.status === "APPROVED") {
+          owned.add(app.accountType);
+        }
+      }
+      for (const org of session?.user?.ownedOrgs ?? []) {
+        if (org.admin_status === "APPROVED") {
+          owned.add(org.account_type as AccountType);
+        }
+      }
+      setOwnedAccountTypes(owned);
+
+      if (isAddMode) {
+        return;
+      }
+
+      if (apps.length === 0) return;
+
+      const pending = apps.find((a) => a.status === "PENDING");
+      if (pending) {
         router.replace("/register/pending");
         return;
       }
-      if (app.status === "APPROVED") {
+
+      if (apps.every((a) => a.status === "APPROVED")) {
         router.replace("/events");
         return;
       }
-      if (app.status === "REJECTED") {
-        setAccountType(app.accountType);
-        setOrgName(app.orgName);
-        setOrgCreditCode(app.orgCreditCode ?? "");
-        setOrgWebsite(app.orgWebsite ?? "");
-        setContactName(app.contactName);
-        setContactEmail(app.contactEmail);
-        setContactPhone(app.contactPhone);
-        setDescription(app.description);
-        setEmail(app.contactEmail);
-        setPhone(app.contactPhone);
+
+      const rejected = apps.find((a) => a.status === "REJECTED");
+      if (rejected) {
+        setAccountType(rejected.accountType);
+        setOrgName(rejected.orgName);
+        setOrgCreditCode(rejected.orgCreditCode ?? "");
+        setOrgWebsite(rejected.orgWebsite ?? "");
+        setContactName(rejected.contactName);
+        setContactEmail(rejected.contactEmail);
+        setContactPhone(rejected.contactPhone);
+        setDescription(rejected.description);
+        setEmail(rejected.contactEmail);
+        setPhone(rejected.contactPhone);
         if (searchParams.get("step") === "2") {
           setStep(2);
         }
@@ -100,16 +132,32 @@ export function AdminRegisterForm() {
     } catch {
       // ignore
     }
-  }, [router, searchParams]);
+  }, [isAddMode, router, searchParams, session?.user?.ownedOrgs]);
 
   useEffect(() => {
     if (sessionStatus === "loading") return;
+    if (isAddMode && sessionStatus === "unauthenticated") {
+      router.replace(
+        `/login?callbackUrl=${encodeURIComponent("/register/admin?mode=add")}`,
+      );
+      return;
+    }
     if (isLoggedIn) {
       setEmail(session.user.email ?? "");
       setPhone(session.user.phone ?? "");
+      setContactName((prev) => session.user.name ?? prev);
+      setContactEmail((prev) => session.user.email ?? prev);
+      setContactPhone((prev) => session.user.phone ?? prev);
       void loadExistingApplication();
     }
-  }, [isLoggedIn, session, sessionStatus, loadExistingApplication]);
+  }, [
+    isAddMode,
+    isLoggedIn,
+    loadExistingApplication,
+    router,
+    session,
+    sessionStatus,
+  ]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -176,6 +224,10 @@ export function AdminRegisterForm() {
 
   function handleStep2Next() {
     setError(null);
+    if (ownedAccountTypes.has(accountType)) {
+      setError("你已拥有此类型的账号身份，无需重复申请");
+      return;
+    }
     if (!orgName.trim()) {
       setError("请输入组织/公司名称");
       return;
@@ -264,10 +316,12 @@ export function AdminRegisterForm() {
         <Link href="/" className="text-2xl font-bold text-brand-blue">
           ConnectIQ
         </Link>
-        <p className="mt-2 text-sm text-text-muted">申请成为账号管理员</p>
+        <h1 className="mt-2 text-lg font-semibold text-[var(--admin-ink)]">
+          {isAddMode ? "申请新身份" : "申请成为账号管理员"}
+        </h1>
       </div>
 
-      <StepProgress currentStep={step} />
+      <StepProgress currentStep={step} mode={isAddMode ? "add" : "default"} />
 
       {error && (
         <div className="mb-4 rounded-xl border border-brand-red/20 bg-brand-red-light px-4 py-3 text-sm text-brand-red">
@@ -347,30 +401,54 @@ export function AdminRegisterForm() {
 
       {step === 2 && (
         <div>
+          {isAddMode && isLoggedIn && (
+            <div className="mb-4 rounded-xl border border-border-light bg-content-bg px-4 py-3 text-sm text-text-muted">
+              当前账号：
+              <span className="ml-1 font-medium text-[var(--admin-ink)]">
+                {session?.user?.phone || session?.user?.email}
+              </span>
+            </div>
+          )}
+
           <div className="space-y-3">
-            {ACCOUNT_TYPE_OPTIONS.map((option) => (
+            {ACCOUNT_TYPE_OPTIONS.map((option) => {
+              const alreadyOwned = ownedAccountTypes.has(option.value);
+              return (
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setAccountType(option.value)}
+                disabled={alreadyOwned}
+                onClick={() => {
+                  if (!alreadyOwned) setAccountType(option.value);
+                }}
                 className={cn(
                   "flex h-[100px] w-full rounded-2xl border-2 p-5 text-left transition-colors",
-                  accountType === option.value
+                  alreadyOwned &&
+                    "cursor-not-allowed border-border-light bg-content-bg opacity-60",
+                  !alreadyOwned &&
+                    accountType === option.value
                     ? "border-brand-blue bg-brand-blue-light/20"
-                    : "border-border-light bg-white hover:border-brand-blue/40",
+                    : !alreadyOwned &&
+                      "border-border-light bg-white hover:border-brand-blue/40",
                 )}
               >
                 <span className="mr-3 text-2xl">{option.icon}</span>
-                <div>
-                  <div className="font-medium text-[var(--admin-ink)]">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 font-medium text-[var(--admin-ink)]">
                     {option.title}
+                    {alreadyOwned && (
+                      <span className="rounded bg-content px-2 py-0.5 text-[10px] font-medium text-text-muted">
+                        已拥有
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1 text-sm text-text-muted">
                     {option.description}
                   </div>
                 </div>
               </button>
-            ))}
+            );
+            })}
           </div>
 
           <div className="mt-6 space-y-4">
@@ -459,7 +537,9 @@ export function AdminRegisterForm() {
               type="button"
               variant="outline"
               className="h-11 flex-1 rounded-xl"
-              onClick={() => setStep(1)}
+              onClick={() =>
+                isAddMode ? router.push("/events") : setStep(1)
+              }
             >
               ← 上一步
             </Button>
@@ -528,6 +608,11 @@ export function AdminRegisterForm() {
                 我确认以上信息真实有效，授权平台进行资质审核
               </span>
             </label>
+            {isAddMode && (
+              <p className="text-sm text-text-muted">
+                提交后平台审核，通过后可在身份切换器中使用新身份。
+              </p>
+            )}
           </div>
 
           <div className="mt-6 flex gap-3">

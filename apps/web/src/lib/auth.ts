@@ -1,42 +1,19 @@
-import type { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions, Session } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import {
-  AccountType as PrismaAccountType,
-  AdminStatus as PrismaAdminStatus,
+  InviteStatus,
+  OrgStaffRole,
   UserType as PrismaUserType,
 } from "@connectiq/database";
 import { prisma, PrismaUserRole } from "@connectiq/database";
-import type { UserRole as AppUserRole } from "@connectiq/types";
 import { cacheDel, cacheGet } from "@/lib/redis";
 import { smsVerifyKey } from "@/lib/sms";
 
-type AuthProfile = {
-  userType: PrismaUserType;
-  orgId: string | null;
-  orgSlug: string | null;
-  accountType: PrismaAccountType | null;
-  adminStatus: PrismaAdminStatus | null;
-  phone: string | null;
-};
+type OwnedOrgSummary = NonNullable<Session["user"]["ownedOrgs"]>[number];
 
 function phoneToEmail(phone: string) {
   return `${phone}@phone.connectiq.local`;
-}
-
-function inferAccountType(
-  assignments: { role: PrismaUserRole }[],
-): PrismaAccountType | null {
-  if (assignments.some((item) => item.role === PrismaUserRole.EXPO_ORGANIZER)) {
-    return PrismaAccountType.EXPO_ORGANIZER;
-  }
-  if (assignments.some((item) => item.role === PrismaUserRole.EXHIBITOR)) {
-    return PrismaAccountType.EXHIBITOR;
-  }
-  if (assignments.some((item) => item.role === PrismaUserRole.ORGANIZER)) {
-    return PrismaAccountType.CONFERENCE_ORGANIZER;
-  }
-  return null;
 }
 
 function resolveUserType(
@@ -67,58 +44,74 @@ function resolveUserType(
   return PrismaUserType.END_USER;
 }
 
-async function loadUserAuthProfile(userId: string): Promise<AuthProfile | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+function toOwnedOrgSummary(org: {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+  accountType: string;
+  adminStatus: string;
+}): OwnedOrgSummary {
+  return {
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    logo_url: org.logoUrl,
+    account_type: org.accountType,
+    admin_status: org.adminStatus,
+  };
+}
+
+async function hydrateAccountAdminToken(userId: string) {
+  const staffRoles = await prisma.orgStaff.findMany({
+    where: {
+      userId,
+      role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+      status: InviteStatus.ACCEPTED,
+    },
     include: {
       org: {
         select: {
+          id: true,
+          name: true,
           slug: true,
+          logoUrl: true,
           accountType: true,
           adminStatus: true,
         },
       },
-      roleAssignments: true,
     },
   });
 
-  if (!user) return null;
+  const ownedOrgs = staffRoles.map((s) => toOwnedOrgSummary(s.org));
 
-  const userType = resolveUserType(user.userType, user.roleAssignments);
-  const inferredAccountType = inferAccountType(user.roleAssignments);
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { activeOrgId: true },
+  });
+
+  const activeOrg =
+    ownedOrgs.find((o) => o.id === dbUser?.activeOrgId) ||
+    ownedOrgs.find((o) => o.admin_status === "APPROVED") ||
+    ownedOrgs[0] ||
+    null;
 
   return {
-    userType,
-    orgId: user.orgId,
-    orgSlug: user.org?.slug ?? null,
-    accountType: user.org?.accountType ?? inferredAccountType,
-    adminStatus:
-      user.org?.adminStatus ??
-      (userType === PrismaUserType.ACCOUNT_ADMIN
-        ? PrismaAdminStatus.APPROVED
-        : null),
-    phone: user.phone,
+    ownedOrgs,
+    activeOrgId: activeOrg?.id ?? null,
+    activeOrgSlug: activeOrg?.slug ?? null,
+    activeOrgType: activeOrg?.account_type ?? null,
+    activeAdminStatus: activeOrg?.admin_status ?? null,
   };
 }
 
-function toLegacyRole(
-  userType: PrismaUserType,
-  accountType: PrismaAccountType | null,
-): AppUserRole {
-  if (userType === PrismaUserType.PLATFORM_ADMIN) {
-    return PrismaUserRole.PLATFORM_ADMIN as AppUserRole;
-  }
-  if (userType === PrismaUserType.ACCOUNT_ADMIN) {
-    switch (accountType) {
-      case PrismaAccountType.EXPO_ORGANIZER:
-        return PrismaUserRole.EXPO_ORGANIZER as AppUserRole;
-      case PrismaAccountType.EXHIBITOR:
-        return PrismaUserRole.EXHIBITOR as AppUserRole;
-      default:
-        return PrismaUserRole.ORGANIZER as AppUserRole;
-    }
-  }
-  return PrismaUserRole.ORGANIZER as AppUserRole;
+async function loadUserType(userId: string): Promise<PrismaUserType | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { roleAssignments: true },
+  });
+  if (!user) return null;
+  return resolveUserType(user.userType, user.roleAssignments);
 }
 
 function toSessionUser(
@@ -128,18 +121,14 @@ function toSessionUser(
     name: string;
     phone: string | null;
   },
-  profile: AuthProfile,
+  userType: PrismaUserType,
 ) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
-    phone: profile.phone ?? user.phone,
-    userType: profile.userType,
-    orgId: profile.orgId,
-    orgSlug: profile.orgSlug,
-    accountType: profile.accountType,
-    adminStatus: profile.adminStatus,
+    phone: user.phone,
+    userType,
   };
 }
 
@@ -166,16 +155,7 @@ export const authOptions: NextAuthOptions = {
 
         let user = await prisma.user.findFirst({
           where: { phone },
-          include: {
-            org: {
-              select: {
-                slug: true,
-                accountType: true,
-                adminStatus: true,
-              },
-            },
-            roleAssignments: true,
-          },
+          include: { roleAssignments: true },
         });
 
         if (!user) {
@@ -190,23 +170,12 @@ export const authOptions: NextAuthOptions = {
                 create: { role: PrismaUserRole.ORGANIZER },
               },
             },
-            include: {
-              org: {
-                select: {
-                  slug: true,
-                  accountType: true,
-                  adminStatus: true,
-                },
-              },
-              roleAssignments: true,
-            },
+            include: { roleAssignments: true },
           });
         }
 
-        const profile = await loadUserAuthProfile(user.id);
-        if (!profile) return null;
-
-        return toSessionUser(user, profile);
+        const userType = resolveUserType(user.userType, user.roleAssignments);
+        return toSessionUser(user, userType);
       },
     }),
     CredentialsProvider({
@@ -224,16 +193,7 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email },
-          include: {
-            org: {
-              select: {
-                slug: true,
-                accountType: true,
-                adminStatus: true,
-              },
-            },
-            roleAssignments: true,
-          },
+          include: { roleAssignments: true },
         });
 
         if (!user) return null;
@@ -241,59 +201,55 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
-        const profile = await loadUserAuthProfile(user.id);
-        if (!profile) return null;
-
-        return toSessionUser(user, profile);
+        const userType = resolveUserType(user.userType, user.roleAssignments);
+        return toSessionUser(user, userType);
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
-        token.userType = user.userType;
-        token.orgId = user.orgId ?? null;
-        token.orgSlug = user.orgSlug ?? null;
-        token.accountType = user.accountType ?? null;
-        token.adminStatus = user.adminStatus ?? null;
+        token.userType = user.userType as PrismaUserType;
+        token.userId = user.id;
         token.phone = user.phone ?? null;
-      }
 
-      if (token.sub) {
-        const profile = await loadUserAuthProfile(token.sub);
-        if (profile) {
-          token.userType = profile.userType;
-          token.orgId = profile.orgId;
-          token.orgSlug = profile.orgSlug;
-          token.accountType = profile.accountType;
-          token.adminStatus = profile.adminStatus;
-          token.phone = profile.phone;
+        if (user.userType === "ACCOUNT_ADMIN") {
+          const orgSession = await hydrateAccountAdminToken(user.id);
+          token.ownedOrgs = orgSession.ownedOrgs;
+          token.activeOrgId = orgSession.activeOrgId;
+          token.activeOrgSlug = orgSession.activeOrgSlug;
+          token.activeOrgType = orgSession.activeOrgType;
+          token.activeAdminStatus = orgSession.activeAdminStatus;
+        }
+      } else if (
+        trigger === "update" &&
+        token.sub &&
+        token.userType === "ACCOUNT_ADMIN"
+      ) {
+        const orgSession = await hydrateAccountAdminToken(token.sub);
+        token.ownedOrgs = orgSession.ownedOrgs;
+        token.activeOrgId = orgSession.activeOrgId;
+        token.activeOrgSlug = orgSession.activeOrgSlug;
+        token.activeOrgType = orgSession.activeOrgType;
+        token.activeAdminStatus = orgSession.activeAdminStatus;
+      } else if (token.sub && !token.userType) {
+        const userType = await loadUserType(token.sub);
+        if (userType) {
+          token.userType = userType;
         }
       }
 
       return token;
     },
-    session({ session, token }) {
-      if (session.user) {
-        const userType =
-          (token.userType as PrismaUserType) ?? PrismaUserType.END_USER;
-        const orgId = (token.orgId as string | null) ?? null;
-        const accountType = (token.accountType as PrismaAccountType | null) ?? null;
-
-        session.user.id = token.sub ?? "";
-        session.user.userType = userType;
-        session.user.orgId = orgId;
-        session.user.orgSlug = (token.orgSlug as string | null) ?? null;
-        session.user.accountType = accountType;
-        session.user.adminStatus = (token.adminStatus as string | null) ?? null;
-        session.user.phone = (token.phone as string | null) ?? null;
-
-        // 迁移期间：旧组件仍读取 role / entityId / hasPlatformAdmin
-        session.user.role = toLegacyRole(userType, accountType);
-        session.user.entityId = orgId;
-        session.user.hasPlatformAdmin =
-          userType === PrismaUserType.PLATFORM_ADMIN;
-      }
+    async session({ session, token }) {
+      session.user.id = (token.userId as string) ?? token.sub ?? "";
+      session.user.userType = token.userType as Session["user"]["userType"];
+      session.user.activeOrgId = token.activeOrgId as string | null;
+      session.user.activeOrgSlug = token.activeOrgSlug as string | null;
+      session.user.activeOrgType = token.activeOrgType as string | null;
+      session.user.activeAdminStatus = token.activeAdminStatus as string | null;
+      session.user.ownedOrgs = token.ownedOrgs as Session["user"]["ownedOrgs"];
+      session.user.phone = (token.phone as string | null) ?? null;
       return session;
     },
   },
@@ -302,11 +258,3 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
-
-/** @deprecated 旧角色检查，迁移完成后移除 */
-export function hasAnyRole(
-  role: AppUserRole,
-  allowedRoles: AppUserRole[],
-): boolean {
-  return allowedRoles.includes(role);
-}

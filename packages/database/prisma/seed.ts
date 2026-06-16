@@ -48,6 +48,7 @@ const END_USER_PHONES = [
 
 const SEED_ORG_SLUGS = [
   "saas-growth-institute",
+  "cloud-li-exhibitor",
   "china-digital-expo",
   "cloud-crm-tech",
   // 旧版 seed 兼容清理
@@ -267,7 +268,7 @@ async function createApprovedAccountAdmin(params: {
 
   await prisma.user.update({
     where: { id: admin.id },
-    data: { orgId: org.id },
+    data: { activeOrgId: org.id },
   });
 
   await prisma.orgStaff.upsert({
@@ -283,7 +284,7 @@ async function createApprovedAccountAdmin(params: {
   });
 
   await prisma.organizerApplication.upsert({
-    where: { userId: admin.id },
+    where: { orgId: org.id },
     update: {
       status: ApplicationStatus.APPROVED,
       orgId: org.id,
@@ -388,6 +389,64 @@ async function main() {
 
   console.log("✓ ① 会议主办方 13800000002 + 2 场活动");
 
+  // 同一个用户（李经理）同时也是参展商（多身份切换测试）
+  const liExhibitorOrg = await prisma.organization.upsert({
+    where: { slug: "cloud-li-exhibitor" },
+    update: {
+      name: "李经理参展部",
+      accountType: AccountType.EXHIBITOR,
+      isVerified: true,
+      adminStatus: AdminStatus.APPROVED,
+      bio: "专注 SaaS 工具参展推广",
+    },
+    create: {
+      name: "李经理参展部",
+      slug: "cloud-li-exhibitor",
+      accountType: AccountType.EXHIBITOR,
+      isVerified: true,
+      adminStatus: AdminStatus.APPROVED,
+      bio: "专注 SaaS 工具参展推广",
+      // ownerId 不写入：confOrg 已占用该 User 的 owner_id（列有唯一约束）
+    },
+  });
+
+  await prisma.orgStaff.upsert({
+    where: {
+      orgId_userId: { orgId: liExhibitorOrg.id, userId: confAdmin.id },
+    },
+    update: { role: OrgStaffRole.OWNER, status: InviteStatus.ACCEPTED },
+    create: {
+      orgId: liExhibitorOrg.id,
+      userId: confAdmin.id,
+      role: OrgStaffRole.OWNER,
+      status: InviteStatus.ACCEPTED,
+      acceptedAt: new Date(),
+    },
+  });
+
+  await prisma.organizerApplication.upsert({
+    where: { orgId: liExhibitorOrg.id },
+    update: {
+      status: ApplicationStatus.APPROVED,
+      reviewedAt: new Date(),
+    },
+    create: {
+      userId: confAdmin.id,
+      orgId: liExhibitorOrg.id,
+      accountType: AccountType.EXHIBITOR,
+      orgName: "李经理参展部",
+      contactName: "李经理",
+      contactEmail: confAdmin.email,
+      contactPhone: "13800000002",
+      description: "以参展商身份参加展会，采集潜在客户",
+      status: ApplicationStatus.APPROVED,
+      reviewedAt: new Date(),
+      submittedAt: daysAgo(20),
+    },
+  });
+
+  // activeOrgId 保持指向会议主办方组织（createApprovedAccountAdmin 已设置），不改动
+
   // ── ② 展览主办方 ────────────────────────────────────────────
   const { admin: expoAdmin, org: expoOrg } = await createApprovedAccountAdmin({
     phone: "13800000003",
@@ -447,7 +506,7 @@ async function main() {
   console.log("✓ ② 展览主办方 13800000003 + 展会 + 20 IntentTag");
 
   // ── ③ 参展商 ────────────────────────────────────────────────
-  const { admin: exhibitorAdmin } = await createApprovedAccountAdmin({
+  const { admin: exhibitorAdmin, org: exhibitorOrg } = await createApprovedAccountAdmin({
       phone: "13800000004",
       name: "张销售",
       org: {
@@ -461,29 +520,65 @@ async function main() {
     data: { eventId: expoEvent.id, name: "A 馆", floor: "1F" },
   });
 
-  await prisma.booth.upsert({
+  // 李经理（13800000002）在「2025 企业数字化展览会」的参展商展位
+  await prisma.exhibitorBooth.upsert({
+    where: { id: "seed-booth-li-exhibitor" },
+    update: {
+      companyOrgId: liExhibitorOrg.id,
+      operatorUserId: confAdmin.id,
+      status: BoothStatus.BOOKED,
+    },
+    create: {
+      id: "seed-booth-li-exhibitor",
+      name: "李经理 SaaS 展位",
+      code: "B-08",
+      eventId: expoEvent.id,
+      hallId: expoHall.id,
+      companyOrgId: liExhibitorOrg.id,
+      operatorUserId: confAdmin.id,
+      status: BoothStatus.BOOKED,
+      positionData: { x: 32, y: 8, width: 5, height: 5 },
+    },
+  });
+
+  console.log("✅ 多身份测试数据创建完成");
+  console.log("  李经理（13800000002）拥有两个 Organization：");
+  console.log("  - SaaS 增长研究院（CONFERENCE_ORGANIZER）← 默认激活");
+  console.log("  - 李经理参展部（EXHIBITOR）← 需要手动切换");
+
+  await prisma.exhibitorBooth.upsert({
     where: { eventId_code: { eventId: expoEvent.id, code: "A-01" } },
-    update: { exhibitorId: exhibitorAdmin.id, status: BoothStatus.OCCUPIED },
+    update: {
+      companyOrgId: exhibitorOrg.id,
+      operatorUserId: exhibitorAdmin.id,
+      status: BoothStatus.OCCUPIED,
+    },
     create: {
       name: "云端 CRM 主展位",
       code: "A-01",
       eventId: expoEvent.id,
       hallId: expoHall.id,
-      exhibitorId: exhibitorAdmin.id,
+      companyOrgId: exhibitorOrg.id,
+      operatorUserId: exhibitorAdmin.id,
       status: BoothStatus.OCCUPIED,
       positionData: { x: 10, y: 12, width: 8, height: 6 },
     },
   });
 
-  await prisma.booth.upsert({
+  await prisma.exhibitorBooth.upsert({
     where: { eventId_code: { eventId: expoEvent.id, code: "A-02" } },
-    update: { exhibitorId: exhibitorAdmin.id, status: BoothStatus.BOOKED },
+    update: {
+      companyOrgId: exhibitorOrg.id,
+      operatorUserId: exhibitorAdmin.id,
+      status: BoothStatus.BOOKED,
+    },
     create: {
       name: "云端 CRM 体验区",
       code: "A-02",
       eventId: expoEvent.id,
       hallId: expoHall.id,
-      exhibitorId: exhibitorAdmin.id,
+      companyOrgId: exhibitorOrg.id,
+      operatorUserId: exhibitorAdmin.id,
       status: BoothStatus.BOOKED,
       positionData: { x: 20, y: 12, width: 6, height: 6 },
     },
@@ -499,22 +594,6 @@ async function main() {
     accountStatus: UserAccountStatus.ACTIVE,
   });
 
-  await prisma.organizerApplication.upsert({
-    where: { userId: pendingConf.id },
-    update: { status: ApplicationStatus.PENDING },
-    create: {
-      userId: pendingConf.id,
-      accountType: AccountType.CONFERENCE_ORGANIZER,
-      orgName: "医疗健康论坛联盟",
-      contactName: "钱老板",
-      contactEmail: pendingConf.email,
-      contactPhone: "13800000005",
-      description: "专注医疗健康行业论坛与峰会",
-      status: ApplicationStatus.PENDING,
-      submittedAt: daysAgo(2),
-    },
-  });
-
   const pendingExpo = await upsertUser({
     phone: "13800000006",
     name: "孙经理",
@@ -522,21 +601,54 @@ async function main() {
     accountStatus: UserAccountStatus.ACTIVE,
   });
 
-  await prisma.organizerApplication.upsert({
-    where: { userId: pendingExpo.id },
-    update: { status: ApplicationStatus.PENDING },
-    create: {
-      userId: pendingExpo.id,
+  for (const spec of [
+    {
+      user: pendingConf,
+      accountType: AccountType.CONFERENCE_ORGANIZER,
+      orgName: "医疗健康论坛联盟",
+      contactName: "钱老板",
+      phone: "13800000005",
+      description: "专注医疗健康行业论坛与峰会",
+      submittedAt: daysAgo(2),
+    },
+    {
+      user: pendingExpo,
       accountType: AccountType.EXPO_ORGANIZER,
       orgName: "新能源汽车展览集团",
       contactName: "孙经理",
-      contactEmail: pendingExpo.email,
-      contactPhone: "13800000006",
+      phone: "13800000006",
       description: "新能源汽车主题展览与论坛",
-      status: ApplicationStatus.PENDING,
       submittedAt: daysAgo(1),
     },
-  });
+  ] as const) {
+    const existing = await prisma.organizerApplication.findFirst({
+      where: {
+        userId: spec.user.id,
+        accountType: spec.accountType,
+        status: ApplicationStatus.PENDING,
+      },
+    });
+    if (existing) {
+      await prisma.organizerApplication.update({
+        where: { id: existing.id },
+        data: { status: ApplicationStatus.PENDING },
+      });
+    } else {
+      await prisma.organizerApplication.create({
+        data: {
+          userId: spec.user.id,
+          accountType: spec.accountType,
+          orgName: spec.orgName,
+          contactName: spec.contactName,
+          contactEmail: spec.user.email,
+          contactPhone: spec.phone,
+          description: spec.description,
+          status: ApplicationStatus.PENDING,
+          submittedAt: spec.submittedAt,
+        },
+      });
+    }
+  }
 
   console.log("✓ ④⑤ 待审核账号 13800000005 / 13800000006");
 
@@ -548,28 +660,39 @@ async function main() {
     accountStatus: UserAccountStatus.ACTIVE,
   });
 
-  await prisma.organizerApplication.upsert({
-    where: { userId: rejectedAdmin.id },
-    update: {
-      status: ApplicationStatus.REJECTED,
-      rejectionReason:
-        "申请说明信息不完整，请补充组织背景说明和举办活动经历后重新申请",
-    },
-    create: {
+  const rejectedExisting = await prisma.organizerApplication.findFirst({
+    where: {
       userId: rejectedAdmin.id,
-      accountType: AccountType.CONFERENCE_ORGANIZER,
-      orgName: "未命名活动组织",
-      contactName: "周申请人",
-      contactEmail: rejectedAdmin.email,
-      contactPhone: "13800000007",
-      description: "申请信息过于简略",
       status: ApplicationStatus.REJECTED,
-      rejectionReason:
-        "申请说明信息不完整，请补充组织背景说明和举办活动经历后重新申请",
-      reviewedAt: daysAgo(3),
-      submittedAt: daysAgo(7),
     },
   });
+  if (rejectedExisting) {
+    await prisma.organizerApplication.update({
+      where: { id: rejectedExisting.id },
+      data: {
+        status: ApplicationStatus.REJECTED,
+        rejectionReason:
+          "申请说明信息不完整，请补充组织背景说明和举办活动经历后重新申请",
+      },
+    });
+  } else {
+    await prisma.organizerApplication.create({
+      data: {
+        userId: rejectedAdmin.id,
+        accountType: AccountType.CONFERENCE_ORGANIZER,
+        orgName: "未命名活动组织",
+        contactName: "周申请人",
+        contactEmail: rejectedAdmin.email,
+        contactPhone: "13800000007",
+        description: "申请信息过于简略",
+        status: ApplicationStatus.REJECTED,
+        rejectionReason:
+          "申请说明信息不完整，请补充组织背景说明和举办活动经历后重新申请",
+        reviewedAt: daysAgo(3),
+        submittedAt: daysAgo(7),
+      },
+    });
+  }
 
   console.log("✓ ⑥ 被拒绝账号 13800000007");
 
@@ -699,12 +822,12 @@ async function main() {
   console.log(`  PUBLISHED: ${salonEvent.name}`);
   console.log(`  PUBLISHED: ${expoEvent.name}`);
   console.log("\n── 数据量 ──");
-  console.log("  Organization: 3（已审核）");
-  console.log("  OrganizerApplication: 3 APPROVED + 2 PENDING + 1 REJECTED");
+  console.log("  Organization: 4（已审核，含李经理双身份）");
+  console.log("  OrganizerApplication: 4 APPROVED + 2 PENDING + 1 REJECTED");
   console.log("  END_USER: 10");
   console.log("  OrgMember: 8");
   console.log("  IntentTag: 20");
-  console.log("  Booth: 2");
+  console.log("  Booth: 3");
   console.log(`\n  平台管理员 ID: ${platformAdmin.id}`);
   console.log(`  时间: ${now.toISOString()}`);
 }

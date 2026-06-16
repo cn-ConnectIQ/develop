@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOutWithCleanup } from "@/lib/auth-redirect";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { ArrowLeft, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import { UserRole } from "@connectiq/types";
 import {
@@ -21,6 +22,10 @@ import {
   isNavItemActive,
 } from "@/lib/nav-context";
 import { getRoleTheme } from "@/lib/role-theme";
+import {
+  getOrgLogoGradient,
+  getOrgSidebarActiveClass,
+} from "@/lib/org-switcher-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
@@ -234,6 +239,7 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const [hash, setHash] = useState("");
 
   useEffect(() => {
@@ -251,6 +257,14 @@ export function Sidebar({
       ? UserRole.PLATFORM_ADMIN
       : role;
   const theme = getRoleTheme(role);
+  const sidebarActiveClass = getOrgSidebarActiveClass(
+    session?.user?.activeOrgType,
+    session?.user?.userType ?? (role === UserRole.PLATFORM_ADMIN ? "PLATFORM_ADMIN" : undefined),
+  );
+  const logoGradient =
+    session?.user?.userType === "ACCOUNT_ADMIN" && session.user.activeOrgType
+      ? getOrgLogoGradient(session.user.activeOrgType)
+      : theme.logoGradient;
 
   const resolvedEventId =
     navMode === "event"
@@ -296,7 +310,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "admin-sidebar flex h-full shrink-0 flex-col transition-[width] duration-200",
+        "admin-sidebar flex h-full shrink-0 flex-col transition-[width,colors] duration-150",
         collapsed ? "w-14" : "w-[220px]",
       )}
     >
@@ -306,7 +320,7 @@ export function Sidebar({
             <div
               className={cn(
                 "admin-sb-logo flex size-8 items-center justify-center text-sm font-bold",
-                `bg-gradient-to-br ${theme.logoGradient}`,
+                `bg-gradient-to-br ${logoGradient}`,
               )}
             >
               C
@@ -369,7 +383,7 @@ export function Sidebar({
                   item={item}
                   active={isNavActive(item.href, pathname, searchParams, hash)}
                   collapsed
-                  activeClass={theme.activeClass}
+                  activeClass={sidebarActiveClass}
                 />
               </li>
             ))}
@@ -379,7 +393,7 @@ export function Sidebar({
             groups={[...platformGroups, ...aiOpsGroups]}
             pathname={pathname}
             collapsed={false}
-            activeClass={theme.activeClass}
+            activeClass={sidebarActiveClass}
             searchParams={searchParams}
             hash={hash}
           />
@@ -388,7 +402,7 @@ export function Sidebar({
             groups={eventGroups}
             pathname={pathname}
             collapsed={false}
-            activeClass={theme.activeClass}
+            activeClass={sidebarActiveClass}
             searchParams={searchParams}
             hash={hash}
             reviewLocked={reviewLocked}
@@ -405,7 +419,7 @@ export function Sidebar({
             <div
               className={cn(
                 "admin-sb-avatar bg-gradient-to-br",
-                theme.logoGradient,
+                logoGradient,
               )}
             >
               {user.name.slice(0, 1).toUpperCase()}

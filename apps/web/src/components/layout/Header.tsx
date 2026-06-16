@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, LogOut, Settings, UserRound } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Settings, Shield, UserRound } from "lucide-react";
 import { signOutWithCleanup } from "@/lib/auth-redirect";
 import { useSession } from "next-auth/react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,7 +16,12 @@ import {
 import { Separator } from "@/components/ui/separator";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
 import { BreadcrumbNav } from "@/components/layout/BreadcrumbNav";
-import { RoleSwitcher } from "@/components/layout/RoleSwitcher";
+import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
+import { useOrgSwitcher } from "@/hooks/useOrgSwitcher";
+import {
+  getOrgTypeBadgeStyle,
+  resolveCurrentOrgFromSession,
+} from "@/lib/org-switcher-utils";
 import { getRoleLabel } from "@/config/navigation";
 import { getRoleTheme } from "@/lib/role-theme";
 import { cn } from "@/lib/utils";
@@ -36,11 +41,24 @@ export function Header({
   notificationCount = 3,
 }: HeaderProps) {
   const { data: session } = useSession();
-  const role = (session?.user?.role ?? user.role) as UserRole;
+  const { switchOrg, switching } = useOrgSwitcher();
+  const role = user.role as UserRole;
   const theme = getRoleTheme(role);
 
-  const avatarBgClass =
-    theme.accent === "green"
+  const ownedOrgs = session?.user?.ownedOrgs ?? [];
+  const currentOrg = resolveCurrentOrgFromSession(
+    ownedOrgs,
+    session?.user?.activeOrgId,
+  );
+
+  const avatarAccent =
+    session?.user?.userType === "ACCOUNT_ADMIN" && session.user.activeOrgType
+      ? session.user.activeOrgType
+      : null;
+
+  const avatarBgClass = avatarAccent
+    ? getOrgTypeBadgeStyle(avatarAccent)
+    : theme.accent === "green"
       ? "bg-brand-green-light text-brand-green"
       : theme.accent === "amber"
         ? "bg-brand-amber-light text-brand-amber"
@@ -50,9 +68,29 @@ export function Header({
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border-light bg-white px-4">
-      <RoleSwitcher />
+      {session?.user?.userType === "ACCOUNT_ADMIN" && currentOrg && (
+        <OrgSwitcher
+          currentOrgId={session.user.activeOrgId ?? currentOrg.id}
+          currentOrgName={currentOrg.name}
+          currentOrgType={session.user.activeOrgType ?? currentOrg.account_type}
+          currentLogoUrl={currentOrg.logo_url}
+          ownedOrgs={ownedOrgs}
+          onSwitch={switchOrg}
+          switching={switching}
+        />
+      )}
 
-      <Separator orientation="vertical" className="hidden h-6 md:block" />
+      {session?.user?.userType === "PLATFORM_ADMIN" && (
+        <div className="flex items-center gap-2 rounded-lg bg-brand-gold/20 px-3 py-1.5">
+          <Shield className="size-4 text-brand-gold" />
+          <span className="text-sm font-medium text-brand-gold">平台管理员</span>
+        </div>
+      )}
+
+      {(session?.user?.userType === "ACCOUNT_ADMIN" ||
+        session?.user?.userType === "PLATFORM_ADMIN") && (
+        <Separator orientation="vertical" className="hidden h-6 md:block" />
+      )}
 
       <BreadcrumbNav />
 

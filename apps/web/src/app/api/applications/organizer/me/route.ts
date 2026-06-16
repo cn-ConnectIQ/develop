@@ -5,7 +5,7 @@ import {
   requireAuthSession,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { getOrganizerApplicationByUserId } from "@/lib/organizer-application-service";
+import { getOrganizerApplicationsByUserId } from "@/lib/organizer-application-service";
 
 export const GET = withErrorHandler(async () => {
   const session = await requireAuthSession();
@@ -13,10 +13,6 @@ export const GET = withErrorHandler(async () => {
     return createErrorResponse("请先登录", ErrorCode.UNAUTHORIZED, 401);
   }
 
-  const application = await getOrganizerApplicationByUserId(session.user.id);
-  if (!application) {
-    return createErrorResponse("暂无申请记录", ErrorCode.NOT_FOUND, 404);
-  }
-
-  return createSuccessResponse(application);
+  const applications = await getOrganizerApplicationsByUserId(session.user.id);
+  return createSuccessResponse(applications);
 });

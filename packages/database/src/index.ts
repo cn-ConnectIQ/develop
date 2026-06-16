@@ -43,7 +43,7 @@ export {
 /** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
 export { UserRole as PrismaUserRole } from "@prisma/client";
 export type {
-  Booth,
+  ExhibitorBooth,
   Event,
   IntentTag,
   Lead,
@@ -53,3 +53,5 @@ export type {
   Prisma,
   User,
 } from "@prisma/client";
+/** @deprecated 使用 ExhibitorBooth */
+export type { ExhibitorBooth as Booth } from "@prisma/client";

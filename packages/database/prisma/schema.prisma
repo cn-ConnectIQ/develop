@@ -353,7 +353,6 @@ model User {
   roleAssignments            UserRoleAssignment[]
   organizedEvents            Event[]              @relation("EventOrganizer")
   createdPolls               Poll[]               @relation("PollCreator")
-  booths                     Booth[]
   notifications              Notification[]
   auditLogs                  AuditLog[]
   fileAssets                 FileAsset[]
@@ -374,28 +373,29 @@ model User {
   createdInteractionSessions InteractionSession[] @relation("InteractionSessionCreator")
   referralsIntroduced        BusinessReferral[]   @relation("ReferralIntroducer")
   referralsReceived          BusinessReferral[]   @relation("ReferralRecipient")
-  referralsAsA                 BusinessReferral[]   @relation("ReferralUserA")
-  referralsAsB                 BusinessReferral[]   @relation("ReferralUserB")
-  meetingsHosted               Meeting[]            @relation("MeetingHost")
-  meetingsGuest                Meeting[]            @relation("MeetingGuest")
-  meetingsCancelled            Meeting[]            @relation("MeetingCancelledBy")
+  referralsAsA               BusinessReferral[]   @relation("ReferralUserA")
+  referralsAsB               BusinessReferral[]   @relation("ReferralUserB")
+  meetingsHosted             Meeting[]            @relation("MeetingHost")
+  meetingsGuest              Meeting[]            @relation("MeetingGuest")
+  meetingsCancelled          Meeting[]            @relation("MeetingCancelledBy")
 
   // 三层角色区分
   userType UserType @default(END_USER) @map("user_type")
 
-  // 账号管理员关联的组织（END_USER 为 null）
-  orgId String?       @map("org_id")
-  org   Organization? @relation("UserAccountOrg", fields: [orgId], references: [id], onDelete: SetNull)
+  // 账号管理员当前激活的组织（END_USER 为 null）
+  activeOrgId String?       @map("active_org_id")
+  activeOrg   Organization? @relation("UserActiveOrg", fields: [activeOrgId], references: [id], onDelete: SetNull)
 
   // 组织关联
-  ownedOrg             Organization?          @relation("OrgOwner")
-  orgMemberships       OrgMember[]
-  orgStaffRoles        OrgStaff[]             @relation("OrgStaffMember")
-  orgStaffInvites      OrgStaff[]             @relation("OrgStaffInviter")
-  submittedApplication OrganizerApplication?
-  reviewedApplications OrganizerApplication[] @relation("ApplicationReviewer")
-  submittedEventReviews EventReview[]         @relation("EventReviewSubmitter")
-  reviewedEventReviews  EventReview[]         @relation("EventReviewer")
+  ownedOrg              Organization?          @relation("OrgOwner")
+  orgMemberships        OrgMember[]
+  orgStaffRoles         OrgStaff[]             @relation("OrgStaffMember")
+  orgStaffInvites       OrgStaff[]             @relation("OrgStaffInviter")
+  submittedApplications OrganizerApplication[]
+  reviewedApplications  OrganizerApplication[] @relation("ApplicationReviewer")
+  submittedEventReviews EventReview[]          @relation("EventReviewSubmitter")
+  reviewedEventReviews  EventReview[]          @relation("EventReviewer")
+  operatedBooths        ExhibitorBooth[]       @relation("BoothOperator")
 
   @@map("users")
 }
@@ -442,11 +442,12 @@ model Organization {
   ownerId String? @unique @map("owner_id")
   owner   User?   @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
-  accountAdmins User[]                @relation("UserAccountOrg")
-  members       OrgMember[]
-  staff         OrgStaff[]
-  events        Event[]
-  application   OrganizerApplication?
+  activeUsers     User[]                @relation("UserActiveOrg")
+  members         OrgMember[]
+  staff           OrgStaff[]
+  events          Event[]
+  application     OrganizerApplication?
+  exhibitorBooths ExhibitorBooth[]      @relation("BoothOrg")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -457,11 +458,11 @@ model Organization {
 }
 
 model OrgMember {
-  id     String @id @default(cuid())
-  orgId  String @map("org_id")
+  id     String       @id @default(cuid())
+  orgId  String       @map("org_id")
   org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String       @map("user_id")
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // 关系来源
   joinSource    OrgJoinSource @map("join_source")
@@ -493,11 +494,11 @@ model OrgMember {
 }
 
 model OrgStaff {
-  id     String @id @default(cuid())
-  orgId  String @map("org_id")
+  id     String       @id @default(cuid())
+  orgId  String       @map("org_id")
   org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  userId String @map("user_id")
-  user   User   @relation("OrgStaffMember", fields: [userId], references: [id], onDelete: Cascade)
+  userId String       @map("user_id")
+  user   User         @relation("OrgStaffMember", fields: [userId], references: [id], onDelete: Cascade)
 
   role      OrgStaffRole
   invitedBy String?      @map("invited_by")
@@ -515,10 +516,10 @@ model OrgStaff {
 }
 
 model OrganizerApplication {
-  id     String  @id @default(cuid())
-  userId String  @unique @map("user_id")
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orgId  String? @unique @map("org_id")
+  id     String        @id @default(cuid())
+  userId String        @map("user_id") // 同一用户可以有多次申请（不同 account_type）
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId  String?       @unique @map("org_id")
   org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 
   // 申请信息
@@ -543,17 +544,18 @@ model OrganizerApplication {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@index([userId])
   @@index([status])
   @@index([accountType, status])
   @@map("organizer_applications")
 }
 
 model EventReview {
-  id           String @id @default(cuid())
-  eventId      String @unique @map("event_id")
-  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  submittedBy  String @map("submitted_by")
-  submitter    User?  @relation("EventReviewSubmitter", fields: [submittedBy], references: [id], onDelete: SetNull)
+  id          String @id @default(cuid())
+  eventId     String @unique @map("event_id")
+  event       Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  submittedBy String @map("submitted_by")
+  submitter   User?  @relation("EventReviewSubmitter", fields: [submittedBy], references: [id], onDelete: SetNull)
 
   status          ReviewStatus @default(PENDING_REVIEW)
   rejectionReason String?      @map("rejection_reason")
@@ -573,28 +575,28 @@ model EventReview {
 }
 
 model Event {
-  id             String      @id @default(cuid())
-  name           String
-  slug           String      @unique
-  type           EventType
-  status         EventStatus @default(DRAFT)
-  description    String?
-  location       String?
-  startDate      DateTime?   @map("start_date")
-  endDate        DateTime?   @map("end_date")
-  organizerId String @map("organizer_id")
-  orgId       String? @map("org_id")
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  type         EventType
+  status       EventStatus  @default(DRAFT)
+  description  String?
+  location     String?
+  startDate    DateTime?    @map("start_date")
+  endDate      DateTime?    @map("end_date")
+  organizerId  String       @map("organizer_id")
+  orgId        String?      @map("org_id")
   reviewStatus ReviewStatus @default(DRAFT) @map("review_status")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  organizer User          @relation("EventOrganizer", fields: [organizerId], references: [id])
-  org       Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
-  review    EventReview?
-  orgMembers OrgMember[]  @relation("MemberSourceEvent")
+  organizer           User                 @relation("EventOrganizer", fields: [organizerId], references: [id])
+  org                 Organization?        @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  review              EventReview?
+  orgMembers          OrgMember[]          @relation("MemberSourceEvent")
   settings            EventSetting[]
   halls               ExpoHall[]
-  booths              Booth[]
+  booths              ExhibitorBooth[]
   participants        Participant[]
   intentTags          IntentTag[]
   ticketTypes         TicketType[]
@@ -682,20 +684,21 @@ model ExpoHall {
   floor     String?
   createdAt DateTime @default(now()) @map("created_at")
 
-  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  booths Booth[]
+  event  Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  booths ExhibitorBooth[]
 
   @@map("expo_halls")
 }
 
-model Booth {
+model ExhibitorBooth {
   id             String      @id @default(cuid())
   name           String
   code           String
   status         BoothStatus @default(AVAILABLE)
   eventId        String      @map("event_id")
   hallId         String?     @map("hall_id")
-  exhibitorId    String      @map("exhibitor_id")
+  companyOrgId   String      @map("company_org_id")
+  operatorUserId String?     @map("operator_user_id")
   positionData   Json?       @map("position_data")
   leadFormConfig Json?       @map("lead_form_config")
   createdAt      DateTime    @default(now()) @map("created_at")
@@ -703,7 +706,8 @@ model Booth {
 
   event               Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
   hall                ExpoHall?            @relation(fields: [hallId], references: [id])
-  exhibitor           User                 @relation(fields: [exhibitorId], references: [id])
+  companyOrg          Organization         @relation("BoothOrg", fields: [companyOrgId], references: [id], onDelete: Cascade)
+  operator            User?                @relation("BoothOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
   bookings            BoothBooking[]
   leads               Lead[]
   lotteries           Lottery[]
@@ -720,8 +724,8 @@ model BoothBooking {
   status        RegistrationStatus @default(PENDING)
   bookedAt      DateTime           @default(now()) @map("booked_at")
 
-  booth       Booth        @relation(fields: [boothId], references: [id], onDelete: Cascade)
-  participant Participant? @relation(fields: [participantId], references: [id])
+  booth       ExhibitorBooth @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  participant Participant?   @relation(fields: [participantId], references: [id])
 
   @@map("booth_bookings")
 }
@@ -799,7 +803,7 @@ model Lead {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  booth       Booth           @relation(fields: [boothId], references: [id], onDelete: Cascade)
+  booth       ExhibitorBooth  @relation(fields: [boothId], references: [id], onDelete: Cascade)
   participant Participant     @relation(fields: [participantId], references: [id], onDelete: Cascade)
   intentTags  LeadIntentTag[]
   crmSyncJobs CrmSyncJob[]
@@ -1096,7 +1100,7 @@ model Lottery {
 
   event       Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   creator     User            @relation("LotteryCreator", fields: [createdById], references: [id])
-  booth       Booth?          @relation(fields: [boothId], references: [id], onDelete: SetNull)
+  booth       ExhibitorBooth? @relation(fields: [boothId], references: [id], onDelete: SetNull)
   requirePoll Poll?           @relation("LotteryRequirePoll", fields: [requirePollId], references: [id], onDelete: SetNull)
   quizPoll    Poll?           @relation("LotteryQuizPoll", fields: [quizPollId], references: [id], onDelete: SetNull)
   entries     LotteryEntry[]
@@ -1153,9 +1157,9 @@ model InteractionSession {
   createdAt        DateTime               @default(now()) @map("created_at")
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
-  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  booth   Booth? @relation(fields: [boothId], references: [id], onDelete: SetNull)
-  creator User   @relation("InteractionSessionCreator", fields: [createdById], references: [id])
+  event   Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  booth   ExhibitorBooth? @relation(fields: [boothId], references: [id], onDelete: SetNull)
+  creator User            @relation("InteractionSessionCreator", fields: [createdById], references: [id])
 
   @@index([eventId])
   @@index([sessionCode])

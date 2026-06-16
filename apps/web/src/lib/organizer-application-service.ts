@@ -137,12 +137,23 @@ export function formatApplicationRecord(application: {
 export async function submitOrganizerApplication(input: SubmitApplicationInput) {
   const user = await resolveApplicantUser(input);
 
-  const existing = await prisma.organizerApplication.findUnique({
-    where: { userId: user.id },
-  });
+  const existingPendingOrApproved =
+    await prisma.organizerApplication.findFirst({
+      where: {
+        userId: user.id,
+        accountType: input.accountType,
+        status: {
+          in: [ApplicationStatus.PENDING, ApplicationStatus.APPROVED],
+        },
+      },
+    });
 
-  if (existing?.status === ApplicationStatus.APPROVED) {
-    throw new ApplicationServiceError("申请已通过审核", "ALREADY_APPROVED");
+  if (existingPendingOrApproved) {
+    const statusText =
+      existingPendingOrApproved.status === ApplicationStatus.PENDING
+        ? "你已有一条相同类型的申请正在审核中"
+        : "你已拥有此类型的账号身份，无需重复申请";
+    throw new ApplicationServiceError(statusText, "DUPLICATE_APPLICATION");
   }
 
   const payload = {
@@ -159,9 +170,17 @@ export async function submitOrganizerApplication(input: SubmitApplicationInput) 
     submittedAt: new Date(),
   };
 
-  const application = existing
+  const existingRejected = await prisma.organizerApplication.findFirst({
+    where: {
+      userId: user.id,
+      accountType: input.accountType,
+      status: ApplicationStatus.REJECTED,
+    },
+  });
+
+  const application = existingRejected
     ? await prisma.organizerApplication.update({
-        where: { id: existing.id },
+        where: { id: existingRejected.id },
         data: payload,
       })
     : await prisma.organizerApplication.create({
@@ -198,10 +217,37 @@ export async function submitOrganizerApplication(input: SubmitApplicationInput) 
   };
 }
 
-export async function getOrganizerApplicationByUserId(userId: string) {
-  const application = await prisma.organizerApplication.findUnique({
+export async function getOrganizerApplicationsByUserId(userId: string) {
+  const applications = await prisma.organizerApplication.findMany({
     where: { userId },
+    include: {
+      org: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          accountType: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
   });
-  if (!application) return null;
-  return formatApplicationRecord(application);
+
+  return applications.map((application) => ({
+    ...formatApplicationRecord(application),
+    org: application.org
+      ? {
+          id: application.org.id,
+          name: application.org.name,
+          slug: application.org.slug,
+          accountType: application.org.accountType,
+        }
+      : null,
+  }));
+}
+
+/** @deprecated 使用 getOrganizerApplicationsByUserId */
+export async function getOrganizerApplicationByUserId(userId: string) {
+  const applications = await getOrganizerApplicationsByUserId(userId);
+  return applications[0] ?? null;
 }

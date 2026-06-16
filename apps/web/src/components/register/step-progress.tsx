@@ -6,15 +6,31 @@ const STEPS = ["账号信息", "组织信息", "确认提交"] as const;
 
 type StepProgressProps = {
   currentStep: 1 | 2 | 3;
+  /** 追加新身份：仅显示组织信息 + 确认提交两步 */
+  mode?: "default" | "add";
 };
 
-export function StepProgress({ currentStep }: StepProgressProps) {
+export function StepProgress({ currentStep, mode = "default" }: StepProgressProps) {
+  const steps =
+    mode === "add"
+      ? (["组织信息", "确认提交"] as const)
+      : STEPS;
+
+  const displayStep =
+    mode === "add"
+      ? currentStep === 2
+        ? 1
+        : currentStep === 3
+          ? 2
+          : 1
+      : currentStep;
+
   return (
     <div className="mb-10 flex items-center justify-between">
-      {STEPS.map((label, index) => {
+      {steps.map((label, index) => {
         const stepNumber = (index + 1) as 1 | 2 | 3;
-        const isCompleted = stepNumber < currentStep;
-        const isCurrent = stepNumber === currentStep;
+        const isCompleted = stepNumber < displayStep;
+        const isCurrent = stepNumber === displayStep;
 
         return (
           <div key={label} className="flex flex-1 items-center">
@@ -41,11 +57,11 @@ export function StepProgress({ currentStep }: StepProgressProps) {
                 {label}
               </span>
             </div>
-            {index < STEPS.length - 1 && (
+            {index < steps.length - 1 && (
               <div
                 className={cn(
                   "mx-2 mb-6 h-0.5 flex-1",
-                  stepNumber < currentStep
+                  stepNumber < displayStep
                     ? "bg-brand-blue"
                     : "bg-border-light",
                 )}

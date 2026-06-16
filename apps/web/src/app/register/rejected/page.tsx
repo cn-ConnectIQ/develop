@@ -29,18 +29,26 @@ export default function RegisterRejectedPage() {
           return;
         }
         const json = await res.json();
-        const data = json.data as ApplicationData;
-        if (data.status !== "REJECTED") {
-          if (data.status === "PENDING") {
+        const apps = (Array.isArray(json.data) ? json.data : []) as ApplicationData[];
+
+        if (apps.length === 0) {
+          router.replace("/register/admin");
+          return;
+        }
+
+        const rejected = apps.find((a) => a.status === "REJECTED");
+        if (!rejected) {
+          if (apps.some((a) => a.status === "PENDING")) {
             router.replace("/register/pending");
-          } else if (data.status === "APPROVED") {
+          } else if (apps.some((a) => a.status === "APPROVED")) {
             router.replace("/events");
           } else {
             router.replace("/register/admin");
           }
           return;
         }
-        setApplication(data);
+
+        setApplication(rejected);
       } finally {
         setLoading(false);
       }

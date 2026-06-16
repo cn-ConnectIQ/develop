@@ -9,16 +9,16 @@ import { authOptions } from "./auth";
 export type UserType = Session["user"]["userType"];
 export type AuthSession = Session;
 
-// ── 标准响应 ──
+// ?? ???? ??
 
 export function unauthorized() {
   return NextResponse.json(
-    { error: "请先登录", code: "UNAUTHORIZED" },
+    { error: "????", code: "UNAUTHORIZED" },
     { status: 401 },
   );
 }
 
-export function forbidden(msg = "没有权限执行此操作") {
+export function forbidden(msg = "?????????") {
   return NextResponse.json({ error: msg, code: "FORBIDDEN" }, { status: 403 });
 }
 
@@ -30,13 +30,13 @@ export function success<T>(data: T, meta?: Record<string, unknown>) {
   return NextResponse.json({ data, ...(meta ? { meta } : {}) });
 }
 
-// ── 基础：获取当前会话 ──
+// ?? ????????? ??
 
 export async function getSession() {
   return getServerSession(authOptions);
 }
 
-// ── 校验一：要求已登录（新 API，返回 null 表示未登录）──
+// ?? ??????????? API??? null ????????
 
 export async function requireAuthSession(
   _request?: NextRequest,
@@ -47,7 +47,7 @@ export async function requireAuthSession(
   return session;
 }
 
-// ── 校验二：平台管理员 ──
+// ?? ????????? ??
 
 export async function requirePlatformAdminAccess(
   _request?: NextRequest,
@@ -56,12 +56,12 @@ export async function requirePlatformAdminAccess(
   const session = await requireAuthSession();
   if (!session) return { error: unauthorized() };
   if (session.user.userType !== "PLATFORM_ADMIN") {
-    return { error: forbidden("仅平台管理员可访问") };
+    return { error: forbidden("?????????") };
   }
   return { session };
 }
 
-// ── 校验三：账号管理员（已审核通过）──
+// ?? ??????????????????
 
 export async function requireAccountAdmin(
   _request?: NextRequest,
@@ -72,27 +72,32 @@ export async function requireAccountAdmin(
   const session = await requireAuthSession();
   if (!session) return { error: unauthorized() };
   if (session.user.userType !== "ACCOUNT_ADMIN") {
-    return { error: forbidden("仅账号管理员可访问") };
+    return { error: forbidden("?????????") };
   }
-  if (session.user.adminStatus !== "APPROVED") {
+  if (session.user.activeAdminStatus !== "APPROVED") {
     return {
       error: NextResponse.json(
         {
-          error: "账号尚未审核通过",
+          error: "?????????????",
           code: "ADMIN_NOT_APPROVED",
-          adminStatus: session.user.adminStatus,
+          adminStatus: session.user.activeAdminStatus,
+          hint: (session.user.ownedOrgs || []).some(
+            (o) => o.admin_status === "APPROVED",
+          )
+            ? "?????????????????????"
+            : null,
         },
         { status: 403 },
       ),
     };
   }
-  if (!session.user.orgId) {
-    return { error: forbidden("账号未关联组织") };
+  if (!session.user.activeOrgId) {
+    return { error: forbidden("???????") };
   }
-  return { session, orgId: session.user.orgId };
+  return { session, orgId: session.user.activeOrgId };
 }
 
-// ── 校验四：活动访问权（平台管理员或本组织账号管理员）──
+// ?? ???????????????????????????
 
 type EventRecord = NonNullable<Awaited<ReturnType<typeof loadEvent>>>;
 type BoothRecord = NonNullable<Awaited<ReturnType<typeof loadBooth>>>;
@@ -113,7 +118,7 @@ export async function requireEventAccessCheck(
 
   if (session.user.userType === "PLATFORM_ADMIN") {
     const event = await loadEvent(id);
-    if (!event) return { error: forbidden("活动不存在") };
+    if (!event) return { error: forbidden("?????") };
     return { session, event, orgId: null };
   }
 
@@ -124,11 +129,11 @@ export async function requireEventAccessCheck(
   const event = await prisma.event.findFirst({
     where: { id, orgId },
   });
-  if (!event) return { error: forbidden("你没有权限访问此活动") };
+  if (!event) return { error: forbidden("??????????") };
   return { session, event, orgId };
 }
 
-// ── 校验五：展位访问权 ──
+// ?? ????????? ??
 
 export async function requireBoothAccessCheck(
   requestOrBoothId: NextRequest | string,
@@ -155,11 +160,11 @@ export async function requireBoothAccessCheck(
       event: { select: { id: true, orgId: true, organizerId: true } },
     },
   });
-  if (!booth) return { error: forbidden("你没有权限访问此展位") };
+  if (!booth) return { error: forbidden("??????????") };
   return { session, booth, orgId };
 }
 
-// ── 高阶包裹：统一捕获错误 ──
+// ?? ??????????? ??
 
 type RouteContext = { params?: Record<string, string> };
 
@@ -184,7 +189,7 @@ export function withErrorHandler(handler: RouteHandler) {
       }
       console.error("[API Error]", err);
       return NextResponse.json(
-        { error: "服务器内部错误", code: "INTERNAL_ERROR" },
+        { error: "???????", code: "INTERNAL_ERROR" },
         { status: 500 },
       );
     }
@@ -207,7 +212,7 @@ async function loadBooth(boothId: string) {
 function responseToApiError(response: NextResponse, fallback: string): ApiError {
   const status = response.status;
   if (status === 401) {
-    return new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
+    return new ApiError("???", ErrorCode.UNAUTHORIZED, 401);
   }
   if (status === 404) {
     return new ApiError(fallback, ErrorCode.NOT_FOUND, 404);
@@ -215,9 +220,9 @@ function responseToApiError(response: NextResponse, fallback: string): ApiError 
   return new ApiError(fallback, ErrorCode.FORBIDDEN, 403);
 }
 
-// ══════════════════════════════════════════════════════════════
-// 向后兼容层：旧 API 路由仍使用 throw 语义，迁移完成后删除
-// ══════════════════════════════════════════════════════════════
+// ??????????????????????????????????????????????????????????????
+// ??????? API ????? throw ??????????
+// ??????????????????????????????????????????????????????????????
 
 export class ApiError extends Error {
   constructor(
@@ -257,7 +262,7 @@ export type AppSession = AuthSession;
 function deriveLegacyRole(user: Session["user"]): UserRole {
   if (user.userType === "PLATFORM_ADMIN") return UserRole.PLATFORM_ADMIN;
   if (user.userType === "ACCOUNT_ADMIN") {
-    switch (user.accountType) {
+    switch (user.activeOrgType) {
       case "EXPO_ORGANIZER":
         return UserRole.EXPO_ORGANIZER;
       case "EXHIBITOR":
@@ -266,7 +271,7 @@ function deriveLegacyRole(user: Session["user"]): UserRole {
         return UserRole.ORGANIZER;
     }
   }
-  throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+  throw new ApiError("????", ErrorCode.FORBIDDEN, 403);
 }
 
 function normalizeRoles(
@@ -298,13 +303,13 @@ export async function requireAuth(
 
   const session = await requireAuthSession();
   if (!session) {
-    throw new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
+    throw new ApiError("???", ErrorCode.UNAUTHORIZED, 401);
   }
 
   if (roles) {
     const legacyRole = deriveLegacyRole(session.user);
     if (!hasAnyRole(legacyRole, roles)) {
-      throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
+      throw new ApiError("????", ErrorCode.FORBIDDEN, 403);
     }
   }
 
@@ -314,7 +319,7 @@ export async function requireAuth(
 export async function requirePlatformAdmin(): Promise<AuthResult> {
   const result = await requirePlatformAdminAccess();
   if ("error" in result) {
-    throw responseToApiError(result.error, "无权访问");
+    throw responseToApiError(result.error, "????");
   }
   return { session: result.session, user: result.session.user };
 }
@@ -333,12 +338,12 @@ export async function requireEventAccess(
   const id =
     typeof requestOrEventId === "string" ? requestOrEventId : eventId!;
   if (!id) {
-    throw new ApiError("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
+    throw new ApiError("???? ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const result = await requireEventAccessCheck(id);
   if ("error" in result) {
-    throw responseToApiError(result.error, "无权访问该活动");
+    throw responseToApiError(result.error, "???????");
   }
 
   return { session: result.session, event: result.event };
@@ -358,12 +363,12 @@ export async function requireBoothAccess(
   const id =
     typeof requestOrBoothId === "string" ? requestOrBoothId : boothId!;
   if (!id) {
-    throw new ApiError("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
+    throw new ApiError("???? ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const result = await requireBoothAccessCheck(id);
   if ("error" in result) {
-    throw responseToApiError(result.error, "无权访问该展位");
+    throw responseToApiError(result.error, "???????");
   }
 
   return { session: result.session, booth: result.booth };
@@ -381,7 +386,7 @@ export function createErrorResponse(
   return NextResponse.json(errorResponse(message, code), { status });
 }
 
-// 新 API 别名（与任务文档命名一致）
+// ? API ?????????????
 export {
   requireAuthSession as requireAuthNullable,
   requirePlatformAdminAccess as requirePlatformAdminCheck,

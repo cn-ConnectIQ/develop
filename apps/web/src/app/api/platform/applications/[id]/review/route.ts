@@ -58,7 +58,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
       const status =
         error.code === "NOT_FOUND"
           ? 404
-          : error.code === "ALREADY_REVIEWED" || error.code === "USER_HAS_ORG"
+          : error.code === "ALREADY_REVIEWED"
             ? 409
             : 400;
       return createErrorResponse(error.message, ErrorCode.VALIDATION_ERROR, status);

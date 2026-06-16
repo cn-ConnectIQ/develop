@@ -22,7 +22,7 @@ import { sendNotificationSms } from "@/lib/sms";
 export class PlatformApplicationError extends Error {
   constructor(
     message: string,
-    public code: "NOT_FOUND" | "INVALID_STATUS" | "ALREADY_REVIEWED" | "USER_HAS_ORG",
+    public code: "NOT_FOUND" | "INVALID_STATUS" | "ALREADY_REVIEWED",
   ) {
     super(message);
   }
@@ -86,90 +86,112 @@ async function loadApplicationForReview(applicationId: string) {
   return application;
 }
 
+function getAccountTypeName(type: AccountType): string {
+  return ACCOUNT_TYPE_LABELS[type] ?? type;
+}
+
 export async function approveApplication(
   applicationId: string,
   reviewerId: string,
   notes?: string,
 ) {
-  const application = await loadApplicationForReview(applicationId);
+  await loadApplicationForReview(applicationId);
 
-  const existingOwnedOrg = await prisma.organization.findUnique({
-    where: { ownerId: application.userId },
-  });
-  if (existingOwnedOrg) {
-    throw new PlatformApplicationError(
-      "该用户已拥有组织，无法重复创建",
-      "USER_HAS_ORG",
-    );
-  }
+  const { application: updated, org, isFirstOrg } = await prisma.$transaction(
+    async (tx) => {
+      const application = await tx.organizerApplication.update({
+        where: { id: applicationId },
+        data: {
+          status: ApplicationStatus.APPROVED,
+          reviewedBy: reviewerId,
+          reviewedAt: new Date(),
+          reviewerNotes: notes?.trim() || null,
+          rejectionReason: null,
+        },
+        include: { user: true },
+      });
 
-  const { application: updated, org } = await prisma.$transaction(async (tx) => {
-    const slug = await resolveUniqueOrgSlug(tx, application.orgName);
+      const slug = await resolveUniqueOrgSlug(tx, application.orgName);
 
-    const orgRecord = await tx.organization.create({
-      data: {
-        name: application.orgName,
-        slug,
-        accountType: application.accountType,
-        orgCreditCode: application.orgCreditCode,
-        website: application.orgWebsite,
-        contactEmail: application.contactEmail,
-        isVerified: true,
-        adminStatus: AdminStatus.APPROVED,
-        ownerId: application.userId,
-      },
-    });
+      const existingOwnerOrg = await tx.organization.findFirst({
+        where: { ownerId: application.userId },
+        select: { id: true },
+      });
 
-    const updatedApplication = await tx.organizerApplication.update({
-      where: { id: applicationId },
-      data: {
-        status: ApplicationStatus.APPROVED,
-        orgId: orgRecord.id,
-        reviewedBy: reviewerId,
-        reviewedAt: new Date(),
-        reviewerNotes: notes?.trim() || null,
-        rejectionReason: null,
-      },
-      include: { user: true },
-    });
+      const orgRecord = await tx.organization.create({
+        data: {
+          name: application.orgName,
+          slug,
+          accountType: application.accountType,
+          orgCreditCode: application.orgCreditCode,
+          website: application.orgWebsite,
+          contactEmail: application.contactEmail,
+          isVerified: true,
+          adminStatus: AdminStatus.APPROVED,
+          // owner_id 列有唯一约束：仅首个组织写入，后续身份通过 OrgStaff.OWNER 关联
+          ownerId: existingOwnerOrg ? undefined : application.userId,
+        },
+      });
 
-    await tx.user.update({
-      where: { id: application.userId },
-      data: {
-        userType: UserType.ACCOUNT_ADMIN,
-        orgId: orgRecord.id,
-      },
-    });
+      await tx.organizerApplication.update({
+        where: { id: applicationId },
+        data: { orgId: orgRecord.id },
+      });
 
-    await tx.orgStaff.create({
-      data: {
-        orgId: orgRecord.id,
-        userId: application.userId,
-        role: OrgStaffRole.OWNER,
-        status: InviteStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-    });
+      const currentUser = await tx.user.findUnique({
+        where: { id: application.userId },
+        select: { activeOrgId: true },
+      });
 
-    await tx.notification.create({
-      data: {
-        userId: application.userId,
-        title: "🎉 账号申请已通过审核",
-        body: `恭喜！你的账号已审核通过，组织「${orgRecord.name}」已创建。现在可以登录管理后台开始发布活动。`,
-      },
-    });
+      await tx.user.update({
+        where: { id: application.userId },
+        data: {
+          userType: UserType.ACCOUNT_ADMIN,
+          activeOrgId: currentUser?.activeOrgId ?? orgRecord.id,
+        },
+      });
 
-    return { application: updatedApplication, org: orgRecord };
-  });
+      await tx.orgStaff.create({
+        data: {
+          orgId: orgRecord.id,
+          userId: application.userId,
+          role: OrgStaffRole.OWNER,
+          status: InviteStatus.ACCEPTED,
+          acceptedAt: new Date(),
+        },
+      });
+
+      const isFirstOrg = !currentUser?.activeOrgId;
+      const notificationBody = isFirstOrg
+        ? `恭喜！你的账号已审核通过，组织「${orgRecord.name}」已创建。现在可以登录管理后台开始发布活动。`
+        : `新身份审核通过！「${orgRecord.name}」（${getAccountTypeName(application.accountType)}）已添加到你的账号。登录后在身份切换器中可以找到它。`;
+
+      await tx.notification.create({
+        data: {
+          userId: application.userId,
+          title: isFirstOrg ? "🎉 账号申请已通过审核" : "✅ 新身份审核通过",
+          body: notificationBody,
+        },
+      });
+
+      return {
+        application: { ...application, orgId: orgRecord.id },
+        org: orgRecord,
+        isFirstOrg,
+      };
+    },
+  );
 
   await sendApplicationApprovedEmail(
-    application.contactEmail,
-    application.orgName,
+    updated.contactEmail,
+    updated.orgName,
   );
-  if (application.contactPhone) {
+  if (updated.contactPhone) {
     await sendNotificationSms(
-      application.contactPhone,
-      "审核通过，请登录 ConnectIQ 管理后台",
+      updated.contactPhone,
+      isFirstOrg
+        ? "审核通过，请登录 ConnectIQ 管理后台"
+        : "新身份审核通过，请登录后在身份切换器查看",
     );
   }
 
@@ -180,6 +202,7 @@ export async function approveApplication(
     orgName: org.name,
     applicationId: updated.id,
     userId: updated.userId,
+    isFirstOrg,
   };
 }
 

@@ -1,5 +1,6 @@
 import { AccountType } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createErrorResponse,
@@ -91,6 +92,12 @@ export const POST = withErrorHandler(async (request) => {
     return createSuccessResponse(result.application);
   } catch (error) {
     if (error instanceof ApplicationServiceError) {
+      if (error.code === "DUPLICATE_APPLICATION") {
+        return NextResponse.json(
+          { error: error.message, code: "DUPLICATE_APPLICATION" },
+          { status: 400 },
+        );
+      }
       const status =
         error.code === "ALREADY_APPROVED"
           ? 409
