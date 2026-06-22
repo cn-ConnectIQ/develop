@@ -23,6 +23,11 @@ const config: Config = {
         "text-muted": "#5F5E5A",
         "text-tertiary": "#888780",
       },
+      animation: {
+        wiggle: "wiggle 0.5s ease-in-out",
+        float: "float 3s ease-in-out infinite",
+        slideIn: "slideIn 0.4s ease-out",
+      },
       keyframes: {
         wiggle: {
           "0%, 100%": { transform: "rotate(0deg)" },
@@ -33,10 +38,10 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
         },
-      },
-      animation: {
-        wiggle: "wiggle 0.5s ease-in-out",
-        float: "float 3s ease-in-out infinite",
+        slideIn: {
+          "0%": { transform: "translateX(40px)", opacity: "0" },
+          "100%": { transform: "translateX(0)", opacity: "1" },
+        },
       },
     },
   },

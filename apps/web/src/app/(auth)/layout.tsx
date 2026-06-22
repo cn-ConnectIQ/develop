@@ -11,7 +11,11 @@ export default async function AuthLayout({
 }) {
   const session = await getServerSession(authOptions);
 
-  if (session?.user?.role) {
+  const userType = session?.user?.userType;
+  if (
+    session?.user?.role &&
+    (userType === "PLATFORM_ADMIN" || userType === "ACCOUNT_ADMIN")
+  ) {
     redirect(
       getAdminHomePath(
         session.user.role as UserRole,

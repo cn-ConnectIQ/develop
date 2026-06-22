@@ -1,4 +1,8 @@
 import { prisma } from "@connectiq/database";
+import {
+  validateFoundedYear,
+} from "@/lib/org-profile-constants";
+import { syncOrganizationStats } from "@/lib/org-stats";
 import type { OrgProfileData } from "@/lib/org-profile-types";
 
 export type { OrgProfileData } from "@/lib/org-profile-types";
@@ -22,8 +26,7 @@ export function validateOrgSlug(slug: string) {
   return null;
 }
 
-function serializeOrg(org: Awaited<ReturnType<typeof fetchOrg>>): OrgProfileData {
-  if (!org) throw new Error("组织不存在");
+function serializeOrg(org: NonNullable<Awaited<ReturnType<typeof fetchOrg>>>): OrgProfileData {
   return {
     id: org.id,
     name: org.name,
@@ -33,6 +36,10 @@ function serializeOrg(org: Awaited<ReturnType<typeof fetchOrg>>): OrgProfileData
     bio: org.bio,
     website: org.website,
     contactEmail: org.contactEmail,
+    industry: org.industry,
+    companySize: org.companySize,
+    headquarters: org.headquarters,
+    foundedYear: org.foundedYear,
     accountType: org.accountType,
     orgCreditCode: org.orgCreditCode,
     isVerified: org.isVerified,
@@ -47,6 +54,7 @@ async function fetchOrg(orgId: string) {
 }
 
 export async function getOrgProfile(orgId: string) {
+  await syncOrganizationStats(orgId);
   const org = await fetchOrg(orgId);
   if (!org) return null;
   return serializeOrg(org);
@@ -79,6 +87,10 @@ export type UpdateOrgProfileInput = {
   contactEmail?: string | null;
   logoUrl?: string | null;
   coverUrl?: string | null;
+  industry?: string | null;
+  companySize?: string | null;
+  headquarters?: string | null;
+  foundedYear?: number | null;
 };
 
 export async function updateOrgProfile(orgId: string, input: UpdateOrgProfileInput) {
@@ -106,16 +118,38 @@ export async function updateOrgProfile(orgId: string, input: UpdateOrgProfileInp
     data.bio = input.bio?.trim().slice(0, 300) || null;
   }
   if (input.website !== undefined) {
-    data.website = input.website?.trim() || null;
+    const trimmed = input.website?.trim() || null;
+    if (trimmed && !/^https?:\/\/.+/i.test(trimmed)) {
+      throw new Error("官网地址需以 http:// 或 https:// 开头");
+    }
+    data.website = trimmed;
   }
   if (input.contactEmail !== undefined) {
-    data.contactEmail = input.contactEmail?.trim() || null;
+    const trimmed = input.contactEmail?.trim() || null;
+    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      throw new Error("联系邮箱格式不正确");
+    }
+    data.contactEmail = trimmed;
   }
   if (input.logoUrl !== undefined) {
     data.logoUrl = input.logoUrl;
   }
   if (input.coverUrl !== undefined) {
     data.coverUrl = input.coverUrl;
+  }
+  if (input.industry !== undefined) {
+    data.industry = input.industry?.trim() || null;
+  }
+  if (input.companySize !== undefined) {
+    data.companySize = input.companySize?.trim() || null;
+  }
+  if (input.headquarters !== undefined) {
+    data.headquarters = input.headquarters?.trim().slice(0, 100) || null;
+  }
+  if (input.foundedYear !== undefined) {
+    const yearError = validateFoundedYear(input.foundedYear);
+    if (yearError) throw new Error(yearError);
+    data.foundedYear = input.foundedYear;
   }
 
   const updated = await prisma.organization.update({

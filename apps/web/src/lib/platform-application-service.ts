@@ -17,6 +17,7 @@ import {
   maskApplicationCreditCode as maskCreditCode,
   maskPhone,
 } from "@/lib/mask-utils";
+import { grantOrgAdminRoles } from "@/lib/org-admin-roles";
 import { sendNotificationSms } from "@/lib/sms";
 
 export class PlatformApplicationError extends Error {
@@ -86,10 +87,6 @@ async function loadApplicationForReview(applicationId: string) {
   return application;
 }
 
-function getAccountTypeName(type: AccountType): string {
-  return ACCOUNT_TYPE_LABELS[type] ?? type;
-}
-
 export async function approveApplication(
   applicationId: string,
   reviewerId: string,
@@ -122,13 +119,13 @@ export async function approveApplication(
         data: {
           name: application.orgName,
           slug,
-          accountType: application.accountType,
+          accountType: AccountType.ORGANIZATION,
           orgCreditCode: application.orgCreditCode,
           website: application.orgWebsite,
           contactEmail: application.contactEmail,
           isVerified: true,
           adminStatus: AdminStatus.APPROVED,
-          // owner_id 列有唯一约束：仅首个组织写入，后续身份通过 OrgStaff.OWNER 关联
+          // owner_id 列有唯一约束：仅首个组织写入，后续组织通过 OrgStaff.OWNER 关联
           ownerId: existingOwnerOrg ? undefined : application.userId,
         },
       });
@@ -161,15 +158,17 @@ export async function approveApplication(
         },
       });
 
+      await grantOrgAdminRoles(tx, application.userId);
+
       const isFirstOrg = !currentUser?.activeOrgId;
       const notificationBody = isFirstOrg
-        ? `恭喜！你的账号已审核通过，组织「${orgRecord.name}」已创建。现在可以登录管理后台开始发布活动。`
-        : `新身份审核通过！「${orgRecord.name}」（${getAccountTypeName(application.accountType)}）已添加到你的账号。登录后在身份切换器中可以找到它。`;
+        ? `恭喜！组织「${orgRecord.name}」已审核通过。你现在可以发布会议/展览活动，并以参展商身份管理展位。`
+        : `组织「${orgRecord.name}」已审核通过，已添加到你的账号。登录后可在组织切换器中找到它。`;
 
       await tx.notification.create({
         data: {
           userId: application.userId,
-          title: isFirstOrg ? "🎉 账号申请已通过审核" : "✅ 新身份审核通过",
+          title: isFirstOrg ? "🎉 组织申请已通过审核" : "✅ 新组织审核通过",
           body: notificationBody,
         },
       });
@@ -191,7 +190,7 @@ export async function approveApplication(
       updated.contactPhone,
       isFirstOrg
         ? "审核通过，请登录 ConnectIQ 管理后台"
-        : "新身份审核通过，请登录后在身份切换器查看",
+        : "新组织审核通过，请登录后在组织切换器查看",
     );
   }
 
@@ -235,8 +234,8 @@ export async function rejectApplication(
     await tx.notification.create({
       data: {
         userId: application.userId,
-        title: "账号申请审核结果",
-        body: `你的账号申请未通过审核。原因：${reason}。你可以修改申请信息后重新提交。`,
+        title: "组织申请审核结果",
+        body: `你的组织申请未通过审核。原因：${reason}。你可以修改申请信息后重新提交。`,
       },
     });
 

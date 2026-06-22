@@ -1,15 +1,12 @@
-import { UserRole } from "@connectiq/types";
 import { AdminLayout } from "@/components/admin/admin-layout";
-import { requireLayoutSession } from "@/lib/layout-auth";
+import { requireAccountAdminLayoutSession } from "@/lib/layout-auth";
 
 export default async function OrganizerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireLayoutSession([
-    UserRole.ORGANIZER,
-  ]);
+  const session = await requireAccountAdminLayoutSession();
 
   return <AdminLayout session={session}>{children}</AdminLayout>;
 }

@@ -16,9 +16,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
 import { maskOrgCreditCode as maskCreditCode } from "@/lib/mask-utils";
+import {
+  ORG_COMPANY_SIZE_OPTIONS,
+  ORG_INDUSTRY_OPTIONS,
+} from "@/lib/org-profile-constants";
+import type { ApiPublicOrgEvent } from "@/lib/org-public-service";
 import type { OrgProfileData } from "@/lib/org-profile-types";
 import { cn } from "@/lib/utils";
 
@@ -27,9 +39,23 @@ type ProfileForm = {
   bio: string;
   website: string;
   contactEmail: string;
+  industry: string;
+  companySize: string;
+  headquarters: string;
+  foundedYear: string;
   logoUrl: string | null;
   coverUrl: string | null;
 };
+
+async function fetchPublicPreview(slug: string) {
+  const res = await fetch(`/api/org/${encodeURIComponent(slug)}`);
+  if (!res.ok) return null;
+  return (await res.json()).data as {
+    upcomingEvents: ApiPublicOrgEvent[];
+    pastEvents: ApiPublicOrgEvent[];
+    org: { follower_count: number; event_count: number };
+  };
+}
 
 async function fetchProfile() {
   const res = await fetch("/api/org/profile");
@@ -79,17 +105,26 @@ function profileToForm(profile: OrgProfileData): ProfileForm {
     bio: profile.bio ?? "",
     website: profile.website ?? "",
     contactEmail: profile.contactEmail ?? "",
+    industry: profile.industry ?? "",
+    companySize: profile.companySize ?? "",
+    headquarters: profile.headquarters ?? "",
+    foundedYear: profile.foundedYear ? String(profile.foundedYear) : "",
     logoUrl: profile.logoUrl,
     coverUrl: profile.coverUrl,
   };
 }
 
 function formToPayload(form: ProfileForm) {
+  const foundedYear = form.foundedYear.trim();
   return {
     slug: form.slug,
     bio: form.bio || null,
     website: form.website || null,
     contact_email: form.contactEmail || null,
+    industry: form.industry || null,
+    company_size: form.companySize || null,
+    headquarters: form.headquarters || null,
+    founded_year: foundedYear ? Number(foundedYear) : null,
     logo_url: form.logoUrl,
     cover_url: form.coverUrl,
   };
@@ -119,6 +154,13 @@ export function OrgProfilePageClient() {
   const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipAutoSave = useRef(true);
 
+  const previewSlug = form?.slug || profile?.slug;
+  const { data: previewData } = useQuery({
+    queryKey: ["org-profile-preview", previewSlug],
+    queryFn: () => fetchPublicPreview(previewSlug!),
+    enabled: Boolean(previewSlug),
+  });
+
   useEffect(() => {
     if (profile && !form) {
       setForm(profileToForm(profile));
@@ -143,6 +185,9 @@ export function OrgProfilePageClient() {
       try {
         const updated = await patchProfile(formToPayload(nextForm));
         queryClient.setQueryData(["org-profile"], updated);
+        void queryClient.invalidateQueries({
+          queryKey: ["org-profile-preview"],
+        });
         setOriginalSlug(updated.slug);
         setSaveStatus("saved");
         if (!silent) toast.success("已保存");
@@ -423,6 +468,71 @@ export function OrgProfilePageClient() {
             </div>
           </section>
 
+          {/* Section 2b 领英式扩展信息 */}
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold">组织详情</h2>
+            <div className="space-y-4 rounded-2xl border border-border-light bg-white p-6">
+              <div className="space-y-1">
+                <Label>行业</Label>
+                <Select
+                  value={form.industry || undefined}
+                  onValueChange={(v) => updateField("industry", v ?? "")}
+                >
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="选择所属行业" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORG_INDUSTRY_OPTIONS.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>组织规模</Label>
+                <Select
+                  value={form.companySize || undefined}
+                  onValueChange={(v) => updateField("companySize", v ?? "")}
+                >
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="选择员工规模" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORG_COMPANY_SIZE_OPTIONS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>总部所在地</Label>
+                <Input
+                  value={form.headquarters}
+                  onChange={(e) => updateField("headquarters", e.target.value)}
+                  placeholder="如：上海市 · 浦东新区"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>成立年份</Label>
+                <Input
+                  type="number"
+                  min={1800}
+                  max={new Date().getFullYear()}
+                  value={form.foundedYear}
+                  onChange={(e) => updateField("foundedYear", e.target.value)}
+                  placeholder="如：2018"
+                />
+              </div>
+            </div>
+          </section>
+
           {/* Section 3 认证信息 */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">认证信息（只读）</h2>
@@ -477,6 +587,14 @@ export function OrgProfilePageClient() {
             profile={previewProfile}
             tab={previewTab}
             onTabChange={setPreviewTab}
+            upcomingEvents={previewData?.upcomingEvents ?? []}
+            pastEvents={previewData?.pastEvents ?? []}
+            followerCount={
+              previewData?.org.follower_count ?? previewProfile.followerCount
+            }
+            eventCount={
+              previewData?.org.event_count ?? previewProfile.eventCount
+            }
           />
         </aside>
       </div>
@@ -496,11 +614,21 @@ function OrgProfilePreview({
   profile,
   tab,
   onTabChange,
+  upcomingEvents,
+  pastEvents,
+  followerCount,
+  eventCount,
 }: {
-  profile: OrgProfileData & ProfileForm;
+  profile: Omit<OrgProfileData, "foundedYear"> & ProfileForm;
   tab: "upcoming" | "past";
   onTabChange: (tab: "upcoming" | "past") => void;
+  upcomingEvents: ApiPublicOrgEvent[];
+  pastEvents: ApiPublicOrgEvent[];
+  followerCount: number;
+  eventCount: number;
 }) {
+  const events = tab === "upcoming" ? upcomingEvents : pastEvents;
+
   return (
     <div className="mx-auto w-[220px] overflow-hidden rounded-3xl border-4 border-gray-800 bg-white">
       <div
@@ -546,12 +674,12 @@ function OrgProfilePreview({
             )}
           </div>
 
-          <div className="mt-2 flex gap-4 px-4">
+          <div className="mt-2 flex flex-wrap gap-3 px-4">
             <span className="text-xs text-text-muted">
-              {profile.eventCount} 场活动
+              {followerCount} 关注者
             </span>
             <span className="text-xs text-text-muted">
-              {profile.memberCount} 位用户
+              {eventCount} 场活动
             </span>
           </div>
 
@@ -589,7 +717,27 @@ function OrgProfilePreview({
                 往期活动
               </button>
             </div>
-            <div className="mt-2 h-20 rounded-lg bg-content" />
+            <div className="mt-2 max-h-28 space-y-2 overflow-hidden">
+              {events.length === 0 ? (
+                <p className="rounded-lg bg-content px-2 py-3 text-center text-[10px] text-text-muted">
+                  {tab === "upcoming" ? "暂无即将举行的活动" : "暂无往期活动"}
+                </p>
+              ) : (
+                events.slice(0, 2).map((event) => (
+                  <div
+                    key={event.id}
+                    className="rounded-lg border border-border-light px-2 py-1.5"
+                  >
+                    <p className="line-clamp-1 text-[11px] font-medium">
+                      {event.name}
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      {event.city || event.venue || "地点待定"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>

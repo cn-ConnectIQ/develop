@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-auth";
 import {
   followOrganization,
+  resolveApprovedOrgIdBySlug,
   unfollowOrganization,
 } from "@/lib/org-public-service";
 
@@ -50,22 +51,24 @@ async function resolveUserId(request: Request): Promise<string> {
 }
 
 export const POST = withErrorHandler(async (request, context) => {
-  const orgId = context?.params?.slug;
-  if (!orgId) {
-    return createErrorResponse("缺少 orgId", ErrorCode.VALIDATION_ERROR, 400);
+  const slug = context?.params?.slug;
+  if (!slug) {
+    return createErrorResponse("缺少 slug", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  const orgId = await resolveApprovedOrgIdBySlug(slug);
   const userId = await resolveUserId(request);
   const result = await followOrganization(userId, orgId);
   return createSuccessResponse(result);
 });
 
 export const DELETE = withErrorHandler(async (request, context) => {
-  const orgId = context?.params?.slug;
-  if (!orgId) {
-    return createErrorResponse("缺少 orgId", ErrorCode.VALIDATION_ERROR, 400);
+  const slug = context?.params?.slug;
+  if (!slug) {
+    return createErrorResponse("缺少 slug", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  const orgId = await resolveApprovedOrgIdBySlug(slug);
   const userId = await resolveUserId(request);
   const result = await unfollowOrganization(userId, orgId);
   return createSuccessResponse(result);

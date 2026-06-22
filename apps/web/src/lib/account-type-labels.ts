@@ -1,11 +1,13 @@
 import type { AccountType } from "@connectiq/database";
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  ORGANIZATION: "组织",
   CONFERENCE_ORGANIZER: "会议/沙龙/培训主办方",
   EXPO_ORGANIZER: "展览/展会主办方",
   EXHIBITOR: "参展商",
 };
 
+/** @deprecated 注册已改为组织审核，不再按身份类型申请 */
 export const ACCOUNT_TYPE_OPTIONS: Array<{
   value: AccountType;
   icon: string;

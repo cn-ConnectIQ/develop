@@ -76,6 +76,8 @@ function toLegacyRole(
         return PrismaUserRole.EXPO_ORGANIZER as AppUserRole;
       case "EXHIBITOR":
         return PrismaUserRole.EXHIBITOR as AppUserRole;
+      case "ORGANIZATION":
+      case "CONFERENCE_ORGANIZER":
       default:
         return PrismaUserRole.ORGANIZER as AppUserRole;
     }

@@ -1,4 +1,4 @@
-import { LotteryStatus, PollStatus, prisma } from "@connectiq/database";
+import { LotteryStatus, PollStatus, PollType, SignalType, prisma } from "@connectiq/database";
 import { ApiError } from "@/lib/api-auth";
 import { enterLottery } from "@/lib/interaction/lottery-service";
 import type { InteractionRef } from "@/lib/interaction/schemas";
@@ -8,6 +8,7 @@ import {
   ensureParticipantForUser,
   hasUserPollParticipation,
 } from "@/lib/interaction/participant-user";
+import { recordSignal } from "@/lib/signals";
 
 const SESSION_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -286,6 +287,15 @@ export async function participateInSession(
   let pollResponse: unknown = null;
 
   if (userId) {
+    recordSignal(
+      userId,
+      session.eventId,
+      SignalType.INTERACTION_JOINED,
+      session.id,
+      "INTERACTION",
+      { session_code: sessionCode },
+    );
+
     for (const ref of refs) {
       if (ref.type === "lottery") {
         try {
@@ -324,7 +334,7 @@ export async function participateInSession(
   };
 }
 
-async function submitPollResponse(
+export async function submitPollResponse(
   eventId: string,
   userId: string,
   input: PollParticipationInput,
@@ -359,8 +369,13 @@ async function submitPollResponse(
     throw new ApiError("您已参与过该投票", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  const optionLabel = (optionId: string | null | undefined) =>
+    poll.options.find((o) => o.id === optionId)?.text ?? optionId ?? "";
+
+  let result: unknown;
+
   if (poll.type === "MULTI_CHOICE" && input.option_ids?.length) {
-    const responses = await prisma.$transaction(
+    result = await prisma.$transaction(
       input.option_ids.map((optionId) =>
         prisma.pollResponse.create({
           data: {
@@ -371,10 +386,14 @@ async function submitPollResponse(
         }),
       ),
     );
-    return responses;
+    recordSignal(userId, eventId, SignalType.POLL_ANSWERED, poll.id, "POLL", {
+      selected_options: input.option_ids.map((id) => optionLabel(id)),
+      poll_title: poll.title,
+    });
+    return result;
   }
 
-  return prisma.pollResponse.create({
+  result = await prisma.pollResponse.create({
     data: {
       pollId: poll.id,
       participantId: participant?.id ?? null,
@@ -383,6 +402,44 @@ async function submitPollResponse(
       rating: input.rating ?? null,
     },
   });
+
+  if (poll.type === PollType.QNA && input.text_answer?.trim()) {
+    const duplicate = await prisma.pollResponse.findFirst({
+      where: {
+        pollId: poll.id,
+        textAnswer: { equals: input.text_answer.trim(), mode: "insensitive" },
+        NOT: { id: (result as { id: string }).id },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      recordSignal(userId, eventId, SignalType.QNA_UPVOTED, duplicate.id, "QNA", {
+        question_text: input.text_answer.trim(),
+        poll_id: poll.id,
+      });
+    } else {
+      recordSignal(userId, eventId, SignalType.QNA_ASKED, poll.id, "QNA", {
+        question_text: input.text_answer.trim(),
+      });
+    }
+    return result;
+  }
+
+  const selected =
+    input.option_id != null
+      ? [optionLabel(input.option_id)]
+      : input.text_answer
+        ? [input.text_answer]
+        : input.rating != null
+          ? [`评分 ${input.rating}`]
+          : [];
+
+  recordSignal(userId, eventId, SignalType.POLL_ANSWERED, poll.id, "POLL", {
+    selected_options: selected,
+    poll_title: poll.title,
+  });
+
+  return result;
 }
 
 /** @deprecated 使用 participateInSession */

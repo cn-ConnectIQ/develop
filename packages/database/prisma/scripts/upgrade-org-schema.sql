@@ -30,6 +30,12 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS member_count INT DEFAULT 0;
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS event_count INT DEFAULT 0;
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS follower_count INT DEFAULT 0;
 
+-- 6. 领英式主页扩展字段
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS industry TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS company_size TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS headquarters TEXT;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS founded_year INT;
+
 -- 5. users 表 user_type / org_id（若尚未迁移）
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type TEXT DEFAULT 'END_USER';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id TEXT;

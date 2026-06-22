@@ -25,7 +25,7 @@ const userSelect = {
   name: true,
   phone: true,
   userType: true,
-  orgId: true,
+  activeOrgId: true,
   profile: {
     select: {
       company: true,
@@ -55,7 +55,7 @@ export function formatMiniAuthUser(user: DbUser): MiniAuthUserPayload {
     phone: user.phone ?? undefined,
     status: mapAccountStatus(user.profile?.accountStatus ?? UserAccountStatus.ACTIVE),
     user_type: mapUserType(user.userType),
-    org_id: user.orgId,
+    org_id: user.activeOrgId,
     company: user.profile?.company ?? undefined,
   };
 }

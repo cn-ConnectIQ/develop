@@ -1,4 +1,10 @@
-import { prisma, PrismaUserRole, EventType, EventStatus } from "@connectiq/database";
+import {
+  AccountType,
+  prisma,
+  PrismaUserRole,
+  EventType,
+  EventStatus,
+} from "@connectiq/database";
 import { UserRole as AppUserRole, ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -70,14 +76,24 @@ function parseCreateEventBody(body: unknown) {
   };
 }
 
-function buildOrganizerWhere(session: { user: { id: string; role: AppUserRole } }) {
+function buildOrganizerWhere(session: {
+  user: {
+    id: string;
+    role: AppUserRole;
+    activeOrgId?: string | null;
+  };
+}) {
   if (session.user.role === AppUserRole.PLATFORM_ADMIN) {
     return {};
   }
-  if (session.user.role === AppUserRole.EXPO_ORGANIZER) {
-    return { organizerId: session.user.id, type: EventType.EXPO };
+  const base =
+    session.user.role === AppUserRole.EXPO_ORGANIZER
+      ? { organizerId: session.user.id, type: EventType.EXPO }
+      : { organizerId: session.user.id };
+  if (session.user.activeOrgId) {
+    return { ...base, orgId: session.user.activeOrgId };
   }
-  return { organizerId: session.user.id };
+  return base;
 }
 
 function serializeEvent(
@@ -268,6 +284,7 @@ export const POST = withErrorHandler(async (request) => {
   const { session } = await requireAuth([
     AppUserRole.PLATFORM_ADMIN,
     AppUserRole.ORGANIZER,
+    AppUserRole.EXPO_ORGANIZER,
   ]);
 
   const body = await request.json();
@@ -281,7 +298,48 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   const data = parsed.data;
+  const startDate = new Date(data.startDate);
+  const endDate = new Date(data.endDate);
+  if (endDate <= startDate) {
+    return createErrorResponse(
+      "结束时间须晚于开始时间",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
   const organizerId = session.user.id;
+  const orgId =
+    session.user.userType === "ACCOUNT_ADMIN"
+      ? session.user.activeOrgId
+      : null;
+
+  if (session.user.userType === "ACCOUNT_ADMIN" && !orgId) {
+    return createErrorResponse("请先选择组织", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const activeOrgType = session.user.activeOrgType;
+  if (
+    activeOrgType === AccountType.EXPO_ORGANIZER &&
+    data.type !== EventType.EXPO
+  ) {
+    return createErrorResponse(
+      "展览主办方只能创建展会类型活动",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+  if (
+    activeOrgType === AccountType.CONFERENCE_ORGANIZER &&
+    data.type === EventType.EXPO
+  ) {
+    return createErrorResponse(
+      "会议主办方不能创建展会类型活动",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+  // ORGANIZATION 及平台管理员：可创建任意类型活动
 
   const event = await prisma.event.create({
     data: {
@@ -291,9 +349,10 @@ export const POST = withErrorHandler(async (request) => {
       status: EventStatus.DRAFT,
       description: data.description,
       location: data.location,
-      startDate: new Date(data.startDate),
-      endDate: new Date(data.endDate),
+      startDate,
+      endDate,
       organizerId,
+      orgId: orgId ?? undefined,
       ...(data.category
         ? {
             settings: {
@@ -325,6 +384,13 @@ export const POST = withErrorHandler(async (request) => {
     },
     update: {},
   });
+
+  if (orgId) {
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { eventCount: { increment: 1 } },
+    });
+  }
 
   return createSuccessResponse({
     id: event.id,

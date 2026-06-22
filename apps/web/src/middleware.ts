@@ -84,12 +84,12 @@ export async function middleware(request: NextRequest) {
   });
 
   const userType =
-    request.cookies.get(ROLE_COOKIE_USER_TYPE)?.value ??
-    (token?.userType as string | undefined);
+    (token?.userType as string | undefined) ??
+    request.cookies.get(ROLE_COOKIE_USER_TYPE)?.value;
   const adminStatus =
-    request.cookies.get(ROLE_COOKIE_ADMIN_STATUS)?.value ??
     (token?.activeAdminStatus as string | undefined) ??
     (token?.adminStatus as string | undefined) ??
+    request.cookies.get(ROLE_COOKIE_ADMIN_STATUS)?.value ??
     "";
 
   const applyCookieSync = (response: NextResponse) => {

@@ -19,3 +19,18 @@ export async function requireLayoutSession(
 
   return session;
 }
+
+/** 账号管理员共用页面（活动列表 / 用户池 / 组织主页）— 不限 legacy role */
+export async function requireAccountAdminLayoutSession(): Promise<Session> {
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/login");
+
+  if (
+    session.user.userType === "PLATFORM_ADMIN" ||
+    session.user.userType === "ACCOUNT_ADMIN"
+  ) {
+    return session;
+  }
+
+  redirect("/403");
+}

@@ -190,21 +190,38 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("未找到展商组织", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const booth = await prisma.exhibitorBooth.create({
-    data: {
-      eventId,
-      name: parsed.data.name,
-      code: parsed.data.code,
-      companyOrgId,
-      hallId: parsed.data.hallId,
-      status: parsed.data.status ?? "AVAILABLE",
-      positionData: parsed.data.positionData as Prisma.InputJsonValue | undefined,
-    },
-    include: {
-      companyOrg: { select: { id: true, name: true, slug: true } },
-      _count: { select: { leads: true } },
-    },
-  });
+  let booth;
+  try {
+    booth = await prisma.exhibitorBooth.create({
+      data: {
+        eventId,
+        name: parsed.data.name,
+        code: parsed.data.code,
+        companyOrgId,
+        hallId: parsed.data.hallId,
+        status: parsed.data.status ?? "AVAILABLE",
+        positionData: parsed.data.positionData as Prisma.InputJsonValue | undefined,
+      },
+      include: {
+        companyOrg: { select: { id: true, name: true, slug: true } },
+        _count: { select: { leads: true } },
+      },
+    });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code: string }).code === "P2002"
+    ) {
+      return createErrorResponse(
+        "该活动下展位编号已存在",
+        ErrorCode.VALIDATION_ERROR,
+        409,
+      );
+    }
+    throw error;
+  }
 
   return createSuccessResponse({
     ...withLegacyExhibitor(booth),

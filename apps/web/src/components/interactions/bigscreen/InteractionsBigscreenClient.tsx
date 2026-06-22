@@ -5,11 +5,15 @@ import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatCountdown } from "@/lib/bigscreen-display";
 import type { BigscreenData } from "@/lib/bigscreen-types";
+import type { BoothRankingItem } from "@/lib/booth-rankings-service";
 import { useRealtimePollResults } from "@/hooks/useRealtimePollResults";
 import { useRealtimeLottery } from "@/hooks/useRealtimeLottery";
 import { useBigscreenStore } from "@/stores/bigscreenStore";
 import { BigscreenProjection } from "@/components/interactions/bigscreen/BigscreenProjection";
 import { BigscreenController } from "@/components/interactions/bigscreen/BigscreenController";
+import { BigscreenTabBar } from "@/components/interactions/bigscreen/BigscreenTabBar";
+import { BoothRankingDisplay } from "@/components/interactions/bigscreen/BoothRankingDisplay";
+import { BoothRankingController } from "@/components/interactions/bigscreen/BoothRankingController";
 import type { QnaListResult } from "@/lib/qna-service";
 import { patchQnaResponse } from "@/hooks/useRealtimeQna";
 
@@ -19,11 +23,35 @@ async function fetchBigscreen(eventId: string): Promise<BigscreenData> {
   return (await res.json()).data as BigscreenData;
 }
 
+async function fetchRankings(eventId: string) {
+  const res = await fetch(`/api/events/${eventId}/booth-rankings`);
+  if (!res.ok) throw new Error("加载排行榜失败");
+  return (await res.json()).data as {
+    event_name: string;
+    rankings: BoothRankingItem[];
+  };
+}
+
+function NetworkHeatPlaceholder() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-[#1A1A2E] px-12 pt-20 text-center">
+      <p className="text-[28px] font-bold text-white">🌐 网络热度</p>
+      <p className="mt-4 max-w-md text-white/50">
+        Speed Networking 连接热力图即将上线，敬请期待
+      </p>
+    </div>
+  );
+}
+
 export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
   const searchParams = useSearchParams();
   const lotteryId = searchParams.get("lottery");
   const modeParam = searchParams.get("mode");
   const queryClient = useQueryClient();
+
+  const projectionTab = useBigscreenStore((s) => s.projectionTab);
+  const bumpBoothRankingRefresh = useBigscreenStore((s) => s.bumpBoothRankingRefresh);
+  const boothRankingRefreshNonce = useBigscreenStore((s) => s.boothRankingRefreshNonce);
 
   const setEvent = useBigscreenStore((s) => s.setEvent);
   const deriveModeFromPoll = useBigscreenStore((s) => s.deriveModeFromPoll);
@@ -43,6 +71,19 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
     queryKey: ["bigscreen", eventId],
     queryFn: () => fetchBigscreen(eventId),
     refetchInterval: 10_000,
+  });
+
+  const { data: rankingMeta } = useQuery({
+    queryKey: ["booth-rankings-meta", eventId],
+    queryFn: () => fetchRankings(eventId),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: rankingData } = useQuery({
+    queryKey: ["booth-rankings", eventId, boothRankingRefreshNonce],
+    queryFn: () => fetchRankings(eventId),
+    enabled: projectionTab === "booth_ranking",
+    refetchInterval: projectionTab === "booth_ranking" ? 60_000 : false,
   });
 
   const livePoll = data?.livePoll ?? null;
@@ -74,8 +115,9 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
   });
 
   useEffect(() => {
-    setEvent(eventId, "活动现场");
-  }, [eventId, setEvent]);
+    const name = rankingData?.event_name ?? rankingMeta?.event_name ?? "活动现场";
+    setEvent(eventId, name);
+  }, [eventId, data, rankingData, rankingMeta, setEvent]);
 
   useEffect(() => {
     if (lotteryId || modeParam === "lottery") return;
@@ -146,6 +188,11 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
     void queryClient.invalidateQueries({ queryKey: ["bigscreen", eventId] });
     void refetchPoll();
   }, [queryClient, eventId, refetchPoll]);
+
+  const refreshRankings = useCallback(() => {
+    bumpBoothRankingRefresh();
+    void queryClient.invalidateQueries({ queryKey: ["booth-rankings", eventId] });
+  }, [bumpBoothRankingRefresh, queryClient, eventId]);
 
   async function patchPoll(pollId: string, body: Record<string, unknown>) {
     await fetch(`/api/events/${eventId}/polls/${pollId}`, {
@@ -219,29 +266,45 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      <BigscreenProjection />
-      <BigscreenController
-        eventId={eventId}
-        qnaItems={qnaData?.responses ?? []}
-        onRefresh={refresh}
-        onPatchPoll={patchPoll}
-        onPatchDisplay={patchDisplay}
-        onPublishPoll={publishPoll}
-        onQnaAction={async (responseId, action) => {
-          if (!livePoll) return;
-          if (action === "on_screen") {
-            await patchQnaResponse(eventId, livePoll.id, responseId, {
-              is_on_screen: true,
-            });
-          } else {
-            await patchQnaResponse(eventId, livePoll.id, responseId, {
-              is_hidden: true,
-            });
-          }
-          refresh();
-        }}
-        onDrawPrize={drawPrize}
-      />
+      <div className="relative flex flex-[0_0_72%] flex-col overflow-hidden">
+        <BigscreenTabBar />
+        {projectionTab === "interaction" && <BigscreenProjection />}
+        {projectionTab === "booth_ranking" && (
+          <BoothRankingDisplay eventId={eventId} />
+        )}
+        {projectionTab === "network_heat" && <NetworkHeatPlaceholder />}
+      </div>
+
+      {projectionTab === "booth_ranking" ? (
+        <BoothRankingController
+          eventId={eventId}
+          rankings={rankingData?.rankings}
+          onRefresh={refreshRankings}
+        />
+      ) : (
+        <BigscreenController
+          eventId={eventId}
+          qnaItems={qnaData?.responses ?? []}
+          onRefresh={refresh}
+          onPatchPoll={patchPoll}
+          onPatchDisplay={patchDisplay}
+          onPublishPoll={publishPoll}
+          onQnaAction={async (responseId, action) => {
+            if (!livePoll) return;
+            if (action === "on_screen") {
+              await patchQnaResponse(eventId, livePoll.id, responseId, {
+                is_on_screen: true,
+              });
+            } else {
+              await patchQnaResponse(eventId, livePoll.id, responseId, {
+                is_hidden: true,
+              });
+            }
+            refresh();
+          }}
+          onDrawPrize={drawPrize}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,8 @@ import {
   OrgJoinSource,
   OrgStaffRole,
   ReviewStatus,
+  SignalType,
+  StampRallyStatus,
   UserAccountStatus,
   UserRole,
   UserType,
@@ -30,6 +32,7 @@ const ADMIN_PHONES = [
   "13800000005",
   "13800000006",
   "13800000007",
+  "13800000008",
 ] as const;
 
 /** 最终用户手机号 */
@@ -51,6 +54,7 @@ const SEED_ORG_SLUGS = [
   "cloud-li-exhibitor",
   "china-digital-expo",
   "cloud-crm-tech",
+  "connectiq-innovation-hub",
   // 旧版 seed 兼容清理
   "connectiq-org",
   "digital-expo-org",
@@ -61,6 +65,7 @@ const SEED_EVENT_SLUGS = [
   "saas-growth-summit-2025",
   "product-growth-salon-beijing",
   "enterprise-digital-expo-2025",
+  "innovation-summit-2025",
   // 旧版 seed 兼容清理
   "product-salon-2025",
   "connectiq-summit-2026",
@@ -236,6 +241,12 @@ async function createApprovedAccountAdmin(params: {
     slug: string;
     accountType: AccountType;
     bio?: string;
+    industry?: string;
+    companySize?: string;
+    headquarters?: string;
+    foundedYear?: number;
+    website?: string;
+    contactEmail?: string;
   };
 }) {
   const admin = await upsertUser({
@@ -245,24 +256,27 @@ async function createApprovedAccountAdmin(params: {
     accountStatus: UserAccountStatus.COMPLETE,
   });
 
+  const orgData = {
+    name: params.org.name,
+    accountType: params.org.accountType,
+    bio: params.org.bio,
+    industry: params.org.industry,
+    companySize: params.org.companySize,
+    headquarters: params.org.headquarters,
+    foundedYear: params.org.foundedYear,
+    website: params.org.website,
+    contactEmail: params.org.contactEmail ?? admin.email,
+    isVerified: true,
+    adminStatus: AdminStatus.APPROVED,
+    ownerId: admin.id,
+  };
+
   const org = await prisma.organization.upsert({
     where: { slug: params.org.slug },
-    update: {
-      name: params.org.name,
-      accountType: params.org.accountType,
-      bio: params.org.bio,
-      isVerified: true,
-      adminStatus: AdminStatus.APPROVED,
-      ownerId: admin.id,
-    },
+    update: orgData,
     create: {
-      name: params.org.name,
       slug: params.org.slug,
-      accountType: params.org.accountType,
-      bio: params.org.bio,
-      isVerified: true,
-      adminStatus: AdminStatus.APPROVED,
-      ownerId: admin.id,
+      ...orgData,
     },
   });
 
@@ -282,6 +296,21 @@ async function createApprovedAccountAdmin(params: {
       acceptedAt: new Date(),
     },
   });
+
+  for (const role of [
+    UserRole.ORGANIZER,
+    UserRole.EXPO_ORGANIZER,
+    UserRole.EXHIBITOR,
+  ]) {
+    const existing = await prisma.userRoleAssignment.findFirst({
+      where: { userId: admin.id, role, entityId: null },
+    });
+    if (!existing) {
+      await prisma.userRoleAssignment.create({
+        data: { userId: admin.id, role },
+      });
+    }
+  }
 
   await prisma.organizerApplication.upsert({
     where: { orgId: org.id },
@@ -586,6 +615,56 @@ async function main() {
 
   console.log("✓ ③ 参展商 13800000004 + 2 个展位");
 
+  // ── ⑦ 新模型：统一组织（ORGANIZATION + 多角色 + 公开主页）──
+  const { admin: unifiedAdmin, org: unifiedOrg } =
+    await createApprovedAccountAdmin({
+      phone: "13800000008",
+      name: "陈主编",
+      org: {
+        name: "ConnectIQ 创新中心",
+        slug: "connectiq-innovation-hub",
+        accountType: AccountType.ORGANIZATION,
+        bio: "连接会议、展览与参展生态的活动科技组织，支持一站式活动运营",
+        industry: "信息技术",
+        companySize: "11-50",
+        headquarters: "上海市 · 徐汇区",
+        foundedYear: 2019,
+        website: "https://connectiq.cn",
+        contactEmail: "contact@connectiq.cn",
+      },
+    });
+
+  await prisma.event.upsert({
+    where: { slug: "innovation-summit-2025" },
+    update: {
+      status: EventStatus.PUBLISHED,
+      reviewStatus: ReviewStatus.APPROVED,
+      orgId: unifiedOrg.id,
+    },
+    create: {
+      name: "创新活动运营峰会 2025",
+      slug: "innovation-summit-2025",
+      type: EventType.CONFERENCE,
+      status: EventStatus.PUBLISHED,
+      reviewStatus: ReviewStatus.APPROVED,
+      description: "统一组织模型下的会议活动示例",
+      location: "上海 · 漕河泾",
+      startDate: daysFromNow(21),
+      endDate: daysFromNow(22),
+      organizerId: unifiedAdmin.id,
+      orgId: unifiedOrg.id,
+    },
+  });
+
+  await prisma.organization.update({
+    where: { id: unifiedOrg.id },
+    data: { eventCount: 1 },
+  });
+
+  console.log(
+    "✓ ⑦ 统一组织 13800000008 → 公开主页 /org/connectiq-innovation-hub",
+  );
+
   // ── ④⑤ 待审核账号管理员 ─────────────────────────────────────
   const pendingConf = await upsertUser({
     phone: "13800000005",
@@ -604,40 +683,40 @@ async function main() {
   for (const spec of [
     {
       user: pendingConf,
-      accountType: AccountType.CONFERENCE_ORGANIZER,
       orgName: "医疗健康论坛联盟",
       contactName: "钱老板",
       phone: "13800000005",
-      description: "专注医疗健康行业论坛与峰会",
+      description:
+        "专注医疗健康行业论坛与峰会，希望使用 ConnectIQ 统一管理会议与展览活动，面向医疗机构与产业伙伴提供全年活动运营服务。",
       submittedAt: daysAgo(2),
     },
     {
       user: pendingExpo,
-      accountType: AccountType.EXPO_ORGANIZER,
       orgName: "新能源汽车展览集团",
       contactName: "孙经理",
       phone: "13800000006",
-      description: "新能源汽车主题展览与论坛",
+      description:
+        "新能源汽车主题展览与论坛主办方，计划每年举办大型展会并管理参展商与买家资源，需要完整的活动管理与用户池能力。",
       submittedAt: daysAgo(1),
     },
   ] as const) {
     const existing = await prisma.organizerApplication.findFirst({
       where: {
         userId: spec.user.id,
-        accountType: spec.accountType,
+        orgName: spec.orgName,
         status: ApplicationStatus.PENDING,
       },
     });
     if (existing) {
       await prisma.organizerApplication.update({
         where: { id: existing.id },
-        data: { status: ApplicationStatus.PENDING },
+        data: { status: ApplicationStatus.PENDING, accountType: AccountType.ORGANIZATION },
       });
     } else {
       await prisma.organizerApplication.create({
         data: {
           userId: spec.user.id,
-          accountType: spec.accountType,
+          accountType: AccountType.ORGANIZATION,
           orgName: spec.orgName,
           contactName: spec.contactName,
           contactEmail: spec.user.email,
@@ -679,12 +758,13 @@ async function main() {
     await prisma.organizerApplication.create({
       data: {
         userId: rejectedAdmin.id,
-        accountType: AccountType.CONFERENCE_ORGANIZER,
+        accountType: AccountType.ORGANIZATION,
         orgName: "未命名活动组织",
         contactName: "周申请人",
         contactEmail: rejectedAdmin.email,
         contactPhone: "13800000007",
-        description: "申请信息过于简略",
+        description:
+          "申请信息过于简略，未说明组织背景与活动计划，无法完成资质审核。请补充至少 100 字的组织介绍与使用场景说明后重新提交。",
         status: ApplicationStatus.REJECTED,
         rejectionReason:
           "申请说明信息不完整，请补充组织背景说明和举办活动经历后重新申请",
@@ -801,6 +881,79 @@ async function main() {
 
   console.log("✓ OrgMember：5 人 → 研究院，3 人 → 展览集团");
 
+  // ── 集章打卡 + 展位坐标 + 行为信号 ──────────────────────────
+  const expoBooths = await prisma.exhibitorBooth.findMany({
+    where: { eventId: expoEvent.id },
+    orderBy: { code: "asc" },
+  });
+
+  for (const booth of expoBooths) {
+    const pd =
+      booth.positionData && typeof booth.positionData === "object"
+        ? (booth.positionData as { x?: number; y?: number })
+        : null;
+    await prisma.exhibitorBooth.update({
+      where: { id: booth.id },
+      data: {
+        positionX: pd?.x ?? booth.positionX,
+        positionY: pd?.y ?? booth.positionY,
+        hallLabel: "A 馆",
+      },
+    });
+  }
+
+  const boothIds = expoBooths.map((b) => b.id);
+  if (boothIds.length > 0) {
+    await prisma.stampRally.upsert({
+      where: { id: "seed-stamp-rally-expo" },
+      update: {
+        status: StampRallyStatus.ACTIVE,
+        boothIds,
+        totalBooths: boothIds.length,
+      },
+      create: {
+        id: "seed-stamp-rally-expo",
+        eventId: expoEvent.id,
+        createdById: expoAdmin.id,
+        name: "2025 展会集章之旅",
+        description: "逛展集章，兑换好礼",
+        prize: "Apple AirPods Pro",
+        requiredCount: 2,
+        totalBooths: boothIds.length,
+        boothIds,
+        status: StampRallyStatus.ACTIVE,
+      },
+    });
+  }
+
+  const demoAttendee = endUsers[0];
+  const scanBooth = expoBooths[0];
+  if (demoAttendee && scanBooth) {
+    await prisma.boothVisitSignal.createMany({
+      data: [
+        {
+          userId: demoAttendee.id,
+          eventId: expoEvent.id,
+          signalType: SignalType.BOOTH_SCAN,
+          entityId: scanBooth.id,
+          entityType: "BOOTH",
+          payload: { source: "seed" },
+        },
+        {
+          userId: demoAttendee.id,
+          eventId: expoEvent.id,
+          signalType: SignalType.BOOTH_SCAN,
+          entityId: scanBooth.id,
+          entityType: "BOOTH",
+          payload: { source: "seed_repeat" },
+        },
+      ],
+      skipDuplicates: true,
+    });
+  }
+
+  console.log("✓ 集章路线 + 展位坐标 + BoothVisitSignal 示例数据");
+
   // ── 汇总 ────────────────────────────────────────────────────
   console.log("\n✅ Seed 完成\n");
   console.log("── 账号密码登录（推荐）──");
@@ -810,11 +963,13 @@ async function main() {
   console.log("  会议主办方:     13800000002@phone.connectiq.local");
   console.log("  展览主办方:     13800000003@phone.connectiq.local");
   console.log("  参展商:         13800000004@phone.connectiq.local");
+  console.log("  统一组织:       13800000008@phone.connectiq.local");
   console.log("\n── 手机号验证码登录 ──");
   console.log("  平台管理员:     13800000001");
   console.log("  会议主办方:     13800000002  李经理");
   console.log("  展览主办方:     13800000003  王总监");
   console.log("  参展商:         13800000004  张销售");
+  console.log("  统一组织:       13800000008  陈主编  → /org/connectiq-innovation-hub");
   console.log("  待审核:         13800000005 / 13800000006");
   console.log("  已拒绝:         13800000007");
   console.log("\n── 活动 ──");
@@ -822,12 +977,14 @@ async function main() {
   console.log(`  PUBLISHED: ${salonEvent.name}`);
   console.log(`  PUBLISHED: ${expoEvent.name}`);
   console.log("\n── 数据量 ──");
-  console.log("  Organization: 4（已审核，含李经理双身份）");
+  console.log("  Organization: 5（含 ORGANIZATION 统一组织 + 李经理双身份）");
   console.log("  OrganizerApplication: 4 APPROVED + 2 PENDING + 1 REJECTED");
   console.log("  END_USER: 10");
   console.log("  OrgMember: 8");
   console.log("  IntentTag: 20");
   console.log("  Booth: 3");
+  console.log("  StampRally: 1");
+  console.log("  BoothVisitSignal: 示例");
   console.log(`\n  平台管理员 ID: ${platformAdmin.id}`);
   console.log(`  时间: ${now.toISOString()}`);
 }

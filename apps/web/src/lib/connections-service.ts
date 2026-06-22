@@ -1,10 +1,13 @@
 import {
   ConnectionSource,
   ConnectionStatus,
+  SignalType,
   prisma,
 } from "@connectiq/database";
+import { ErrorCode } from "@connectiq/types";
+import { ApiError } from "@/lib/api-auth";
 import { computeContactTiming } from "./network-timing-shared";
-
+import { recordSignal } from "./signals";
 export type ApiConnectionUser = {
   id: string;
   name: string;
@@ -127,4 +130,66 @@ export async function listActiveConnections(
       timing_reason: timing.timing_reason,
     };
   });
+}
+
+export async function createUserConnection(
+  userId: string,
+  targetUserId: string,
+  eventId?: string,
+) {
+  if (userId === targetUserId) {
+    throw new ApiError("不能与自己建立连接", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const existing = await prisma.businessConnection.findFirst({
+    where: {
+      status: ConnectionStatus.ACTIVE,
+      OR: [
+        { userAId: userId, userBId: targetUserId },
+        { userAId: targetUserId, userBId: userId },
+      ],
+    },
+  });
+  if (existing) {
+    return existing;
+  }
+
+  const [userA, userB, event] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: { select: { company: true } } },
+    }),
+    prisma.user.findUnique({
+      where: { id: targetUserId },
+      include: { profile: { select: { company: true } } },
+    }),
+    eventId
+      ? prisma.event.findUnique({ where: { id: eventId }, select: { id: true, name: true } })
+      : null,
+  ]);
+
+  if (!userA || !userB) {
+    throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const connection = await prisma.businessConnection.create({
+    data: {
+      userAId: userId,
+      userBId: targetUserId,
+      userAName: userA.name,
+      userACompany: userA.profile?.company,
+      userBName: userB.name,
+      userBCompany: userB.profile?.company,
+      source: ConnectionSource.SCAN,
+      eventId: event?.id,
+      eventName: event?.name,
+      status: ConnectionStatus.ACTIVE,
+    },
+  });
+
+  if (eventId) {
+    recordSignal(userId, eventId, SignalType.CONNECTION_MADE, targetUserId, "USER");
+  }
+
+  return connection;
 }

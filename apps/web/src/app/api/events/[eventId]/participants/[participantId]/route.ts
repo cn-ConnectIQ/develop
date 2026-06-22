@@ -7,6 +7,7 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { maybeTriggerReferralScanOnCheckin } from "@/lib/ai/referral-scanner";
 
 const patchSchema = z.object({
   name: z.string().optional(),
@@ -49,6 +50,9 @@ export const PATCH = withErrorHandler(async (request, context) => {
     if (!existing) {
       await prisma.checkIn.create({
         data: { eventId, participantId, method: "manual" },
+      });
+      void maybeTriggerReferralScanOnCheckin(eventId).catch(() => {
+        // 自动扫描失败不影响签到
       });
     }
   }

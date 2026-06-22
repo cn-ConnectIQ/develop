@@ -7,6 +7,7 @@ import {
 import * as XLSX from "xlsx";
 
 import { JOIN_SOURCE_LABELS } from "@/lib/member-constants";
+import { syncOrganizationStats } from "@/lib/org-stats";
 
 export { JOIN_SOURCE_LABELS };
 
@@ -417,10 +418,7 @@ export async function removeOrgMember(orgId: string, userId: string) {
     where: { orgId_userId: { orgId, userId } },
   });
 
-  await prisma.organization.update({
-    where: { id: orgId },
-    data: { memberCount: { decrement: 1 } },
-  });
+  await syncOrganizationStats(orgId);
 
   return true;
 }

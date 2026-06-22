@@ -65,7 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "用户管理",
     items: [
       { label: "全平台用户", href: "/platform/users", icon: Users },
-      { label: "内容审核", href: "/platform/moderation", icon: Shield },
+      { label: "内容审核", href: "/moderation", icon: Shield },
     ],
   },
   {
@@ -73,7 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "AI 运营中心", href: "/platform/ai-ops/matching", icon: Bot },
       { label: "积分管理", href: "/platform/points", icon: Coins },
-      { label: "意图标签库", href: "/platform/intent-tags", icon: Tag },
+      { label: "意图标签库", href: "/intent-tags", icon: Tag },
     ],
   },
 ];

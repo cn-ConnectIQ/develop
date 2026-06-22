@@ -12,6 +12,14 @@ import { useRealtimeBoothLeads } from "@/hooks/useRealtimeBoothLeads";
 import { BoothInteractionsSection } from "@/components/exhibitors/BoothInteractionsSection";
 import { cn } from "@/lib/utils";
 
+type HighIntentBuyer = {
+  buyer_user_id: string;
+  name: string;
+  company: string | null;
+  intent_level: "A" | "B";
+  occurred_at: string;
+};
+
 type BoothDashboardData = {
   code: string;
   name: string;
@@ -22,6 +30,7 @@ type BoothDashboardData = {
     gradeBC: number;
     crmSynced: number;
   };
+  highIntentBuyers: HighIntentBuyer[];
   leads: Array<{
     id: string;
     createdAt: string;
@@ -37,6 +46,29 @@ async function fetchDashboard(boothId: string) {
   const res = await fetch(`/api/booths/${boothId}/dashboard`);
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as BoothDashboardData;
+}
+
+function formatMinutesAgo(iso: string) {
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} 小时前`;
+}
+
+function intentLevelBadge(level: "A" | "B") {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+        level === "A"
+          ? "bg-brand-red-light text-brand-red"
+          : "bg-brand-blue-light text-brand-blue",
+      )}
+    >
+      {level} 级
+    </span>
+  );
 }
 
 function gradeBadge(tags: BoothDashboardData["leads"][0]["intentTags"]) {
@@ -60,7 +92,7 @@ function gradeBadge(tags: BoothDashboardData["leads"][0]["intentTags"]) {
 export function BoothDashboardClient({ boothId }: { boothId: string }) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["booth-dashboard", boothId],
     queryFn: () => fetchDashboard(boothId),
     refetchInterval: 15000,
@@ -75,10 +107,30 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
     }, [boothId, queryClient]),
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <AdminContent>
         <div className="py-16 text-center text-sm text-text-muted">加载中...</div>
+      </AdminContent>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <AdminContent>
+        <div className="admin-card mx-auto max-w-lg p-8 text-center">
+          <p className="font-semibold">无法加载展位看板</p>
+          <p className="mt-2 text-sm text-text-muted">
+            请确认已切换到正确的参展商组织，或稍后重试
+          </p>
+          <button
+            type="button"
+            className="mt-4 text-sm font-medium text-brand-amber hover:underline"
+            onClick={() => void refetch()}
+          >
+            重试
+          </button>
+        </div>
       </AdminContent>
     );
   }
@@ -118,6 +170,56 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
       </div>
 
       <BoothInteractionsSection boothId={boothId} />
+
+      <section id="ai-leads" className="admin-card mt-6 p-5 scroll-mt-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">AI 主动找潜客</h2>
+            <p className="mt-1 text-sm text-text-muted">
+              基于展会访客画像自动匹配高意向潜客（即将开放）
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-border-light px-3 py-1 text-xs text-text-muted">
+            即将上线
+          </span>
+        </div>
+      </section>
+
+      {data.highIntentBuyers.length > 0 && (
+        <section className="mt-6 space-y-3">
+          <h2 className="font-semibold text-brand-red">🎯 今日高意向买家</h2>
+          {data.highIntentBuyers.slice(0, 5).map((buyer) => (
+            <div
+              key={buyer.buyer_user_id}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-brand-red/20 bg-brand-red-light p-3"
+            >
+              <Avatar className="size-10 shrink-0">
+                <AvatarFallback className="bg-white text-sm text-brand-red">
+                  {buyer.name.slice(0, 1)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{buyer.name}</p>
+                  {intentLevelBadge(buyer.intent_level)}
+                </div>
+                <p className="truncate text-sm text-text-muted">
+                  {buyer.company ?? "—"}
+                </p>
+                <p className="mt-0.5 text-xs text-text-muted">
+                  {formatMinutesAgo(buyer.occurred_at)}关注了你的展位
+                </p>
+              </div>
+              <Link
+                href={`/users/${buyer.buyer_user_id}`}
+                className="inline-flex h-8 shrink-0 items-center rounded-md bg-brand-blue px-3 text-xs font-medium text-white transition-colors hover:bg-brand-blue/90"
+              >
+                立即联系
+              </Link>
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className="admin-card mt-6 overflow-hidden">
         <div className="border-b border-border-light px-5 py-3">

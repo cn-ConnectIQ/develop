@@ -104,10 +104,6 @@ export default function RegisterPendingPage() {
               <span className="font-medium">{application.orgName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-muted">账号类型</span>
-              <span className="font-medium">{application.accountTypeLabel}</span>
-            </div>
-            <div className="flex justify-between">
               <span className="text-text-muted">联系邮箱</span>
               <span className="font-medium">{application.contactEmail}</span>
             </div>

@@ -1,4 +1,3 @@
-import { AccountType } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -20,7 +19,6 @@ const submitSchema = z.object({
     .optional(),
   code: z.string().length(6, "请输入 6 位验证码").optional(),
   email: z.string().email("请输入有效邮箱"),
-  accountType: z.nativeEnum(AccountType),
   orgName: z.string().min(2, "请输入组织/公司名称").max(100),
   orgCreditCode: z
     .string()
@@ -79,7 +77,6 @@ export const POST = withErrorHandler(async (request) => {
       phone: data.phone,
       code: data.code,
       email: data.email,
-      accountType: data.accountType,
       orgName: data.orgName,
       orgCreditCode: data.orgCreditCode || null,
       orgWebsite: data.orgWebsite || null,

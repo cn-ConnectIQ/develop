@@ -1,5 +1,6 @@
-import { PollType, prisma } from "@connectiq/database";
+import { PollType, SignalType, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
+import { getServerSession } from "next-auth";
 import { z } from "zod";
 import {
   createErrorResponse,
@@ -9,6 +10,8 @@ import {
 } from "@/lib/api-auth";
 import { listQnaResponses, markAllQnaAnswered } from "@/lib/qna-service";
 import { updatePollDisplayConfig } from "@/lib/bigscreen-service";
+import { recordSignal } from "@/lib/signals";
+import { authOptions } from "@/lib/auth";
 
 async function aggregateResults(pollId: string) {
   const poll = await prisma.poll.findUnique({
@@ -155,11 +158,21 @@ export const POST = withErrorHandler(async (request, context) => {
     }
   }
 
+  const text = parsed.data.text_answer.trim();
+
+  const duplicateQna = await prisma.pollResponse.findFirst({
+    where: {
+      pollId,
+      textAnswer: { equals: text, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+
   const created = await prisma.pollResponse.create({
     data: {
       pollId,
       participantId: parsed.data.participant_id ?? null,
-      textAnswer: parsed.data.text_answer.trim(),
+      textAnswer: text,
     },
     include: {
       participant: {
@@ -167,6 +180,21 @@ export const POST = withErrorHandler(async (request, context) => {
       },
     },
   });
+
+  const authSession = await getServerSession(authOptions);
+  const userId = authSession?.user?.id;
+  if (userId) {
+    if (duplicateQna) {
+      recordSignal(userId, eventId, SignalType.QNA_UPVOTED, duplicateQna.id, "QNA", {
+        question_text: text,
+        poll_id: pollId,
+      });
+    } else {
+      recordSignal(userId, eventId, SignalType.QNA_ASKED, pollId, "QNA", {
+        question_text: text,
+      });
+    }
+  }
 
   return createSuccessResponse({
     id: created.id,

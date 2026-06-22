@@ -11,13 +11,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ApplicationReviewSheet,
@@ -27,7 +20,6 @@ import {
   maskApplicationCreditCode as maskCreditCode,
   maskPhone,
 } from "@/lib/mask-utils";
-import type { AccountType } from "@connectiq/database";
 import { cn } from "@/lib/utils";
 
 const STATUS_TABS = [
@@ -37,22 +29,15 @@ const STATUS_TABS = [
   { value: "REJECTED", label: "已拒绝" },
 ] as const;
 
-const TYPE_BADGE: Record<AccountType, string> = {
-  CONFERENCE_ORGANIZER: "bg-brand-blue-light text-brand-blue",
-  EXPO_ORGANIZER: "bg-brand-green-light text-brand-green",
-  EXHIBITOR: "bg-brand-amber-light text-brand-amber",
-};
-
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-brand-amber-light text-brand-amber",
   APPROVED: "bg-brand-green-light text-brand-green",
   REJECTED: "bg-brand-red-light text-brand-red",
 };
 
-async function fetchApplications(status: string, accountType: string) {
+async function fetchApplications(status: string) {
   const params = new URLSearchParams();
   if (status !== "ALL") params.set("status", status);
-  if (accountType !== "ALL") params.set("type", accountType);
   const res = await fetch(`/api/platform/applications?${params}`);
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as {
@@ -65,13 +50,12 @@ async function fetchApplications(status: string, accountType: string) {
 export function PlatformApplicationsClient() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("ALL");
-  const [accountType, setAccountType] = useState("ALL");
   const [selected, setSelected] = useState<ApplicationRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["platform-applications", status, accountType],
-    queryFn: () => fetchApplications(status, accountType),
+    queryKey: ["platform-applications", status],
+    queryFn: () => fetchApplications(status),
   });
 
   const columns = useMemo<ColumnDef<ApplicationRow>[]>(
@@ -97,23 +81,9 @@ export function PlatformApplicationsClient() {
       },
       {
         accessorKey: "orgName",
-        header: "组织名",
+        header: "组织名称",
         cell: ({ row }) => (
           <span className="font-medium">{row.original.orgName}</span>
-        ),
-      },
-      {
-        id: "accountType",
-        header: "账号类型",
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-xs font-medium",
-              TYPE_BADGE[row.original.accountType],
-            )}
-          >
-            {row.original.accountTypeLabel}
-          </span>
         ),
       },
       {
@@ -186,7 +156,12 @@ export function PlatformApplicationsClient() {
   return (
     <AdminContent>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-bold">账号申请审核</h1>
+        <div>
+          <h1 className="text-xl font-bold">组织申请审核</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            审核通过后，申请人可发布会议/展览活动并管理展位
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           <Badge className="bg-brand-amber-light text-brand-amber hover:bg-brand-amber-light">
             {data?.counts.pending ?? 0} 待审核
@@ -200,7 +175,7 @@ export function PlatformApplicationsClient() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4">
         <Tabs value={status} onValueChange={setStatus}>
           <TabsList>
             {STATUS_TABS.map((tab) => (
@@ -210,20 +185,6 @@ export function PlatformApplicationsClient() {
             ))}
           </TabsList>
         </Tabs>
-        <Select
-          value={accountType}
-          onValueChange={(v) => setAccountType(v ?? "ALL")}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="账号类型" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">全部类型</SelectItem>
-            <SelectItem value="CONFERENCE_ORGANIZER">会议主办方</SelectItem>
-            <SelectItem value="EXPO_ORGANIZER">展会主办方</SelectItem>
-            <SelectItem value="EXHIBITOR">参展商</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <DataTable
@@ -234,7 +195,7 @@ export function PlatformApplicationsClient() {
         emptyState={{
           icon: Users,
           title: "暂无申请记录",
-          description: "新的账号管理员申请将显示在这里",
+          description: "新的组织申请将显示在这里",
         }}
       />
 

@@ -35,6 +35,7 @@ function normalizeAiScore(score: number | null): number | null {
 function mapDbType(type: DbFeedItemType): ApiFeedItemType {
   switch (type) {
     case DbFeedItemType.MATCH:
+    case DbFeedItemType.AI_REFERRAL:
       return "AI_REFERRAL";
     case DbFeedItemType.REMINDER:
       return "FOLLOW_UP_REMINDER";
@@ -77,6 +78,7 @@ export function mapFeedItem(row: {
   aiScore: number | null;
   triggerReason: string | null;
   createdAt: Date;
+  expiresAt?: Date | null;
   user?: {
     id: string;
     name: string;
@@ -94,7 +96,8 @@ export function mapFeedItem(row: {
   }
 
   const expiresAt =
-    typeof payload.expires_at === "string" ? payload.expires_at : null;
+    row.expiresAt?.toISOString() ??
+    (typeof payload.expires_at === "string" ? payload.expires_at : null);
   const isRead = payload.is_read === true;
 
   return {

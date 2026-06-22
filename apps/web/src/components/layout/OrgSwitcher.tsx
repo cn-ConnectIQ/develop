@@ -159,7 +159,7 @@ export function OrgSwitcher({
           <CommandList>
             <CommandEmpty>未找到相关组织</CommandEmpty>
 
-            <CommandGroup heading="我的身份">
+            <CommandGroup heading="我的组织">
               {ownedOrgs.map((org) => {
                 const isApproved = org.admin_status === "APPROVED";
                 const isCurrent = org.id === currentOrgId;
@@ -223,7 +223,7 @@ export function OrgSwitcher({
                 className="flex cursor-pointer items-center gap-2 px-3 py-2 text-brand-blue"
               >
                 <Plus className="size-4" />
-                <span className="text-sm">申请新身份</span>
+                <span className="text-sm">申请新组织</span>
               </CommandItem>
             </CommandGroup>
           </CommandList>

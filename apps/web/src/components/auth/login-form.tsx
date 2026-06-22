@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Phone } from "lucide-react";
 import { toast } from "sonner";
 import {
+  clearAuthRoleCookies,
   getPostLoginRedirectPath,
   setAuthRoleCookies,
 } from "@/lib/auth-redirect";
@@ -135,6 +136,7 @@ export function LoginForm() {
 
   const onPhoneSubmit = phoneForm.handleSubmit(async (values) => {
     setError(null);
+    clearAuthRoleCookies();
     const result = await signIn("phone", {
       phone: values.phone,
       code: values.code,
@@ -149,6 +151,7 @@ export function LoginForm() {
 
   const onEmailSubmit = emailForm.handleSubmit(async (values) => {
     setError(null);
+    clearAuthRoleCookies();
     const result = await signIn("credentials", {
       email: values.email.trim().toLowerCase(),
       password: values.password.trim(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Bot, ChevronRight } from "lucide-react";
+import { Activity, Bot, ChevronRight } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -11,12 +11,19 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AdminContent } from "@/components/admin/admin-header";
 import { cn } from "@/lib/utils";
 
 async function fetchStats() {
   const res = await fetch("/api/platform/ai-ops/matching-stats");
   if (!res.ok) throw new Error("加载失败");
+  return (await res.json()).data;
+}
+
+async function fetchSignalStats() {
+  const res = await fetch("/api/platform/ai-ops/signal-stats");
+  if (!res.ok) throw new Error("加载信号数据失败");
   return (await res.json()).data;
 }
 
@@ -46,6 +53,12 @@ export function AiOpsMatchingClient() {
     queryFn: fetchStats,
   });
 
+  const { data: signalData } = useQuery({
+    queryKey: ["ai-ops-signals"],
+    queryFn: fetchSignalStats,
+    refetchInterval: 30000,
+  });
+
   if (isLoading || !data) {
     return (
       <AdminContent>
@@ -64,6 +77,59 @@ export function AiOpsMatchingClient() {
           AI_MATCH_RESULT 表 · 监控 AI 撮合推荐质量
         </p>
       </div>
+
+      <section className="mb-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Activity className="size-5 text-brand-blue" />
+          <h2 className="text-base font-semibold">行为信号</h2>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            { label: "今日信号总量", value: signalData?.stats.totalToday ?? 0 },
+            { label: "展位扫码", value: signalData?.stats.boothScan ?? 0 },
+            { label: "投票参与", value: signalData?.stats.pollAnswered ?? 0 },
+            { label: "Q&A 提问", value: signalData?.stats.qnaAsked ?? 0 },
+          ].map((card) => (
+            <div key={card.label} className="admin-card p-4 text-center">
+              <p className="text-xs text-text-muted">{card.label}</p>
+              <p className="mt-1 text-2xl font-bold text-brand-purple">{card.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-card p-4">
+          <h3 className="mb-3 text-sm font-semibold">最近信号</h3>
+          <ul className="max-h-80 space-y-2 overflow-y-auto">
+            {(signalData?.recent ?? []).length === 0 && (
+              <li className="py-6 text-center text-sm text-text-muted">暂无行为信号</li>
+            )}
+            {(signalData?.recent ?? []).map(
+              (item: {
+                id: string;
+                user: { name: string; company?: string };
+                description: string;
+                occurred_at: string;
+              }) => (
+                <li
+                  key={item.id}
+                  className="flex items-start gap-3 rounded-lg border border-border-light px-3 py-2.5"
+                >
+                  <Avatar className="size-8 shrink-0">
+                    <AvatarFallback className="bg-brand-purple-light text-xs text-brand-purple">
+                      {item.user.name.slice(0, 1)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">{item.description}</p>
+                    <p className="mt-0.5 text-xs text-text-muted">{item.occurred_at}</p>
+                  </div>
+                </li>
+              ),
+            )}
+          </ul>
+        </div>
+      </section>
 
       <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-5">
         {data.funnel.map(

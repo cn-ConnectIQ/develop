@@ -70,5 +70,10 @@ export function clearAuthRoleCookies() {
 export async function signOutWithCleanup(callbackUrl = "/login") {
   clearAuthRoleCookies();
   const { signOut } = await import("next-auth/react");
-  return signOut({ callbackUrl });
+  const path = callbackUrl.startsWith("/") ? callbackUrl : `/${callbackUrl}`;
+  const target =
+    typeof window !== "undefined" && !callbackUrl.startsWith("http")
+      ? `${window.location.origin}${path}`
+      : callbackUrl;
+  return signOut({ callbackUrl: target });
 }

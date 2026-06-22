@@ -39,6 +39,10 @@ export {
   MemberTier,
   OrgJoinSource,
   AiFeedbackType,
+  AiMatchAction,
+  AiMatchScenario,
+  SignalType,
+  StampRallyStatus,
 } from "@prisma/client";
 /** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
 export { UserRole as PrismaUserRole } from "@prisma/client";

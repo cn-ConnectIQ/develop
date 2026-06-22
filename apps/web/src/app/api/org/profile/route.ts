@@ -6,6 +6,10 @@ import {
   requireAccountAdmin,
   withErrorHandler,
 } from "@/lib/api-auth";
+import {
+  ORG_COMPANY_SIZE_OPTIONS,
+  ORG_INDUSTRY_OPTIONS,
+} from "@/lib/org-profile-constants";
 import { getOrgProfile, updateOrgProfile } from "@/lib/org-profile-service";
 
 const patchSchema = z.object({
@@ -15,6 +19,26 @@ const patchSchema = z.object({
   contact_email: z.string().nullable().optional(),
   logo_url: z.string().nullable().optional(),
   cover_url: z.string().nullable().optional(),
+  industry: z
+    .string()
+    .nullable()
+    .optional()
+    .refine(
+      (v) => !v || (ORG_INDUSTRY_OPTIONS as readonly string[]).includes(v),
+      "请选择有效行业",
+    ),
+  company_size: z
+    .string()
+    .nullable()
+    .optional()
+    .refine(
+      (v) =>
+        !v ||
+        ORG_COMPANY_SIZE_OPTIONS.some((o) => o.value === v),
+      "请选择有效规模",
+    ),
+  headquarters: z.string().nullable().optional(),
+  founded_year: z.number().int().nullable().optional(),
 });
 
 export const GET = withErrorHandler(async (request) => {
@@ -55,6 +79,10 @@ export const PATCH = withErrorHandler(async (request) => {
       contactEmail: parsed.data.contact_email,
       logoUrl: parsed.data.logo_url,
       coverUrl: parsed.data.cover_url,
+      industry: parsed.data.industry,
+      companySize: parsed.data.company_size,
+      headquarters: parsed.data.headquarters,
+      foundedYear: parsed.data.founded_year,
     });
 
     if (!updated) {

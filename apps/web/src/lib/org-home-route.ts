@@ -8,6 +8,7 @@ import {
 /** 账号管理员切换组织后的默认首页 */
 export function getOrgHomeRouteByAccountType(accountType: string): string {
   const routes: Record<string, string> = {
+    ORGANIZATION: "/events",
     CONFERENCE_ORGANIZER: "/events",
     EXPO_ORGANIZER: "/events",
     EXHIBITOR: "/events",
@@ -37,6 +38,7 @@ export async function resolveOrgHomeRoute(
       });
       return booth ? `/exhibitor/booths/${booth.id}` : "/events";
     }
+    case AccountType.ORGANIZATION:
     case AccountType.CONFERENCE_ORGANIZER:
     default:
       return "/events";

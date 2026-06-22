@@ -7,7 +7,7 @@ import {
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
-import { findParticipantForUser } from "@/lib/interaction/participant-user";
+import { syncOrganizationStats } from "@/lib/org-stats";
 
 export type ApiPublicOrg = {
   id: string;
@@ -19,6 +19,10 @@ export type ApiPublicOrg = {
   website: string | null;
   contact_email: string | null;
   account_type: AccountType;
+  industry: string | null;
+  company_size: string | null;
+  headquarters: string | null;
+  founded_year: number | null;
   is_verified: boolean;
   member_count: number;
   event_count: number;
@@ -140,10 +144,7 @@ async function getAttendedEventIds(userId: string, eventIds: string[]): Promise<
   return new Set(rows.map((r) => r.eventId));
 }
 
-export async function getOrgPublicDetail(
-  slug: string,
-  userId?: string,
-): Promise<ApiOrgDetailPayload> {
+export async function resolveApprovedOrgBySlug(slug: string) {
   const org = await prisma.organization.findFirst({
     where: {
       slug,
@@ -155,12 +156,30 @@ export async function getOrgPublicDetail(
     throw new ApiError("组织不存在", ErrorCode.NOT_FOUND, 404);
   }
 
+  return org;
+}
+
+export async function resolveApprovedOrgIdBySlug(slug: string) {
+  const org = await resolveApprovedOrgBySlug(slug);
+  return org.id;
+}
+
+export async function getOrgPublicDetail(
+  slug: string,
+  userId?: string,
+): Promise<ApiOrgDetailPayload> {
+  const org = await resolveApprovedOrgBySlug(slug);
+  await syncOrganizationStats(org.id);
+  const freshOrg = await prisma.organization.findUniqueOrThrow({
+    where: { id: org.id },
+  });
+
   const now = new Date();
 
   const [upcomingRows, pastRows] = await Promise.all([
     prisma.event.findMany({
       where: {
-        orgId: org.id,
+        orgId: freshOrg.id,
         status: { in: [EventStatus.PUBLISHED, EventStatus.LIVE] },
       },
       orderBy: { startDate: "asc" },
@@ -169,11 +188,11 @@ export async function getOrgPublicDetail(
     }),
     prisma.event.findMany({
       where: {
-        orgId: org.id,
-        OR: [
-          { status: EventStatus.ARCHIVED },
-          { endDate: { lt: now } },
-        ],
+        orgId: freshOrg.id,
+        status: {
+          in: [EventStatus.PUBLISHED, EventStatus.LIVE, EventStatus.ARCHIVED],
+        },
+        OR: [{ status: EventStatus.ARCHIVED }, { endDate: { lt: now } }],
       },
       orderBy: { startDate: "desc" },
       take: 10,
@@ -187,10 +206,10 @@ export async function getOrgPublicDetail(
   if (userId) {
     const [membership, eventCount] = await Promise.all([
       prisma.orgMember.findUnique({
-        where: { orgId_userId: { orgId: org.id, userId } },
+        where: { orgId_userId: { orgId: freshOrg.id, userId } },
         select: { isFollowing: true },
       }),
-      countUserOrgEvents(userId, org.id),
+      countUserOrgEvents(userId, freshOrg.id),
     ]);
     isFollowing = membership?.isFollowing ?? false;
     myEventCount = eventCount;
@@ -203,19 +222,23 @@ export async function getOrgPublicDetail(
 
   return {
     org: {
-      id: org.id,
-      name: org.name,
-      slug: org.slug,
-      logo_url: org.logoUrl,
-      cover_url: org.coverUrl,
-      bio: org.bio,
-      website: org.website,
-      contact_email: org.contactEmail,
-      account_type: org.accountType,
-      is_verified: org.isVerified,
-      member_count: org.memberCount,
-      event_count: org.eventCount,
-      follower_count: org.followerCount,
+      id: freshOrg.id,
+      name: freshOrg.name,
+      slug: freshOrg.slug,
+      logo_url: freshOrg.logoUrl,
+      cover_url: freshOrg.coverUrl,
+      bio: freshOrg.bio,
+      website: freshOrg.website,
+      contact_email: freshOrg.contactEmail,
+      account_type: freshOrg.accountType,
+      industry: freshOrg.industry,
+      company_size: freshOrg.companySize,
+      headquarters: freshOrg.headquarters,
+      founded_year: freshOrg.foundedYear,
+      is_verified: freshOrg.isVerified,
+      member_count: freshOrg.memberCount,
+      event_count: freshOrg.eventCount,
+      follower_count: freshOrg.followerCount,
     },
     upcomingEvents: upcomingRows.map((e) => serializeOrgEvent(e)),
     pastEvents: pastRows.map((e) =>
@@ -229,7 +252,7 @@ export async function getOrgPublicDetail(
 export async function followOrganization(userId: string, orgId: string) {
   const org = await prisma.organization.findFirst({
     where: { id: orgId, adminStatus: AdminStatus.APPROVED },
-    select: { id: true, name: true, followerCount: true },
+    select: { id: true, name: true },
   });
 
   if (!org) {
@@ -242,34 +265,35 @@ export async function followOrganization(userId: string, orgId: string) {
   });
 
   if (existing?.isFollowing) {
-    return { ok: true, orgName: org.name, follower_count: org.followerCount };
+    const stats = await syncOrganizationStats(orgId);
+    return {
+      ok: true,
+      orgName: org.name,
+      follower_count: stats.followerCount,
+    };
   }
 
-  await prisma.$transaction([
-    prisma.orgMember.upsert({
-      where: { orgId_userId: { orgId, userId } },
-      create: {
-        orgId,
-        userId,
-        joinSource: OrgJoinSource.FOLLOWED,
-        isFollowing: true,
-        isSubscribed: true,
-      },
-      update: {
-        isFollowing: true,
-        isSubscribed: true,
-      },
-    }),
-    prisma.organization.update({
-      where: { id: orgId },
-      data: { followerCount: { increment: 1 } },
-    }),
-  ]);
+  await prisma.orgMember.upsert({
+    where: { orgId_userId: { orgId, userId } },
+    create: {
+      orgId,
+      userId,
+      joinSource: OrgJoinSource.FOLLOWED,
+      isFollowing: true,
+      isSubscribed: true,
+    },
+    update: {
+      isFollowing: true,
+      isSubscribed: true,
+    },
+  });
+
+  const stats = await syncOrganizationStats(orgId);
 
   return {
     ok: true,
     orgName: org.name,
-    follower_count: org.followerCount + 1,
+    follower_count: stats.followerCount,
   };
 }
 
@@ -279,33 +303,18 @@ export async function unfollowOrganization(userId: string, orgId: string) {
     select: { isFollowing: true },
   });
 
-  if (!existing?.isFollowing) {
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { followerCount: true },
-    });
-    return { ok: true, follower_count: org?.followerCount ?? 0 };
-  }
-
-  const org = await prisma.organization.findUnique({
-    where: { id: orgId },
-    select: { followerCount: true },
-  });
-
-  await prisma.$transaction([
-    prisma.orgMember.update({
+  if (existing?.isFollowing) {
+    await prisma.orgMember.update({
       where: { orgId_userId: { orgId, userId } },
       data: { isFollowing: false, isSubscribed: false },
-    }),
-    prisma.organization.update({
-      where: { id: orgId },
-      data: { followerCount: { decrement: 1 } },
-    }),
-  ]);
+    });
+  }
+
+  const stats = await syncOrganizationStats(orgId);
 
   return {
     ok: true,
-    follower_count: Math.max(0, (org?.followerCount ?? 1) - 1),
+    follower_count: stats.followerCount,
   };
 }
 

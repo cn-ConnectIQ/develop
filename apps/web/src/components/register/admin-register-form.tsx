@@ -1,6 +1,5 @@
 "use client";
 
-import type { AccountType } from "@connectiq/database";
 import { getSession, signIn, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,14 +16,10 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
-import { ACCOUNT_TYPE_OPTIONS } from "@/lib/account-type-labels";
-import { cn } from "@/lib/utils";
 import { StepProgress } from "./step-progress";
 
 type ApplicationData = {
   status: string;
-  accountType: AccountType;
-  accountTypeLabel: string;
   orgName: string;
   orgCreditCode: string | null;
   orgWebsite: string | null;
@@ -54,17 +49,12 @@ export function AdminRegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [ownedAccountTypes, setOwnedAccountTypes] = useState<
-    Set<AccountType>
-  >(new Set());
+  const [ownedOrgNames, setOwnedOrgNames] = useState<Set<string>>(new Set());
 
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
 
-  const [accountType, setAccountType] = useState<AccountType>(
-    "CONFERENCE_ORGANIZER",
-  );
   const [orgName, setOrgName] = useState("");
   const [orgCreditCode, setOrgCreditCode] = useState("");
   const [orgWebsite, setOrgWebsite] = useState("");
@@ -83,18 +73,18 @@ export function AdminRegisterForm() {
       const json = await res.json();
       const apps = (Array.isArray(json.data) ? json.data : []) as ApplicationData[];
 
-      const owned = new Set<AccountType>();
+      const owned = new Set<string>();
       for (const app of apps) {
         if (app.status === "APPROVED") {
-          owned.add(app.accountType);
+          owned.add(app.orgName.trim());
         }
       }
       for (const org of session?.user?.ownedOrgs ?? []) {
         if (org.admin_status === "APPROVED") {
-          owned.add(org.account_type as AccountType);
+          owned.add(org.name.trim());
         }
       }
-      setOwnedAccountTypes(owned);
+      setOwnedOrgNames(owned);
 
       if (isAddMode) {
         return;
@@ -108,14 +98,17 @@ export function AdminRegisterForm() {
         return;
       }
 
-      if (apps.every((a) => a.status === "APPROVED")) {
+      const hasApprovedOrg =
+        apps.some((a) => a.status === "APPROVED") ||
+        (session?.user?.ownedOrgs?.some((o) => o.admin_status === "APPROVED") ??
+          false);
+      if (hasApprovedOrg && apps.every((a) => a.status !== "REJECTED")) {
         router.replace("/events");
         return;
       }
 
       const rejected = apps.find((a) => a.status === "REJECTED");
       if (rejected) {
-        setAccountType(rejected.accountType);
         setOrgName(rejected.orgName);
         setOrgCreditCode(rejected.orgCreditCode ?? "");
         setOrgWebsite(rejected.orgWebsite ?? "");
@@ -224,11 +217,12 @@ export function AdminRegisterForm() {
 
   function handleStep2Next() {
     setError(null);
-    if (ownedAccountTypes.has(accountType)) {
-      setError("你已拥有此类型的账号身份，无需重复申请");
+    const trimmedOrgName = orgName.trim();
+    if (ownedOrgNames.has(trimmedOrgName)) {
+      setError("你已拥有该组织，无需重复申请");
       return;
     }
-    if (!orgName.trim()) {
+    if (!trimmedOrgName) {
       setError("请输入组织/公司名称");
       return;
     }
@@ -273,7 +267,6 @@ export function AdminRegisterForm() {
 
       const payload = {
         email,
-        accountType,
         orgName,
         orgCreditCode: orgCreditCode || undefined,
         orgWebsite: orgWebsite || undefined,
@@ -308,8 +301,6 @@ export function AdminRegisterForm() {
     }
   }
 
-  const selectedType = ACCOUNT_TYPE_OPTIONS.find((o) => o.value === accountType);
-
   return (
     <div className="mx-auto max-w-[560px] px-4 py-12">
       <div className="mb-8 text-center">
@@ -317,8 +308,11 @@ export function AdminRegisterForm() {
           ConnectIQ
         </Link>
         <h1 className="mt-2 text-lg font-semibold text-[var(--admin-ink)]">
-          {isAddMode ? "申请新身份" : "申请成为账号管理员"}
+          {isAddMode ? "申请新组织" : "申请组织账号"}
         </h1>
+        <p className="mt-1 text-sm text-text-muted">
+          组织审核通过后，可发布会议/展览活动并管理展位
+        </p>
       </div>
 
       <StepProgress currentStep={step} mode={isAddMode ? "add" : "default"} />
@@ -410,48 +404,7 @@ export function AdminRegisterForm() {
             </div>
           )}
 
-          <div className="space-y-3">
-            {ACCOUNT_TYPE_OPTIONS.map((option) => {
-              const alreadyOwned = ownedAccountTypes.has(option.value);
-              return (
-              <button
-                key={option.value}
-                type="button"
-                disabled={alreadyOwned}
-                onClick={() => {
-                  if (!alreadyOwned) setAccountType(option.value);
-                }}
-                className={cn(
-                  "flex h-[100px] w-full rounded-2xl border-2 p-5 text-left transition-colors",
-                  alreadyOwned &&
-                    "cursor-not-allowed border-border-light bg-content-bg opacity-60",
-                  !alreadyOwned &&
-                    accountType === option.value
-                    ? "border-brand-blue bg-brand-blue-light/20"
-                    : !alreadyOwned &&
-                      "border-border-light bg-white hover:border-brand-blue/40",
-                )}
-              >
-                <span className="mr-3 text-2xl">{option.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 font-medium text-[var(--admin-ink)]">
-                    {option.title}
-                    {alreadyOwned && (
-                      <span className="rounded bg-content px-2 py-0.5 text-[10px] font-medium text-text-muted">
-                        已拥有
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-sm text-text-muted">
-                    {option.description}
-                  </div>
-                </div>
-              </button>
-            );
-            })}
-          </div>
-
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {[
               {
                 label: "组织/公司名称",
@@ -557,12 +510,6 @@ export function AdminRegisterForm() {
       {step === 3 && (
         <div>
           <div className="space-y-3 rounded-2xl border border-border-light bg-white p-6">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text-muted">账号类型</span>
-              <span className="rounded-full bg-brand-blue-light px-3 py-1 text-xs font-medium text-brand-blue">
-                {selectedType?.title}
-              </span>
-            </div>
             {[
               ["组织/公司名称", orgName],
               ["统一社会信用代码", orgCreditCode || "—"],
@@ -605,12 +552,12 @@ export function AdminRegisterForm() {
                 className="mt-0.5"
               />
               <span className="text-sm text-text-muted">
-                我确认以上信息真实有效，授权平台进行资质审核
+                我确认以上信息真实有效，授权平台进行组织资质审核
               </span>
             </label>
             {isAddMode && (
               <p className="text-sm text-text-muted">
-                提交后平台审核，通过后可在身份切换器中使用新身份。
+                提交后平台审核，通过后可在组织切换器中使用新组织。
               </p>
             )}
           </div>

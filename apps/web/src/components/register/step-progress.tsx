@@ -6,7 +6,7 @@ const STEPS = ["账号信息", "组织信息", "确认提交"] as const;
 
 type StepProgressProps = {
   currentStep: 1 | 2 | 3;
-  /** 追加新身份：仅显示组织信息 + 确认提交两步 */
+  /** 追加新组织：仅显示组织信息 + 确认提交两步 */
   mode?: "default" | "add";
 };
 

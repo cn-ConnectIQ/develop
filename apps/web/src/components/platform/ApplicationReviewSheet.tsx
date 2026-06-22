@@ -15,7 +15,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 export type ApplicationRow = {
   id: string;
@@ -37,12 +36,6 @@ export type ApplicationRow = {
     email: string;
     createdAt: string;
   };
-};
-
-const TYPE_BADGE: Record<AccountType, string> = {
-  CONFERENCE_ORGANIZER: "bg-brand-blue-light text-brand-blue",
-  EXPO_ORGANIZER: "bg-brand-green-light text-brand-green",
-  EXHIBITOR: "bg-brand-amber-light text-brand-amber",
 };
 
 type Props = {
@@ -120,7 +113,7 @@ export function ApplicationReviewSheet({
         showCloseButton
       >
         <SheetHeader>
-          <SheetTitle>审核账号申请</SheetTitle>
+          <SheetTitle>审核组织申请</SheetTitle>
         </SheetHeader>
 
         <div className="space-y-5 px-1 pb-6">
@@ -144,14 +137,9 @@ export function ApplicationReviewSheet({
                 </p>
               </div>
             </div>
-            <span
-              className={cn(
-                "mt-3 inline-block rounded-full px-3 py-1 text-xs font-medium",
-                TYPE_BADGE[application.accountType],
-              )}
-            >
-              {application.accountTypeLabel}
-            </span>
+            <p className="mt-3 text-sm font-medium text-[var(--admin-ink)]">
+              申请组织：{application.orgName}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">

@@ -136,7 +136,7 @@ export function BigscreenProjection() {
     currentWinner ?? rollingPerson;
 
   return (
-    <div className="relative flex-[0_0_72%] overflow-hidden bg-[#1A1A2E]">
+    <div className="relative flex flex-1 flex-col overflow-hidden bg-[#1A1A2E]">
       <div className="absolute left-0 right-0 top-0 flex items-center justify-between px-10 pt-8">
         <span className="text-sm text-white/50">{eventName}</span>
         <LiveClock />

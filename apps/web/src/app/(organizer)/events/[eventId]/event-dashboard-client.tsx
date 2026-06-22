@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -12,6 +13,8 @@ import {
 import { AdminContent } from "@/components/admin/admin-header";
 import { CheckinFeed } from "@/components/dashboard/CheckinFeed";
 import { RealtimeStats } from "@/components/dashboard/RealtimeStats";
+import { AiReferralScanCard } from "@/components/events/AiReferralScanCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtimeCheckin } from "@/hooks/useRealtimeCheckin";
 import type { DashboardAlert } from "@/lib/dashboard-types";
 import { formatElapsed, formatTimeRemaining } from "@/lib/event-utils";
@@ -104,6 +107,7 @@ function QuickActionCard({
 }
 
 export function EventDashboardClient({ eventId }: { eventId: string }) {
+  const [activeTab, setActiveTab] = useState("overview");
   const { data, isLoading, refetch, isFetching } = useQuery<DashboardData>({
     queryKey: ["event-dashboard", eventId],
     queryFn: () => fetchDashboard(eventId),
@@ -124,6 +128,13 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
 
   return (
     <AdminContent>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">概览</TabsTrigger>
+          <TabsTrigger value="ai-ops">AI 运营</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-0 space-y-6">
       {isLive && data?.event.startDate && (
         <div className="mb-6 rounded-xl bg-brand-green-light p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -226,6 +237,13 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
           </ul>
         </div>
       </div>
+
+        </TabsContent>
+
+        <TabsContent value="ai-ops" className="mt-0 space-y-6">
+          <AiReferralScanCard eventId={eventId} />
+        </TabsContent>
+      </Tabs>
 
       <Link
         href={`/events/${eventId}/checkin`}

@@ -2,5 +2,19 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "cd ../.. && corepack enable && corepack prepare pnpm@11.6.0 --activate && pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm db:generate && pnpm --filter @connectiq/web build"
+  "buildCommand": "cd ../.. && pnpm db:generate && pnpm --filter @connectiq/web build",
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/post-event-followup",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/update-matching",
+      "schedule": "*/30 * * * *"
+    }
+  ]
 }

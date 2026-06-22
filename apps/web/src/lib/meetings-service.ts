@@ -1,6 +1,7 @@
-import { MeetingStatus, prisma } from "@connectiq/database";
+import { MeetingStatus, SignalType, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import { recordSignal } from "@/lib/signals";
 
 export type ApiMeetingStatus = MeetingStatus;
 
@@ -35,7 +36,7 @@ export async function updateMeetingStatus(
 
   const allowed: Partial<Record<MeetingStatus, MeetingStatus[]>> = {
     [MeetingStatus.CONFIRMED]: [MeetingStatus.COMPLETED, MeetingStatus.NO_SHOW],
-    [MeetingStatus.PENDING]: [MeetingStatus.DECLINED],
+    [MeetingStatus.PENDING]: [MeetingStatus.DECLINED, MeetingStatus.CONFIRMED],
   };
 
   const allowedNext = allowed[meeting.status] ?? [];
@@ -43,13 +44,58 @@ export async function updateMeetingStatus(
     throw new ApiError("当前状态不可变更", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  return prisma.meeting.update({
+  const updated = await prisma.meeting.update({
     where: { id: meetingId },
     data: {
       status,
       rating: status === MeetingStatus.COMPLETED ? rating ?? meeting.rating : meeting.rating,
     },
   });
+
+  if (status === MeetingStatus.CONFIRMED && meeting.status === MeetingStatus.PENDING) {
+    for (const uid of [meeting.hostUserId, meeting.guestUserId]) {
+      recordSignal(uid, meeting.eventId, SignalType.MEETING_BOOKED, meetingId, "MEETING", {
+        starts_at: meeting.startsAt.toISOString(),
+      });
+    }
+  }
+
+  return updated;
+}
+
+export async function bookMeeting(input: {
+  eventId: string;
+  hostUserId: string;
+  guestUserId: string;
+  startsAt: Date;
+  endsAt: Date;
+}) {
+  if (input.hostUserId === input.guestUserId) {
+    throw new ApiError("不能与自己预约", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  if (input.endsAt <= input.startsAt) {
+    throw new ApiError("结束时间须晚于开始时间", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const meeting = await prisma.meeting.create({
+    data: {
+      eventId: input.eventId,
+      hostUserId: input.hostUserId,
+      guestUserId: input.guestUserId,
+      status: MeetingStatus.CONFIRMED,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    },
+  });
+
+  for (const uid of [input.hostUserId, input.guestUserId]) {
+    recordSignal(uid, input.eventId, SignalType.MEETING_BOOKED, meeting.id, "MEETING", {
+      starts_at: input.startsAt.toISOString(),
+    });
+  }
+
+  return meeting;
 }
 
 export async function cancelMeeting(

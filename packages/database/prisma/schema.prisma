@@ -207,9 +207,27 @@ enum MeetingStatus {
 
 enum FeedItemType {
   MATCH
+  AI_REFERRAL
   INSIGHT
   REMINDER
   SYSTEM
+}
+
+enum SignalType {
+  BOOTH_SCAN
+  BOOTH_LEAD_CAPTURED
+  POLL_ANSWERED
+  QNA_ASKED
+  QNA_UPVOTED
+  INTERACTION_JOINED
+  CONNECTION_MADE
+  MEETING_BOOKED
+}
+
+enum StampRallyStatus {
+  DRAFT
+  ACTIVE
+  ENDED
 }
 
 enum InviteCampaignStatus {
@@ -287,9 +305,10 @@ enum AdminStatus {
 
 // 账号类型（账号管理员的子类型）
 enum AccountType {
-  CONFERENCE_ORGANIZER // 会议/沙龙/培训主办方
-  EXPO_ORGANIZER // 展览/展会主办方
-  EXHIBITOR // 参展商（关联到某个展会）
+  ORGANIZATION // 通用组织（审核通过后具备会议/展览/参展多角色能力）
+  CONFERENCE_ORGANIZER // 会议/沙龙/培训主办方（历史数据兼容）
+  EXPO_ORGANIZER // 展览/展会主办方（历史数据兼容）
+  EXHIBITOR // 参展商（历史数据兼容）
 }
 
 // 申请审核状态
@@ -378,6 +397,10 @@ model User {
   meetingsHosted             Meeting[]            @relation("MeetingHost")
   meetingsGuest              Meeting[]            @relation("MeetingGuest")
   meetingsCancelled          Meeting[]            @relation("MeetingCancelledBy")
+  boothVisitSignals          BoothVisitSignal[]
+  createdStampRallies        StampRally[]         @relation("StampRallyCreator")
+  stampRecords               StampRecord[]
+  stampRallyWins             StampRallyWinner[]
 
   // 三层角色区分
   userType UserType @default(END_USER) @map("user_type")
@@ -424,6 +447,12 @@ model Organization {
   bio          String?
   website      String?
   contactEmail String? @map("contact_email")
+
+  // 领英式主页扩展信息
+  industry     String? @map("industry")
+  companySize  String? @map("company_size")
+  headquarters String? @map("headquarters")
+  foundedYear  Int?    @map("founded_year")
 
   // 账号类型
   accountType AccountType @map("account_type")
@@ -517,7 +546,7 @@ model OrgStaff {
 
 model OrganizerApplication {
   id     String        @id @default(cuid())
-  userId String        @map("user_id") // 同一用户可以有多次申请（不同 account_type）
+  userId String        @map("user_id") // 同一用户可多次申请（不同组织）
   user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   orgId  String?       @unique @map("org_id")
   org    Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
@@ -617,6 +646,10 @@ model Event {
   inviteCampaigns     InviteCampaign[]
   lotteries           Lottery[]
   interactionSessions InteractionSession[]
+  aiReferralScans     AIReferralScan[]
+  feedItems           FeedItem[]
+  boothVisitSignals   BoothVisitSignal[]
+  stampRallies        StampRally[]
 
   @@map("events")
 }
@@ -700,6 +733,9 @@ model ExhibitorBooth {
   companyOrgId   String      @map("company_org_id")
   operatorUserId String?     @map("operator_user_id")
   positionData   Json?       @map("position_data")
+  positionX      Float?      @map("position_x")
+  positionY      Float?      @map("position_y")
+  hallLabel      String?     @map("hall")
   leadFormConfig Json?       @map("lead_form_config")
   createdAt      DateTime    @default(now()) @map("created_at")
   updatedAt      DateTime    @updatedAt @map("updated_at")
@@ -712,6 +748,7 @@ model ExhibitorBooth {
   leads               Lead[]
   lotteries           Lottery[]
   interactionSessions InteractionSession[]
+  stampRecords        StampRecord[]
 
   @@unique([eventId, code])
   @@map("booths")
@@ -1401,15 +1438,53 @@ model PointsRedemption {
 model FeedItem {
   id            String       @id @default(cuid())
   userId        String       @map("user_id")
+  eventId       String?      @map("event_id")
   type          FeedItemType
   content       String
   aiScore       Int?         @map("ai_score")
   triggerReason String?      @map("trigger_reason")
+  expiresAt     DateTime?    @map("expires_at")
   createdAt     DateTime     @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
+  @@index([eventId])
   @@map("feed_items")
+}
+
+model AIReferralScan {
+  id           String   @id @default(cuid())
+  eventId      String   @map("event_id")
+  scannedAt    DateTime @default(now()) @map("scanned_at")
+  pairsFound   Int      @default(0) @map("pairs_found")
+  feedsCreated Int      @default(0) @map("feeds_created")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("ai_referral_scans")
+}
+
+model BoothVisitSignal {
+  id               String     @id @default(cuid())
+  userId           String     @map("user_id")
+  eventId          String     @map("event_id")
+  signalType       SignalType @map("signal_type")
+  entityId         String?    @map("entity_id")
+  entityType       String?    @map("entity_type")
+  payload          Json       @default("{}")
+  inferredIntent   String?    @map("inferred_intent")
+  intentConfidence Float?     @map("intent_confidence")
+  occurredAt       DateTime   @default(now()) @map("occurred_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventId])
+  @@index([eventId, signalType])
+  @@index([occurredAt])
+  @@map("booth_visit_signals")
 }
 
 model SnSession {
@@ -1504,4 +1579,60 @@ model InviteRecord {
   @@index([campaignId, status])
   @@index([activationToken])
   @@map("invite_records")
+}
+
+model StampRally {
+  id             String           @id @default(cuid())
+  eventId        String           @map("event_id")
+  createdById    String           @map("created_by")
+  name           String
+  description    String?
+  prize          String
+  prizeImageUrl  String?          @map("prize_image_url")
+  requiredCount  Int              @map("required_count")
+  totalBooths    Int              @map("total_booths")
+  boothIds       String[]         @default([]) @map("booth_ids")
+  startsAt       DateTime?        @map("starts_at")
+  endsAt         DateTime?        @map("ends_at")
+  status         StampRallyStatus @default(DRAFT)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  creator User               @relation("StampRallyCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  records StampRecord[]
+  winners StampRallyWinner[]
+
+  @@index([eventId, status])
+  @@map("stamp_rallies")
+}
+
+model StampRecord {
+  id        String   @id @default(cuid())
+  rallyId   String   @map("rally_id")
+  userId    String   @map("user_id")
+  boothId   String   @map("booth_id")
+  stampedAt DateTime @default(now()) @map("stamped_at")
+
+  rally StampRally     @relation(fields: [rallyId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booth ExhibitorBooth @relation(fields: [boothId], references: [id], onDelete: Cascade)
+
+  @@unique([rallyId, userId, boothId])
+  @@index([rallyId, userId])
+  @@map("stamp_records")
+}
+
+model StampRallyWinner {
+  id          String   @id @default(cuid())
+  rallyId     String   @map("rally_id")
+  userId      String   @map("user_id")
+  completedAt DateTime @default(now()) @map("completed_at")
+  redeemed    Boolean  @default(false)
+
+  rally StampRally @relation(fields: [rallyId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([rallyId, userId])
+  @@map("stamp_rally_winners")
 }

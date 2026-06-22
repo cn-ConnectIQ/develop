@@ -9,6 +9,10 @@ export type OrgProfileData = {
   bio: string | null;
   website: string | null;
   contactEmail: string | null;
+  industry: string | null;
+  companySize: string | null;
+  headquarters: string | null;
+  foundedYear: number | null;
   accountType: AccountType;
   orgCreditCode: string | null;
   isVerified: boolean;

@@ -16,6 +16,7 @@ import {
   MapPin,
   MessageSquare,
   Monitor,
+  Route,
   ScanLine,
   Send,
   Settings,
@@ -24,6 +25,7 @@ import {
   Store,
   Tag,
   Ticket,
+  Trophy,
   Users,
   UserCog,
 } from "lucide-react";
@@ -175,6 +177,12 @@ export function getEventNavigation(
                 icon: Users,
               },
               {
+                label: "AI 展位路线",
+                href: `/events/${eventId}/booth-route`,
+                icon: MapPin,
+                isNew: true,
+              },
+              {
                 label: "邀请管理",
                 href: `/events/${eventId}/invite-campaigns`,
                 icon: Send,
@@ -204,6 +212,12 @@ export function getEventNavigation(
                 href: `/events/${eventId}/interactions`,
                 icon: MessageSquare,
               },
+              {
+                label: "集章打卡",
+                href: `/events/${eventId}/stamp-rally`,
+                icon: Trophy,
+                isNew: true,
+              },
             ],
           },
           {
@@ -232,6 +246,12 @@ export function getEventNavigation(
               },
               {
                 label: "互动大屏",
+                href: `/events/${eventId}/interactions/bigscreen`,
+                icon: Monitor,
+                external: true,
+              },
+              {
+                label: "Poll 投票大屏",
                 href: `/events/${eventId}/bigscreen`,
                 icon: Monitor,
                 external: true,
@@ -358,12 +378,24 @@ export function getEventNavigation(
               icon: Monitor,
             },
             {
+              label: "集章打卡",
+              href: `/events/${eventId}/stamp-rally`,
+              icon: Trophy,
+              isNew: true,
+            },
+            {
               label: "场馆地图管理",
               href: `/events/${eventId}/exhibitors/map`,
               icon: MapPin,
             },
             {
               label: "互动大屏",
+              href: `/events/${eventId}/interactions/bigscreen`,
+              icon: Monitor,
+              external: true,
+            },
+            {
+              label: "Poll 投票大屏",
               href: `/events/${eventId}/bigscreen`,
               icon: Monitor,
               external: true,

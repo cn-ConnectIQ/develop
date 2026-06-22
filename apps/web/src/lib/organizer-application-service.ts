@@ -2,8 +2,9 @@ import bcrypt from "bcryptjs";
 import {
   AccountType,
   ApplicationStatus,
+  InviteStatus,
+  OrgStaffRole,
   prisma,
-  PrismaUserRole,
   UserType,
 } from "@connectiq/database";
 import { sendApplicationConfirmationEmail } from "@/lib/email";
@@ -25,7 +26,6 @@ export type SubmitApplicationInput = {
   phone?: string;
   code?: string;
   email: string;
-  accountType: AccountType;
   orgName: string;
   orgCreditCode?: string | null;
   orgWebsite?: string | null;
@@ -35,15 +35,8 @@ export type SubmitApplicationInput = {
   description: string;
 };
 
-function accountTypeToRole(accountType: AccountType): PrismaUserRole {
-  switch (accountType) {
-    case AccountType.EXPO_ORGANIZER:
-      return PrismaUserRole.EXPO_ORGANIZER;
-    case AccountType.EXHIBITOR:
-      return PrismaUserRole.EXHIBITOR;
-    default:
-      return PrismaUserRole.ORGANIZER;
-  }
+function normalizeOrgName(name: string) {
+  return name.trim();
 }
 
 async function resolveApplicantUser(input: SubmitApplicationInput) {
@@ -136,12 +129,13 @@ export function formatApplicationRecord(application: {
 
 export async function submitOrganizerApplication(input: SubmitApplicationInput) {
   const user = await resolveApplicantUser(input);
+  const orgName = normalizeOrgName(input.orgName);
 
   const existingPendingOrApproved =
     await prisma.organizerApplication.findFirst({
       where: {
         userId: user.id,
-        accountType: input.accountType,
+        orgName,
         status: {
           in: [ApplicationStatus.PENDING, ApplicationStatus.APPROVED],
         },
@@ -151,14 +145,30 @@ export async function submitOrganizerApplication(input: SubmitApplicationInput) 
   if (existingPendingOrApproved) {
     const statusText =
       existingPendingOrApproved.status === ApplicationStatus.PENDING
-        ? "你已有一条相同类型的申请正在审核中"
-        : "你已拥有此类型的账号身份，无需重复申请";
+        ? "你已提交该组织的申请，正在审核中"
+        : "你已拥有该组织，无需重复申请";
     throw new ApplicationServiceError(statusText, "DUPLICATE_APPLICATION");
   }
 
+  const ownedOrg = await prisma.orgStaff.findFirst({
+    where: {
+      userId: user.id,
+      role: OrgStaffRole.OWNER,
+      status: InviteStatus.ACCEPTED,
+      org: { name: orgName },
+    },
+    select: { orgId: true },
+  });
+  if (ownedOrg) {
+    throw new ApplicationServiceError(
+      "你已拥有该组织，无需重复申请",
+      "DUPLICATE_APPLICATION",
+    );
+  }
+
   const payload = {
-    accountType: input.accountType,
-    orgName: input.orgName.trim(),
+    accountType: AccountType.ORGANIZATION,
+    orgName,
     orgCreditCode: input.orgCreditCode?.trim() || null,
     orgWebsite: input.orgWebsite?.trim() || null,
     contactName: input.contactName.trim(),
@@ -173,7 +183,7 @@ export async function submitOrganizerApplication(input: SubmitApplicationInput) 
   const existingRejected = await prisma.organizerApplication.findFirst({
     where: {
       userId: user.id,
-      accountType: input.accountType,
+      orgName,
       status: ApplicationStatus.REJECTED,
     },
   });
@@ -195,19 +205,9 @@ export async function submitOrganizerApplication(input: SubmitApplicationInput) 
     data: { userType: UserType.ACCOUNT_ADMIN },
   });
 
-  const legacyRole = accountTypeToRole(input.accountType);
-  const assignment = await prisma.userRoleAssignment.findFirst({
-    where: { userId: user.id, role: legacyRole, entityId: null },
-  });
-  if (!assignment) {
-    await prisma.userRoleAssignment.create({
-      data: { userId: user.id, role: legacyRole },
-    });
-  }
-
   await sendApplicationConfirmationEmail(
     input.contactEmail,
-    input.orgName.trim(),
+    orgName,
   );
 
   return {

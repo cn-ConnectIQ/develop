@@ -14,6 +14,10 @@ export type BigscreenMode =
   | "lottery_drawing"
   | "lottery_result";
 
+export type ProjectionTab = "interaction" | "booth_ranking" | "network_heat";
+
+export type BoothRankingTopLimit = 5 | 10 | 15 | "all";
+
 export type RollingPerson = {
   id: string;
   name: string;
@@ -62,6 +66,11 @@ type BigscreenStore = {
     participationRate: number;
   };
   countdown: string;
+  projectionTab: ProjectionTab;
+  boothRankingAutoRefresh: boolean;
+  boothRankingTopLimit: BoothRankingTopLimit;
+  boothRankingHighlightGrowth: boolean;
+  boothRankingRefreshNonce: number;
 
   setEvent: (eventId: string, eventName: string) => void;
   setJoinQrUrl: (url: string | null) => void;
@@ -93,6 +102,11 @@ type BigscreenStore = {
   setIsRollingPaused: (value: boolean) => void;
   resetRolling: () => void;
   deriveModeFromPoll: (poll: BigscreenPoll | null) => void;
+  setProjectionTab: (tab: ProjectionTab) => void;
+  setBoothRankingAutoRefresh: (value: boolean) => void;
+  setBoothRankingTopLimit: (limit: BoothRankingTopLimit) => void;
+  setBoothRankingHighlightGrowth: (value: boolean) => void;
+  bumpBoothRankingRefresh: () => void;
 };
 
 export const useBigscreenStore = create<BigscreenStore>((set, get) => ({
@@ -122,6 +136,11 @@ export const useBigscreenStore = create<BigscreenStore>((set, get) => ({
   queue: [],
   stats: { onSite: 0, participants: 0, participationRate: 0 },
   countdown: "--:--",
+  projectionTab: "interaction",
+  boothRankingAutoRefresh: true,
+  boothRankingTopLimit: 10,
+  boothRankingHighlightGrowth: false,
+  boothRankingRefreshNonce: 0,
 
   setEvent: (eventId, eventName) => set({ eventId, eventName }),
   setJoinQrUrl: (url) => set({ joinQrUrl: url }),
@@ -199,6 +218,14 @@ export const useBigscreenStore = create<BigscreenStore>((set, get) => ({
         set({ currentMode: "poll" });
     }
   },
+
+  setProjectionTab: (tab) => set({ projectionTab: tab }),
+  setBoothRankingAutoRefresh: (value) => set({ boothRankingAutoRefresh: value }),
+  setBoothRankingTopLimit: (limit) => set({ boothRankingTopLimit: limit }),
+  setBoothRankingHighlightGrowth: (value) =>
+    set({ boothRankingHighlightGrowth: value }),
+  bumpBoothRankingRefresh: () =>
+    set((s) => ({ boothRankingRefreshNonce: s.boothRankingRefreshNonce + 1 })),
 }));
 
 export function getMaxPercentage(options: PollOptionResult[]) {

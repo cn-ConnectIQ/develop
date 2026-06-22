@@ -55,7 +55,7 @@ function inferIntentFromString(raw: string, index: number): ApiProfileIntentTag 
     : { id: `demand-${index}-${raw}`, label: `寻找${raw}`, type: "DEMAND" };
 }
 
-function parseIntentTags(value: unknown): ApiProfileIntentTag[] {
+export function parseIntentTags(value: unknown): ApiProfileIntentTag[] {
   if (!Array.isArray(value)) return [];
 
   return value.flatMap((item, index) => {
