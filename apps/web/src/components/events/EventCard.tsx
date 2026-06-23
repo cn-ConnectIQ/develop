@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { UserRole } from "@connectiq/types";
 import { differenceInCalendarDays, format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import {
@@ -87,10 +89,22 @@ function getCategoryLabel(event: EventListItem) {
   return event.type === "EXPO" ? "展会" : "峰会";
 }
 
+function getEventHomeHref(
+  event: EventListItem,
+  role: string | undefined,
+): string {
+  if (role === UserRole.EXPO_ORGANIZER && event.type === "EXPO") {
+    return `/expos/${event.id}`;
+  }
+  return `/events/${event.id}`;
+}
+
 export function EventCard({ event, onEdit }: EventCardProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const refetch = useEventsMutationRefetch();
+  const { data: session } = useSession();
+  const eventHomeHref = getEventHomeHref(event, session?.user?.role);
 
   const reviewStatus = event.reviewStatus ?? event.review?.status ?? "DRAFT";
   const isPendingReview = reviewStatus === "PENDING_REVIEW";
@@ -195,7 +209,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`/events/${event.id}`}
+              href={eventHomeHref}
               className="text-base font-semibold text-[var(--admin-ink)] hover:text-brand-blue"
             >
               {event.name}
@@ -309,7 +323,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
           <div className="flex items-center gap-2">
             {phase === "live" && !isPendingReview && (
               <Link
-                href={`/events/${event.id}`}
+                href={eventHomeHref}
                 className="text-sm font-medium text-brand-blue hover:underline"
               >
                 立即进入 →
@@ -327,7 +341,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
               !isPendingReview &&
               !isRevisionRequired && (
                 <Link
-                  href={`/events/${event.id}`}
+                  href={eventHomeHref}
                   className="hidden text-sm font-medium text-brand-blue hover:underline sm:inline"
                 >
                   进入 →
@@ -341,7 +355,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   onClick={() => {
-                    window.location.href = `/events/${event.id}`;
+                    window.location.href = eventHomeHref;
                   }}
                 >
                   <Pencil className="size-4" />

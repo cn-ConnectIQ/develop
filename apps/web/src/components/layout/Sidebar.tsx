@@ -16,6 +16,7 @@ import {
   type NavItem,
 } from "@/config/navigation";
 import {
+  extractEventIdFromPath,
   getAdminNavMode,
   getPlatformHomeHref,
   getPlatformHomeLabel,
@@ -267,12 +268,7 @@ export function Sidebar({
       : theme.logoGradient;
 
   const resolvedEventId =
-    navMode === "event"
-      ? (eventId ??
-        (role === "EXPO_ORGANIZER" || role === "EXHIBITOR"
-          ? user.entityId
-          : null))
-      : null;
+    navMode === "event" ? (eventId ?? extractEventIdFromPath(pathname)) : null;
 
   const platformGroups = getPlatformNavigation(navRole);
   const eventGroups =
@@ -296,6 +292,7 @@ export function Sidebar({
   const showPlatformBack =
     navMode === "event" &&
     (role === UserRole.PLATFORM_ADMIN ||
+      role === UserRole.EXPO_ORGANIZER ||
       (role === UserRole.ORGANIZER && hasPlatformAdmin));
 
   const visibleGroups =

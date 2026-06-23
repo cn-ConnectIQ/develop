@@ -125,7 +125,7 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
     ];
   }
 
-  if (role === UserRole.ORGANIZER) {
+  if (role === UserRole.ORGANIZER || role === UserRole.EXPO_ORGANIZER) {
     return [
       {
         label: "PLATFORM",
@@ -343,6 +343,11 @@ export function getEventNavigation(
               icon: Users,
             },
             {
+              label: "参会者名单",
+              href: `/events/${eventId}/participants`,
+              icon: ClipboardList,
+            },
+            {
               label: "买家签到看板",
               href: `/events/${eventId}/checkin`,
               icon: ScanLine,
@@ -351,6 +356,21 @@ export function getEventNavigation(
               label: "通知发送",
               href: `/expos/${eventId}#notifications`,
               icon: Bell,
+            },
+          ],
+        },
+        {
+          label: "互动管理",
+          items: [
+            {
+              label: "互动管理",
+              href: `/events/${eventId}/interactions`,
+              icon: MessageSquare,
+            },
+            {
+              label: "邀请管理",
+              href: `/events/${eventId}/invite-campaigns`,
+              icon: Send,
             },
           ],
         },
@@ -367,14 +387,19 @@ export function getEventNavigation(
               href: `/expos/${eventId}#matching-preview`,
               icon: Eye,
             },
+            {
+              label: "意向标签",
+              href: `/expos/${eventId}/tags`,
+              icon: Tag,
+            },
           ],
         },
         {
           label: "现场执行",
           items: [
             {
-              label: "现场仪表盘",
-              href: `/events/${eventId}`,
+              label: "展会概览",
+              href: `/expos/${eventId}`,
               icon: Monitor,
             },
             {

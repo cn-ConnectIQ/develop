@@ -86,14 +86,21 @@ function buildOrganizerWhere(session: {
   if (session.user.role === AppUserRole.PLATFORM_ADMIN) {
     return {};
   }
-  const base =
-    session.user.role === AppUserRole.EXPO_ORGANIZER
-      ? { organizerId: session.user.id, type: EventType.EXPO }
-      : { organizerId: session.user.id };
-  if (session.user.activeOrgId) {
-    return { ...base, orgId: session.user.activeOrgId };
+
+  const { id: userId, role, activeOrgId } = session.user;
+
+  if (activeOrgId) {
+    if (role === AppUserRole.EXPO_ORGANIZER) {
+      return { orgId: activeOrgId, type: EventType.EXPO };
+    }
+    return { orgId: activeOrgId };
   }
-  return base;
+
+  if (role === AppUserRole.EXPO_ORGANIZER) {
+    return { organizerId: userId, type: EventType.EXPO };
+  }
+
+  return { organizerId: userId };
 }
 
 function serializeEvent(
