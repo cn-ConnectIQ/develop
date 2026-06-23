@@ -32,17 +32,7 @@ async function fetchRankings(eventId: string) {
   };
 }
 
-function NetworkHeatPlaceholder() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center bg-[#1A1A2E] px-12 pt-20 text-center">
-      <p className="text-[28px] font-bold text-white">🌐 网络热度</p>
-      <p className="mt-4 max-w-md text-white/50">
-        Speed Networking 连接热力图即将上线，敬请期待
-      </p>
-    </div>
-  );
-}
-
+import { NetworkHeatDisplay } from "@/components/interactions/bigscreen/NetworkHeatDisplay";
 export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
   const searchParams = useSearchParams();
   const lotteryId = searchParams.get("lottery");
@@ -272,7 +262,7 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
         {projectionTab === "booth_ranking" && (
           <BoothRankingDisplay eventId={eventId} />
         )}
-        {projectionTab === "network_heat" && <NetworkHeatPlaceholder />}
+        {projectionTab === "network_heat" && <NetworkHeatDisplay eventId={eventId} />}
       </div>
 
       {projectionTab === "booth_ranking" ? (

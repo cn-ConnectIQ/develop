@@ -183,7 +183,17 @@ export function CampaignCard({
                 复制 ID
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => toast.info("归档功能将在后续版本开放")}
+                onClick={async () => {
+                  const res = await fetch(
+                    `/api/events/${eventId}/invite-campaigns/${campaign.id}/archive`,
+                    { method: "POST" },
+                  );
+                  if (!res.ok) {
+                    toast.error("归档失败");
+                    return;
+                  }
+                  toast.success("已归档");
+                }}
               >
                 归档
               </DropdownMenuItem>

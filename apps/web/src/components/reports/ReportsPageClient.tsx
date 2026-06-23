@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -46,9 +47,37 @@ async function fetchReport(eventId: string) {
   return (await res.json()).data;
 }
 
+const TAB_HASH_MAP: Record<string, string> = {
+  connections: "connections",
+  checkin: "checkin",
+  interactions: "interactions",
+  booths: "exhibitor-roi",
+  matching: "matching",
+  meetings: "meetings",
+};
+
+const HASH_TAB_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(TAB_HASH_MAP).map(([tab, hash]) => [hash, tab]),
+);
+
 export function ReportsPageClient({ eventId }: { eventId: string }) {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState("connections");
   const [showAbsent, setShowAbsent] = useState(false);
+
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash && HASH_TAB_MAP[hash]) {
+      setActiveTab(HASH_TAB_MAP[hash]);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const hash = TAB_HASH_MAP[activeTab];
+    if (hash) {
+      window.history.replaceState(null, "", `#${hash}`);
+    }
+  }, [activeTab]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["event-report", eventId],

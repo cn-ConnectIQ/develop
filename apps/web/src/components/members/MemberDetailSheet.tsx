@@ -351,7 +351,22 @@ export function MemberDetailSheet({
                 </h3>
                 <Button
                   className="h-10 w-full bg-brand-blue text-white hover:bg-brand-blue/90"
-                  onClick={() => toast.info("定向通知功能即将开放")}
+                  onClick={() => {
+                    const body = window.prompt("请输入通知内容（用户不可见备注请用详情页）");
+                    if (!body?.trim()) return;
+                    void fetch("/api/org/members/notify", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        userId: member.userId,
+                        title: "组织通知",
+                        body,
+                      }),
+                    }).then((res) => {
+                      if (res.ok) toast.success("通知已发送");
+                      else toast.error("发送失败");
+                    });
+                  }}
                 >
                   发送定向通知
                 </Button>

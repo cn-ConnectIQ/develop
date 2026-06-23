@@ -39,6 +39,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -54,9 +71,11 @@ import { cn } from "@/lib/utils";
 export type ParticipantRow = ParticipantListItem;
 
 type ParticipantTableProps = {
+  eventId: string;
   data: ParticipantRow[];
   isLoading?: boolean;
   statusFilter?: string;
+  ticketTypes?: Array<{ id: string; name: string }>;
   onCheckIn: (id: string) => void;
   onRemove: (id: string) => void;
   onRefresh: () => void;
@@ -93,9 +112,11 @@ function InviteStatusBadge({
 }
 
 export function ParticipantTable({
+  eventId,
   data,
   isLoading,
   statusFilter,
+  ticketTypes = [],
   onCheckIn,
   onRemove,
   onRefresh,
@@ -103,6 +124,77 @@ export function ParticipantTable({
 }: ParticipantTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [removeId, setRemoveId] = useState<string | null>(null);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [targetIds, setTargetIds] = useState<string[]>([]);
+  const [notifyTitle, setNotifyTitle] = useState("活动通知");
+  const [notifyBody, setNotifyBody] = useState("");
+  const [selectedTicketId, setSelectedTicketId] = useState<string>("");
+
+  async function runBatch(
+    action: "check_in" | "update_ticket" | "delete",
+    participantIds: string[],
+    ticketTypeId?: string | null,
+  ) {
+    const res = await fetch(`/api/events/${eventId}/participants/batch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, participantIds, ticketTypeId }),
+    });
+    if (!res.ok) {
+      toast.error("操作失败");
+      return;
+    }
+    toast.success("操作成功");
+    setRowSelection({});
+    onRefresh();
+  }
+
+  async function sendNotify(participantIds: string[]) {
+    if (!notifyBody.trim()) {
+      toast.error("请填写通知内容");
+      return;
+    }
+    const res = await fetch(`/api/events/${eventId}/participants/notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        participantIds,
+        title: notifyTitle,
+        body: notifyBody,
+      }),
+    });
+    if (!res.ok) {
+      toast.error("发送失败");
+      return;
+    }
+    const json = await res.json();
+    toast.success(`已发送 ${json.data.sent} 条，跳过 ${json.data.skipped} 条`);
+    setNotifyOpen(false);
+    setNotifyBody("");
+  }
+
+  async function exportSelected(participantIds?: string[]) {
+    const res = await fetch(`/api/events/${eventId}/participants/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        participantIds?.length ? { participantIds } : {},
+      ),
+    });
+    if (!res.ok) {
+      toast.error("导出失败");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `participants-${eventId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("导出成功");
+  }
 
   const columns = useMemo<ColumnDef<ParticipantRow>[]>(
     () => [
@@ -206,7 +298,13 @@ export function ParticipantTable({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onClick={() => toast.info("名片详情将在后续版本开放")}
+                  onClick={() => {
+                    toast.message(`${p.name}`, {
+                      description: [p.company, p.phone, p.email]
+                        .filter(Boolean)
+                        .join(" · ") || "暂无更多信息",
+                    });
+                  }}
                 >
                   <CreditCard className="size-4" />
                   查看名片
@@ -218,13 +316,20 @@ export function ParticipantTable({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
-                  onClick={() => toast.info("消息推送将在后续版本开放")}
+                  onClick={() => {
+                    setTargetIds([p.id]);
+                    setNotifyOpen(true);
+                  }}
                 >
                   <MessageSquare className="size-4" />
                   发消息
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => toast.info("票种调整将在后续版本开放")}
+                  onClick={() => {
+                    setTargetIds([p.id]);
+                    setSelectedTicketId(p.ticketTypeId ?? "");
+                    setTicketOpen(true);
+                  }}
                 >
                   <Ticket className="size-4" />
                   调整票种
@@ -290,21 +395,38 @@ export function ParticipantTable({
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => toast.info("批量发通知将在后续版本开放")}
+            onClick={() => {
+              const ids = table
+                .getFilteredSelectedRowModel()
+                .rows.map((r) => r.original.id);
+              setTargetIds(ids);
+              setNotifyOpen(true);
+            }}
           >
             批量发通知
           </Button>
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => toast.info("批量导出将在后续版本开放")}
+            onClick={() => {
+              const ids = table
+                .getFilteredSelectedRowModel()
+                .rows.map((r) => r.original.id);
+              void exportSelected(ids);
+            }}
           >
             批量导出
           </Button>
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => toast.info("批量修改票种将在后续版本开放")}
+            onClick={() => {
+              const ids = table
+                .getFilteredSelectedRowModel()
+                .rows.map((r) => r.original.id);
+              setTargetIds(ids);
+              setTicketOpen(true);
+            }}
           >
             批量修改票种
           </Button>
@@ -409,6 +531,70 @@ export function ParticipantTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={notifyOpen} onOpenChange={setNotifyOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>发送通知（{targetIds.length} 人）</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>标题</Label>
+              <Input
+                value={notifyTitle}
+                onChange={(e) => setNotifyTitle(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>内容</Label>
+              <Textarea
+                value={notifyBody}
+                onChange={(e) => setNotifyBody(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => void sendNotify(targetIds)}>发送</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={ticketOpen} onOpenChange={setTicketOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>调整票种（{targetIds.length} 人）</DialogTitle>
+          </DialogHeader>
+          <Select
+            value={selectedTicketId}
+            onValueChange={(v) => setSelectedTicketId(v ?? "")}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="选择票种" />
+            </SelectTrigger>
+            <SelectContent>
+              {ticketTypes.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              onClick={() =>
+                void runBatch(
+                  "update_ticket",
+                  targetIds,
+                  selectedTicketId || null,
+                ).then(() => setTicketOpen(false))
+              }
+            >
+              确认
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

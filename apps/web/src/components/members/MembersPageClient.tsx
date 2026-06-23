@@ -282,7 +282,22 @@ export function MembersPageClient() {
                 编辑标签和层级
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => toast.info("通知功能即将开放")}
+                onClick={() => {
+                  const body = window.prompt("请输入通知内容");
+                  if (!body?.trim()) return;
+                  void fetch("/api/org/members/notify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      userId: row.original.userId,
+                      title: "组织通知",
+                      body,
+                    }),
+                  }).then((res) => {
+                    if (res.ok) toast.success("通知已发送");
+                    else toast.error("发送失败");
+                  });
+                }}
               >
                 发送通知
               </DropdownMenuItem>
@@ -536,7 +551,7 @@ export function MembersPageClient() {
             variant="outline"
             size="icon"
             className="size-9"
-            onClick={() => toast.info("高级筛选即将开放")}
+            onClick={() => toast.success("可使用上方来源/层级/标签筛选")}
             aria-label="筛选"
           >
             <Filter className="size-4" />
@@ -551,7 +566,16 @@ export function MembersPageClient() {
                 导出 Excel
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => toast.info("MarketUP 批量导出即将开放")}
+                onClick={() => {
+                  const ids = rows.map((r) => r.userId);
+                  void Promise.all(
+                    ids.slice(0, 20).map((userId) =>
+                      fetch(`/api/org/members/${userId}/export-marketup`, {
+                        method: "POST",
+                      }),
+                    ),
+                  ).then(() => toast.success("已加入 MarketUP 导出队列"));
+                }}
               >
                 导出到 MarketUP
               </DropdownMenuItem>
@@ -569,15 +593,79 @@ export function MembersPageClient() {
         bulkActions={[
           {
             label: "发通知",
-            onClick: () => toast.info("批量通知即将开放"),
+            onClick: (ids) => {
+              const body = window.prompt("请输入通知内容");
+              if (!body?.trim()) return;
+              const userIds = rows
+                .filter((r) => ids.includes(r.id))
+                .map((r) => r.userId);
+              void fetch("/api/org/members/batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "notify",
+                  userIds,
+                  title: "组织通知",
+                  body,
+                }),
+              }).then(async (res) => {
+                if (!res.ok) toast.error("发送失败");
+                else {
+                  const json = await res.json();
+                  toast.success(`已发送 ${json.data.affected} 条`);
+                }
+              });
+            },
           },
           {
             label: "批量打标签",
-            onClick: () => toast.info("批量打标签即将开放"),
+            onClick: (ids) => {
+              const tag = window.prompt("输入标签名");
+              if (!tag?.trim()) return;
+              const userIds = rows
+                .filter((r) => ids.includes(r.id))
+                .map((r) => r.userId);
+              void fetch("/api/org/members/batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "add_tags",
+                  userIds,
+                  tags: [tag.trim()],
+                }),
+              }).then(async (res) => {
+                if (!res.ok) toast.error("操作失败");
+                else {
+                  toast.success("标签已添加");
+                  refetchAll();
+                }
+              });
+            },
           },
           {
             label: "批量设置层级",
-            onClick: () => toast.info("批量设置层级即将开放"),
+            onClick: (ids) => {
+              const tier = window.prompt("输入层级：STANDARD / VIP / STRATEGIC");
+              if (!tier?.trim()) return;
+              const userIds = rows
+                .filter((r) => ids.includes(r.id))
+                .map((r) => r.userId);
+              void fetch("/api/org/members/batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "set_tier",
+                  userIds,
+                  tier: tier.trim().toUpperCase(),
+                }),
+              }).then(async (res) => {
+                if (!res.ok) toast.error("操作失败");
+                else {
+                  toast.success("层级已更新");
+                  refetchAll();
+                }
+              });
+            },
           },
           {
             label: "导出所选",

@@ -40,8 +40,9 @@ export default async function ExpoLeadsPage({
       />
       <AdminContent>
         <SectionCard
-          title={`全部线索（${leads.length}）`}
-          description="展会各展位收集的访客线索"
+          id="hosted-buyer"
+          title="Hosted Buyer"
+          description="高价值买家线索（含 A 级意向标签）"
         >
           <DataTable
             data={leads}

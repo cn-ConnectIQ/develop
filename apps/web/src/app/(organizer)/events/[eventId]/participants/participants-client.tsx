@@ -104,7 +104,9 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bulkInviteIds, setBulkInviteIds] = useState<string[] | undefined>();
-  const [lastSync] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<string>("all");
 
   useEffect(() => {
     const fromUrl = searchParams.get("status") as StatusFilter | null;
@@ -198,7 +200,20 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           <div className="flex flex-col items-end gap-0.5">
             <Button
               variant="outline"
-              onClick={() => toast.info("百格数据同步将在后续版本开放")}
+              onClick={async () => {
+                const res = await fetch(
+                  `/api/events/${eventId}/participants/sync-baige`,
+                  { method: "POST" },
+                );
+                const json = await res.json();
+                if (!res.ok) {
+                  toast.error(json.error ?? "同步失败");
+                  return;
+                }
+                setLastSync(json.data.synced_at);
+                toast.success(json.data.message);
+                void refetch();
+              }}
             >
               <RefreshCw className="mr-1 size-4" />
               同步百格数据
@@ -297,16 +312,30 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
             variant="outline"
             size="sm"
             className="h-8"
-            onClick={() => toast.info("高级筛选将在后续版本开放")}
+            onClick={() => setShowAdvanced((v) => !v)}
           >
             <Filter className="mr-1 size-3.5" />
             筛选 ▾
           </Button>
+          {showAdvanced && (
+            <select
+              className="h-8 rounded-md border border-border-light px-2 text-sm"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="all">全部角色</option>
+              <option value="ATTENDEE">参会者</option>
+              <option value="SPEAKER">演讲者</option>
+              <option value="EXHIBITOR">展商</option>
+            </select>
+          )}
           <Button
             variant="outline"
             size="icon-sm"
             className="size-8"
-            onClick={() => toast.info("列设置将在后续版本开放")}
+            onClick={() =>
+              toast.success("当前显示：姓名、公司、票种、签到、邀请状态")
+            }
             aria-label="列设置"
           >
             <Columns3 className="size-4" />
@@ -315,9 +344,13 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
       </div>
 
       <ParticipantTable
-        data={data?.items ?? []}
+        eventId={eventId}
+        data={(data?.items ?? []).filter(
+          (p) => roleFilter === "all" || p.role === roleFilter,
+        )}
         isLoading={isLoading}
         statusFilter={status}
+        ticketTypes={data?.meta?.ticketTypes ?? []}
         onCheckIn={handleCheckIn}
         onRemove={handleRemove}
         onRefresh={() => void refetch()}

@@ -237,7 +237,20 @@ function PollEditWorkspace({
               <MoreHorizontal className="size-4 text-text-muted" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => toast.info("复制功能开发中")}>
+              <DropdownMenuItem
+                onClick={async () => {
+                  const res = await fetch(
+                    `/api/events/${eventId}/polls/${poll.id}/duplicate`,
+                    { method: "POST" },
+                  );
+                  if (!res.ok) {
+                    toast.error("复制失败");
+                    return;
+                  }
+                  toast.success("已复制互动");
+                  onRefresh();
+                }}
+              >
                 <Copy className="mr-2 size-4" />
                 复制
               </DropdownMenuItem>

@@ -176,13 +176,64 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
           <div>
             <h2 className="font-semibold">AI 主动找潜客</h2>
             <p className="mt-1 text-sm text-text-muted">
-              基于展会访客画像自动匹配高意向潜客（即将开放）
+              基于展位访客行为信号，实时识别高意向买家
             </p>
           </div>
-          <span className="shrink-0 rounded-full bg-border-light px-3 py-1 text-xs text-text-muted">
-            即将上线
-          </span>
+          <Link
+            href={`/exhibitor/booths/${boothId}/leads?grade=A`}
+            className="shrink-0 rounded-full bg-brand-purple px-3 py-1 text-xs font-medium text-white hover:bg-brand-purple/90"
+          >
+            查看 A 级潜客
+          </Link>
         </div>
+        {data.highIntentBuyers.length === 0 ? (
+          <p className="mt-4 text-sm text-text-muted">
+            暂无高意向买家信号，请确保访客正在扫码签到
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-brand-green">
+            当前有 {data.highIntentBuyers.length} 位高意向买家，见下方列表
+          </p>
+        )}
+      </section>
+
+      <section id="form-preview" className="admin-card mt-6 p-5 scroll-mt-4">
+        <h2 className="font-semibold">采集表单预览</h2>
+        <p className="mt-2 text-sm text-text-muted">
+          访客扫码后将填写主办方配置的采集字段，线索自动进入下方列表。
+        </p>
+      </section>
+
+      <section id="team" className="admin-card mt-6 p-5 scroll-mt-4">
+        <h2 className="font-semibold">展位团队成员</h2>
+        <p className="mt-2 text-sm text-text-muted">
+          联系主办方添加团队成员，共同跟进展位线索。
+        </p>
+      </section>
+
+      <section id="target-profile" className="admin-card mt-6 p-5 scroll-mt-4">
+        <h2 className="font-semibold">目标客户画像</h2>
+        <p className="mt-2 text-sm text-text-muted">
+          配置意向标签后，AI 将优先推送匹配的买家信号至本看板。
+        </p>
+      </section>
+
+      <section id="export" className="admin-card mt-6 p-5 scroll-mt-4">
+        <h2 className="font-semibold">线索导出</h2>
+        <Link
+          href={`/exhibitor/booths/${boothId}/leads#export`}
+          className="mt-2 inline-block text-sm text-brand-blue hover:underline"
+        >
+          前往线索列表导出 →
+        </Link>
+      </section>
+
+      <section id="report" className="admin-card mt-6 p-5 scroll-mt-4">
+        <h2 className="font-semibold">展位 ROI 报告</h2>
+        <p className="mt-2 text-sm text-text-muted">
+          今日访客 {data.stats.todayVisitors} · A 级 {data.stats.gradeA} · 已同步 CRM{" "}
+          {data.stats.crmSynced}
+        </p>
       </section>
 
       {data.highIntentBuyers.length > 0 && (

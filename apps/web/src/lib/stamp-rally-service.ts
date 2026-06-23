@@ -517,3 +517,57 @@ export async function redeemStampRallyWinner(
     data: { redeemed },
   });
 }
+
+export async function listRallyParticipantProgress(
+  eventId: string,
+  rallyId: string,
+) {
+  const rally = await prisma.stampRally.findFirst({
+    where: { id: rallyId, eventId },
+  });
+  if (!rally) {
+    throw new ApiError("集章路线不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const records = await prisma.stampRecord.groupBy({
+    by: ["userId"],
+    where: { rallyId },
+    _count: { boothId: true },
+    _max: { stampedAt: true },
+  });
+
+  const userIds = records.map((r) => r.userId);
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: {
+      id: true,
+      name: true,
+      profile: { select: { company: true } },
+    },
+  });
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const winners = await prisma.stampRallyWinner.findMany({
+    where: { rallyId },
+    select: { userId: true, redeemed: true, completedAt: true },
+  });
+  const winnerMap = new Map(winners.map((w) => [w.userId, w]));
+
+  return records
+    .map((r) => {
+      const user = userMap.get(r.userId);
+      const winner = winnerMap.get(r.userId);
+      return {
+        user_id: r.userId,
+        user_name: user?.name ?? "未知用户",
+        user_company: user?.profile?.company ?? null,
+        stamp_count: r._count.boothId,
+        required_count: rally.requiredCount,
+        completed: Boolean(winner),
+        redeemed: winner?.redeemed ?? false,
+        last_stamped_at: r._max.stampedAt?.toISOString() ?? null,
+        completed_at: winner?.completedAt?.toISOString() ?? null,
+      };
+    })
+    .sort((a, b) => b.stamp_count - a.stamp_count);
+}

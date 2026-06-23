@@ -11,6 +11,7 @@ import {
   categoryToDbType,
   type EventCategory,
 } from "@/lib/event-utils";
+import { deleteEvent } from "@/lib/event-lifecycle-service";
 
 const updateSchema = z.object({
   name: z.string().min(2).optional(),
@@ -137,4 +138,14 @@ export const PATCH = withErrorHandler(async (request, context) => {
     location: updated.location,
     description: updated.description,
   });
+});
+
+export const DELETE = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  if (!eventId) {
+    return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
+  }
+  await requireEventAccess(eventId);
+  await deleteEvent(eventId);
+  return createSuccessResponse({ ok: true });
 });

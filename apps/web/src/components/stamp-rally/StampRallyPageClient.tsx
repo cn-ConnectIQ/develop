@@ -179,13 +179,26 @@ export function StampRallyPageClient({
                     </Button>
                   )}
                   {(rally.status === "ACTIVE" || rally.status === "ENDED") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => viewResults(rally)}
-                    >
-                      查看结果
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          router.push(
+                            `/events/${eventId}/stamp-rally/${rally.id}/progress`,
+                          )
+                        }
+                      >
+                        集章进度
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewResults(rally)}
+                      >
+                        查看结果
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>

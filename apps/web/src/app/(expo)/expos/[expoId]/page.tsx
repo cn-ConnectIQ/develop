@@ -9,6 +9,7 @@ import {
 } from "@/components/admin/status-badge";
 import { getExpoDashboardData } from "@/lib/dashboard";
 import { Store, Tag, Users } from "lucide-react";
+import { ExpoOverviewSections } from "@/components/expo/ExpoOverviewSections";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -109,6 +110,8 @@ export default async function ExpoPage({
             ]}
           />
         </SectionCard>
+
+        <ExpoOverviewSections expoId={expoId} />
       </AdminContent>
     </AdminPage>
   );

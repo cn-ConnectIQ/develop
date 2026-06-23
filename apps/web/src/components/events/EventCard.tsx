@@ -117,6 +117,40 @@ export function EventCard({ event, onEdit }: EventCardProps) {
     toast.info(`${action}功能将在后续版本开放`);
   }
 
+  async function handleCopy() {
+    const res = await fetch(`/api/events/${event.id}/copy`, { method: "POST" });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? "复制失败");
+      return;
+    }
+    toast.success("活动已复制");
+    await refetch();
+  }
+
+  async function handleArchive() {
+    const res = await fetch(`/api/events/${event.id}/archive`, { method: "POST" });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? "归档失败");
+      return;
+    }
+    toast.success("活动已归档");
+    await refetch();
+  }
+
+  async function handleDelete() {
+    const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error ?? "删除失败");
+      return;
+    }
+    toast.success("活动已删除");
+    setDeleteOpen(false);
+    await refetch();
+  }
+
   async function handleCancelReview() {
     setCanceling(true);
     try {
@@ -322,11 +356,11 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                       <Pencil className="size-4" />
                       编辑
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePlaceholder("复制")}>
+                    <DropdownMenuItem onClick={() => void handleCopy()}>
                       <Copy className="size-4" />
                       复制
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePlaceholder("归档")}>
+                    <DropdownMenuItem onClick={() => void handleArchive()}>
                       <Archive className="size-4" />
                       归档
                     </DropdownMenuItem>
@@ -367,7 +401,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               className="bg-brand-red hover:bg-brand-red/90"
-              onClick={() => handlePlaceholder("删除")}
+              onClick={() => void handleDelete()}
             >
               确认删除
             </AlertDialogAction>
