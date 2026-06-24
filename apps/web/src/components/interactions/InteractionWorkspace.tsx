@@ -41,6 +41,7 @@ import { SurveyEditor } from "@/components/interactions/editors/SurveyEditor";
 import { LotteryEditor } from "@/components/interactions/editors/LotteryEditor";
 import { LotteryDrawPanel } from "@/components/interactions/LotteryDrawPanel";
 import { InteractionQRDisplay } from "@/components/interactions/InteractionQRDisplay";
+import { PushToAttendeesButton } from "@/components/interactions/PushToAttendeesButton";
 import {
   isPollLive,
   type InteractionItem,
@@ -200,6 +201,11 @@ function PollEditWorkspace({
           </span>
           <div className="flex-1" />
           <span className="text-xs text-text-muted">自动保存 ✓</span>
+          <PushToAttendeesButton
+            eventId={eventId}
+            kind="poll"
+            targetId={poll.id}
+          />
           <Button
             size="sm"
             className="h-8 rounded-lg bg-brand-blue px-4 text-xs text-white"
@@ -424,6 +430,11 @@ function LotteryWorkspace({
             抽奖
           </span>
           <div className="flex-1" />
+          <PushToAttendeesButton
+            eventId={eventId}
+            kind="lottery"
+            targetId={lottery.id}
+          />
           <Button
             variant="outline"
             size="icon"

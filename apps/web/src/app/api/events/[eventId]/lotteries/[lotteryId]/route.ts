@@ -12,7 +12,9 @@ import {
   listLotteryWinners,
   requireLotteryManageAccess,
 } from "@/lib/interaction/lottery-service";
+import { pushLotteryToAttendees } from "@/lib/interaction-push-service";
 import { patchLotterySchema } from "@/lib/interaction/schemas";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -41,6 +43,8 @@ export const PATCH = withErrorHandler(async (request, context) => {
   }
 
   const { session } = await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "lottery");
+  if (disabled) return disabled;
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
   await requireLotteryManageAccess(session, eventId, lottery);
 
@@ -81,5 +85,18 @@ export const PATCH = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse(updated);
+  let pushResult = null;
+  const shouldPush =
+    parsed.data.status === LotteryStatus.OPEN &&
+    lottery.status !== LotteryStatus.OPEN &&
+    parsed.data.push !== false;
+  if (shouldPush) {
+    try {
+      pushResult = await pushLotteryToAttendees(eventId, lotteryId);
+    } catch {
+      pushResult = { sent: 0, skipped: 0, total: 0, error: true };
+    }
+  }
+
+  return createSuccessResponse({ ...updated, pushResult });
 });

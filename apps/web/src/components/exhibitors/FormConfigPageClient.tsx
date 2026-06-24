@@ -275,6 +275,15 @@ export function FormConfigPageClient({
             onFieldMapChange={setFieldMap}
             onSyncConfigChange={setSyncConfig}
           />
+          <p className="mt-3 text-xs text-text-muted">
+            保存后新采集线索将按映射自动同步至 MarketUP。查看{" "}
+            <a
+              href={`/events/${eventId}/marketup-sync`}
+              className="text-brand-blue hover:underline"
+            >
+              同步状态监控 →
+            </a>
+          </p>
         </div>
 
         <FormConfigPreview config={config} boothCode={currentBoothCode} />

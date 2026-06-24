@@ -18,10 +18,14 @@ export const POST = withErrorHandler(async (_request, context) => {
     return createErrorResponse("缺少用户 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const result = await exportMemberToMarketup(auth.orgId, userId);
-  if (!result) {
-    return createErrorResponse("用户不在用户池中", ErrorCode.NOT_FOUND, 404);
+  try {
+    const result = await exportMemberToMarketup(auth.orgId, userId);
+    if (!result) {
+      return createErrorResponse("用户不在用户池中", ErrorCode.NOT_FOUND, 404);
+    }
+    return createSuccessResponse(result);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "导出失败";
+    return createErrorResponse(message, ErrorCode.VALIDATION_ERROR, 400);
   }
-
-  return createSuccessResponse(result);
 });

@@ -41,6 +41,8 @@ export {
   AiFeedbackType,
   AiMatchAction,
   AiMatchScenario,
+  ExchangeMethod,
+  ExchangeStatus,
   SignalType,
   StampRallyStatus,
 } from "@prisma/client";

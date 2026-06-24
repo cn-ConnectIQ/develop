@@ -1,5 +1,6 @@
 export type BigscreenDisplayConfig = {
   showResults: boolean;
+  lockVotes: boolean;
   featuredResponseId: string | null;
   hiddenResponseIds: string[];
   pinnedResponseIds: string[];
@@ -12,6 +13,7 @@ export type BigscreenDisplayConfig = {
 
 export const DEFAULT_DISPLAY_CONFIG: BigscreenDisplayConfig = {
   showResults: true,
+  lockVotes: false,
   featuredResponseId: null,
   hiddenResponseIds: [],
   pinnedResponseIds: [],
@@ -28,6 +30,7 @@ export function parseDisplayConfig(value: unknown): BigscreenDisplayConfig {
   const v = value as BigscreenDisplayConfig;
   return {
     showResults: v.showResults ?? true,
+    lockVotes: v.lockVotes ?? false,
     featuredResponseId: v.featuredResponseId ?? null,
     hiddenResponseIds: Array.isArray(v.hiddenResponseIds) ? v.hiddenResponseIds : [],
     pinnedResponseIds: Array.isArray(v.pinnedResponseIds) ? v.pinnedResponseIds : [],

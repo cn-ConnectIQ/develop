@@ -249,6 +249,7 @@ export async function getOrgPublicDetail(
   };
 }
 
+/** @deprecated MVP 不做 B2B 关注体系，见 lib/deprecated/b2b-social.ts */
 export async function followOrganization(userId: string, orgId: string) {
   const org = await prisma.organization.findFirst({
     where: { id: orgId, adminStatus: AdminStatus.APPROVED },
@@ -297,6 +298,7 @@ export async function followOrganization(userId: string, orgId: string) {
   };
 }
 
+/** @deprecated MVP 不做 B2B 关注体系，见 lib/deprecated/b2b-social.ts */
 export async function unfollowOrganization(userId: string, orgId: string) {
   const existing = await prisma.orgMember.findUnique({
     where: { orgId_userId: { orgId, userId } },

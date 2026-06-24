@@ -127,7 +127,8 @@ export async function getEventDashboardMobile(eventId: string, userId: string) {
     todaySchedule,
     activeInteraction: null,
     activeLottery: null,
-    communityPosts: [],
+    communityPosts: [], // @deprecated B2B 社区占位，见 lib/deprecated/b2b-social.ts
+    announcements: [],
     unreadNotificationCount,
     attendeeCount,
   };

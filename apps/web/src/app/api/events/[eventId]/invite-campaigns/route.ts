@@ -8,6 +8,7 @@ import {
 } from "@/lib/api-auth";
 import { createInviteCampaignSchema } from "@/lib/invite/schemas";
 import { listCampaigns } from "@/lib/invite/service";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -28,6 +29,8 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const { session } = await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "inviteSystem");
+  if (disabled) return disabled;
   const body = await request.json();
   const parsed = createInviteCampaignSchema.safeParse(body);
 

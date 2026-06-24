@@ -5,9 +5,9 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireAccountAdmin,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { resolveMobileUserId } from "@/lib/mobile-user-id";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -19,10 +19,7 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 export const POST = withErrorHandler(async (request) => {
-  const auth = await requireAccountAdmin(request);
-  if ("error" in auth) {
-    return auth.error;
-  }
+  await resolveMobileUserId(request);
 
   const form = await request.formData();
   const file = form.get("file");

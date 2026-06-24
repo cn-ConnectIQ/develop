@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import {
@@ -13,17 +13,10 @@ import {
   Mail,
   MapPin,
   ShieldCheck,
-  Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
-import {
-  getCompanySizeLabel,
-} from "@/lib/org-profile-constants";
 import type {
   ApiOrgDetailPayload,
   ApiPublicOrgEvent,
@@ -106,51 +99,12 @@ function EventCard({ event }: { event: ApiPublicOrgEvent }) {
 }
 
 export function OrgPublicPageClient({ slug }: { slug: string }) {
-  const { status: sessionStatus } = useSession();
-  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"about" | "upcoming" | "past">("upcoming");
-  const [followLoading, setFollowLoading] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["org-public", slug],
     queryFn: () => fetchOrgPublic(slug),
   });
-
-  async function toggleFollow() {
-    if (sessionStatus !== "authenticated") {
-      toast.error("请先登录后再关注");
-      return;
-    }
-    if (!data) return;
-
-    setFollowLoading(true);
-    try {
-      const method = data.isFollowing ? "DELETE" : "POST";
-      const res = await fetch(`/api/org/${encodeURIComponent(slug)}/follow`, {
-        method,
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json.error ?? "操作失败");
-        return;
-      }
-      queryClient.setQueryData<ApiOrgDetailPayload>(["org-public", slug], (prev) =>
-        prev
-          ? {
-              ...prev,
-              isFollowing: !prev.isFollowing,
-              org: {
-                ...prev.org,
-                follower_count: json.data.follower_count ?? prev.org.follower_count,
-              },
-            }
-          : prev,
-      );
-      toast.success(data.isFollowing ? "已取消关注" : "关注成功");
-    } finally {
-      setFollowLoading(false);
-    }
-  }
 
   if (isLoading) {
     return (
@@ -174,11 +128,10 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
     );
   }
 
-  const { org, upcomingEvents, pastEvents, isFollowing, myEventCount } = data;
+  const { org, upcomingEvents, pastEvents, myEventCount } = data;
 
   return (
     <div className="min-h-screen bg-content-bg pb-16">
-      {/* 封面 Banner（领英式） */}
       <div className="relative h-44 bg-gradient-to-r from-brand-blue/20 to-brand-purple/20 md:h-52">
         {org.cover_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -191,8 +144,7 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
       </div>
 
       <div className="mx-auto max-w-3xl px-4">
-        {/* Logo + 名称区 */}
-        <div className="relative -mt-14 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
+        <div className="relative -mt-14 flex flex-col gap-4 sm:-mt-16">
           <div className="flex items-end gap-4">
             <Avatar className="size-24 border-4 border-white bg-white shadow-md sm:size-28">
               {org.logo_url ? (
@@ -208,65 +160,32 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
                   {org.name}
                 </h1>
                 {org.is_verified && (
-                  <ShieldCheck className="size-5 text-brand-blue" aria-label="已认证" />
+                  <ShieldCheck
+                    className="size-5 text-brand-blue"
+                    aria-label="已认证"
+                  />
                 )}
               </div>
               <p className="mt-0.5 text-sm text-text-muted">
-                {[org.industry, org.headquarters].filter(Boolean).join(" · ") ||
-                  (ACCOUNT_TYPE_LABELS[org.account_type] ?? "组织")}
+                {ACCOUNT_TYPE_LABELS[org.account_type] ?? "主办方"}
               </p>
             </div>
           </div>
-
-          <Button
-            type="button"
-            variant={isFollowing ? "outline" : "default"}
-            className={cn(
-              "h-9 shrink-0 rounded-full px-6",
-              !isFollowing && "bg-brand-blue hover:bg-brand-blue/90",
-            )}
-            disabled={followLoading}
-            onClick={() => void toggleFollow()}
-          >
-            {followLoading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : isFollowing ? (
-              "已关注"
-            ) : (
-              "+ 关注"
-            )}
-          </Button>
         </div>
 
-        {/* 简介 */}
         {org.bio ? (
           <p className="mt-4 text-sm leading-relaxed text-[var(--admin-ink)]">
             {org.bio}
           </p>
         ) : null}
 
-        {/* 统计（领英：关注者 / 规模） */}
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          <span className="flex items-center gap-1.5 text-text-muted">
-            <Users className="size-4" />
-            <strong className="font-semibold text-[var(--admin-ink)]">
-              {org.follower_count}
-            </strong>
-            关注者
-          </span>
-          <span className="flex items-center gap-1.5 text-text-muted">
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-muted">
+          <span className="flex items-center gap-1.5">
             <CalendarDays className="size-4" />
             <strong className="font-semibold text-[var(--admin-ink)]">
               {org.event_count}
             </strong>
             场活动
-          </span>
-          <span className="flex items-center gap-1.5 text-text-muted">
-            <Users className="size-4" />
-            <strong className="font-semibold text-[var(--admin-ink)]">
-              {org.member_count}
-            </strong>
-            位成员
           </span>
           {myEventCount > 0 && (
             <span className="text-brand-blue">
@@ -275,7 +194,6 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
           )}
         </div>
 
-        {/* 链接信息 */}
         <div className="mt-4 flex flex-wrap gap-4 text-sm">
           {org.website && (
             <a
@@ -300,7 +218,6 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
           )}
         </div>
 
-        {/* Tab 导航 */}
         <div className="mt-8 border-b border-border-light">
           <nav className="-mb-px flex gap-6">
             {(
@@ -327,41 +244,14 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
           </nav>
         </div>
 
-        {/* Tab 内容 */}
         <div className="mt-6 space-y-4">
           {tab === "about" && (
             <section className="rounded-xl border border-border-light bg-white p-6">
-              <h2 className="text-base font-semibold">关于我们</h2>
+              <h2 className="text-base font-semibold">关于主办方</h2>
               <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                {org.bio ?? "该组织尚未填写简介。"}
+                {org.bio ?? "该主办方尚未填写简介。"}
               </p>
               <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
-                {org.industry && (
-                  <div>
-                    <dt className="text-text-muted">行业</dt>
-                    <dd className="mt-0.5 font-medium">{org.industry}</dd>
-                  </div>
-                )}
-                {org.company_size && (
-                  <div>
-                    <dt className="text-text-muted">规模</dt>
-                    <dd className="mt-0.5 font-medium">
-                      {getCompanySizeLabel(org.company_size)}
-                    </dd>
-                  </div>
-                )}
-                {org.headquarters && (
-                  <div>
-                    <dt className="text-text-muted">总部</dt>
-                    <dd className="mt-0.5 font-medium">{org.headquarters}</dd>
-                  </div>
-                )}
-                {org.founded_year && (
-                  <div>
-                    <dt className="text-text-muted">成立年份</dt>
-                    <dd className="mt-0.5 font-medium">{org.founded_year} 年</dd>
-                  </div>
-                )}
                 <div>
                   <dt className="text-text-muted">组织类型</dt>
                   <dd className="mt-0.5 font-medium">
@@ -409,7 +299,7 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
 
 function EmptyEvents({ message }: { message: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-border-light bg-white py-12 text-center text-sm text-text-muted">
+    <div className="rounded-xl border border-dashed border-border-light bg-white px-6 py-12 text-center text-sm text-text-muted">
       {message}
     </div>
   );

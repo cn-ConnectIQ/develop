@@ -68,6 +68,11 @@ async function resolveParticipantUsers(
 }
 
 export async function scanReferralOpportunities(eventId: string) {
+  const { isEventFeatureEnabled } = await import("@/lib/event-feature-flags-server");
+  if (!(await isEventFeatureEnabled(eventId, "aiReferral"))) {
+    return { opportunitiesFound: 0, feedsCreated: 0 };
+  }
+
   const participants = await prisma.participant.findMany({
     where: {
       eventId,

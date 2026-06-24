@@ -10,6 +10,7 @@ import {
   listBoothInteractions,
 } from "@/lib/exhibitor/booth-interaction-service";
 import { createBoothInteractionSchema } from "@/lib/interaction/schemas";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const boothId = context?.params?.boothId;
@@ -39,6 +40,11 @@ export const POST = withErrorHandler(async (request, context) => {
       ErrorCode.VALIDATION_ERROR,
       400,
     );
+  }
+
+  if (parsed.data.kind === "lottery") {
+    const disabled = await guardEventFeature(booth.eventId, "lottery");
+    if (disabled) return disabled;
   }
 
   const result = await createBoothInteraction(

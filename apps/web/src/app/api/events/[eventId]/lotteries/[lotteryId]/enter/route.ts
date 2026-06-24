@@ -6,6 +6,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { enterLottery, getLotteryOrThrow } from "@/lib/interaction/lottery-service";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -15,6 +16,8 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const { user } = await requireAuth(request);
+  const disabled = await guardEventFeature(eventId, "lottery");
+  if (disabled) return disabled;
   await getLotteryOrThrow(eventId, lotteryId);
 
   const entry = await enterLottery(eventId, lotteryId, user.id);

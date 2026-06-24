@@ -16,20 +16,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
 import { maskOrgCreditCode as maskCreditCode } from "@/lib/mask-utils";
-import {
-  ORG_COMPANY_SIZE_OPTIONS,
-  ORG_INDUSTRY_OPTIONS,
-} from "@/lib/org-profile-constants";
 import type { ApiPublicOrgEvent } from "@/lib/org-public-service";
 import type { OrgProfileData } from "@/lib/org-profile-types";
 import { cn } from "@/lib/utils";
@@ -39,10 +28,6 @@ type ProfileForm = {
   bio: string;
   website: string;
   contactEmail: string;
-  industry: string;
-  companySize: string;
-  headquarters: string;
-  foundedYear: string;
   logoUrl: string | null;
   coverUrl: string | null;
 };
@@ -53,7 +38,7 @@ async function fetchPublicPreview(slug: string) {
   return (await res.json()).data as {
     upcomingEvents: ApiPublicOrgEvent[];
     pastEvents: ApiPublicOrgEvent[];
-    org: { follower_count: number; event_count: number };
+    org: { event_count: number };
   };
 }
 
@@ -105,26 +90,17 @@ function profileToForm(profile: OrgProfileData): ProfileForm {
     bio: profile.bio ?? "",
     website: profile.website ?? "",
     contactEmail: profile.contactEmail ?? "",
-    industry: profile.industry ?? "",
-    companySize: profile.companySize ?? "",
-    headquarters: profile.headquarters ?? "",
-    foundedYear: profile.foundedYear ? String(profile.foundedYear) : "",
     logoUrl: profile.logoUrl,
     coverUrl: profile.coverUrl,
   };
 }
 
 function formToPayload(form: ProfileForm) {
-  const foundedYear = form.foundedYear.trim();
   return {
     slug: form.slug,
     bio: form.bio || null,
     website: form.website || null,
     contact_email: form.contactEmail || null,
-    industry: form.industry || null,
-    company_size: form.companySize || null,
-    headquarters: form.headquarters || null,
-    founded_year: foundedYear ? Number(foundedYear) : null,
     logo_url: form.logoUrl,
     cover_url: form.coverUrl,
   };
@@ -297,8 +273,14 @@ export function OrgProfilePageClient() {
       <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
         {/* 左侧编辑区 */}
         <div className="min-w-0 flex-1 space-y-6">
-          <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-xl font-bold">组织主页设置</h1>
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold">主办方信誉展示页</h1>
+              <p className="mt-1 text-sm text-text-muted">
+                配置对外展示的名称、简介、Logo 与活动列表。客户关系请通过现场线索同步至
+                MarketUP CRM。
+              </p>
+            </div>
             <a
               href={`/org/${form.slug}`}
               target="_blank"
@@ -310,9 +292,9 @@ export function OrgProfilePageClient() {
             </a>
           </div>
 
-          {/* Section 1 品牌形象 */}
+          {/* Section 1 Logo 与封面 */}
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold">品牌形象</h2>
+            <h2 className="text-sm font-semibold">品牌展示</h2>
             <div className="space-y-5 rounded-2xl border border-border-light bg-white p-6">
               <div className="space-y-2">
                 <Label>封面图</Label>
@@ -387,7 +369,7 @@ export function OrgProfilePageClient() {
             </div>
           </section>
 
-          {/* Section 2 基本信息 */}
+          {/* Section 2 名称 / 简介 / 链接 */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">基本信息</h2>
             <div className="space-y-4 rounded-2xl border border-border-light bg-white p-6">
@@ -468,71 +450,6 @@ export function OrgProfilePageClient() {
             </div>
           </section>
 
-          {/* Section 2b 领英式扩展信息 */}
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold">组织详情</h2>
-            <div className="space-y-4 rounded-2xl border border-border-light bg-white p-6">
-              <div className="space-y-1">
-                <Label>行业</Label>
-                <Select
-                  value={form.industry || undefined}
-                  onValueChange={(v) => updateField("industry", v ?? "")}
-                >
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="选择所属行业" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORG_INDUSTRY_OPTIONS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label>组织规模</Label>
-                <Select
-                  value={form.companySize || undefined}
-                  onValueChange={(v) => updateField("companySize", v ?? "")}
-                >
-                  <SelectTrigger className="h-10 w-full">
-                    <SelectValue placeholder="选择员工规模" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORG_COMPANY_SIZE_OPTIONS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1">
-                <Label>总部所在地</Label>
-                <Input
-                  value={form.headquarters}
-                  onChange={(e) => updateField("headquarters", e.target.value)}
-                  placeholder="如：上海市 · 浦东新区"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label>成立年份</Label>
-                <Input
-                  type="number"
-                  min={1800}
-                  max={new Date().getFullYear()}
-                  value={form.foundedYear}
-                  onChange={(e) => updateField("foundedYear", e.target.value)}
-                  placeholder="如：2018"
-                />
-              </div>
-            </div>
-          </section>
-
           {/* Section 3 认证信息 */}
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">认证信息（只读）</h2>
@@ -589,9 +506,6 @@ export function OrgProfilePageClient() {
             onTabChange={setPreviewTab}
             upcomingEvents={previewData?.upcomingEvents ?? []}
             pastEvents={previewData?.pastEvents ?? []}
-            followerCount={
-              previewData?.org.follower_count ?? previewProfile.followerCount
-            }
             eventCount={
               previewData?.org.event_count ?? previewProfile.eventCount
             }
@@ -616,7 +530,6 @@ function OrgProfilePreview({
   onTabChange,
   upcomingEvents,
   pastEvents,
-  followerCount,
   eventCount,
 }: {
   profile: Omit<OrgProfileData, "foundedYear"> & ProfileForm;
@@ -624,7 +537,6 @@ function OrgProfilePreview({
   onTabChange: (tab: "upcoming" | "past") => void;
   upcomingEvents: ApiPublicOrgEvent[];
   pastEvents: ApiPublicOrgEvent[];
-  followerCount: number;
   eventCount: number;
 }) {
   const events = tab === "upcoming" ? upcomingEvents : pastEvents;
@@ -674,21 +586,9 @@ function OrgProfilePreview({
             )}
           </div>
 
-          <div className="mt-2 flex flex-wrap gap-3 px-4">
-            <span className="text-xs text-text-muted">
-              {followerCount} 关注者
-            </span>
-            <span className="text-xs text-text-muted">
-              {eventCount} 场活动
-            </span>
+          <div className="mt-2 px-4">
+            <span className="text-xs text-text-muted">{eventCount} 场活动</span>
           </div>
-
-          <button
-            type="button"
-            className="ml-4 mt-2 inline-flex h-7 items-center rounded-full bg-brand-blue px-3 text-xs text-white"
-          >
-            + 关注
-          </button>
 
           <div className="mt-4 px-4">
             <div className="flex gap-4 border-b border-border-light pb-2">

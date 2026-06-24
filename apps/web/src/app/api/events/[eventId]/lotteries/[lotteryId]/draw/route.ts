@@ -11,6 +11,7 @@ import {
   requireLotteryManageAccess,
 } from "@/lib/interaction/lottery-service";
 import { drawLotterySchema } from "@/lib/interaction/schemas";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -20,6 +21,8 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const { session } = await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "lottery");
+  if (disabled) return disabled;
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
   await requireLotteryManageAccess(session, eventId, lottery);
 

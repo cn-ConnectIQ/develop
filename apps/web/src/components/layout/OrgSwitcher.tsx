@@ -21,6 +21,7 @@ import {
   getOrgTypeFullName,
   getOrgTypeIcon,
   getOrgTypeShortName,
+  ORG_MULTI_SWITCH_ENABLED,
   type OwnedOrgSummary,
 } from "@/lib/org-switcher-utils";
 import { cn } from "@/lib/utils";
@@ -74,13 +75,13 @@ function OrgTriggerContent({
   currentOrgName,
   currentOrgType,
   currentLogoUrl,
-  ownedOrgs,
+  showTypeBadge,
   interactive,
 }: {
   currentOrgName: string;
   currentOrgType: string;
   currentLogoUrl?: string | null;
-  ownedOrgs: OwnedOrgSummary[];
+  showTypeBadge: boolean;
   interactive: boolean;
 }) {
   return (
@@ -93,7 +94,7 @@ function OrgTriggerContent({
       <span className="max-w-[140px] truncate text-sm font-semibold text-[var(--admin-ink)]">
         {currentOrgName}
       </span>
-      {ownedOrgs.length > 1 && (
+      {showTypeBadge && (
         <span
           className={cn(
             "rounded px-1.5 py-0.5 text-[10px] font-medium",
@@ -121,21 +122,25 @@ export function OrgSwitcher({
 }: OrgSwitcherProps) {
   const router = useRouter();
   const hasMultiple = ownedOrgs.length > 1;
+  const switchable = ORG_MULTI_SWITCH_ENABLED && hasMultiple;
 
   const triggerClass = cn(
     "inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-border-light px-3 transition-colors",
-    hasMultiple && "cursor-pointer hover:bg-content",
+    switchable && "cursor-pointer hover:bg-content",
     switching && "pointer-events-none opacity-60",
   );
 
-  if (!hasMultiple) {
+  if (!switchable) {
     return (
-      <div className={cn(triggerClass, "cursor-default bg-white")}>
+      <div
+        className={cn(triggerClass, "cursor-default bg-white")}
+        title={currentOrgName}
+      >
         <OrgTriggerContent
           currentOrgName={currentOrgName}
           currentOrgType={currentOrgType}
           currentLogoUrl={currentLogoUrl}
-          ownedOrgs={ownedOrgs}
+          showTypeBadge
           interactive={false}
         />
       </div>
@@ -149,7 +154,7 @@ export function OrgSwitcher({
           currentOrgName={currentOrgName}
           currentOrgType={currentOrgType}
           currentLogoUrl={currentLogoUrl}
-          ownedOrgs={ownedOrgs}
+          showTypeBadge={hasMultiple}
           interactive
         />
       </PopoverTrigger>

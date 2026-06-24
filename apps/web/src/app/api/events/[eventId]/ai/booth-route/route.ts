@@ -8,6 +8,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { generateBoothRoute } from "@/lib/ai/booth-route-service";
+import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
 
 async function resolveUserId(request: Request): Promise<string> {
   try {
@@ -42,6 +43,11 @@ export const GET = withErrorHandler(async (request, context) => {
   });
   if (!event) {
     return createErrorResponse("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const enabled = await isEventFeatureEnabled(eventId, "aiBoothRoute");
+  if (!enabled) {
+    return createErrorResponse("AI 展位路线未开启", ErrorCode.FORBIDDEN, 403);
   }
 
   const userId = await resolveUserId(request);

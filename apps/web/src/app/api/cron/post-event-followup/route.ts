@@ -1,6 +1,12 @@
 import { NextRequest } from "next/server";
 import { createSuccessResponse, withErrorHandler } from "@/lib/api-auth";
-import { runPostEventFollowup } from "@/lib/ai/post-event-followup-service";
+
+/** 会后 AI 跟进（AI-07）已停用：会后触达由微信小程序负责，ConnectIQ 不再跑留存序列。 */
+const DISABLED = {
+  enabled: false,
+  reason: "post_event_followup_disabled",
+  message: "会后跟进已移交微信，此 cron 不再执行",
+} as const;
 
 function verifyCronAuth(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -17,14 +23,7 @@ async function handleCron(request: NextRequest) {
     });
   }
 
-  const result = await runPostEventFollowup();
-
-  return createSuccessResponse({
-    processed: result.eventsProcessed,
-    phasesTriggered: result.phasesTriggered,
-    feedsCreated: result.feedsCreated,
-    notificationsCreated: result.notificationsCreated,
-  });
+  return createSuccessResponse(DISABLED);
 }
 
 export const GET = withErrorHandler(handleCron);

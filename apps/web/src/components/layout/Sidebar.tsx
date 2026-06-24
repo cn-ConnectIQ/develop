@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
 import { SidebarEventSwitcher } from "@/components/layout/SidebarEventSwitcher";
+import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 
 type SidebarProps = {
   user: AdminUser;
@@ -270,10 +271,18 @@ export function Sidebar({
   const resolvedEventId =
     navMode === "event" ? (eventId ?? extractEventIdFromPath(pathname)) : null;
 
+  const { data: featureFlags } = useEventFeatureFlags(resolvedEventId);
+
   const platformGroups = getPlatformNavigation(navRole);
-  const eventGroups =
+  const eventNav =
     navMode === "event" && resolvedEventId
-      ? getEventNavigation(role, resolvedEventId, eventType, eventName)
+      ? getEventNavigation(
+          role,
+          resolvedEventId,
+          eventType,
+          eventName,
+          featureFlags,
+        )
       : [];
 
   const aiOpsGroups =
@@ -298,7 +307,7 @@ export function Sidebar({
   const visibleGroups =
     navMode === "platform"
       ? [...platformGroups, ...aiOpsGroups]
-      : eventGroups;
+      : eventNav;
 
   const flatItems = visibleGroups.flatMap((g) =>
     g.items.map((item) => ({ ...item, groupKey: g.label })),
@@ -396,7 +405,7 @@ export function Sidebar({
           />
         ) : (
           <EventNavGroups
-            groups={eventGroups}
+            groups={eventNav}
             pathname={pathname}
             collapsed={false}
             activeClass={sidebarActiveClass}

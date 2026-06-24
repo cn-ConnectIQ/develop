@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { InviteCampaignsPageClient } from "./invite-campaigns-client";
 
 export default async function InviteCampaignsPage({
@@ -8,8 +9,15 @@ export default async function InviteCampaignsPage({
 }) {
   const { eventId } = await params;
   return (
-    <Suspense>
-      <InviteCampaignsPageClient eventId={eventId} />
-    </Suspense>
+    <FeatureFlagGate
+      eventId={eventId}
+      flag="inviteSystem"
+      title="邀请管理"
+      description="邀请活动与发送记录"
+    >
+      <Suspense>
+        <InviteCampaignsPageClient eventId={eventId} />
+      </Suspense>
+    </FeatureFlagGate>
   );
 }

@@ -11,6 +11,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
+    "db:seed:expo-mock": "tsx prisma/seed-expo-mock.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

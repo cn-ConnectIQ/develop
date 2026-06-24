@@ -28,6 +28,7 @@ export const patchLotterySchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   type: z.nativeEnum(LotteryType).optional(),
   status: z.nativeEnum(LotteryStatus).optional(),
+  push: z.boolean().optional(),
   prizes: z.array(lotteryPrizeSchema).optional(),
   require_checkin: z.boolean().optional(),
   require_poll_id: z.string().cuid().optional().nullable(),

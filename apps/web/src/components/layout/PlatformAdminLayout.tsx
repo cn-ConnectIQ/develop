@@ -10,7 +10,6 @@ import {
   CalendarCheck,
   ChevronLeft,
   ChevronRight,
-  Coins,
   LayoutDashboard,
   LogOut,
   Shield,
@@ -72,7 +71,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "平台数据",
     items: [
       { label: "AI 运营中心", href: "/platform/ai-ops/matching", icon: Bot },
-      { label: "积分管理", href: "/platform/points", icon: Coins },
       { label: "意图标签库", href: "/intent-tags", icon: Tag },
     ],
   },

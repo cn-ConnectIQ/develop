@@ -10,6 +10,7 @@ import {
   getCampaignForEvent,
   retryFailedRecords,
 } from "@/lib/invite/service";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const POST = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -20,6 +21,8 @@ export const POST = withErrorHandler(async (_request, context) => {
   }
 
   await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "inviteSystem");
+  if (disabled) return disabled;
 
   const campaign = await getCampaignForEvent(eventId, campaignId);
   if (!campaign) {

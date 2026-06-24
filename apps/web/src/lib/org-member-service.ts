@@ -7,6 +7,14 @@ import {
 import * as XLSX from "xlsx";
 
 import { JOIN_SOURCE_LABELS } from "@/lib/member-constants";
+import { mergeFieldMaps } from "@/lib/marketup-config";
+import {
+  createContact,
+  mapFieldsToMarketup,
+  resolveWriteStrategy,
+  upsertContact,
+} from "@/lib/marketup";
+import { getPlatformMarketupConfig } from "@/lib/marketup-sync";
 import { syncOrganizationStats } from "@/lib/org-stats";
 
 export { JOIN_SOURCE_LABELS };
@@ -459,20 +467,70 @@ export async function exportOrgMembersExcel(
 }
 
 export async function exportMemberToMarketup(orgId: string, userId: string) {
-  const member = await getOrgMemberDetail(orgId, userId);
-  if (!member) return null;
+  const detail = await getOrgMemberDetail(orgId, userId);
+  if (!detail) return null;
 
-  // MarketUP 同步占位：后续对接 ExternalSync / CRM API
+  const { member } = detail;
+  if (!member.phone) {
+    throw new Error("该用户缺少手机号，无法同步至 MarketUP");
+  }
+
+  const platform = await getPlatformMarketupConfig();
+  const fieldMap = mergeFieldMaps(platform.fieldMap);
+  const config = platform.config;
+
+  const source: Record<string, unknown> = {
+    name: member.name,
+    phone: member.phone,
+    company: member.company ?? "",
+    jobTitle: member.jobTitle ?? "",
+    notes: member.notes ?? "",
+    eventName: member.sourceEventName ?? "ConnectIQ 用户池",
+    intentLevel: member.tier,
+    joinSource: JOIN_SOURCE_LABELS[member.joinSource] ?? member.joinSource,
+    tags: member.tags.join("、"),
+  };
+
+  const payload = mapFieldsToMarketup(source, fieldMap);
+  const strategy = resolveWriteStrategy(config);
+  const contact =
+    strategy === "create_only"
+      ? await createContact(payload)
+      : await upsertContact(member.phone, payload);
+
   return {
     synced: true,
     userId,
     orgId,
+    marketupContactId: contact.id,
+    dev: contact.dev ?? false,
     contact: {
-      name: member.member.name,
-      phone: member.member.phone,
-      company: member.member.company,
+      name: member.name,
+      phone: member.phone,
+      company: member.company,
     },
   };
+}
+
+export async function exportMembersToMarketup(orgId: string, userIds: string[]) {
+  let synced = 0;
+  let skipped = 0;
+  const errors: Array<{ userId: string; message: string }> = [];
+
+  for (const userId of userIds) {
+    try {
+      const result = await exportMemberToMarketup(orgId, userId);
+      if (result) synced += 1;
+      else skipped += 1;
+    } catch (e) {
+      errors.push({
+        userId,
+        message: e instanceof Error ? e.message : "同步失败",
+      });
+    }
+  }
+
+  return { synced, skipped, failed: errors.length, errors };
 }
 
 async function requireOrgMember(orgId: string, userId: string) {

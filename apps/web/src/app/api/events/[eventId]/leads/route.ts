@@ -95,9 +95,13 @@ export const POST = withErrorHandler(async (request, context) => {
     { intent_level: parsed.data.intent_level ?? null },
   );
 
+  const { scheduleLeadMarketupSync } = await import("@/lib/marketup-sync");
+  void scheduleLeadMarketupSync(lead.id, eventId);
+
   return createSuccessResponse({
     id: lead.id,
     intent_grade: lead.intentGrade,
     created_at: lead.createdAt.toISOString(),
+    crm_sync_status: "PENDING",
   });
 });

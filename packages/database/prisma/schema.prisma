@@ -180,6 +180,19 @@ enum ConnectionStatus {
   DISCONNECTED
 }
 
+enum ExchangeMethod {
+  FACE_TO_FACE // 面对面，双方确认
+  DEFERRED // 异步：A 请求，B 稍后确认
+  MY_CARD_SCANNED // 对方扫了我展示的名片码
+}
+
+enum ExchangeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
 enum PointsReason {
   CHECKIN
   CONNECTION
@@ -401,6 +414,9 @@ model User {
   createdStampRallies        StampRally[]         @relation("StampRallyCreator")
   stampRecords               StampRecord[]
   stampRallyWins             StampRallyWinner[]
+  contactCard                ContactCard?
+  sentExchangeRequests       ExchangeRequest[]    @relation("ExchangeFrom")
+  receivedExchangeRequests   ExchangeRequest[]    @relation("ExchangeTo")
 
   // 三层角色区分
   userType UserType @default(END_USER) @map("user_type")
@@ -616,7 +632,8 @@ model Event {
   organizerId  String       @map("organizer_id")
   orgId        String?      @map("org_id")
   reviewStatus ReviewStatus @default(DRAFT) @map("review_status")
-  createdAt    DateTime     @default(now()) @map("created_at")
+  featureFlags Json           @default("{}") @map("feature_flags")
+  createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
   organizer           User                 @relation("EventOrganizer", fields: [organizerId], references: [id])
@@ -650,6 +667,7 @@ model Event {
   feedItems           FeedItem[]
   boothVisitSignals   BoothVisitSignal[]
   stampRallies        StampRally[]
+  exchangeRequests    ExchangeRequest[]
 
   @@map("events")
 }
@@ -749,6 +767,7 @@ model ExhibitorBooth {
   lotteries           Lottery[]
   interactionSessions InteractionSession[]
   stampRecords        StampRecord[]
+  connections         BusinessConnection[] @relation("BoothConnection")
 
   @@unique([eventId, code])
   @@map("booths")
@@ -1337,11 +1356,22 @@ model BusinessConnection {
   status        ConnectionStatus @default(ACTIVE)
   createdAt     DateTime         @default(now()) @map("created_at")
 
+  // 微信交接相关
+  wechatExchanged   Boolean         @default(false) @map("wechat_exchanged")
+  wechatExchangedAt DateTime?       @map("wechat_exchanged_at")
+  exchangeMethod    ExchangeMethod? @map("exchange_method")
+  boothId           String?         @map("booth_id")
+  fromAiMatch       Boolean         @default(false) @map("from_ai_match")
+  aiMatchScore      Float?          @map("ai_match_score")
+
   event        Event?                  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  booth        ExhibitorBooth?         @relation("BoothConnection", fields: [boothId], references: [id], onDelete: SetNull)
   userA        User?                   @relation("ConnectionUserA", fields: [userAId], references: [id], onDelete: SetNull)
   userB        User?                   @relation("ConnectionUserB", fields: [userBId], references: [id], onDelete: SetNull)
   interactions ConnectionInteraction[]
 
+  @@index([eventId, wechatExchanged])
+  @@index([boothId])
   @@map("business_connections")
 }
 
@@ -1410,6 +1440,54 @@ model ConnectionInteraction {
   connection BusinessConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@map("connection_interactions")
+}
+
+model ContactCard {
+  id     String @id @default(cuid())
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  wechatQrUrl String? @map("wechat_qr_url")
+  wechatId    String? @map("wechat_id")
+
+  showPhone Boolean @default(false) @map("show_phone")
+  showEmail Boolean @default(false) @map("show_email")
+  email     String?
+
+  allowExchange     Boolean @default(true) @map("allow_exchange")
+  autoAcceptAtEvent Boolean @default(false) @map("auto_accept_at_event")
+
+  headline  String?
+  cardTheme String  @default("blue") @map("card_theme")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("contact_cards")
+}
+
+model ExchangeRequest {
+  id         String @id @default(cuid())
+  fromUserId String @map("from_user_id")
+  fromUser   User   @relation("ExchangeFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String @map("to_user_id")
+  toUser     User   @relation("ExchangeTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  eventId String? @map("event_id")
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  boothId String? @map("booth_id")
+
+  status      ExchangeStatus @default(PENDING)
+  message     String?
+  fromAiMatch Boolean        @default(false) @map("from_ai_match")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  respondedAt DateTime? @map("responded_at")
+  expiresAt   DateTime? @map("expires_at")
+
+  @@unique([fromUserId, toUserId, eventId])
+  @@index([toUserId, status])
+  @@map("exchange_requests")
 }
 
 model PointsLedger {
@@ -1582,21 +1660,21 @@ model InviteRecord {
 }
 
 model StampRally {
-  id             String           @id @default(cuid())
-  eventId        String           @map("event_id")
-  createdById    String           @map("created_by")
-  name           String
-  description    String?
-  prize          String
-  prizeImageUrl  String?          @map("prize_image_url")
-  requiredCount  Int              @map("required_count")
-  totalBooths    Int              @map("total_booths")
-  boothIds       String[]         @default([]) @map("booth_ids")
-  startsAt       DateTime?        @map("starts_at")
-  endsAt         DateTime?        @map("ends_at")
-  status         StampRallyStatus @default(DRAFT)
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id            String           @id @default(cuid())
+  eventId       String           @map("event_id")
+  createdById   String           @map("created_by")
+  name          String
+  description   String?
+  prize         String
+  prizeImageUrl String?          @map("prize_image_url")
+  requiredCount Int              @map("required_count")
+  totalBooths   Int              @map("total_booths")
+  boothIds      String[]         @default([]) @map("booth_ids")
+  startsAt      DateTime?        @map("starts_at")
+  endsAt        DateTime?        @map("ends_at")
+  status        StampRallyStatus @default(DRAFT)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
 
   event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   creator User               @relation("StampRallyCreator", fields: [createdById], references: [id], onDelete: Cascade)

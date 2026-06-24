@@ -1,11 +1,9 @@
-import { AdminContent, AdminHeader, AdminPage, SectionCard } from "@/components/admin/admin-header";
-import { DataTable } from "@/components/admin/data-table";
-import {
-  LeadStatusBadge,
-  formatDateTime,
-} from "@/components/admin/status-badge";
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
+import {
+  ExhibitorBoothLeadsClient,
+  type ExhibitorLeadRow,
+} from "@/components/exhibitor/ExhibitorBoothLeadsClient";
 
 export default async function ExhibitorBoothLeadsPage({
   params,
@@ -65,64 +63,23 @@ export default async function ExhibitorBoothLeadsPage({
         ? "待跟进"
         : "来访客户列表";
 
+  const serialized: ExhibitorLeadRow[] = leads.map((lead) => ({
+    id: lead.id,
+    status: lead.status,
+    crmSyncStatus: lead.crmSyncStatus,
+    crmSyncError: lead.crmSyncError,
+    createdAt: lead.createdAt.toISOString(),
+    participant: lead.participant,
+    intentTags: lead.intentTags,
+  }));
+
   return (
-    <AdminPage>
-      <AdminHeader
-        title={title}
-        description={`展位 ${booth.code} · ${booth.event.name}`}
-        breadcrumb={["线索管理", title]}
-      />
-      <AdminContent>
-        <SectionCard
-          title={`${title}（${leads.length}）`}
-          description="本展位收集的访客线索"
-        >
-          <DataTable
-            data={leads}
-            getRowKey={(row) => row.id}
-            columns={[
-              {
-                key: "participant",
-                header: "访客",
-                cell: (row) => row.participant.name,
-              },
-              {
-                key: "company",
-                header: "公司",
-                cell: (row) => row.participant.company ?? "—",
-              },
-              {
-                key: "email",
-                header: "邮箱",
-                cell: (row) => row.participant.email ?? "—",
-              },
-              {
-                key: "phone",
-                header: "手机",
-                cell: (row) => row.participant.phone ?? "—",
-              },
-              {
-                key: "status",
-                header: "状态",
-                cell: (row) => <LeadStatusBadge status={row.status} />,
-              },
-              {
-                key: "tags",
-                header: "意向等级",
-                cell: (row) =>
-                  row.intentTags.length > 0
-                    ? row.intentTags.map((t) => t.intentTag.label).join("、")
-                    : "—",
-              },
-              {
-                key: "createdAt",
-                header: "创建时间",
-                cell: (row) => formatDateTime(row.createdAt),
-              },
-            ]}
-          />
-        </SectionCard>
-      </AdminContent>
-    </AdminPage>
+    <ExhibitorBoothLeadsClient
+      boothId={booth.id}
+      boothCode={booth.code}
+      eventName={booth.event.name}
+      title={title}
+      leads={serialized}
+    />
   );
 }

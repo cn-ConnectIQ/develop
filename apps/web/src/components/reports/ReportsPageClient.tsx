@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -18,7 +19,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Bot, Download, Link2, Share2, Star } from "lucide-react";
+import { Bot, Download, ExternalLink, Link2, Share2, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -79,16 +80,29 @@ export function ReportsPageClient({ eventId }: { eventId: string }) {
     }
   }, [activeTab]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["event-report", eventId],
     queryFn: () => fetchReport(eventId),
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <AdminContent>
         <div className="py-20 text-center text-sm text-text-muted">
           加载报告数据...
+        </div>
+      </AdminContent>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <AdminContent>
+        <div className="flex flex-col items-center gap-4 py-20 text-center">
+          <p className="text-sm text-text-muted">报告加载失败，请稍后重试</p>
+          <Button variant="outline" onClick={() => void refetch()}>
+            重新加载
+          </Button>
         </div>
       </AdminContent>
     );
@@ -212,6 +226,15 @@ export function ReportsPageClient({ eventId }: { eventId: string }) {
         </TabsList>
 
         <TabsContent value="connections" className="space-y-6">
+          <div className="flex justify-end">
+            <Link
+              href={`/events/${eventId}/connections`}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-border bg-background px-3 text-sm hover:bg-content"
+            >
+              <ExternalLink className="size-4" />
+              查看连接深度分析
+            </Link>
+          </div>
           <StatGrid>
             <StatCard
               label="商业连接总数"

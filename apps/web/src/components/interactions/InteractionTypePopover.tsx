@@ -109,6 +109,7 @@ type InteractionTypePopoverProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (type: InteractionCreateType) => void;
+  disabledTypes?: InteractionCreateType[];
   children: React.ReactNode;
 };
 
@@ -116,6 +117,7 @@ export function InteractionTypePopover({
   open,
   onOpenChange,
   onSelect,
+  disabledTypes = [],
   children,
 }: InteractionTypePopoverProps) {
   return (
@@ -130,22 +132,24 @@ export function InteractionTypePopover({
         <div className="grid grid-cols-3 gap-2">
           {TYPE_CARDS.map((card) => {
             const Icon = card.icon;
+            const isDisabled =
+              card.disabled || disabledTypes.includes(card.type);
             return (
               <button
                 key={card.type}
                 type="button"
-                disabled={card.disabled}
+                disabled={isDisabled}
                 onClick={() => {
-                  if (card.disabled) return;
+                  if (isDisabled) return;
                   onSelect(card.type);
                   onOpenChange(false);
                 }}
                 className={cn(
                   "relative flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-border-light bg-content-bg p-3 transition-colors",
-                  !card.disabled &&
+                  !isDisabled &&
                     "hover:border-brand-blue hover:bg-brand-blue-light/20",
-                  card.disabled && "cursor-not-allowed opacity-60",
-                  card.highlight && "ring-1 ring-brand-red/20",
+                  isDisabled && "cursor-not-allowed opacity-60",
+                  card.highlight && !isDisabled && "ring-1 ring-brand-red/20",
                 )}
               >
                 <Icon className={cn("size-5", card.iconClass)} />

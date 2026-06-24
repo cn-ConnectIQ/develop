@@ -7,6 +7,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { parseTargetFilter } from "@/lib/invite/service";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const POST = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -15,6 +16,8 @@ export const POST = withErrorHandler(async (_request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
   await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "inviteSystem");
+  if (disabled) return disabled;
 
   const campaign = await prisma.inviteCampaign.findFirst({
     where: { id: campaignId, eventId },

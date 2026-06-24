@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { CampaignDetailClient } from "./campaign-detail-client";
 
 export default async function CampaignDetailPage({
@@ -8,8 +9,14 @@ export default async function CampaignDetailPage({
 }) {
   const { eventId, campaignId } = await params;
   return (
-    <Suspense>
-      <CampaignDetailClient eventId={eventId} campaignId={campaignId} />
-    </Suspense>
+    <FeatureFlagGate
+      eventId={eventId}
+      flag="inviteSystem"
+      title="邀请活动详情"
+    >
+      <Suspense>
+        <CampaignDetailClient eventId={eventId} campaignId={campaignId} />
+      </Suspense>
+    </FeatureFlagGate>
   );
 }

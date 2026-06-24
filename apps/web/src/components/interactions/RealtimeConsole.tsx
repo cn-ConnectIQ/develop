@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { RealtimePollChart } from "@/components/interactions/charts/RealtimePollChart";
+import {
+  OpenBigscreenButton,
+  PushToAttendeesButton,
+} from "@/components/interactions/PushToAttendeesButton";
 import { useRealtimePollResults } from "@/hooks/useRealtimePollResults";
 import { patchPoll } from "@/hooks/useInteractionAutoSave";
 import { cn } from "@/lib/utils";
@@ -46,6 +50,19 @@ export function RealtimeConsole({
   const [lockVotes, setLockVotes] = useState(false);
 
   useEffect(() => {
+    void (async () => {
+      const res = await fetch(
+        `/api/events/${eventId}/polls/${poll.id}/display`,
+      );
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.data?.lockVotes !== undefined) {
+        setLockVotes(json.data.lockVotes);
+      }
+    })();
+  }, [eventId, poll.id]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setCountdown(formatCountdown(data?.closesAt ?? poll.closesAt));
     }, 1000);
@@ -60,10 +77,21 @@ export function RealtimeConsole({
     void refetch();
   }
 
+  async function toggleLockVotes(checked: boolean) {
+    setLockVotes(checked);
+    await fetch(`/api/events/${eventId}/polls/${poll.id}/display`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lockVotes: checked }),
+    });
+  }
+
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5">
-      <div className="mb-4 flex items-center gap-3 rounded-xl border border-border-light bg-white p-4">
-        <h2 className="flex-1 truncate text-sm font-semibold">{poll.title}</h2>
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border-light bg-white p-4">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+          {poll.title}
+        </h2>
         <span className="animate-pulse rounded-full bg-brand-amber-light px-2 py-0.5 text-xs text-brand-amber">
           进行中
         </span>
@@ -76,6 +104,12 @@ export function RealtimeConsole({
             {countdown}
           </span>
         )}
+        <PushToAttendeesButton
+          eventId={eventId}
+          kind="poll"
+          targetId={poll.id}
+        />
+        <OpenBigscreenButton eventId={eventId} />
         <button
           type="button"
           onClick={onPause}
@@ -109,16 +143,15 @@ export function RealtimeConsole({
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between rounded-xl border border-border-light bg-white p-3">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-light bg-white p-3">
         <div className="flex items-center gap-2">
           <span className="text-xs text-text-muted">显示结果给参会者</span>
           <Switch checked={showResults} onCheckedChange={toggleShowResults} />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-text-muted">锁定投票</span>
-          <Switch checked={lockVotes} onCheckedChange={setLockVotes} />
+          <Switch checked={lockVotes} onCheckedChange={toggleLockVotes} />
         </div>
-        <Download className="size-3.5 cursor-pointer text-text-muted hover:text-brand-blue" />
       </div>
     </div>
   );

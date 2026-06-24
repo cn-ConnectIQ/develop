@@ -138,6 +138,110 @@ async function enqueueSyncFailure(
   return job.id;
 }
 
+export async function scheduleLeadMarketupSync(leadId: string, eventId: string) {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { crmSyncStatus: true },
+  });
+  if (lead?.crmSyncStatus === "SYNCED") {
+    return { synced: true, leadId };
+  }
+
+  const existing = await prisma.crmSyncJob.findFirst({
+    where: { leadId, status: { in: ["PENDING", "FAILED"] } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!existing) {
+    await prisma.crmSyncJob.create({
+      data: { leadId, eventId, status: "PENDING" },
+    });
+  } else if (existing.status === "FAILED") {
+    await prisma.crmSyncJob.update({
+      where: { id: existing.id },
+      data: { status: "PENDING", lastAttemptAt: new Date() },
+    });
+  }
+
+  await prisma.lead.update({
+    where: { id: leadId },
+    data: { crmSyncStatus: "PENDING", crmSyncError: null },
+  });
+
+  try {
+    return await syncLeadToMarketup(leadId);
+  } catch {
+    return { synced: false, leadId };
+  }
+}
+
+export async function getEventMarketupSyncStats(eventId: string) {
+  const [synced, pending, failed, recentLeads, failures] = await Promise.all([
+    prisma.lead.count({
+      where: { booth: { eventId }, crmSyncStatus: "SYNCED" },
+    }),
+    prisma.lead.count({
+      where: { booth: { eventId }, crmSyncStatus: "PENDING" },
+    }),
+    prisma.lead.count({
+      where: { booth: { eventId }, crmSyncStatus: "FAILED" },
+    }),
+    prisma.lead.findMany({
+      where: { booth: { eventId } },
+      orderBy: { createdAt: "desc" },
+      take: 15,
+      select: {
+        id: true,
+        crmSyncStatus: true,
+        crmSyncError: true,
+        crmSyncedAt: true,
+        createdAt: true,
+        marketupLeadId: true,
+        participant: { select: { name: true } },
+        booth: { select: { code: true } },
+      },
+    }),
+    prisma.crmSyncJob.findMany({
+      where: { eventId, status: "FAILED" },
+      orderBy: { lastAttemptAt: "desc" },
+      take: 10,
+      include: {
+        lead: {
+          include: {
+            participant: { select: { name: true } },
+            booth: { select: { code: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    synced,
+    pending,
+    failed,
+    total: synced + pending + failed,
+    recentLeads: recentLeads.map((lead) => ({
+      id: lead.id,
+      participantName: lead.participant.name,
+      boothCode: lead.booth.code,
+      status: lead.crmSyncStatus,
+      error: lead.crmSyncError,
+      syncedAt: lead.crmSyncedAt?.toISOString() ?? null,
+      createdAt: lead.createdAt.toISOString(),
+      marketupLeadId: lead.marketupLeadId,
+    })),
+    failures: failures.map((job) => ({
+      id: job.id,
+      leadId: job.leadId,
+      participantName: job.lead.participant.name,
+      boothCode: job.lead.booth.code,
+      errorMessage: job.errorMessage ?? "未知错误",
+      attemptedAt: (job.lastAttemptAt ?? job.createdAt).toISOString(),
+    })),
+  };
+}
+
 export async function syncLeadToMarketup(leadId: string) {
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },

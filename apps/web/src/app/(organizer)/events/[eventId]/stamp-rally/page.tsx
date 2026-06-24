@@ -1,5 +1,6 @@
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
+import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { StampRallyPageClient } from "@/components/stamp-rally/StampRallyPageClient";
 
 export default async function OrganizerStampRallyPage({
@@ -17,6 +18,13 @@ export default async function OrganizerStampRallyPage({
   if (!event) notFound();
 
   return (
-    <StampRallyPageClient eventId={eventId} eventName={event.name} />
+    <FeatureFlagGate
+      eventId={eventId}
+      flag="stampRally"
+      title="集章打卡配置"
+      description="AI-04 集章打卡路线"
+    >
+      <StampRallyPageClient eventId={eventId} eventName={event.name} />
+    </FeatureFlagGate>
   );
 }

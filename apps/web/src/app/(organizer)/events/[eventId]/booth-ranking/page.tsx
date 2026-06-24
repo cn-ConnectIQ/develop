@@ -1,8 +1,8 @@
-import { BoothRouteClient } from "@/components/booth-route/BoothRouteClient";
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
+import { BoothRankingPageClient } from "@/components/expo/BoothRankingPageClient";
 
-export default async function BoothRoutePage({
+export default async function BoothRankingPage({
   params,
 }: {
   params: Promise<{ eventId: string }>;
@@ -11,9 +11,10 @@ export default async function BoothRoutePage({
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { name: true },
+    select: { id: true },
   });
+
   if (!event) notFound();
 
-  return <BoothRouteClient eventId={eventId} eventName={event.name} />;
+  return <BoothRankingPageClient eventId={eventId} />;
 }

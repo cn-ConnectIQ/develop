@@ -26,7 +26,13 @@ export const GET = withErrorHandler(async (_request, context) => {
       leads: {
         orderBy: { createdAt: "desc" },
         take: 20,
-        include: {
+        select: {
+          id: true,
+          createdAt: true,
+          status: true,
+          notes: true,
+          crmSyncStatus: true,
+          crmSyncError: true,
           participant: { select: { name: true, company: true } },
           intentTags: { include: { intentTag: true } },
         },
@@ -76,7 +82,7 @@ export const GET = withErrorHandler(async (_request, context) => {
       },
     }),
     prisma.lead.count({
-      where: { boothId, status: { in: ["CONTACTED", "QUALIFIED", "WON"] } },
+      where: { boothId, crmSyncStatus: "SYNCED" },
     }),
     listHighIntentBuyersForBooth(boothId, booth.event.id),
   ]);

@@ -49,6 +49,7 @@ type InteractionSidebarProps = {
   onPause: (item: InteractionItem) => void;
   onStop: (item: InteractionItem) => void;
   creating?: boolean;
+  lotteryEnabled?: boolean;
 };
 
 export function InteractionSidebar({
@@ -60,6 +61,7 @@ export function InteractionSidebar({
   onPause,
   onStop,
   creating,
+  lotteryEnabled = true,
 }: InteractionSidebarProps) {
   const stats = countInteractionStats(items);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -71,6 +73,7 @@ export function InteractionSidebar({
           open={popoverOpen}
           onOpenChange={setPopoverOpen}
           onSelect={onCreate}
+          disabledTypes={lotteryEnabled ? [] : ["LOTTERY"]}
         >
           <button
             type="button"

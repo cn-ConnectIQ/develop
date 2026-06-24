@@ -6,19 +6,31 @@ import {
   type ProjectionTab,
 } from "@/stores/bigscreenStore";
 
-const TABS: { id: ProjectionTab; label: string }[] = [
+const ALL_TABS: { id: ProjectionTab; label: string; flag?: "speedNetworking" | "boothRanking" }[] = [
   { id: "interaction", label: "互动" },
-  { id: "booth_ranking", label: "展位排行" },
-  { id: "network_heat", label: "网络热度" },
+  { id: "booth_ranking", label: "展位排行", flag: "boothRanking" },
+  { id: "network_heat", label: "网络热度", flag: "speedNetworking" },
 ];
 
-export function BigscreenTabBar() {
+type BigscreenTabBarProps = {
+  enabledFlags?: Partial<Record<"speedNetworking" | "boothRanking", boolean>>;
+};
+
+export function BigscreenTabBar({ enabledFlags }: BigscreenTabBarProps) {
   const projectionTab = useBigscreenStore((s) => s.projectionTab);
   const setProjectionTab = useBigscreenStore((s) => s.setProjectionTab);
 
+  const tabs = ALL_TABS.filter((tab) => {
+    if (!tab.flag) return true;
+    if (!enabledFlags) return true;
+    return enabledFlags[tab.flag] !== false;
+  });
+
+  if (tabs.length <= 1) return null;
+
   return (
     <div className="absolute left-0 right-0 top-0 z-20 flex justify-center gap-2 px-10 pt-6">
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"

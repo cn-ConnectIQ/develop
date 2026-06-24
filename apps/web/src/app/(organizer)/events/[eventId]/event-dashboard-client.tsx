@@ -6,17 +6,26 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
+  Bot,
+  Gift,
+  Handshake,
+  MapPin,
   Megaphone,
   Monitor,
   ScanLine,
+  Send,
+  Trophy,
 } from "lucide-react";
 import { AdminContent } from "@/components/admin/admin-header";
 import { CheckinFeed } from "@/components/dashboard/CheckinFeed";
 import { RealtimeStats } from "@/components/dashboard/RealtimeStats";
 import { AiReferralScanCard } from "@/components/events/AiReferralScanCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { useRealtimeCheckin } from "@/hooks/useRealtimeCheckin";
 import type { DashboardAlert } from "@/lib/dashboard-types";
+import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { formatElapsed, formatTimeRemaining } from "@/lib/event-utils";
 import { LockedOverlay } from "@/components/events/EventReviewBanner";
 import { cn } from "@/lib/utils";
@@ -108,6 +117,19 @@ function QuickActionCard({
 
 export function EventDashboardClient({ eventId }: { eventId: string }) {
   const [activeTab, setActiveTab] = useState("overview");
+  const { data: featureFlags } = useEventFeatureFlags(eventId);
+  const showAiReferral = isFeatureFlagEnabled(featureFlags, "aiReferral");
+  const showSpeedNetworking = isFeatureFlagEnabled(featureFlags, "speedNetworking");
+  const showAiBoothRoute = isFeatureFlagEnabled(featureFlags, "aiBoothRoute");
+  const showBuyerPush = isFeatureFlagEnabled(featureFlags, "highValueBuyerPush");
+  const showLottery = isFeatureFlagEnabled(featureFlags, "lottery");
+  const showStampRally = isFeatureFlagEnabled(featureFlags, "stampRally");
+  const showBoothRanking = isFeatureFlagEnabled(featureFlags, "boothRanking");
+  const showInviteSystem = isFeatureFlagEnabled(featureFlags, "inviteSystem");
+  const showFeatureConfig =
+    showSpeedNetworking || showAiReferral || showAiBoothRoute || showBuyerPush;
+  const showOnsiteTab = showLottery || showStampRally || showBoothRanking;
+
   const { data, isLoading, refetch, isFetching } = useQuery<DashboardData>({
     queryKey: ["event-dashboard", eventId],
     queryFn: () => fetchDashboard(eventId),
@@ -131,7 +153,15 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="ai-ops">AI 运营</TabsTrigger>
+          {showOnsiteTab && (
+            <TabsTrigger value="onsite">现场互动</TabsTrigger>
+          )}
+          {showInviteSystem && (
+            <TabsTrigger value="invites">邀请</TabsTrigger>
+          )}
+          {showAiReferral && (
+            <TabsTrigger value="ai-ops">AI 运营</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="mt-0 space-y-6">
@@ -152,6 +182,50 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
       )}
 
       <RealtimeStats stats={data?.stats} isLoading={isLoading} />
+
+      {showFeatureConfig && (
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {showSpeedNetworking && (
+            <QuickActionCard
+              href={`/events/${eventId}/speed-networking`}
+              icon={Handshake}
+              title="Speed Networking"
+              subtitle="场次与配对配置"
+              borderClassName="border-l-4 border-l-brand-purple cursor-pointer"
+              iconClassName="text-brand-purple"
+            />
+          )}
+          {showAiReferral && (
+            <QuickActionCard
+              href={`/events/${eventId}/ai-referral`}
+              icon={Bot}
+              title="AI 引荐"
+              subtitle="扫描与推送配置"
+              borderClassName="border-l-4 border-l-brand-purple cursor-pointer"
+              iconClassName="text-brand-purple"
+            />
+          )}
+          {showAiBoothRoute && (
+            <QuickActionCard
+              href={`/events/${eventId}/booth-route`}
+              icon={MapPin}
+              title="AI 展位路线"
+              subtitle="个性化逛展路线"
+              borderClassName="cursor-pointer"
+            />
+          )}
+          {showBuyerPush && (
+            <QuickActionCard
+              href={`/events/${eventId}/high-value-buyer-push`}
+              icon={Bell}
+              title="高价值买家推送"
+              subtitle="A/B 级意向提醒"
+              borderClassName="cursor-pointer"
+              iconClassName="text-brand-amber"
+            />
+          )}
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <QuickActionCard
@@ -240,9 +314,106 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
 
         </TabsContent>
 
-        <TabsContent value="ai-ops" className="mt-0 space-y-6">
-          <AiReferralScanCard eventId={eventId} />
-        </TabsContent>
+        {showOnsiteTab && (
+          <TabsContent value="onsite" className="mt-0 space-y-6">
+            <p className="text-sm text-text-muted">
+              现场互动模块快捷入口（需在活动设置中开启对应功能）
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <QuickActionCard
+                href={`/events/${eventId}/interactions`}
+                icon={Megaphone}
+                title="互动管理"
+                subtitle="投票 / 问答 / 公告"
+                borderClassName="border-l-4 border-l-brand-blue cursor-pointer"
+                locked={isReviewLocked}
+              />
+              {showLottery && (
+                <QuickActionCard
+                  href={`/events/${eventId}/lottery`}
+                  icon={Gift}
+                  title="现场抽奖"
+                  subtitle="开奖与奖池管理"
+                  borderClassName="border-l-4 border-l-brand-red cursor-pointer"
+                  iconClassName="text-brand-red"
+                  locked={isReviewLocked}
+                />
+              )}
+              {showStampRally && (
+                <QuickActionCard
+                  href={`/events/${eventId}/stamp-rally`}
+                  icon={Trophy}
+                  title="集章打卡"
+                  subtitle="展位集章路线"
+                  borderClassName="cursor-pointer"
+                  iconClassName="text-brand-gold"
+                />
+              )}
+              {showBoothRanking && (
+                <QuickActionCard
+                  href={`/events/${eventId}/booth-ranking`}
+                  icon={BarChart3}
+                  title="展位人气榜"
+                  subtitle="热度排行大屏"
+                  borderClassName="cursor-pointer"
+                />
+              )}
+              <QuickActionCard
+                href={`/events/${eventId}/interactions/bigscreen`}
+                icon={Monitor}
+                title="互动大屏"
+                subtitle="↗ 新标签页"
+                subtitleClassName="text-brand-blue"
+                external
+                borderClassName="cursor-pointer"
+              />
+            </div>
+          </TabsContent>
+        )}
+
+        {showInviteSystem && (
+          <TabsContent value="invites" className="mt-0 space-y-6">
+            <div className="rounded-xl border border-border-light bg-white p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-semibold">邀请体系</h2>
+                  <p className="mt-1 text-sm text-text-muted">
+                    创建邀请活动、发送通知并追踪激活进度
+                  </p>
+                </div>
+                <Link
+                  href={`/events/${eventId}/invite-campaigns`}
+                  className="inline-flex h-[34px] items-center rounded-lg bg-brand-blue px-3.5 text-[13px] font-medium text-white hover:bg-brand-blue/90"
+                >
+                  <Send className="mr-1 size-4" />
+                  进入邀请管理
+                </Link>
+              </div>
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <QuickActionCard
+                  href={`/events/${eventId}/invite-campaigns`}
+                  icon={Send}
+                  title="邀请活动"
+                  subtitle="创建与发送邀请"
+                  borderClassName="cursor-pointer"
+                />
+                <QuickActionCard
+                  href={`/events/${eventId}/participants`}
+                  icon={ScanLine}
+                  title="名单管理"
+                  subtitle="查看邀请与激活状态"
+                  borderClassName="cursor-pointer"
+                />
+              </div>
+            </div>
+          </TabsContent>
+        )}
+
+        {showAiReferral && (
+          <TabsContent value="ai-ops" className="mt-0 space-y-6">
+            <AiReferralScanCard eventId={eventId} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <Link

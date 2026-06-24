@@ -1,15 +1,17 @@
 import { PollStatus, prisma } from "@connectiq/database";
-import { ErrorCode, UserRole } from "@connectiq/types";
+import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireAuth,
+  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { pushPollToAttendees } from "@/lib/interaction-push-service";
 
 const patchSchema = z.object({
   status: z.enum([PollStatus.LIVE, PollStatus.PAUSED, PollStatus.CLOSED]),
+  push: z.boolean().optional(),
 });
 
 /** 更新投票状态（主办方） */
@@ -20,11 +22,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireAuth(request, [
-    UserRole.PLATFORM_ADMIN,
-    UserRole.ORGANIZER,
-    UserRole.EXPO_ORGANIZER,
-  ]);
+  await requireEventAccess(eventId);
 
   const body = await request.json();
   const parsed = patchSchema.safeParse(body);
@@ -55,5 +53,16 @@ export const PATCH = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse(updated);
+  let pushResult = null;
+  const shouldPush =
+    parsed.data.status === PollStatus.LIVE && parsed.data.push !== false;
+  if (shouldPush) {
+    try {
+      pushResult = await pushPollToAttendees(eventId, pollId);
+    } catch {
+      pushResult = { sent: 0, skipped: 0, total: 0, error: true };
+    }
+  }
+
+  return createSuccessResponse({ ...updated, pushResult });
 });

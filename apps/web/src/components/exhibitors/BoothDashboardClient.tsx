@@ -6,8 +6,7 @@ import Link from "next/link";
 import { QrCode } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AdminContent } from "@/components/admin/admin-header";
-import { LeadStatusBadge } from "@/components/admin/status-badge";
-import { formatDateTime } from "@/components/admin/status-badge";
+import { LeadStatusBadge, CrmSyncStatusBadge, formatDateTime } from "@/components/admin/status-badge";
 import { useRealtimeBoothLeads } from "@/hooks/useRealtimeBoothLeads";
 import { BoothInteractionsSection } from "@/components/exhibitors/BoothInteractionsSection";
 import { cn } from "@/lib/utils";
@@ -37,6 +36,7 @@ type BoothDashboardData = {
     status: string;
     notes: string | null;
     crmSyncStatus?: string;
+    crmSyncError?: string | null;
     participant: { name: string; company: string | null };
     intentTags: Array<{ intentTag: { label: string } }>;
   }>;
@@ -299,6 +299,12 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
               </div>
               {gradeBadge(lead.intentTags)}
               <LeadStatusBadge status={lead.status} />
+              {lead.crmSyncStatus && (
+                <CrmSyncStatusBadge
+                  status={lead.crmSyncStatus}
+                  error={lead.crmSyncError}
+                />
+              )}
               {lead.notes && (
                 <span className="w-full truncate text-xs text-text-muted sm:w-auto sm:max-w-[200px]">
                   {lead.notes}

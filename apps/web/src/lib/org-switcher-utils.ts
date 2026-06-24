@@ -1,5 +1,8 @@
 /** 组织类型图标、标签与侧边栏主题（身份切换器共用） */
 
+/** MVP：一个账号管理员对应一个组织；多组织切换 UI 暂缓，保留实现供后续开启 */
+export const ORG_MULTI_SWITCH_ENABLED = false;
+
 export type OwnedOrgSummary = {
   id: string;
   name: string;

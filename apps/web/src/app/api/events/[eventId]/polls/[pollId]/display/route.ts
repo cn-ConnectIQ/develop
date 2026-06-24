@@ -13,12 +13,25 @@ import {
 
 const patchSchema = z.object({
   showResults: z.boolean().optional(),
+  lockVotes: z.boolean().optional(),
   featuredResponseId: z.string().nullable().optional(),
   hideResponseId: z.string().optional(),
   unhideResponseId: z.string().optional(),
   pinResponseId: z.string().optional(),
   unpinResponseId: z.string().optional(),
   markAnsweredResponseId: z.string().optional(),
+});
+
+export const GET = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  const pollId = context?.params?.pollId;
+  if (!eventId || !pollId) {
+    return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  await requireEventAccess(eventId);
+  const config = await getPollDisplayConfig(eventId, pollId);
+  return createSuccessResponse(config);
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {
@@ -51,6 +64,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
 
   const updated = await updatePollDisplayConfig(eventId, pollId, {
     showResults: parsed.data.showResults,
+    lockVotes: parsed.data.lockVotes,
     featuredResponseId:
       parsed.data.featuredResponseId !== undefined
         ? parsed.data.featuredResponseId

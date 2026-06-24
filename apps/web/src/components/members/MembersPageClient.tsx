@@ -88,6 +88,53 @@ async function fetchMembers(params: Record<string, string>) {
   };
 }
 
+type MarketupExportResult = {
+  synced: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ userId: string; message: string }>;
+};
+
+async function postMarketupExport(userIds: string[]): Promise<MarketupExportResult | null> {
+  const res = await fetch("/api/org/members/export-marketup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    toast.error(json.error ?? "导出失败");
+    return null;
+  }
+  return json.data as MarketupExportResult;
+}
+
+function toastMarketupExportResult(result: MarketupExportResult) {
+  if (result.failed > 0) {
+    const hint = result.errors[0]?.message;
+    toast.warning(
+      `已同步 ${result.synced} 人，${result.failed} 人失败${hint ? `（${hint}）` : ""}`,
+    );
+  } else if (result.synced > 0) {
+    toast.success(`已成功同步 ${result.synced} 人到 MarketUP`);
+  } else {
+    toast.info("没有可同步的用户");
+  }
+}
+
+async function exportSingleToMarketup(userId: string) {
+  const res = await fetch(`/api/org/members/${userId}/export-marketup`, {
+    method: "POST",
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    toast.error(json.error ?? "导出失败");
+    return;
+  }
+  const dev = json.data?.dev;
+  toast.success(dev ? "已同步（开发模式模拟）" : "已成功同步到 MarketUP");
+}
+
 async function downloadExport(userIds?: string[]) {
   const res = await fetch("/api/org/members/export", {
     method: "POST",
@@ -302,14 +349,7 @@ export function MembersPageClient() {
                 发送通知
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={async () => {
-                  const res = await fetch(
-                    `/api/org/members/${row.original.userId}/export-marketup`,
-                    { method: "POST" },
-                  );
-                  if (res.ok) toast.success("已加入 MarketUP 导出队列");
-                  else toast.error("导出失败");
-                }}
+                onClick={() => void exportSingleToMarketup(row.original.userId)}
               >
                 导出到 MarketUP
               </DropdownMenuItem>
@@ -350,7 +390,7 @@ export function MembersPageClient() {
       />
 
       {/* 统计卡 */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           loading={statsLoading}
           label="总用户"
@@ -385,15 +425,6 @@ export function MembersPageClient() {
             <span className="text-xs text-text-muted">
               活跃率 {stats?.activeRate ?? 0}%
             </span>
-          }
-        />
-        <StatCard
-          loading={statsLoading}
-          label="关注人数"
-          value={stats?.followerCount ?? 0}
-          valueClass="text-brand-purple"
-          sub={
-            <span className="text-xs text-text-muted">人关注了你的主页</span>
           }
         />
       </div>
@@ -568,13 +599,9 @@ export function MembersPageClient() {
               <DropdownMenuItem
                 onClick={() => {
                   const ids = rows.map((r) => r.userId);
-                  void Promise.all(
-                    ids.slice(0, 20).map((userId) =>
-                      fetch(`/api/org/members/${userId}/export-marketup`, {
-                        method: "POST",
-                      }),
-                    ),
-                  ).then(() => toast.success("已加入 MarketUP 导出队列"));
+                  void postMarketupExport(ids.slice(0, 100)).then((result) => {
+                    if (result) toastMarketupExportResult(result);
+                  });
                 }}
               >
                 导出到 MarketUP
@@ -664,6 +691,17 @@ export function MembersPageClient() {
                   toast.success("层级已更新");
                   refetchAll();
                 }
+              });
+            },
+          },
+          {
+            label: "导出到 MarketUP",
+            onClick: (ids) => {
+              const userIds = rows
+                .filter((r) => ids.includes(r.id))
+                .map((r) => r.userId);
+              void postMarketupExport(userIds).then((result) => {
+                if (result) toastMarketupExportResult(result);
               });
             },
           },

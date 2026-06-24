@@ -12,6 +12,7 @@ import {
   requireLotteryManageAccess,
 } from "@/lib/interaction/lottery-service";
 import { createLotterySchema } from "@/lib/interaction/schemas";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -32,6 +33,8 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const { session } = await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "lottery");
+  if (disabled) return disabled;
   await requireLotteryManageAccess(session, eventId);
 
   const body = await request.json();

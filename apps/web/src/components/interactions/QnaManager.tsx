@@ -5,6 +5,10 @@ import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  OpenBigscreenButton,
+  PushToAttendeesButton,
+} from "@/components/interactions/PushToAttendeesButton";
 import { QnaQuestionCard, type QnaAction } from "@/components/interactions/QnaQuestionCard";
 import { QnaDetailPanel } from "@/components/interactions/QnaDetailPanel";
 import {
@@ -208,12 +212,22 @@ export function QnaManager({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({ status, push: enabled }),
         },
       );
       if (!res.ok) throw new Error("状态更新失败");
       onStatusChange?.();
-      toast.success(enabled ? "已开启收集" : "已暂停收集");
+      const json = await res.json().catch(() => null);
+      const pushResult = json?.data?.pushResult as
+        | { sent: number; skipped: number }
+        | undefined;
+      if (enabled && pushResult) {
+        toast.success(
+          `已开启收集，推送 ${pushResult.sent} 人${pushResult.skipped > 0 ? `，${pushResult.skipped} 人未绑定账号` : ""}`,
+        );
+      } else {
+        toast.success(enabled ? "已开启收集" : "已暂停收集");
+      }
     } catch (e) {
       setCollectionEnabled(!enabled);
       toast.error(e instanceof Error ? e.message : "操作失败");
@@ -295,6 +309,13 @@ export function QnaManager({
         >
           全部标记已回答
         </button>
+
+        <PushToAttendeesButton
+          eventId={eventId}
+          kind="qna"
+          targetId={pollId}
+        />
+        <OpenBigscreenButton eventId={eventId} />
       </div>
 
       <div className="flex min-h-0 flex-1 gap-4 overflow-hidden">

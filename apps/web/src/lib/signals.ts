@@ -44,6 +44,10 @@ async function checkAndNotifyExhibitor(
   if (!HIGH_VALUE_SIGNALS.includes(signalType)) return;
   if (!entityId) return;
 
+  const { isEventFeatureEnabled } = await import("@/lib/event-feature-flags-server");
+  const pushEnabled = await isEventFeatureEnabled(eventId, "highValueBuyerPush");
+  if (!pushEnabled) return;
+
   const booth = await prisma.exhibitorBooth.findUnique({
     where: { id: entityId },
     include: {

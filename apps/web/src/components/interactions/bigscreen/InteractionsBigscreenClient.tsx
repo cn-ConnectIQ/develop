@@ -33,20 +33,37 @@ async function fetchRankings(eventId: string) {
 }
 
 import { NetworkHeatDisplay } from "@/components/interactions/bigscreen/NetworkHeatDisplay";
+import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
+import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
+
 export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
+  const { data: featureFlags } = useEventFeatureFlags(eventId);
+  const speedNetworkingEnabled = isFeatureFlagEnabled(featureFlags, "speedNetworking");
+  const boothRankingEnabled = isFeatureFlagEnabled(featureFlags, "boothRanking");
   const searchParams = useSearchParams();
   const lotteryId = searchParams.get("lottery");
   const modeParam = searchParams.get("mode");
+  const tabParam = searchParams.get("tab");
   const queryClient = useQueryClient();
 
   const projectionTab = useBigscreenStore((s) => s.projectionTab);
+  const setProjectionTab = useBigscreenStore((s) => s.setProjectionTab);
   const bumpBoothRankingRefresh = useBigscreenStore((s) => s.bumpBoothRankingRefresh);
   const boothRankingRefreshNonce = useBigscreenStore((s) => s.boothRankingRefreshNonce);
+
+  useEffect(() => {
+    if (tabParam === "booth_ranking" && boothRankingEnabled) {
+      setProjectionTab("booth_ranking");
+    } else if (tabParam === "network_heat" && speedNetworkingEnabled) {
+      setProjectionTab("network_heat");
+    }
+  }, [tabParam, setProjectionTab, boothRankingEnabled, speedNetworkingEnabled]);
 
   const setEvent = useBigscreenStore((s) => s.setEvent);
   const deriveModeFromPoll = useBigscreenStore((s) => s.deriveModeFromPoll);
   const setCurrentPoll = useBigscreenStore((s) => s.setCurrentPoll);
   const setShowResults = useBigscreenStore((s) => s.setShowResults);
+  const setLockVotes = useBigscreenStore((s) => s.setLockVotes);
   const setQueue = useBigscreenStore((s) => s.setQueue);
   const setStats = useBigscreenStore((s) => s.setStats);
   const setPollResults = useBigscreenStore((s) => s.setPollResults);
@@ -115,6 +132,9 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
     setCurrentPoll(livePoll);
     if (data?.display?.showResults !== undefined) {
       setShowResults(data.display.showResults);
+    }
+    if (data?.display?.lockVotes !== undefined) {
+      setLockVotes(data.display.lockVotes);
     }
     const queueItems = [
       ...(data?.queue.next ? [data.queue.next] : []),
@@ -206,7 +226,7 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
     await fetch(`/api/events/${eventId}/polls/${pollId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "LIVE" }),
+      body: JSON.stringify({ status: "LIVE", push: true }),
     });
     refresh();
   }
@@ -254,18 +274,39 @@ export function InteractionsBigscreenClient({ eventId }: { eventId: string }) {
     }
   }
 
+  useEffect(() => {
+    if (projectionTab === "network_heat" && !speedNetworkingEnabled) {
+      setProjectionTab("interaction");
+    }
+    if (projectionTab === "booth_ranking" && !boothRankingEnabled) {
+      setProjectionTab("interaction");
+    }
+  }, [
+    projectionTab,
+    speedNetworkingEnabled,
+    boothRankingEnabled,
+    setProjectionTab,
+  ]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       <div className="relative flex flex-[0_0_72%] flex-col overflow-hidden">
-        <BigscreenTabBar />
+        <BigscreenTabBar
+          enabledFlags={{
+            speedNetworking: speedNetworkingEnabled,
+            boothRanking: boothRankingEnabled,
+          }}
+        />
         {projectionTab === "interaction" && <BigscreenProjection />}
-        {projectionTab === "booth_ranking" && (
+        {projectionTab === "booth_ranking" && boothRankingEnabled && (
           <BoothRankingDisplay eventId={eventId} />
         )}
-        {projectionTab === "network_heat" && <NetworkHeatDisplay eventId={eventId} />}
+        {projectionTab === "network_heat" && speedNetworkingEnabled && (
+          <NetworkHeatDisplay eventId={eventId} />
+        )}
       </div>
 
-      {projectionTab === "booth_ranking" ? (
+      {projectionTab === "booth_ranking" && boothRankingEnabled ? (
         <BoothRankingController
           eventId={eventId}
           rankings={rankingData?.rankings}

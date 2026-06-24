@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Bot, Bell, ClipboardList, Send, Users } from "lucide-react";
+import { BarChart3, Bot, Bell, ClipboardList, Handshake, Send, Trophy, Users } from "lucide-react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 
 type ExpoSettingsPayload = {
   settings: Record<string, Record<string, unknown>>;
@@ -39,6 +40,7 @@ async function fetchExpoSettings(expoId: string) {
 
 export function ExpoOverviewSections({ expoId }: { expoId: string }) {
   const queryClient = useQueryClient();
+  const { data: featureFlags } = useEventFeatureFlags(expoId);
   const { data } = useQuery({
     queryKey: ["expo-settings", expoId],
     queryFn: () => fetchExpoSettings(expoId),
@@ -296,33 +298,144 @@ export function ExpoOverviewSections({ expoId }: { expoId: string }) {
         </div>
       </SectionCard>
 
-      <SectionCard
-        id="matching-preview"
-        title="撮合预览"
-        description="查看 AI 引荐扫描结果"
-      >
-        <div className="flex flex-wrap gap-3">
+      {featureFlags?.aiReferral && (
+        <SectionCard
+          id="matching-preview"
+          title="AI 引荐配置"
+          description="查看 AI 引荐扫描结果与手动触发"
+        >
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={`/events/${expoId}/ai-referral`}
+              className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
+            >
+              <Bot className="mr-1 size-4" />
+              打开 AI 引荐配置
+            </Link>
+            <Link
+              href={`/events/${expoId}/reports#matching`}
+              className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
+            >
+              查看配对报告
+            </Link>
+          </div>
+        </SectionCard>
+      )}
+
+      {featureFlags?.highValueBuyerPush && (
+        <SectionCard
+          id="buyer-push"
+          title="高价值买家推送"
+          description="买家留资或多次扫码时，向展商推送 A/B 级意向提醒"
+        >
           <Link
-            href={`/events/${expoId}`}
+            href={`/events/${expoId}/high-value-buyer-push`}
+            className="inline-flex h-9 items-center rounded-lg bg-brand-amber/15 px-4 text-sm font-medium text-brand-amber hover:bg-brand-amber/25"
+          >
+            <Bell className="mr-1 size-4" />
+            查看推送规则
+          </Link>
+        </SectionCard>
+      )}
+
+      {featureFlags?.aiBoothRoute && (
+        <SectionCard
+          id="booth-route"
+          title="AI 展位路线"
+          description="为参会者生成个性化逛展路线"
+        >
+          <Link
+            href={`/events/${expoId}/booth-route`}
             className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
           >
             <Bot className="mr-1 size-4" />
-            打开活动工作台 AI 扫描
+            预览展位路线
           </Link>
-          <Link
-            href={`/events/${expoId}/reports#matching`}
-            className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
-          >
-            查看配对报告
-          </Link>
-        </div>
+        </SectionCard>
+      )}
+
+      {featureFlags?.stampRally && (
+        <SectionCard
+          id="stamp-rally"
+          title="集章打卡（AI-04）"
+          description="配置展位集章路线，参会者扫码集章后可兑换奖励"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/events/${expoId}/stamp-rally`}
+              className="inline-flex h-9 items-center rounded-lg bg-brand-gold/15 px-4 text-sm font-medium text-brand-gold hover:bg-brand-gold/25"
+            >
+              <Trophy className="mr-1 size-4" />
+              集章路线配置
+            </Link>
+            <span className="text-xs text-text-muted">
+              在「功能模块」中关闭后将隐藏此入口
+            </span>
+          </div>
+        </SectionCard>
+      )}
+
+      {featureFlags?.boothRanking && (
+        <SectionCard
+          id="booth-ranking"
+          title="展位人气榜（AI-03）"
+          description="实时展位访问与线索热度排行，可投放至互动大屏"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/events/${expoId}/booth-ranking`}
+              className="inline-flex h-9 items-center rounded-lg bg-brand-purple/10 px-4 text-sm font-medium text-brand-purple hover:bg-brand-purple/20"
+            >
+              <BarChart3 className="mr-1 size-4" />
+              查看人气排行
+            </Link>
+            <Link
+              href={`/events/${expoId}/interactions/bigscreen?tab=booth_ranking`}
+              target="_blank"
+              className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
+            >
+              大屏投放
+            </Link>
+          </div>
+        </SectionCard>
+      )}
+
+      <SectionCard
+        id="lead-form"
+        title="采集表单配置"
+        description="为展位线索采集配置动态字段与条件规则"
+      >
+        <Link
+          href={`/events/${expoId}/exhibitors/form-config`}
+          className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
+        >
+          <ClipboardList className="mr-1 size-4" />
+          打开表单配置器
+        </Link>
       </SectionCard>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
           { href: `/expos/${expoId}/booths`, icon: ClipboardList, label: "展位管理" },
-          { href: `/expos/${expoId}/leads`, icon: Users, label: "线索管理" },
-          { href: `/events/${expoId}/stamp-rally`, icon: Bell, label: "集章打卡" },
+          { href: `/events/${expoId}/exhibitors/form-config`, icon: ClipboardList, label: "采集表单" },
+          ...(featureFlags?.speedNetworking
+            ? [{ href: `/events/${expoId}/speed-networking`, icon: Handshake, label: "Speed Networking" }]
+            : []),
+          ...(featureFlags?.aiReferral
+            ? [{ href: `/events/${expoId}/ai-referral`, icon: Bot, label: "AI 引荐" }]
+            : []),
+          ...(featureFlags?.stampRally
+            ? [{ href: `/events/${expoId}/stamp-rally`, icon: Trophy, label: "集章打卡" }]
+            : []),
+          ...(featureFlags?.boothRanking
+            ? [{ href: `/events/${expoId}/booth-ranking`, icon: BarChart3, label: "展位人气榜" }]
+            : []),
+          ...(featureFlags?.aiBoothRoute
+            ? [{ href: `/events/${expoId}/booth-route`, icon: Bot, label: "AI 展位路线" }]
+            : []),
+          ...(featureFlags?.highValueBuyerPush
+            ? [{ href: `/events/${expoId}/high-value-buyer-push`, icon: Bell, label: "买家推送" }]
+            : []),
           { href: `/events/${expoId}/interactions/bigscreen`, icon: Bot, label: "互动大屏" },
         ].map((item) => (
           <Link

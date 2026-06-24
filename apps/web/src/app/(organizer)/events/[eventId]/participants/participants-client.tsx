@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +30,8 @@ import { useCurrentEvent } from "@/contexts/event-context";
 import type { ParticipantListItem } from "@/lib/participants";
 import { LockedOverlay } from "@/components/events/EventReviewBanner";
 import { useIsEventReviewLocked } from "@/hooks/useEventReviewLock";
+import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
+import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { cn } from "@/lib/utils";
 
 type StatusFilter =
@@ -94,6 +96,8 @@ async function fetchParticipants(
 export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const { currentEvent } = useCurrentEvent();
   const isReviewLocked = useIsEventReviewLocked(eventId);
+  const { data: featureFlags } = useEventFeatureFlags(eventId);
+  const showInviteSystem = isFeatureFlagEnabled(featureFlags, "inviteSystem");
   const searchParams = useSearchParams();
   const initialStatus = (searchParams.get("status") as StatusFilter) ?? "all";
 
@@ -171,6 +175,20 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
     activationRate: meta?.activationRate ?? 0,
   };
 
+  const statusTabs = useMemo(
+    () =>
+      showInviteSystem
+        ? STATUS_TABS
+        : STATUS_TABS.filter((tab) => tab.id !== "not_invited"),
+    [showInviteSystem],
+  );
+
+  useEffect(() => {
+    if (!showInviteSystem && status === "not_invited") {
+      setStatus("all");
+    }
+  }, [showInviteSystem, status]);
+
   const eventName = currentEvent?.name ?? "活动";
   const eventDate = useEventDateLabel(currentEvent?.startDate);
 
@@ -189,12 +207,14 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
       <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-[var(--admin-ink)]">名单管理</h1>
-          <Link
-            href={`/events/${eventId}/invite-campaigns`}
-            className="mt-1 inline-block text-xs text-brand-blue hover:underline"
-          >
-            查看邀请记录 →
-          </Link>
+          {showInviteSystem && (
+            <Link
+              href={`/events/${eventId}/invite-campaigns`}
+              className="mt-1 inline-block text-xs text-brand-blue hover:underline"
+            >
+              查看邀请记录 →
+            </Link>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-col items-end gap-0.5">
@@ -207,7 +227,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
                 );
                 const json = await res.json();
                 if (!res.ok) {
-                  toast.error(json.error ?? "同步失败");
+                  toast.error(json.error?.message ?? json.error ?? "同步失败");
                   return;
                 }
                 setLastSync(json.data.synced_at);
@@ -243,17 +263,24 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
             <UserPlus className="mr-1 size-4" />
             手动添加
           </Button>
-          <Button
-            className="bg-brand-purple text-white hover:bg-brand-purple/90"
-            onClick={() => openInviteSheet()}
-          >
-            <Bot className="mr-1 size-4" />
-            邀请加入 ConnectIQ
-          </Button>
+          {showInviteSystem && (
+            <Button
+              className="bg-brand-purple text-white hover:bg-brand-purple/90"
+              onClick={() => openInviteSheet()}
+            >
+              <Bot className="mr-1 size-4" />
+              邀请加入 ConnectIQ
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div
+        className={cn(
+          "mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2",
+          showInviteSystem ? "lg:grid-cols-5" : "lg:grid-cols-4",
+        )}
+      >
         <StatTile label="总报名" value={stats.total} valueClass="text-brand-blue" />
         <StatTile
           label="已签到"
@@ -266,11 +293,13 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           valueClass="text-text-muted"
         />
         <StatTile label="VIP" value={stats.vip} valueClass="text-brand-gold" />
-        <ActivationStatTile
-          activated={stats.activated}
-          invited={stats.invited}
-          activationRate={stats.activationRate}
-        />
+        {showInviteSystem && (
+          <ActivationStatTile
+            activated={stats.activated}
+            invited={stats.invited}
+            activationRate={stats.activationRate}
+          />
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -285,7 +314,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          {STATUS_TABS.map((tab) => {
+          {statusTabs.map((tab) => {
             const count =
               tab.countKey === "notInvited" ? stats.notInvited : undefined;
             return (
@@ -354,7 +383,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         onCheckIn={handleCheckIn}
         onRemove={handleRemove}
         onRefresh={() => void refetch()}
-        onBulkInvite={(ids) => openInviteSheet(ids)}
+        onBulkInvite={showInviteSystem ? (ids) => openInviteSheet(ids) : undefined}
       />
 
       <ImportSheet
@@ -371,22 +400,24 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         onSuccess={() => void refetch()}
       />
 
-      <CreateCampaignSheet
-        eventId={eventId}
-        open={inviteOpen}
-        onOpenChange={handleInviteOpenChange}
-        eventName={eventName}
-        eventDate={eventDate}
-        organizerName="主办方"
-        stats={{
-          total: stats.total,
-          notInvited: stats.notInvited,
-          activated: stats.activated,
-        }}
-        ticketTypes={meta?.ticketTypes ?? []}
-        initialParticipantIds={bulkInviteIds}
-        onSuccess={() => void refetch()}
-      />
+      {showInviteSystem && (
+        <CreateCampaignSheet
+          eventId={eventId}
+          open={inviteOpen}
+          onOpenChange={handleInviteOpenChange}
+          eventName={eventName}
+          eventDate={eventDate}
+          organizerName="主办方"
+          stats={{
+            total: stats.total,
+            notInvited: stats.notInvited,
+            activated: stats.activated,
+          }}
+          ticketTypes={meta?.ticketTypes ?? []}
+          initialParticipantIds={bulkInviteIds}
+          onSuccess={() => void refetch()}
+        />
+      )}
     </AdminPageBody>
   );
 }

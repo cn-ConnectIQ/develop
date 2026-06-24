@@ -1,4 +1,3 @@
-import { prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -7,7 +6,7 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { generateBadgeQr } from "@/lib/participants";
+import { upsertParticipantsFromRows } from "@/lib/participant-import-service";
 
 const importSchema = z.object({
   rows: z.array(
@@ -36,52 +35,11 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("导入数据格式错误", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  let created = 0;
-  let updated = 0;
-  let skipped = 0;
+  const result = await upsertParticipantsFromRows(
+    eventId,
+    parsed.data.rows,
+    { skipDuplicates: parsed.data.skipDuplicates },
+  );
 
-  for (const row of parsed.data.rows) {
-    if (!row.phone?.trim()) {
-      skipped++;
-      continue;
-    }
-
-    const phone = row.phone.trim();
-    const existing = await prisma.participant.findFirst({
-      where: { eventId, phone },
-    });
-
-    if (existing) {
-      if (parsed.data.skipDuplicates) {
-        skipped++;
-        continue;
-      }
-      await prisma.participant.update({
-        where: { id: existing.id },
-        data: {
-          name: row.name,
-          company: row.company ?? existing.company,
-          email: row.email ?? existing.email,
-          jobTitle: row.jobTitle ?? existing.jobTitle,
-          badgeQr: existing.badgeQr ?? generateBadgeQr(eventId),
-        },
-      });
-      updated++;
-    } else {
-      await prisma.participant.create({
-        data: {
-          eventId,
-          name: row.name,
-          phone,
-          email: row.email ?? null,
-          company: row.company ?? null,
-          jobTitle: row.jobTitle ?? null,
-          badgeQr: generateBadgeQr(eventId),
-        },
-      });
-      created++;
-    }
-  }
-
-  return createSuccessResponse({ created, updated, skipped });
+  return createSuccessResponse(result);
 });

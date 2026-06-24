@@ -10,6 +10,7 @@ import { assertExhibitorCanCreateLottery } from "@/lib/interaction/lottery-servi
 import { createInteractionSession } from "@/lib/interaction/session-service";
 import { createInteractionSessionSchema } from "@/lib/interaction/schemas";
 import { getAppBaseUrl } from "@/lib/supabase/server";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -43,6 +44,11 @@ export const POST = withErrorHandler(async (request, context) => {
   const lotteryIds = parsed.data.interactions
     .filter((i) => i.type === "lottery")
     .map((i) => i.id);
+
+  if (lotteryIds.length > 0) {
+    const disabled = await guardEventFeature(eventId, "lottery");
+    if (disabled) return disabled;
+  }
 
   const [pollCount, lotteryCount] = await Promise.all([
     pollIds.length

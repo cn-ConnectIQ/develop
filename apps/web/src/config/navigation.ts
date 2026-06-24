@@ -1,4 +1,6 @@
 import { UserRole } from "@connectiq/types";
+import type { EventFeatureFlags } from "@/lib/event-feature-flags";
+import { filterNavByFeatureFlags } from "@/lib/nav-feature-flags";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
@@ -6,7 +8,6 @@ import {
   Bot,
   CalendarDays,
   ClipboardList,
-  Coins,
   Eye,
   FileDown,
   Handshake,
@@ -109,7 +110,6 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
             icon: Sparkles,
             isNew: true,
           },
-          { label: "积分管理", href: "/platform/points", icon: Coins },
         ],
       },
       {
@@ -132,7 +132,7 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
         items: [
           { label: "活动列表", href: "/events", icon: CalendarDays },
           { label: "用户池", href: "/members", icon: Users },
-          { label: "组织主页", href: "/org-profile", icon: Settings },
+          { label: "信誉展示页", href: "/org-profile", icon: Settings },
         ],
       },
     ];
@@ -147,6 +147,16 @@ export function getEventNavigation(
   eventId: string,
   eventType?: string | null,
   _eventName?: string | null,
+  featureFlags?: EventFeatureFlags | null,
+): NavGroup[] {
+  const groups = getEventNavigationGroups(role, eventId, eventType);
+  return filterNavByFeatureFlags(groups, featureFlags);
+}
+
+function getEventNavigationGroups(
+  role: UserRole,
+  eventId: string,
+  eventType?: string | null,
 ): NavGroup[] {
   switch (role) {
     case UserRole.PLATFORM_ADMIN:
@@ -166,6 +176,11 @@ export function getEventNavigation(
                 href: `/events/${eventId}/tickets`,
                 icon: Ticket,
               },
+              {
+                label: "活动设置",
+                href: `/events/${eventId}/settings`,
+                icon: Settings,
+              },
             ],
           },
           {
@@ -183,6 +198,12 @@ export function getEventNavigation(
                 isNew: true,
               },
               {
+                label: "AI 引荐配置",
+                href: `/events/${eventId}/ai-referral`,
+                icon: Bot,
+                isNew: true,
+              },
+              {
                 label: "邀请管理",
                 href: `/events/${eventId}/invite-campaigns`,
                 icon: Send,
@@ -197,15 +218,27 @@ export function getEventNavigation(
                 href: `/events/${eventId}/exhibitors/map`,
                 icon: Map,
               },
-              {
-                label: "采集表单",
-                href: `/events/${eventId}/exhibitors/form-config`,
-                icon: Store,
-              },
-            ],
-          },
-          {
-            label: "互动管理",
+            {
+              label: "采集表单",
+              href: `/events/${eventId}/exhibitors/form-config`,
+              icon: Store,
+            },
+            {
+              label: "MarketUP 同步",
+              href: `/events/${eventId}/marketup-sync`,
+              icon: Sparkles,
+              isNew: true,
+            },
+            {
+              label: "高价值买家推送",
+              href: `/events/${eventId}/high-value-buyer-push`,
+              icon: Bell,
+              isNew: true,
+            },
+          ],
+        },
+        {
+          label: "互动管理",
             items: [
               {
                 label: "互动管理",
@@ -218,15 +251,26 @@ export function getEventNavigation(
                 icon: Trophy,
                 isNew: true,
               },
+              {
+                label: "展位人气榜",
+                href: `/events/${eventId}/booth-ranking`,
+                icon: BarChart3,
+                isNew: true,
+              },
             ],
           },
           {
             label: "Speed Networking",
             items: [
               {
-                label: "配对报告",
-                href: `/events/${eventId}/reports`,
+                label: "SN 配置",
+                href: `/events/${eventId}/speed-networking`,
                 icon: Handshake,
+              },
+              {
+                label: "配对报告",
+                href: `/events/${eventId}/reports#matching`,
+                icon: BarChart3,
               },
             ],
           },
@@ -262,6 +306,12 @@ export function getEventNavigation(
             label: "数据报告",
             items: [
               {
+                label: "连接数据分析",
+                href: `/events/${eventId}/connections`,
+                icon: Handshake,
+                isNew: true,
+              },
+              {
                 label: "数据报告",
                 href: `/events/${eventId}/reports`,
                 icon: BarChart3,
@@ -291,6 +341,11 @@ export function getEventNavigation(
               label: "基本信息",
               href: `/expos/${eventId}`,
               icon: LayoutDashboard,
+            },
+            {
+              label: "功能模块",
+              href: `/events/${eventId}/settings`,
+              icon: Settings,
             },
             {
               label: "展商报名配置",
@@ -326,6 +381,12 @@ export function getEventNavigation(
               label: "采集表单配置",
               href: `/events/${eventId}/exhibitors/form-config`,
               icon: ClipboardList,
+            },
+            {
+              label: "MarketUP 同步",
+              href: `/events/${eventId}/marketup-sync`,
+              icon: Sparkles,
+              isNew: true,
             },
             {
               label: "Hosted Buyer",
@@ -383,6 +444,21 @@ export function getEventNavigation(
               icon: Bot,
             },
             {
+              label: "AI 引荐配置",
+              href: `/events/${eventId}/ai-referral`,
+              icon: Bot,
+            },
+            {
+              label: "AI 展位路线",
+              href: `/events/${eventId}/booth-route`,
+              icon: MapPin,
+            },
+            {
+              label: "高价值买家推送",
+              href: `/events/${eventId}/high-value-buyer-push`,
+              icon: Bell,
+            },
+            {
               label: "撮合预览",
               href: `/expos/${eventId}#matching-preview`,
               icon: Eye,
@@ -409,6 +485,12 @@ export function getEventNavigation(
               isNew: true,
             },
             {
+              label: "展位人气榜",
+              href: `/events/${eventId}/booth-ranking`,
+              icon: BarChart3,
+              isNew: true,
+            },
+            {
               label: "场馆地图管理",
               href: `/events/${eventId}/exhibitors/map`,
               icon: MapPin,
@@ -430,6 +512,12 @@ export function getEventNavigation(
         {
           label: "数据报告",
           items: [
+            {
+              label: "连接数据分析",
+              href: `/events/${eventId}/connections`,
+              icon: Link2,
+              isNew: true,
+            },
             {
               label: "展商 ROI 报告",
               href: `/events/${eventId}/reports#exhibitor-roi`,

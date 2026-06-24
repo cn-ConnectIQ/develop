@@ -149,3 +149,32 @@ export function formatDateTime(value: Date | string | null | undefined) {
     minute: "2-digit",
   }).format(date);
 }
+
+const crmSyncStatusLabel: Record<string, string> = {
+  PENDING: "同步中",
+  SYNCED: "已同步",
+  FAILED: "同步失败",
+};
+
+const crmSyncStatusStyle: Record<string, string> = {
+  PENDING: "admin-badge-soft-amber",
+  SYNCED: "admin-badge-green",
+  FAILED: "bg-brand-red-light text-brand-red text-xs",
+};
+
+export function CrmSyncStatusBadge({
+  status,
+  error,
+}: {
+  status: string;
+  error?: string | null;
+}) {
+  return (
+    <span
+      className={cn("admin-badge", crmSyncStatusStyle[status] ?? "admin-badge-soft-gray")}
+      title={error ?? undefined}
+    >
+      {crmSyncStatusLabel[status] ?? status}
+    </span>
+  );
+}

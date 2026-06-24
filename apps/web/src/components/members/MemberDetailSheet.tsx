@@ -157,7 +157,8 @@ export function MemberDetailSheet({
       toast.error(json.error ?? "导出失败");
       return;
     }
-    toast.success("已加入 MarketUP 导出队列");
+    const dev = json.data?.dev;
+    toast.success(dev ? "已同步（开发模式模拟）" : "已成功同步到 MarketUP");
   }
 
   async function handleRemove() {

@@ -1,5 +1,6 @@
 import { LotteryStatus, PollStatus, PollType, SignalType, prisma } from "@connectiq/database";
 import { ApiError } from "@/lib/api-auth";
+import { getPollDisplayConfig } from "@/lib/bigscreen-service";
 import { enterLottery } from "@/lib/interaction/lottery-service";
 import type { InteractionRef } from "@/lib/interaction/schemas";
 import { generateInteractionQR, getInteractionScanUrl } from "@/lib/qrcode";
@@ -354,6 +355,11 @@ export async function submitPollResponse(
 
   if (poll.closesAt && poll.closesAt < new Date()) {
     throw new ApiError("投票已结束", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const display = await getPollDisplayConfig(eventId, poll.id);
+  if (display.lockVotes) {
+    throw new ApiError("投票已锁定，暂不可提交", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const participant = await ensureParticipantForUser(eventId, userId);

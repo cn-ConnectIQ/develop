@@ -136,7 +136,7 @@ export function BigscreenController({
                       onCheckedChange={async (v) => {
                         setShowResults(v);
                         await onPatchDisplay(currentPoll.id, {
-                          show_results: v,
+                          showResults: v,
                         });
                       }}
                     />
@@ -145,7 +145,12 @@ export function BigscreenController({
                     <span className="text-xs text-white/60">锁定投票</span>
                     <Switch
                       checked={lockVotes}
-                      onCheckedChange={setLockVotes}
+                      onCheckedChange={async (v) => {
+                        setLockVotes(v);
+                        await onPatchDisplay(currentPoll.id, {
+                          lockVotes: v,
+                        });
+                      }}
                     />
                   </div>
                 </div>
