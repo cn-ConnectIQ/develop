@@ -1,5 +1,6 @@
 import {
   AccountType,
+  ActivityType,
   prisma,
   PrismaUserRole,
   EventType,
@@ -148,6 +149,7 @@ function serializeEvent(
     name: event.name,
     slug: event.slug,
     type: event.type,
+    activityType: event.activityType,
     category,
     status: event.status,
     reviewStatus: event.reviewStatus,
@@ -325,6 +327,22 @@ export const POST = withErrorHandler(async (request) => {
     return createErrorResponse("请先选择组织", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  let resolvedOrgId = orgId;
+  if (!resolvedOrgId) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: organizerId },
+      select: { orgId: true },
+    });
+    resolvedOrgId = dbUser?.orgId ?? null;
+  }
+  if (!resolvedOrgId) {
+    return createErrorResponse(
+      "缺少组织归属，无法创建活动",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
   const activeOrgType = session.user.activeOrgType;
   if (
     activeOrgType === AccountType.EXPO_ORGANIZER &&
@@ -348,18 +366,22 @@ export const POST = withErrorHandler(async (request) => {
   }
   // ORGANIZATION 及平台管理员：可创建任意类型活动
 
+  const activityType =
+    data.type === EventType.EXPO ? ActivityType.EXPO : ActivityType.CONFERENCE;
+
   const event = await prisma.event.create({
     data: {
       name: data.name,
       slug: slugify(data.name),
       type: data.type,
+      activityType,
       status: EventStatus.DRAFT,
       description: data.description,
       location: data.location,
       startDate,
       endDate,
       organizerId,
-      orgId: orgId ?? undefined,
+      orgId: resolvedOrgId,
       ...(data.category
         ? {
             settings: {

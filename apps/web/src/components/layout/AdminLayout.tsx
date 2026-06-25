@@ -39,6 +39,7 @@ function AdminLayoutInner({
         eventId={currentEventId}
         eventName={currentEvent?.name}
         eventType={currentEvent?.type}
+        activityType={currentEvent?.activityType}
         reviewLocked={isReviewLocked}
       />
 

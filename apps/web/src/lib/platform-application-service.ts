@@ -137,14 +137,14 @@ export async function approveApplication(
 
       const currentUser = await tx.user.findUnique({
         where: { id: application.userId },
-        select: { activeOrgId: true },
+        select: { orgId: true },
       });
 
       await tx.user.update({
         where: { id: application.userId },
         data: {
           userType: UserType.ACCOUNT_ADMIN,
-          activeOrgId: currentUser?.activeOrgId ?? orgRecord.id,
+          orgId: currentUser?.orgId ?? orgRecord.id,
         },
       });
 
@@ -160,7 +160,7 @@ export async function approveApplication(
 
       await grantOrgAdminRoles(tx, application.userId);
 
-      const isFirstOrg = !currentUser?.activeOrgId;
+      const isFirstOrg = !currentUser?.orgId;
       const notificationBody = isFirstOrg
         ? `恭喜！组织「${orgRecord.name}」已审核通过。你现在可以发布会议/展览活动，并以参展商身份管理展位。`
         : `组织「${orgRecord.name}」已审核通过，已添加到你的账号。登录后可在组织切换器中找到它。`;

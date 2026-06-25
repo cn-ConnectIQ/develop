@@ -73,7 +73,11 @@ export const PATCH = withErrorHandler(async (request, context) => {
 
   const { event } = await requireEventAccess(eventId);
 
-  if (event.reviewStatus === "PENDING_REVIEW") {
+  const review = await prisma.eventReview.findUnique({
+    where: { eventId },
+  });
+
+  if (review?.status === "PENDING_REVIEW") {
     return createErrorResponse(
       "审核中的活动不可修改",
       ErrorCode.FORBIDDEN,
@@ -108,11 +112,9 @@ export const PATCH = withErrorHandler(async (request, context) => {
       ...(data.startDate ? { startDate: new Date(data.startDate) } : {}),
       ...(data.endDate ? { endDate: new Date(data.endDate) } : {}),
       status: EventStatus.DRAFT,
-      reviewStatus:
-        event.reviewStatus === "REVISION_REQUIRED" ||
-        event.reviewStatus === "REJECTED"
-          ? "DRAFT"
-          : event.reviewStatus,
+      ...(review?.status === "REVISION_REQUIRED" || review?.status === "REJECTED"
+        ? { reviewStatus: "DRAFT" as const }
+        : {}),
     },
   });
 

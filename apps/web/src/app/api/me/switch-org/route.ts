@@ -1,5 +1,6 @@
 import {
   AdminStatus,
+  AccountType,
   InviteStatus,
   OrgStaffRole,
   prisma,
@@ -15,6 +16,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { resolveOrgHomeRoute } from "@/lib/org-home-route";
+import { ORG_MULTI_SWITCH_ENABLED } from "@/lib/org-switcher-utils";
 
 const bodySchema = z.object({
   orgId: z.string().min(1),
@@ -26,6 +28,14 @@ export const POST = withErrorHandler(async (request) => {
 
   if (session.user.userType !== "ACCOUNT_ADMIN") {
     return forbidden("仅账号管理员可切换组织");
+  }
+
+  if (!ORG_MULTI_SWITCH_ENABLED) {
+    return createErrorResponse(
+      "当前账号模型不支持组织切换",
+      ErrorCode.FORBIDDEN,
+      403,
+    );
   }
 
   const body = await request.json();
@@ -68,10 +78,13 @@ export const POST = withErrorHandler(async (request) => {
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { activeOrgId: orgId },
+    data: { orgId },
   });
 
-  const redirectPath = await resolveOrgHomeRoute(orgId, staff.org.accountType);
+  const redirectPath = await resolveOrgHomeRoute(
+    orgId,
+    staff.org.accountType ?? AccountType.ORGANIZATION,
+  );
 
   return createSuccessResponse({
     activeOrgId: staff.org.id,

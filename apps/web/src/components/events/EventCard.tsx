@@ -106,7 +106,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
   const { data: session } = useSession();
   const eventHomeHref = getEventHomeHref(event, session?.user?.role);
 
-  const reviewStatus = event.reviewStatus ?? event.review?.status ?? "DRAFT";
+  const reviewStatus = event.review?.status ?? event.reviewStatus ?? "DRAFT";
   const isPendingReview = reviewStatus === "PENDING_REVIEW";
   const isRevisionRequired = reviewStatus === "REVISION_REQUIRED";
   const isRejected = reviewStatus === "REJECTED";

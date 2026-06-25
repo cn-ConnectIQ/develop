@@ -21,6 +21,7 @@ export type EventSummary = {
   name: string;
   status: string;
   type: string;
+  activityType?: string;
   location: string | null;
   startDate: string | null;
   endDate: string | null;

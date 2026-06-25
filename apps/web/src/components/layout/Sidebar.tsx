@@ -40,6 +40,7 @@ type SidebarProps = {
   eventId?: string | null;
   eventName?: string | null;
   eventType?: string | null;
+  activityType?: string | null;
   reviewLocked?: boolean;
 };
 
@@ -237,6 +238,7 @@ export function Sidebar({
   eventId,
   eventName,
   eventType,
+  activityType,
   reviewLocked,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -268,20 +270,42 @@ export function Sidebar({
       ? getOrgLogoGradient(session.user.activeOrgType)
       : theme.logoGradient;
 
-  const resolvedEventId =
-    navMode === "event" ? (eventId ?? extractEventIdFromPath(pathname)) : null;
+  const exhibitorBoothId =
+    role === UserRole.EXHIBITOR
+      ? (session?.user?.boothId ??
+        user.entityId ??
+        extractEventIdFromPath(pathname))
+      : null;
 
-  const { data: featureFlags } = useEventFeatureFlags(resolvedEventId);
+  const resolvedEventId =
+    navMode === "event"
+      ? (eventId ?? extractEventIdFromPath(pathname))
+      : null;
+
+  const resolvedBoothId =
+    role === UserRole.EXHIBITOR
+      ? (exhibitorBoothId ?? resolvedEventId)
+      : null;
+
+  const navContextId =
+    role === UserRole.EXHIBITOR ? resolvedBoothId : resolvedEventId;
+
+  const { data: featureFlags } = useEventFeatureFlags(
+    role === UserRole.EXHIBITOR ? null : resolvedEventId,
+  );
 
   const platformGroups = getPlatformNavigation(navRole);
   const eventNav =
-    navMode === "event" && resolvedEventId
+    navContextId
       ? getEventNavigation(
           role,
-          resolvedEventId,
+          navContextId,
           eventType,
-          eventName,
+          role === UserRole.EXHIBITOR
+            ? (session?.user?.boothEventName ?? eventName)
+            : eventName,
           featureFlags,
+          activityType,
         )
       : [];
 
@@ -306,7 +330,9 @@ export function Sidebar({
 
   const visibleGroups =
     navMode === "platform"
-      ? [...platformGroups, ...aiOpsGroups]
+      ? role === UserRole.EXHIBITOR
+        ? eventNav
+        : [...platformGroups, ...aiOpsGroups]
       : eventNav;
 
   const flatItems = visibleGroups.flatMap((g) =>

@@ -10,6 +10,8 @@
     "build": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate-account-model": "tsx prisma/migrate-account-model.ts",
+    "db:fix-enum-migration": "tsx prisma/fix-enum-migration.ts",
     "db:seed": "prisma db seed",
     "db:seed:expo-mock": "tsx prisma/seed-expo-mock.ts",
     "db:studio": "prisma studio"

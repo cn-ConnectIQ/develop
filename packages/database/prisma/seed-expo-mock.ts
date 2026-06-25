@@ -373,7 +373,7 @@ async function seedExhibitorBooths(
 
     await prisma.user.update({
       where: { id: operator.id },
-      data: { activeOrgId: org.id },
+      data: { orgId: org.id },
     });
 
     await prisma.orgStaff.upsert({

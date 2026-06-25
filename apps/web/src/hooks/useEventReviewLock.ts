@@ -11,6 +11,7 @@ export function useEventReviewLock(eventId: string) {
       return (await res.json()).data as {
         reviewStatus: string;
         review: {
+          status: string;
           revisionNotes: string | null;
           rejectionReason: string | null;
         } | null;
@@ -22,5 +23,5 @@ export function useEventReviewLock(eventId: string) {
 
 export function useIsEventReviewLocked(eventId: string) {
   const { data } = useEventReviewLock(eventId);
-  return data?.reviewStatus === "PENDING_REVIEW";
+  return data?.review?.status === "PENDING_REVIEW";
 }

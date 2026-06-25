@@ -48,8 +48,15 @@ export type NavGroup = {
 
 const EXPO_ONLY_SUFFIXES = ["/exhibitors/map", "/exhibitors/form-config"];
 
-function filterExpoItems(groups: NavGroup[], eventType?: string | null): NavGroup[] {
-  if (eventType !== "CONFERENCE") return groups;
+function filterExpoItems(
+  groups: NavGroup[],
+  eventType?: string | null,
+  activityType?: string | null,
+): NavGroup[] {
+  const isConferenceContext =
+    activityType === "CONFERENCE" ||
+    (!activityType && eventType === "CONFERENCE");
+  if (!isConferenceContext) return groups;
   return groups
     .map((group) => ({
       ...group,
@@ -148,8 +155,9 @@ export function getEventNavigation(
   eventType?: string | null,
   _eventName?: string | null,
   featureFlags?: EventFeatureFlags | null,
+  activityType?: string | null,
 ): NavGroup[] {
-  const groups = getEventNavigationGroups(role, eventId, eventType);
+  const groups = getEventNavigationGroups(role, eventId, eventType, activityType);
   return filterNavByFeatureFlags(groups, featureFlags);
 }
 
@@ -157,6 +165,7 @@ function getEventNavigationGroups(
   role: UserRole,
   eventId: string,
   eventType?: string | null,
+  activityType?: string | null,
 ): NavGroup[] {
   switch (role) {
     case UserRole.PLATFORM_ADMIN:
@@ -336,6 +345,7 @@ function getEventNavigationGroups(
           },
         ].filter((group) => group.items.length > 0),
         eventType,
+        activityType,
       );
 
     case UserRole.EXPO_ORGANIZER:
@@ -543,7 +553,8 @@ function getEventNavigationGroups(
         },
       ].filter((group) => group.items.length > 0);
 
-    case UserRole.EXHIBITOR:
+    case UserRole.EXHIBITOR: {
+      const boothId = eventId;
       return [
         {
           label: "展商工作台",
@@ -560,18 +571,18 @@ function getEventNavigationGroups(
           items: [
             {
               label: "展位实时看板",
-              href: `/exhibitor/booths/${eventId}`,
+              href: `/exhibitor/booths/${boothId}`,
               icon: LayoutDashboard,
             },
             {
               label: "AI 主动找潜客",
-              href: `/exhibitor/booths/${eventId}#ai-leads`,
+              href: `/exhibitor/booths/${boothId}#ai-leads`,
               icon: Sparkles,
               isNew: true,
             },
             {
               label: "展位互动",
-              href: `/exhibitor/booths/${eventId}/interactions`,
+              href: `/exhibitor/booths/${boothId}/interactions`,
               icon: MessageSquare,
               isNew: true,
             },
@@ -582,17 +593,17 @@ function getEventNavigationGroups(
           items: [
             {
               label: "来访客户列表",
-              href: `/exhibitor/booths/${eventId}/leads`,
+              href: `/exhibitor/booths/${boothId}/leads`,
               icon: ClipboardList,
             },
             {
               label: "A 级线索",
-              href: `/exhibitor/booths/${eventId}/leads?grade=A`,
+              href: `/exhibitor/booths/${boothId}/leads?grade=A`,
               icon: Users,
             },
             {
               label: "待跟进",
-              href: `/exhibitor/booths/${eventId}/leads?status=followup`,
+              href: `/exhibitor/booths/${boothId}/leads?status=followup`,
               icon: MessageSquare,
             },
           ],
@@ -602,17 +613,17 @@ function getEventNavigationGroups(
           items: [
             {
               label: "采集表单预览",
-              href: `/exhibitor/booths/${eventId}#form-preview`,
+              href: `/exhibitor/booths/${boothId}#form-preview`,
               icon: ClipboardList,
             },
             {
               label: "展位团队成员",
-              href: `/exhibitor/booths/${eventId}#team`,
+              href: `/exhibitor/booths/${boothId}#team`,
               icon: Users,
             },
             {
               label: "目标客户画像配置",
-              href: `/exhibitor/booths/${eventId}#target-profile`,
+              href: `/exhibitor/booths/${boothId}#target-profile`,
               icon: Settings,
             },
           ],
@@ -627,7 +638,7 @@ function getEventNavigationGroups(
             },
             {
               label: "线索导出",
-              href: `/exhibitor/booths/${eventId}/leads#export`,
+              href: `/exhibitor/booths/${boothId}/leads#export`,
               icon: FileDown,
             },
           ],
@@ -637,12 +648,13 @@ function getEventNavigationGroups(
           items: [
             {
               label: "展位 ROI 报告",
-              href: `/exhibitor/booths/${eventId}#report`,
+              href: `/exhibitor/booths/${boothId}#report`,
               icon: BarChart3,
             },
           ],
         },
       ];
+    }
 
     default:
       return [];

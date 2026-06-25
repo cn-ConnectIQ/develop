@@ -57,9 +57,6 @@ export async function requireExhibitorAdmin(): Promise<{
   }
 
   const { session, orgId } = result;
-  if (session.user.activeOrgType !== "EXHIBITOR") {
-    throw new ApiError("仅参展商可访问", ErrorCode.FORBIDDEN, 403);
-  }
 
   const booth = await resolveExhibitorBooth(orgId);
   if (!booth) {

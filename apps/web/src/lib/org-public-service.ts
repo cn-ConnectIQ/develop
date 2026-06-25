@@ -18,7 +18,7 @@ export type ApiPublicOrg = {
   bio: string | null;
   website: string | null;
   contact_email: string | null;
-  account_type: AccountType;
+  account_type: AccountType | null;
   industry: string | null;
   company_size: string | null;
   headquarters: string | null;

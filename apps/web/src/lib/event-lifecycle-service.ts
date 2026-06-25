@@ -1,4 +1,4 @@
-import { EventStatus, prisma } from "@connectiq/database";
+import { EventReviewStatus, EventStatus, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 
@@ -24,7 +24,8 @@ export async function deleteEvent(eventId: string) {
   if (!event) {
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
-  if (event.reviewStatus === "PENDING_REVIEW") {
+  const review = await prisma.eventReview.findUnique({ where: { eventId } });
+  if (review?.status === EventReviewStatus.PENDING_REVIEW) {
     throw new ApiError("审核中的活动不可删除", ErrorCode.FORBIDDEN, 403);
   }
   if (event.status !== EventStatus.DRAFT) {
@@ -64,6 +65,7 @@ export async function copyEvent(eventId: string, organizerId: string) {
         name: `${source.name}（副本）`,
         slug,
         type: source.type,
+        activityType: source.activityType,
         status: EventStatus.DRAFT,
         reviewStatus: "DRAFT",
         description: source.description,

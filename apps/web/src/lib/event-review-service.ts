@@ -1,4 +1,6 @@
 import {
+  EventReviewStatus,
+  EventStatus,
   prisma,
   PrismaUserRole,
   ReviewStatus,
@@ -69,12 +71,19 @@ export async function submitEventForReview(
     throw new EventReviewError("活动不存在", "NOT_FOUND");
   }
 
-  if (event.reviewStatus === ReviewStatus.PENDING_REVIEW) {
+  if (event.review?.status === EventReviewStatus.PENDING_REVIEW) {
     throw new EventReviewError("活动已在审核中", "ALREADY_PENDING");
   }
 
-  if (event.reviewStatus === ReviewStatus.APPROVED) {
+  if (event.review?.status === EventReviewStatus.APPROVED) {
     throw new EventReviewError("活动已通过审核", "ALREADY_APPROVED");
+  }
+
+  if (
+    event.reviewStatus === ReviewStatus.PUBLISHED ||
+    event.reviewStatus === ReviewStatus.LIVE
+  ) {
+    throw new EventReviewError("活动已发布", "ALREADY_PUBLISHED");
   }
 
   const validationError = validateEventForReview(event);
@@ -88,11 +97,11 @@ export async function submitEventForReview(
       create: {
         eventId,
         submittedBy: submitterId,
-        status: ReviewStatus.PENDING_REVIEW,
+        status: EventReviewStatus.PENDING_REVIEW,
         submittedAt: new Date(),
       },
       update: {
-        status: ReviewStatus.PENDING_REVIEW,
+        status: EventReviewStatus.PENDING_REVIEW,
         submittedBy: submitterId,
         submittedAt: new Date(),
         rejectionReason: null,
@@ -102,16 +111,11 @@ export async function submitEventForReview(
         reviewedAt: null,
       },
     });
-
-    await tx.event.update({
-      where: { id: eventId },
-      data: { reviewStatus: ReviewStatus.PENDING_REVIEW },
-    });
   });
 
   await notifyPlatformAdmins(event.name, eventId);
 
-  return { reviewStatus: ReviewStatus.PENDING_REVIEW };
+  return { reviewStatus: EventReviewStatus.PENDING_REVIEW };
 }
 
 export async function cancelEventReview(eventId: string) {
@@ -124,16 +128,13 @@ export async function cancelEventReview(eventId: string) {
     throw new EventReviewError("活动不存在", "NOT_FOUND");
   }
 
-  if (event.reviewStatus !== ReviewStatus.PENDING_REVIEW) {
+  if (event.review?.status !== EventReviewStatus.PENDING_REVIEW) {
     throw new EventReviewError("仅审核中的活动可取消申请", "INVALID_STATUS");
   }
 
   await prisma.$transaction(async (tx) => {
     if (event.review) {
-      await tx.eventReview.update({
-        where: { eventId },
-        data: { status: ReviewStatus.DRAFT },
-      });
+      await tx.eventReview.delete({ where: { eventId } });
     }
     await tx.event.update({
       where: { id: eventId },
@@ -144,6 +145,50 @@ export async function cancelEventReview(eventId: string) {
   return { reviewStatus: ReviewStatus.DRAFT };
 }
 
-export function isEventLockedForReview(reviewStatus: string | null | undefined) {
-  return reviewStatus === ReviewStatus.PENDING_REVIEW;
+/** 已审核组织直接发布活动（无需平台再审） */
+export async function publishEvent(eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { review: true },
+  });
+
+  if (!event) {
+    throw new EventReviewError("活动不存在", "NOT_FOUND");
+  }
+
+  if (event.review?.status === EventReviewStatus.PENDING_REVIEW) {
+    throw new EventReviewError("活动仍在平台审核中", "ALREADY_PENDING");
+  }
+
+  if (
+    event.reviewStatus === ReviewStatus.PUBLISHED ||
+    event.reviewStatus === ReviewStatus.LIVE
+  ) {
+    throw new EventReviewError("活动已发布", "ALREADY_PUBLISHED");
+  }
+
+  const validationError = validateEventForReview(event);
+  if (validationError) {
+    throw new EventReviewError(validationError, "VALIDATION_ERROR");
+  }
+
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      reviewStatus: ReviewStatus.PUBLISHED,
+      status: EventStatus.PUBLISHED,
+    },
+  });
+
+  return { reviewStatus: ReviewStatus.PUBLISHED, status: EventStatus.PUBLISHED };
+}
+
+export function isEventLockedForReview(
+  reviewStatus: string | null | undefined,
+  reviewRecordStatus?: string | null,
+) {
+  return (
+    reviewRecordStatus === EventReviewStatus.PENDING_REVIEW ||
+    reviewStatus === EventReviewStatus.PENDING_REVIEW
+  );
 }

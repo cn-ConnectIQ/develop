@@ -53,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
         badgeKey: "applications",
       },
       {
-        label: "活动发布审核",
+        label: "活动审核（遗留）",
         href: "/platform/event-reviews",
         icon: CalendarCheck,
         badgeKey: "eventReviews",

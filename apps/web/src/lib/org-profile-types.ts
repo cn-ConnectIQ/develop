@@ -13,7 +13,7 @@ export type OrgProfileData = {
   companySize: string | null;
   headquarters: string | null;
   foundedYear: number | null;
-  accountType: AccountType;
+  accountType: AccountType | null;
   orgCreditCode: string | null;
   isVerified: boolean;
   memberCount: number;

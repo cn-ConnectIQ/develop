@@ -18,6 +18,20 @@ enum EventType {
   EXPO
 }
 
+/// 活动类型（决定管理端菜单与能力）
+enum ActivityType {
+  CONFERENCE // 会议/论坛/沙龙
+  EXPO // 展会（含展位/展商管理）
+  EXHIBITION // 参展（展商运营：互动/抽奖/线索）
+}
+
+/// 活动数据来源
+enum DataSource {
+  NATIVE // ConnectIQ 原生创建
+  BAGEVENT // 百格导入
+  MARKETUP // MarketUP 导入
+}
+
 enum EventStatus {
   DRAFT
   PUBLISHED
@@ -321,12 +335,12 @@ enum AdminStatus {
   SUSPENDED // 已暂停（违规或其他原因）
 }
 
-// 账号类型（账号管理员的子类型）
+// 账号类型（历史字段，Organization.account_type 保留兼容，新逻辑不再读取）
 enum AccountType {
-  ORGANIZATION // 通用组织（审核通过后具备会议/展览/参展多角色能力）
-  CONFERENCE_ORGANIZER // 会议/沙龙/培训主办方（历史数据兼容）
-  EXPO_ORGANIZER // 展览/展会主办方（历史数据兼容）
-  EXHIBITOR // 参展商（历史数据兼容）
+  ORGANIZATION
+  CONFERENCE_ORGANIZER
+  EXPO_ORGANIZER
+  EXHIBITOR
 }
 
 // 申请审核状态
@@ -336,13 +350,20 @@ enum ApplicationStatus {
   REJECTED // 拒绝
 }
 
-// 活动发布审核状态
+// 活动发布状态（账号已审核，活动无需平台再审）
 enum ReviewStatus {
-  DRAFT // 草稿（未提交）
-  PENDING_REVIEW // 已提交，等待审核
-  APPROVED // 审核通过，活动公开
-  REJECTED // 审核拒绝
-  REVISION_REQUIRED // 需要修改后重新提交
+  DRAFT
+  PUBLISHED
+  LIVE
+  ENDED
+}
+
+// 平台活动审核状态（EventReview 历史流程）
+enum EventReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  REVISION_REQUIRED
 }
 
 // 用户加入组织的来源
@@ -426,9 +447,9 @@ model User {
   // 三层角色区分
   userType UserType @default(END_USER) @map("user_type")
 
-  // 账号管理员当前激活的组织（END_USER 为 null）
-  activeOrgId String?       @map("active_org_id")
-  activeOrg   Organization? @relation("UserActiveOrg", fields: [activeOrgId], references: [id], onDelete: SetNull)
+  // 用户所属账号（审核通过后可发布任意类型活动，无多组织切换）
+  orgId String?       @map("org_id")
+  org   Organization? @relation("UserOrg", fields: [orgId], references: [id], onDelete: SetNull)
 
   // 组织关联
   ownedOrg              Organization?          @relation("OrgOwner")
@@ -460,39 +481,39 @@ model UserRoleAssignment {
 model Organization {
   id String @id @default(cuid())
 
-  // 基础信息（对外展示）
-  name         String
-  slug         String  @unique
-  logoUrl      String? @map("logo_url")
-  coverUrl     String? @map("cover_url")
-  bio          String?
-  website      String?
+  name    String
+  slug    String  @unique
+  logoUrl String? @map("logo_url")
+  coverUrl String? @map("cover_url")
+  bio     String?
+  website String?
   contactEmail String? @map("contact_email")
 
-  // 领英式主页扩展信息
   industry     String? @map("industry")
   companySize  String? @map("company_size")
   headquarters String? @map("headquarters")
   foundedYear  Int?    @map("founded_year")
 
-  // 账号类型
-  accountType AccountType @map("account_type")
+  /// @deprecated 历史字段，迁移后不再读取
+  accountType AccountType? @map("account_type")
 
-  // 认证与审核
   orgCreditCode String?     @map("org_credit_code")
   isVerified    Boolean     @default(false) @map("is_verified")
   adminStatus   AdminStatus @default(PENDING_REVIEW) @map("admin_status")
 
-  // 统计（冗余字段，定期从关联表汇总）
+  totalEvents       Int @default(0) @map("total_events")
+  totalParticipants Int @default(0) @map("total_participants")
+  totalLeads        Int @default(0) @map("total_leads")
+  totalConnections  Int @default(0) @map("total_connections")
+
   memberCount   Int @default(0) @map("member_count")
   eventCount    Int @default(0) @map("event_count")
   followerCount Int @default(0) @map("follower_count")
 
-  // 关联
   ownerId String? @unique @map("owner_id")
   owner   User?   @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
-  activeUsers     User[]                @relation("UserActiveOrg")
+  users           User[]                @relation("UserOrg")
   members         OrgMember[]
   staff           OrgStaff[]
   events          Event[]
@@ -502,7 +523,7 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@index([accountType, adminStatus])
+  @@index([adminStatus])
   @@index([slug])
   @@map("organizations")
 }
@@ -607,7 +628,7 @@ model EventReview {
   submittedBy String @map("submitted_by")
   submitter   User?  @relation("EventReviewSubmitter", fields: [submittedBy], references: [id], onDelete: SetNull)
 
-  status          ReviewStatus @default(PENDING_REVIEW)
+  status          EventReviewStatus @default(PENDING_REVIEW)
   rejectionReason String?      @map("rejection_reason")
   revisionNotes   String?      @map("revision_notes")
   reviewerNotes   String?      @map("reviewer_notes")
@@ -629,20 +650,23 @@ model Event {
   name         String
   slug         String       @unique
   type         EventType
+  activityType ActivityType @default(CONFERENCE) @map("activity_type")
   status       EventStatus  @default(DRAFT)
   description  String?
   location     String?
   startDate    DateTime?    @map("start_date")
   endDate      DateTime?    @map("end_date")
   organizerId  String       @map("organizer_id")
-  orgId        String?      @map("org_id")
+  orgId        String       @map("org_id")
   reviewStatus ReviewStatus @default(DRAFT) @map("review_status")
+  dataSource   DataSource   @default(NATIVE) @map("data_source")
+  externalRefId String?     @map("external_ref_id")
   featureFlags Json           @default("{}") @map("feature_flags")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
   organizer           User                 @relation("EventOrganizer", fields: [organizerId], references: [id])
-  org                 Organization?        @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  org                 Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   review              EventReview?
   orgMembers          OrgMember[]          @relation("MemberSourceEvent")
   settings            EventSetting[]

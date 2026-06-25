@@ -10,6 +10,7 @@ import { prisma, PrismaUserRole } from "@connectiq/database";
 import type { UserRole as AppUserRole } from "@connectiq/types";
 import { cacheDel, cacheGet } from "@/lib/redis";
 import { smsVerifyKey } from "@/lib/sms";
+import { resolveExhibitorBooth } from "@/lib/exhibitor/exhibitor-auth";
 
 type OwnedOrgSummary = NonNullable<Session["user"]["ownedOrgs"]>[number];
 
@@ -50,7 +51,7 @@ function toOwnedOrgSummary(org: {
   name: string;
   slug: string;
   logoUrl: string | null;
-  accountType: string;
+  accountType: string | null;
   adminStatus: string;
 }): OwnedOrgSummary {
   return {
@@ -58,7 +59,7 @@ function toOwnedOrgSummary(org: {
     name: org.name,
     slug: org.slug,
     logo_url: org.logoUrl,
-    account_type: org.accountType,
+    account_type: org.accountType ?? "ORGANIZATION",
     admin_status: org.adminStatus,
   };
 }
@@ -89,12 +90,20 @@ function syncLegacyTokenFields(token: {
   userType?: PrismaUserType;
   activeOrgType?: string | null;
   activeOrgId?: string | null;
+  boothId?: string | null;
   role?: AppUserRole;
   entityId?: string | null;
 }) {
   const userType = token.userType ?? PrismaUserType.END_USER;
   token.role = toLegacyRole(userType, token.activeOrgType);
-  token.entityId = token.activeOrgId ?? null;
+  if (
+    token.role === (PrismaUserRole.EXHIBITOR as AppUserRole) &&
+    token.boothId
+  ) {
+    token.entityId = token.boothId;
+  } else {
+    token.entityId = token.activeOrgId ?? null;
+  }
 }
 
 /** @deprecated 旧角色检查，迁移完成后移除 */
@@ -130,21 +139,34 @@ async function hydrateAccountAdminToken(userId: string) {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { activeOrgId: true },
+    select: { orgId: true },
   });
 
   const activeOrg =
-    ownedOrgs.find((o) => o.id === dbUser?.activeOrgId) ||
+    ownedOrgs.find((o) => o.id === dbUser?.orgId) ||
     ownedOrgs.find((o) => o.admin_status === "APPROVED") ||
     ownedOrgs[0] ||
     null;
 
+  const activeOrgId = activeOrg?.id ?? null;
+  const activeOrgType = activeOrg?.account_type ?? null;
+
+  let boothId: string | null = null;
+  let boothEventName: string | null = null;
+  if (activeOrgType === "EXHIBITOR" && activeOrgId) {
+    const booth = await resolveExhibitorBooth(activeOrgId);
+    boothId = booth?.id ?? null;
+    boothEventName = booth?.eventName ?? null;
+  }
+
   return {
     ownedOrgs,
-    activeOrgId: activeOrg?.id ?? null,
+    activeOrgId,
     activeOrgSlug: activeOrg?.slug ?? null,
-    activeOrgType: activeOrg?.account_type ?? null,
+    activeOrgType,
     activeAdminStatus: activeOrg?.admin_status ?? null,
+    boothId,
+    boothEventName,
   };
 }
 
@@ -277,6 +299,8 @@ export const authOptions: NextAuthOptions = {
             token.activeOrgSlug = orgSession.activeOrgSlug;
             token.activeOrgType = orgSession.activeOrgType;
             token.activeAdminStatus = orgSession.activeAdminStatus;
+            token.boothId = orgSession.boothId;
+            token.boothEventName = orgSession.boothEventName;
           }
         } else if (
           trigger === "update" &&
@@ -289,6 +313,8 @@ export const authOptions: NextAuthOptions = {
           token.activeOrgSlug = orgSession.activeOrgSlug;
           token.activeOrgType = orgSession.activeOrgType;
           token.activeAdminStatus = orgSession.activeAdminStatus;
+          token.boothId = orgSession.boothId;
+          token.boothEventName = orgSession.boothEventName;
         } else if (token.sub && !token.userType) {
           const userType = await loadUserType(token.sub);
           if (userType) {
@@ -309,6 +335,8 @@ export const authOptions: NextAuthOptions = {
               token.activeOrgSlug = orgSession.activeOrgSlug;
               token.activeOrgType = orgSession.activeOrgType;
               token.activeAdminStatus = orgSession.activeAdminStatus;
+              token.boothId = orgSession.boothId;
+              token.boothEventName = orgSession.boothEventName;
             } catch (hydrateError) {
               console.error("[auth] org hydrate fallback failed:", hydrateError);
             }
@@ -326,6 +354,8 @@ export const authOptions: NextAuthOptions = {
       session.user.activeOrgSlug = token.activeOrgSlug as string | null;
       session.user.activeOrgType = token.activeOrgType as string | null;
       session.user.activeAdminStatus = token.activeAdminStatus as string | null;
+      session.user.boothId = token.boothId as string | null;
+      session.user.boothEventName = token.boothEventName as string | null;
       session.user.ownedOrgs = token.ownedOrgs as Session["user"]["ownedOrgs"];
       session.user.phone = (token.phone as string | null) ?? null;
 
@@ -335,7 +365,12 @@ export const authOptions: NextAuthOptions = {
         userType,
         token.activeOrgType as string | null,
       );
-      session.user.entityId = (token.activeOrgId as string | null) ?? null;
+      session.user.entityId =
+        userType === PrismaUserType.ACCOUNT_ADMIN &&
+        token.activeOrgType === "EXHIBITOR" &&
+        token.boothId
+          ? (token.boothId as string)
+          : ((token.activeOrgId as string | null) ?? null);
       session.user.hasPlatformAdmin =
         userType === PrismaUserType.PLATFORM_ADMIN;
 

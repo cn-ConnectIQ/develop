@@ -516,10 +516,11 @@ export function OrgProfilePageClient() {
   );
 }
 
-function AccountTypeBadge({ type }: { type: AccountType }) {
+function AccountTypeBadge({ type }: { type: AccountType | null }) {
+  const label = type ? ACCOUNT_TYPE_LABELS[type] : ACCOUNT_TYPE_LABELS.ORGANIZATION;
   return (
     <span className="inline-flex rounded-full bg-brand-blue-light px-2.5 py-0.5 text-xs font-medium text-brand-blue">
-      {ACCOUNT_TYPE_LABELS[type]}
+      {label}
     </span>
   );
 }

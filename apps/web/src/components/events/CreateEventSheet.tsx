@@ -259,7 +259,7 @@ export function CreateEventSheet({
     }
   }
 
-  async function onSubmitReview() {
+  async function onPublish() {
     if (!step1Data) return;
 
     const description = step2Form.getValues("description") ?? "";
@@ -274,12 +274,12 @@ export function CreateEventSheet({
       const eventId = await saveEventDraft();
       if (!eventId) return;
 
-      const res = await fetch(`/api/events/${eventId}/submit-review`, {
+      const res = await fetch(`/api/events/${eventId}/publish`, {
         method: "POST",
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "提交审核失败");
+        toast.error(json.error ?? "发布失败");
         return;
       }
 
@@ -450,7 +450,7 @@ export function CreateEventSheet({
                   placeholder="简要介绍活动亮点、目标受众..."
                   {...step2Form.register("description")}
                 />
-                <p className="text-xs text-text-muted">提交审核时必填</p>
+                <p className="text-xs text-text-muted">发布活动时必填</p>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -517,9 +517,9 @@ export function CreateEventSheet({
                   type="button"
                   className="h-11 flex-1 bg-brand-blue font-semibold text-white hover:bg-brand-blue/90"
                   disabled={submitting}
-                  onClick={() => void onSubmitReview()}
+                  onClick={() => void onPublish()}
                 >
-                  {submitting ? "提交中..." : "提交审核"}
+                  {submitting ? "发布中..." : "发布活动"}
                 </Button>
               </div>
               {!isEdit && (
@@ -540,11 +540,10 @@ export function CreateEventSheet({
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-brand-green">✓ 已提交审核</DialogTitle>
+            <DialogTitle className="text-brand-green">✓ 活动已发布</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 text-sm">
-            <p className="text-text-muted">平台将在 1-3 个工作日内完成审核</p>
-            <p className="text-text-muted">审核结果将通过短信和邮件通知你</p>
+            <p className="text-text-muted">活动已上线，可以开始配置互动与邀请参会者</p>
           </div>
           <DialogFooter>
             <Button

@@ -167,7 +167,9 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
                 )}
               </div>
               <p className="mt-0.5 text-sm text-text-muted">
-                {ACCOUNT_TYPE_LABELS[org.account_type] ?? "主办方"}
+                {org.account_type
+                  ? (ACCOUNT_TYPE_LABELS[org.account_type] ?? "主办方")
+                  : "组织"}
               </p>
             </div>
           </div>
@@ -255,7 +257,9 @@ export function OrgPublicPageClient({ slug }: { slug: string }) {
                 <div>
                   <dt className="text-text-muted">组织类型</dt>
                   <dd className="mt-0.5 font-medium">
-                    {ACCOUNT_TYPE_LABELS[org.account_type]}
+                    {(org.account_type &&
+                      ACCOUNT_TYPE_LABELS[org.account_type]) ||
+                      "组织"}
                   </dd>
                 </div>
                 <div>

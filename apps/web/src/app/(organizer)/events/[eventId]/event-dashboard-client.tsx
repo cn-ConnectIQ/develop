@@ -43,6 +43,11 @@ type DashboardData = {
     name: string;
     phase: string;
     reviewStatus?: string;
+    review?: {
+      status: string;
+      revisionNotes: string | null;
+      rejectionReason: string | null;
+    } | null;
     startDate: string | null;
     endDate: string | null;
   };
@@ -143,7 +148,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
   });
 
   const isLive = data?.event.phase === "live";
-  const isReviewLocked = data?.event.reviewStatus === "PENDING_REVIEW";
+  const isReviewLocked = data?.event.review?.status === "PENDING_REVIEW";
   const pollSubtitle = data?.stats?.hasLivePoll
     ? data.stats.livePollTitle ?? "互动进行中"
     : "无进行中互动";

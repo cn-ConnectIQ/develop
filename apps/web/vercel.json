@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/update-matching",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/post-event-followup",
+      "schedule": "0 9 * * *"
     }
   ]
 }

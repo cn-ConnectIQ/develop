@@ -64,6 +64,9 @@ const reviewStatusLabel: Record<string, string> = {
   REVISION_REQUIRED: "需要修改",
   REJECTED: "已拒绝",
   APPROVED: "已通过",
+  PUBLISHED: "已发布",
+  LIVE: "进行中",
+  ENDED: "已结束",
 };
 
 const reviewStatusStyle: Record<string, string> = {
@@ -72,6 +75,9 @@ const reviewStatusStyle: Record<string, string> = {
   REVISION_REQUIRED: "bg-brand-red-light text-brand-red text-xs",
   REJECTED: "bg-content-bg text-text-muted text-xs",
   APPROVED: "admin-badge-green",
+  PUBLISHED: "admin-badge-green",
+  LIVE: "bg-brand-green-light text-brand-green text-xs",
+  ENDED: "admin-badge-soft-gray",
 };
 
 export function ReviewStatusBadge({ status }: { status: string }) {

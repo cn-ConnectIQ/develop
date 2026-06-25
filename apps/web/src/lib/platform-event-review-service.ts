@@ -1,4 +1,5 @@
 import {
+  EventReviewStatus,
   EventStatus,
   prisma,
   ReviewStatus,
@@ -12,16 +13,23 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   EXPO: "展会",
 };
 
-const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
-  DRAFT: "草稿",
+const REVIEW_STATUS_LABELS: Record<EventReviewStatus, string> = {
   PENDING_REVIEW: "待审核",
   APPROVED: "已通过",
   REJECTED: "已拒绝",
   REVISION_REQUIRED: "需修改",
 };
 
+function accountTypeLabel(accountType: string | null | undefined) {
+  if (!accountType) return ACCOUNT_TYPE_LABELS.ORGANIZATION;
+  return (
+    ACCOUNT_TYPE_LABELS[accountType as keyof typeof ACCOUNT_TYPE_LABELS] ??
+    accountType
+  );
+}
+
 export async function fetchPlatformEventReviews(params: {
-  status?: ReviewStatus | "ALL";
+  status?: EventReviewStatus | "ALL";
   page?: number;
   pageSize?: number;
 }) {
@@ -96,8 +104,7 @@ export async function fetchPlatformEventReviews(params: {
               id: item.event.org.id,
               name: item.event.org.name,
               isVerified: item.event.org.isVerified,
-              accountTypeLabel:
-                ACCOUNT_TYPE_LABELS[item.event.org.accountType],
+              accountTypeLabel: accountTypeLabel(item.event.org.accountType),
             }
           : null,
         organizerName: item.event.organizer.name,
@@ -112,7 +119,6 @@ export async function fetchPlatformEventReviews(params: {
 }
 
 export async function fetchPlatformEventReviewById(id: string) {
-  const data = await fetchPlatformEventReviews({ page: 1, pageSize: 1 });
   const found = await prisma.eventReview.findUnique({
     where: { id },
     include: {
@@ -132,7 +138,6 @@ export async function fetchPlatformEventReviewById(id: string) {
       submitter: { select: { name: true, email: true } },
     },
   });
-  void data;
   if (!found) return null;
 
   return {
@@ -161,7 +166,7 @@ export async function fetchPlatformEventReviewById(id: string) {
             id: found.event.org.id,
             name: found.event.org.name,
             isVerified: found.event.org.isVerified,
-            accountTypeLabel: ACCOUNT_TYPE_LABELS[found.event.org.accountType],
+            accountTypeLabel: accountTypeLabel(found.event.org.accountType),
           }
         : null,
       organizerName: found.event.organizer.name,
@@ -193,6 +198,11 @@ export async function reviewPlatformEvent(
   });
   if (!review) throw new Error("REVIEW_NOT_FOUND");
 
+  const reviewStatus = input.status as EventReviewStatus;
+  const eventReviewStatus =
+    input.status === "APPROVED"
+      ? ReviewStatus.PUBLISHED
+      : ReviewStatus.DRAFT;
   const eventStatus =
     input.status === "APPROVED" ? EventStatus.PUBLISHED : review.event.status;
 
@@ -200,7 +210,7 @@ export async function reviewPlatformEvent(
     prisma.eventReview.update({
       where: { id },
       data: {
-        status: input.status as ReviewStatus,
+        status: reviewStatus,
         reviewerNotes: input.reviewerNotes ?? null,
         rejectionReason:
           input.status === "REJECTED" ? input.feedback ?? null : null,
@@ -213,7 +223,7 @@ export async function reviewPlatformEvent(
     prisma.event.update({
       where: { id: review.eventId },
       data: {
-        reviewStatus: input.status as ReviewStatus,
+        reviewStatus: eventReviewStatus,
         ...(input.status === "APPROVED" ? { status: eventStatus } : {}),
       },
     }),

@@ -88,7 +88,7 @@ async function verifyAccount(phone: string, label: string, expectType: PrismaUse
     `\n   email: ${user.email}`,
     `\n   password: ${passwordOk ? "OK" : "FAIL"}`,
     `\n   userType: ${user.userType} → resolved ${resolvedType}${typeOk ? "" : " (expected " + expectType + ")"}`,
-    `\n   activeOrgId: ${user.activeOrgId ?? "null"}`,
+    `\n   orgId: ${user.orgId ?? "null"}`,
     orgDetail ? `\n   orgs: ${orgDetail}` : "",
     orgOk ? "" : "\n   org staff: 无已审核组织",
   );

@@ -18,10 +18,11 @@ export function getOrgHomeRouteByAccountType(accountType: string): string {
 
 export async function resolveOrgHomeRoute(
   orgId: string,
-  accountType: AccountType,
+  accountType: AccountType | null,
   db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<string> {
-  switch (accountType) {
+  const resolvedType = accountType ?? AccountType.ORGANIZATION;
+  switch (resolvedType) {
     case AccountType.EXPO_ORGANIZER: {
       const event = await db.event.findFirst({
         where: { orgId, type: EventType.EXPO },

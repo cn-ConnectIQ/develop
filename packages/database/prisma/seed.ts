@@ -1,6 +1,7 @@
 import "dotenv/config";
 import {
   AccountType,
+  ActivityType,
   AdminStatus,
   ApplicationStatus,
   BoothStatus,
@@ -282,7 +283,7 @@ async function createApprovedAccountAdmin(params: {
 
   await prisma.user.update({
     where: { id: admin.id },
-    data: { activeOrgId: org.id },
+    data: { orgId: org.id },
   });
 
   await prisma.orgStaff.upsert({
@@ -371,14 +372,15 @@ async function main() {
     where: { slug: "saas-growth-summit-2025" },
     update: {
       status: EventStatus.LIVE,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.LIVE,
     },
     create: {
       name: "SaaS 增长峰会 2025",
       slug: "saas-growth-summit-2025",
       type: EventType.CONFERENCE,
+      activityType: ActivityType.CONFERENCE,
       status: EventStatus.LIVE,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.LIVE,
       description: "聚焦 B2B SaaS 增长策略的行业峰会",
       location: "上海 · 张江科学会堂",
       startDate: daysAgo(1),
@@ -393,14 +395,15 @@ async function main() {
     where: { slug: "product-growth-salon-beijing" },
     update: {
       status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.PUBLISHED,
     },
     create: {
       name: "产品增长沙龙（北京）",
       slug: "product-growth-salon-beijing",
       type: EventType.CONFERENCE,
+      activityType: ActivityType.CONFERENCE,
       status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.PUBLISHED,
       description: "小型闭门产品增长交流沙龙",
       location: "北京 · 798 艺术区",
       startDate: daysFromNow(14),
@@ -474,7 +477,7 @@ async function main() {
     },
   });
 
-  // activeOrgId 保持指向会议主办方组织（createApprovedAccountAdmin 已设置），不改动
+  // orgId 保持指向会议主办方组织（createApprovedAccountAdmin 已设置），不改动
 
   // ── ② 展览主办方 ────────────────────────────────────────────
   const { admin: expoAdmin, org: expoOrg } = await createApprovedAccountAdmin({
@@ -491,14 +494,15 @@ async function main() {
     where: { slug: "enterprise-digital-expo-2025" },
     update: {
       status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.PUBLISHED,
     },
     create: {
       name: "2025 企业数字化展览会",
       slug: "enterprise-digital-expo-2025",
       type: EventType.EXPO,
+      activityType: ActivityType.EXPO,
       status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.PUBLISHED,
       description: "企业数字化解决方案展览",
       location: "深圳 · 会展中心",
       startDate: daysFromNow(30),
@@ -638,15 +642,16 @@ async function main() {
     where: { slug: "innovation-summit-2025" },
     update: {
       status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.PUBLISHED,
       orgId: unifiedOrg.id,
     },
     create: {
       name: "创新活动运营峰会 2025",
       slug: "innovation-summit-2025",
       type: EventType.CONFERENCE,
+      activityType: ActivityType.CONFERENCE,
       status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.APPROVED,
+      reviewStatus: ReviewStatus.PUBLISHED,
       description: "统一组织模型下的会议活动示例",
       location: "上海 · 漕河泾",
       startDate: daysFromNow(21),

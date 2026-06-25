@@ -18,6 +18,10 @@ declare module "next-auth" {
       activeOrgType?: string | null;
       activeAdminStatus?: string | null;
 
+      /** 参展商当前展位 ID（导航用） */
+      boothId?: string | null;
+      boothEventName?: string | null;
+
       // 用户拥有的所有组织（供切换器使用，轻量摘要）
       ownedOrgs?: Array<{
         id: string;
@@ -45,6 +49,8 @@ declare module "next-auth" {
     activeOrgSlug?: string | null;
     activeOrgType?: string | null;
     activeAdminStatus?: string | null;
+    boothId?: string | null;
+    boothEventName?: string | null;
     ownedOrgs?: Array<{
       id: string;
       name: string;
@@ -68,6 +74,8 @@ declare module "next-auth/react" {
       activeOrgSlug?: string | null;
       activeOrgType?: string | null;
       activeAdminStatus?: string | null;
+      boothId?: string | null;
+      boothEventName?: string | null;
       ownedOrgs?: Array<{
         id: string;
         name: string;
@@ -91,6 +99,8 @@ declare module "next-auth/jwt" {
     activeOrgSlug?: string | null;
     activeOrgType?: string | null;
     activeAdminStatus?: string | null;
+    boothId?: string | null;
+    boothEventName?: string | null;
     ownedOrgs?: Array<{
       id: string;
       name: string;

@@ -1,3 +1,4 @@
+import { prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
@@ -15,6 +16,7 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
 
   const { event } = await requireEventAccess(eventId);
+  const review = await prisma.eventReview.findUnique({ where: { eventId } });
   const phase = getEventPhase(event);
   const { stats, feed, alerts } = await getEventDashboardData(eventId);
 
@@ -24,6 +26,13 @@ export const GET = withErrorHandler(async (_request, context) => {
       name: event.name,
       status: event.status,
       reviewStatus: event.reviewStatus,
+      review: review
+        ? {
+            status: review.status,
+            revisionNotes: review.revisionNotes,
+            rejectionReason: review.rejectionReason,
+          }
+        : null,
       startDate: event.startDate,
       endDate: event.endDate,
       location: event.location,

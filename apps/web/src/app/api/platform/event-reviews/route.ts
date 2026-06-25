@@ -1,4 +1,4 @@
-import { ReviewStatus } from "@connectiq/database";
+import { EventReviewStatus } from "@connectiq/database";
 import {
   createSuccessResponse,
   requirePlatformAdmin,
@@ -14,7 +14,7 @@ export const GET = withErrorHandler(async (request) => {
   const pageSize = Number(url.searchParams.get("pageSize") ?? 20);
 
   const status =
-    statusParam === "ALL" ? "ALL" : (statusParam as ReviewStatus);
+    statusParam === "ALL" ? "ALL" : (statusParam as EventReviewStatus);
 
   const data = await fetchPlatformEventReviews({ status, page, pageSize });
   return createSuccessResponse(data);
