@@ -165,6 +165,24 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
         </TabsList>
 
         <TabsContent value="overview" className="mt-0 space-y-6">
+      {isLive && (
+        <Link
+          href={`/events/${eventId}/live-ops`}
+          className="mb-6 flex items-center justify-between gap-4 rounded-xl border-2 border-brand-blue bg-gradient-to-r from-brand-blue to-brand-purple p-5 text-white shadow-lg transition-opacity hover:opacity-95"
+        >
+          <div>
+            <p className="text-lg font-bold">进入现场指挥中心</p>
+            <p className="mt-1 text-sm text-white/80">
+              一屏掌控签到、互动、连接与展位热度 · 实时刷新
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-green/25 px-4 py-2 text-sm font-semibold">
+            <span className="size-2 animate-pulse rounded-full bg-brand-green" />
+            LIVE
+          </span>
+        </Link>
+      )}
+
       {isLive && data?.event.startDate && (
         <div className="mb-6 rounded-xl bg-brand-green-light p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">

@@ -1,4 +1,4 @@
-import { LotteryStatus, PollStatus, PollType, SignalType, prisma } from "@connectiq/database";
+import { LotteryStatus, PollStatus, PollType, Prisma, SignalType, prisma } from "@connectiq/database";
 import { ApiError } from "@/lib/api-auth";
 import { getPollDisplayConfig } from "@/lib/bigscreen-service";
 import { enterLottery } from "@/lib/interaction/lottery-service";
@@ -41,10 +41,14 @@ export async function createInteractionSession(input: {
   name: string;
   interactions: InteractionRef[];
   boothId?: string | null;
+  exhibitorOrgId?: string | null;
+  ownerType?: "ORGANIZER" | "EXHIBITOR";
   channelType?: "QR_CODE" | "LINK" | "APP_PUSH";
+  settings?: Record<string, unknown>;
 }) {
   const sessionCode = await generateUniqueSessionCode();
   const qrUrl = await generateInteractionQR(sessionCode);
+  const isExhibitor = Boolean(input.boothId);
 
   return prisma.interactionSession.create({
     data: {
@@ -55,7 +59,10 @@ export async function createInteractionSession(input: {
       qrUrl,
       interactions: input.interactions,
       boothId: input.boothId ?? null,
+      exhibitorOrgId: input.exhibitorOrgId ?? null,
+      ownerType: input.ownerType ?? (isExhibitor ? "EXHIBITOR" : "ORGANIZER"),
       channelType: input.channelType ?? "QR_CODE",
+      settings: (input.settings ?? {}) as Prisma.InputJsonValue,
     },
     include: {
       booth: { select: { id: true, name: true, code: true } },
@@ -306,6 +313,36 @@ export async function participateInSession(
             userId,
           );
           lotteryEntries.push(entry);
+
+          const settings =
+            session.settings &&
+            typeof session.settings === "object" &&
+            !Array.isArray(session.settings)
+              ? (session.settings as Record<string, unknown>)
+              : {};
+          if (settings.requireLeadCapture === true && session.boothId) {
+            const participant = await ensureParticipantForUser(
+              session.eventId,
+              userId,
+            );
+            if (participant) {
+              const existingLead = await prisma.lead.findFirst({
+                where: {
+                  boothId: session.boothId,
+                  participantId: participant.id,
+                },
+              });
+              if (!existingLead) {
+                await prisma.lead.create({
+                  data: {
+                    boothId: session.boothId,
+                    participantId: participant.id,
+                    notes: "展位抽奖留资",
+                  },
+                });
+              }
+            }
+          }
         } catch (error) {
           if (
             error instanceof ApiError &&

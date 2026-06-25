@@ -11,8 +11,10 @@ export function getAccountAdminHomePath(
 ): string {
   switch (accountType) {
     case "EXPO_ORGANIZER":
-    case "EXHIBITOR":
     case "CONFERENCE_ORGANIZER":
+      return "/events";
+    case "EXHIBITOR":
+      return "/exhibitor/dashboard";
     default:
       return "/events";
   }

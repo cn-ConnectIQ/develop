@@ -12,26 +12,28 @@ import {
 import { createBoothInteractionSchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 
-/** @deprecated 请使用 /api/booths/[boothId]/interactions */
 export const GET = withErrorHandler(async (_request, context) => {
   const boothId = context?.params?.boothId;
   if (!boothId) {
     return createErrorResponse("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
+
   await requireBoothAccess(boothId);
   const interactions = await listBoothInteractions(boothId);
+
   return createSuccessResponse(interactions, { total: interactions.length });
 });
 
-/** @deprecated 请使用 /api/booths/[boothId]/interactions */
 export const POST = withErrorHandler(async (request, context) => {
   const boothId = context?.params?.boothId;
   if (!boothId) {
     return createErrorResponse("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
+
   const { session, booth } = await requireBoothAccess(boothId);
   const body = await request.json();
   const parsed = createBoothInteractionSchema.safeParse(body);
+
   if (!parsed.success) {
     return createErrorResponse(
       parsed.error.issues[0]?.message ?? "参数错误",
@@ -39,14 +41,21 @@ export const POST = withErrorHandler(async (request, context) => {
       400,
     );
   }
+
   if (parsed.data.kind === "lottery") {
     const disabled = await guardEventFeature(booth.eventId, "lottery");
     if (disabled) return disabled;
   }
+
   const result = await createBoothInteraction(
-    { id: booth.id, eventId: booth.eventId, companyOrgId: booth.companyOrgId },
+    {
+      id: booth.id,
+      eventId: booth.eventId,
+      companyOrgId: booth.companyOrgId,
+    },
     session,
     parsed.data,
   );
+
   return createSuccessResponse(result);
 });

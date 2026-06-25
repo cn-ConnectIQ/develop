@@ -7,6 +7,7 @@ import {
   CheckSquare,
   Cloud,
   Gift,
+  MessageSquare,
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { InteractionQRDisplay } from "@/components/interactions/InteractionQRDisplay";
-import type { BoothInteractionItem } from "@/lib/exhibitor/booth-interaction-service";
+import type { BoothInteractionItem } from "@/lib/exhibitor/booth-interaction-types";
 import { POLL_TYPE_LABELS } from "@/lib/interactions";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const typeIcons: Record<string, typeof CheckCircle> = {
   MULTI_CHOICE: CheckSquare,
   WORD_CLOUD: Cloud,
   RATING: Star,
+  QNA: MessageSquare,
   RANDOM: Gift,
 };
 
@@ -55,6 +57,7 @@ function statusBadgeClass(status: string) {
 }
 
 type BoothInteractionControlSheetProps = {
+  boothId: string;
   interaction: BoothInteractionItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,20 +65,21 @@ type BoothInteractionControlSheetProps = {
 };
 
 export function BoothInteractionControlSheet({
+  boothId,
   interaction,
   open,
   onOpenChange,
   onUpdated,
 }: BoothInteractionControlSheetProps) {
-  const updatePollStatus = useMutation({
-    mutationFn: async (status: string) => {
+  const patchInteraction = useMutation({
+    mutationFn: async (body: Record<string, unknown>) => {
       if (!interaction) return;
       const res = await fetch(
-        `/api/events/${interaction.eventId}/polls/${interaction.interactionId}`,
+        `/api/booths/${boothId}/interactions/${interaction.id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
+          body: JSON.stringify(body),
         },
       );
       if (!res.ok) throw new Error("操作失败");
@@ -86,38 +90,6 @@ export function BoothInteractionControlSheet({
     },
     onError: () => toast.error("操作失败"),
   });
-
-  const updateLotteryStatus = useMutation({
-    mutationFn: async (status: string) => {
-      if (!interaction) return;
-      const res = await fetch(
-        `/api/events/${interaction.eventId}/lotteries/${interaction.interactionId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        },
-      );
-      if (!res.ok) throw new Error("操作失败");
-    },
-    onSuccess: () => {
-      toast.success("状态已更新");
-      onUpdated();
-    },
-    onError: () => toast.error("操作失败"),
-  });
-
-  async function openLottery() {
-    if (!interaction) return;
-    try {
-      if (interaction.status === "DRAFT") {
-        await updateLotteryStatus.mutateAsync("READY");
-      }
-      await updateLotteryStatus.mutateAsync("OPEN");
-    } catch {
-      // errors handled by mutation
-    }
-  }
 
   if (!interaction) return null;
 
@@ -131,8 +103,7 @@ export function BoothInteractionControlSheet({
       ? (POLL_TYPE_LABELS[interaction.subType] ?? "投票")
       : "现场抽奖";
 
-  const isPending =
-    updatePollStatus.isPending || updateLotteryStatus.isPending;
+  const isPending = patchInteraction.isPending;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -165,12 +136,12 @@ export function BoothInteractionControlSheet({
           <p className="text-sm font-medium">状态控制</p>
           {interaction.kind === "poll" && (
             <div className="flex flex-wrap gap-2">
-              {interaction.status !== "LIVE" && (
+              {interaction.status !== "LIVE" && interaction.status !== "CLOSED" && (
                 <Button
                   size="sm"
                   className="bg-brand-amber hover:bg-brand-amber/90"
                   disabled={isPending}
-                  onClick={() => updatePollStatus.mutate("LIVE")}
+                  onClick={() => patchInteraction.mutate({ publish: true })}
                 >
                   发布
                 </Button>
@@ -180,7 +151,7 @@ export function BoothInteractionControlSheet({
                   size="sm"
                   variant="outline"
                   disabled={isPending}
-                  onClick={() => updatePollStatus.mutate("PAUSED")}
+                  onClick={() => patchInteraction.mutate({ pause: true })}
                 >
                   暂停
                 </Button>
@@ -190,7 +161,7 @@ export function BoothInteractionControlSheet({
                   size="sm"
                   variant="outline"
                   disabled={isPending}
-                  onClick={() => updatePollStatus.mutate("CLOSED")}
+                  onClick={() => patchInteraction.mutate({ close: true })}
                 >
                   结束
                 </Button>
@@ -199,12 +170,12 @@ export function BoothInteractionControlSheet({
           )}
           {interaction.kind === "lottery" && (
             <div className="flex flex-wrap gap-2">
-              {interaction.status === "DRAFT" && (
+              {(interaction.status === "DRAFT" || interaction.status === "READY") && (
                 <Button
                   size="sm"
                   className="bg-brand-amber hover:bg-brand-amber/90"
                   disabled={isPending}
-                  onClick={() => void openLottery()}
+                  onClick={() => patchInteraction.mutate({ publish: true })}
                 >
                   开放参与
                 </Button>
@@ -214,7 +185,7 @@ export function BoothInteractionControlSheet({
                   size="sm"
                   variant="outline"
                   disabled={isPending}
-                  onClick={() => updateLotteryStatus.mutate("FINISHED")}
+                  onClick={() => patchInteraction.mutate({ close: true })}
                 >
                   结束抽奖
                 </Button>

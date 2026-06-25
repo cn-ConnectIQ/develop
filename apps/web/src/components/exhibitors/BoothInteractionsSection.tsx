@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle,
@@ -13,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CreateBoothInteractionSheet } from "@/components/exhibitors/CreateBoothInteractionSheet";
 import { BoothInteractionControlSheet } from "@/components/exhibitors/BoothInteractionControlSheet";
-import type { BoothInteractionItem } from "@/lib/exhibitor/booth-interaction-service";
+import type { BoothInteractionItem } from "@/lib/exhibitor/booth-interaction-types";
 import { POLL_TYPE_LABELS } from "@/lib/interactions";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,7 @@ function statusBadgeClass(status: string) {
 }
 
 async function fetchBoothInteractions(boothId: string) {
-  const res = await fetch(`/api/exhibitor/booths/${boothId}/interactions`);
+  const res = await fetch(`/api/booths/${boothId}/interactions`);
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as BoothInteractionItem[];
 }
@@ -77,7 +78,15 @@ export function BoothInteractionsSection({ boothId }: { boothId: string }) {
 
   return (
     <section className="mt-6">
-      <h2 className="mb-3 font-semibold">我的互动</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="font-semibold">我的互动</h2>
+        <Link
+          href={`/exhibitor/booths/${boothId}/interactions`}
+          className="text-sm text-brand-amber hover:underline"
+        >
+          管理全部 →
+        </Link>
+      </div>
 
       {isLoading ? (
         <div className="rounded-xl border border-border-light bg-white p-8 text-center text-sm text-text-muted">
@@ -158,6 +167,7 @@ export function BoothInteractionsSection({ boothId }: { boothId: string }) {
       />
 
       <BoothInteractionControlSheet
+        boothId={boothId}
         interaction={controlItem}
         open={!!controlItem}
         onOpenChange={(open) => {

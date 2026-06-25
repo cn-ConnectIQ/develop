@@ -172,6 +172,12 @@ function getEventNavigationGroups(
                 icon: LayoutDashboard,
               },
               {
+                label: "现场指挥中心",
+                href: `/events/${eventId}/live-ops`,
+                icon: Monitor,
+                isNew: true,
+              },
+              {
                 label: "票务配置",
                 href: `/events/${eventId}/tickets`,
                 icon: Ticket,
@@ -540,6 +546,16 @@ function getEventNavigationGroups(
     case UserRole.EXHIBITOR:
       return [
         {
+          label: "展商工作台",
+          items: [
+            {
+              label: "聚合工作台",
+              href: "/exhibitor/dashboard",
+              icon: LayoutDashboard,
+            },
+          ],
+        },
+        {
           label: "展位概况",
           items: [
             {
@@ -551,6 +567,12 @@ function getEventNavigationGroups(
               label: "AI 主动找潜客",
               href: `/exhibitor/booths/${eventId}#ai-leads`,
               icon: Sparkles,
+              isNew: true,
+            },
+            {
+              label: "展位互动",
+              href: `/exhibitor/booths/${eventId}/interactions`,
+              icon: MessageSquare,
               isNew: true,
             },
           ],

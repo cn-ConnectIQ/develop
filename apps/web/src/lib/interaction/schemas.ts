@@ -77,10 +77,11 @@ export const createBoothInteractionSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("poll"),
     title: z.string().min(1).max(200),
-    type: z.enum(["SINGLE_CHOICE", "MULTI_CHOICE", "WORD_CLOUD", "RATING"]),
+    type: z.enum(["SINGLE_CHOICE", "MULTI_CHOICE", "WORD_CLOUD", "RATING", "QNA"]),
     options: z.array(z.string().min(1)).optional(),
-    publish_immediately: z.boolean().default(true),
+    publish_immediately: z.boolean().default(false),
     time_limit_minutes: z.number().int().min(1).max(120).optional(),
+    qna_moderation: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("lottery"),
@@ -88,9 +89,18 @@ export const createBoothInteractionSchema = z.discriminatedUnion("kind", [
     type: z.nativeEnum(LotteryType).optional(),
     prizes: z.array(lotteryPrizeSchema).default([]),
     winner_count: z.number().int().positive().optional(),
-    publish_immediately: z.boolean().default(true),
+    publish_immediately: z.boolean().default(false),
+    require_lead_capture: z.boolean().optional(),
   }),
 ]);
+
+export const patchBoothInteractionSchema = z.object({
+  publish: z.boolean().optional(),
+  pause: z.boolean().optional(),
+  close: z.boolean().optional(),
+  is_active: z.boolean().optional(),
+  title: z.string().min(1).max(200).optional(),
+});
 
 export const regenerateBoothInteractionQrSchema = z.object({
   session_id: z.string().cuid(),
@@ -100,4 +110,7 @@ export type LotteryPrizeConfig = z.infer<typeof lotteryPrizeSchema>;
 export type InteractionRef = z.infer<typeof interactionRefSchema>;
 export type CreateBoothInteractionInput = z.infer<
   typeof createBoothInteractionSchema
+>;
+export type PatchBoothInteractionInput = z.infer<
+  typeof patchBoothInteractionSchema
 >;

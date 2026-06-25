@@ -81,6 +81,6 @@ export const POST = withErrorHandler(async (request, context) => {
     session_code: created.sessionCode,
     qr_url: created.qrUrl,
     scanUrl: `${getAppBaseUrl()}/i/${created.sessionCode}`,
-    booth: created.booth,
+    booth: "booth" in created ? created.booth : null,
   });
 });

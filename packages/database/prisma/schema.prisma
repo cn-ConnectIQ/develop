@@ -301,6 +301,11 @@ enum InteractionChannelType {
   APP_PUSH
 }
 
+enum InteractionOwnerType {
+  ORGANIZER
+  EXHIBITOR
+}
+
 // 用户类型（区分三层角色）
 enum UserType {
   END_USER // 移动端最终用户（参会者/买家/B2B专业人士）
@@ -765,7 +770,7 @@ model ExhibitorBooth {
   bookings            BoothBooking[]
   leads               Lead[]
   lotteries           Lottery[]
-  interactionSessions InteractionSession[]
+  interactionSessions InteractionSession[] @relation("BoothInteraction")
   stampRecords        StampRecord[]
   connections         BusinessConnection[] @relation("BoothConnection")
 
@@ -1200,12 +1205,15 @@ model LotteryWinner {
 model InteractionSession {
   id               String                 @id @default(cuid())
   eventId          String                 @map("event_id")
+  ownerType        InteractionOwnerType   @default(ORGANIZER) @map("owner_type")
   boothId          String?                @map("booth_id")
+  exhibitorOrgId   String?                @map("exhibitor_org_id")
   createdById      String                 @map("created_by")
   name             String
   sessionCode      String                 @unique @map("session_code")
   qrUrl            String?                @map("qr_url")
   interactions     Json                   @default("[]")
+  settings         Json                   @default("{}")
   channelType      InteractionChannelType @default(QR_CODE) @map("channel_type")
   isActive         Boolean                @default(true) @map("is_active")
   scanCount        Int                    @default(0) @map("scan_count")
@@ -1214,10 +1222,11 @@ model InteractionSession {
   updatedAt        DateTime               @updatedAt @map("updated_at")
 
   event   Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  booth   ExhibitorBooth? @relation(fields: [boothId], references: [id], onDelete: SetNull)
+  booth   ExhibitorBooth? @relation("BoothInteraction", fields: [boothId], references: [id], onDelete: Cascade)
   creator User            @relation("InteractionSessionCreator", fields: [createdById], references: [id])
 
   @@index([eventId])
+  @@index([boothId])
   @@index([sessionCode])
   @@map("interaction_sessions")
 }

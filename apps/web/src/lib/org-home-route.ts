@@ -11,7 +11,7 @@ export function getOrgHomeRouteByAccountType(accountType: string): string {
     ORGANIZATION: "/events",
     CONFERENCE_ORGANIZER: "/events",
     EXPO_ORGANIZER: "/events",
-    EXHIBITOR: "/events",
+    EXHIBITOR: "/exhibitor/dashboard",
   };
   return routes[accountType] ?? "/events";
 }
@@ -31,12 +31,7 @@ export async function resolveOrgHomeRoute(
       return event ? `/expos/${event.id}` : "/events";
     }
     case AccountType.EXHIBITOR: {
-      const booth = await db.exhibitorBooth.findFirst({
-        where: { companyOrgId: orgId },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      });
-      return booth ? `/exhibitor/booths/${booth.id}` : "/events";
+      return "/exhibitor/dashboard";
     }
     case AccountType.ORGANIZATION:
     case AccountType.CONFERENCE_ORGANIZER:
