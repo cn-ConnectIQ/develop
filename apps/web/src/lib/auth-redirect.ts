@@ -6,18 +6,10 @@ const ROLE_COOKIE_ADMIN_STATUS = "next-auth.admin-status";
 export { ROLE_COOKIE_USER_TYPE, ROLE_COOKIE_ADMIN_STATUS };
 
 export function getAccountAdminHomePath(
-  accountType: string | null | undefined,
+  _accountType?: string | null,
   _orgId?: string | null,
 ): string {
-  switch (accountType) {
-    case "EXPO_ORGANIZER":
-    case "CONFERENCE_ORGANIZER":
-      return "/events";
-    case "EXHIBITOR":
-      return "/exhibitor/dashboard";
-    default:
-      return "/events";
-  }
+  return "/events";
 }
 
 function resolveApprovedAdminStatus(user: Session["user"]): string | null {

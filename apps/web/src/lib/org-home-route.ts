@@ -1,42 +1,13 @@
-import {
-  AccountType,
-  EventType,
-  prisma,
-  type Prisma,
-} from "@connectiq/database";
+import type { AccountType } from "@connectiq/database";
 
-/** 账号管理员切换组织后的默认首页 */
-export function getOrgHomeRouteByAccountType(accountType: string): string {
-  const routes: Record<string, string> = {
-    ORGANIZATION: "/events",
-    CONFERENCE_ORGANIZER: "/events",
-    EXPO_ORGANIZER: "/events",
-    EXHIBITOR: "/exhibitor/dashboard",
-  };
-  return routes[accountType] ?? "/events";
+/** 账号管理员登录后默认进入活动列表 */
+export function getOrgHomeRouteByAccountType(_accountType?: string): string {
+  return "/events";
 }
 
 export async function resolveOrgHomeRoute(
-  orgId: string,
-  accountType: AccountType | null,
-  db: Prisma.TransactionClient | typeof prisma = prisma,
+  _orgId: string,
+  _accountType?: AccountType | null,
 ): Promise<string> {
-  const resolvedType = accountType ?? AccountType.ORGANIZATION;
-  switch (resolvedType) {
-    case AccountType.EXPO_ORGANIZER: {
-      const event = await db.event.findFirst({
-        where: { orgId, type: EventType.EXPO },
-        orderBy: { startDate: "desc" },
-        select: { id: true },
-      });
-      return event ? `/expos/${event.id}` : "/events";
-    }
-    case AccountType.EXHIBITOR: {
-      return "/exhibitor/dashboard";
-    }
-    case AccountType.ORGANIZATION:
-    case AccountType.CONFERENCE_ORGANIZER:
-    default:
-      return "/events";
-  }
+  return "/events";
 }

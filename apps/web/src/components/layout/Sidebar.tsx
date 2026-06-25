@@ -22,6 +22,7 @@ import {
   getPlatformHomeLabel,
   isNavItemActive,
 } from "@/lib/nav-context";
+import { resolveEventNavRole, resolvePlatformNavRole } from "@/lib/nav-role";
 import { getRoleTheme } from "@/lib/role-theme";
 import {
   getOrgLogoGradient,
@@ -254,60 +255,59 @@ export function Sidebar({
   }, [pathname]);
 
   const role = user.role as UserRole;
+  const userType = session?.user?.userType;
   const navMode = getAdminNavMode(pathname);
   const hasPlatformAdmin = user.hasPlatformAdmin ?? role === "PLATFORM_ADMIN";
-  const navRole =
-    navMode === "platform" && hasPlatformAdmin
-      ? UserRole.PLATFORM_ADMIN
-      : role;
-  const theme = getRoleTheme(role);
+  const navRole = resolvePlatformNavRole(userType, role);
+  const isExhibitorRoute = pathname.startsWith("/exhibitor");
+  const eventNavRole = resolveEventNavRole({
+    activityType,
+    eventType,
+    isExhibitorRoute,
+  });
+  const theme = getRoleTheme(navRole);
   const sidebarActiveClass = getOrgSidebarActiveClass(
-    session?.user?.activeOrgType,
+    session?.user?.userType === "ACCOUNT_ADMIN" ? "ORGANIZATION" : session?.user?.activeOrgType,
     session?.user?.userType ?? (role === UserRole.PLATFORM_ADMIN ? "PLATFORM_ADMIN" : undefined),
   );
   const logoGradient =
-    session?.user?.userType === "ACCOUNT_ADMIN" && session.user.activeOrgType
-      ? getOrgLogoGradient(session.user.activeOrgType)
+    session?.user?.userType === "ACCOUNT_ADMIN"
+      ? getOrgLogoGradient("ORGANIZATION")
       : theme.logoGradient;
 
-  const exhibitorBoothId =
-    role === UserRole.EXHIBITOR
-      ? (session?.user?.boothId ??
-        user.entityId ??
-        extractEventIdFromPath(pathname))
-      : null;
+  const exhibitorBoothId = isExhibitorRoute
+    ? (session?.user?.boothId ??
+      user.entityId ??
+      extractEventIdFromPath(pathname))
+    : null;
 
   const resolvedEventId =
-    navMode === "event"
+    navMode === "event" && !isExhibitorRoute
       ? (eventId ?? extractEventIdFromPath(pathname))
       : null;
 
-  const resolvedBoothId =
-    role === UserRole.EXHIBITOR
-      ? (exhibitorBoothId ?? resolvedEventId)
-      : null;
-
   const navContextId =
-    role === UserRole.EXHIBITOR ? resolvedBoothId : resolvedEventId;
+    eventNavRole === UserRole.EXHIBITOR
+      ? (exhibitorBoothId ?? resolvedEventId)
+      : resolvedEventId;
 
   const { data: featureFlags } = useEventFeatureFlags(
-    role === UserRole.EXHIBITOR ? null : resolvedEventId,
+    eventNavRole === UserRole.EXHIBITOR ? null : resolvedEventId,
   );
 
   const platformGroups = getPlatformNavigation(navRole);
-  const eventNav =
-    navContextId
-      ? getEventNavigation(
-          role,
-          navContextId,
-          eventType,
-          role === UserRole.EXHIBITOR
-            ? (session?.user?.boothEventName ?? eventName)
-            : eventName,
-          featureFlags,
-          activityType,
-        )
-      : [];
+  const eventNav = navContextId
+    ? getEventNavigation(
+        eventNavRole,
+        navContextId,
+        eventType,
+        eventNavRole === UserRole.EXHIBITOR
+          ? (session?.user?.boothEventName ?? eventName)
+          : eventName,
+        featureFlags,
+        activityType,
+      )
+    : [];
 
   const aiOpsGroups =
     navMode === "platform" &&
@@ -318,19 +318,18 @@ export function Sidebar({
 
   const showEventContext =
     navMode === "event" &&
-    (role === UserRole.PLATFORM_ADMIN ||
-      role === UserRole.ORGANIZER ||
-      role === UserRole.EXPO_ORGANIZER);
+    !isExhibitorRoute &&
+    (navRole === UserRole.PLATFORM_ADMIN || userType === "ACCOUNT_ADMIN");
 
   const showPlatformBack =
     navMode === "event" &&
-    (role === UserRole.PLATFORM_ADMIN ||
-      role === UserRole.EXPO_ORGANIZER ||
-      (role === UserRole.ORGANIZER && hasPlatformAdmin));
+    (navRole === UserRole.PLATFORM_ADMIN ||
+      eventNavRole === UserRole.EXPO_ORGANIZER ||
+      (eventNavRole === UserRole.ORGANIZER && hasPlatformAdmin));
 
   const visibleGroups =
     navMode === "platform"
-      ? role === UserRole.EXHIBITOR
+      ? isExhibitorRoute && eventNav.length > 0
         ? eventNav
         : [...platformGroups, ...aiOpsGroups]
       : eventNav;
@@ -461,9 +460,11 @@ export function Sidebar({
                 {user.name}
               </p>
               <p className="truncate text-[11px] text-white/45">
-                {role === UserRole.EXHIBITOR && eventName
-                  ? eventName
-                  : getRoleLabel(role)}
+                {userType === "ACCOUNT_ADMIN"
+                  ? "账号管理员"
+                  : eventNavRole === UserRole.EXHIBITOR && eventName
+                    ? eventName
+                    : getRoleLabel(navRole)}
               </p>
             </div>
             <Button

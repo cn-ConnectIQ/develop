@@ -30,7 +30,7 @@ export default function ForbiddenPage() {
           如果你是参会者或最终用户，请使用微信小程序
         </p>
         <p className="mt-3 text-xs text-text-tertiary">
-          请使用管理员测试账号重新登录（003 展览主办方 / 密码 ConnectIQ2024!）
+          请使用账号管理员测试账号重新登录（13800000008 / 密码 ConnectIQ2024!）
         </p>
         <Link
           href="#"

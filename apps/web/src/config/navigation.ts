@@ -684,7 +684,7 @@ export function getRoleLabel(role: UserRole) {
     case UserRole.PLATFORM_ADMIN:
       return "平台管理员";
     case UserRole.ORGANIZER:
-      return "活动主办方";
+      return "账号管理员";
     case UserRole.EXPO_ORGANIZER:
       return "展览主办方";
     case UserRole.EXHIBITOR:

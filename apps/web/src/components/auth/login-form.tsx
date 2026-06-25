@@ -45,27 +45,33 @@ type PhoneFormValues = z.infer<typeof phoneSchema>;
 type EmailFormValues = z.infer<typeof emailSchema>;
 
 const TEST_ACCOUNT_OPTIONS = [
-  { key: "platformAdmin", label: "001 平台管理员", account: SEED_TEST_ACCOUNTS.platformAdmin },
-  { key: "conferenceOrganizer", label: "002 会议主办方", account: SEED_TEST_ACCOUNTS.conferenceOrganizer },
-  { key: "expoOrganizer", label: "003 展览主办方", account: SEED_TEST_ACCOUNTS.expoOrganizer },
-  { key: "exhibitor", label: "004 参展商", account: SEED_TEST_ACCOUNTS.exhibitor },
+  {
+    key: "platformAdmin",
+    label: "平台管理员",
+    account: SEED_TEST_ACCOUNTS.platformAdmin,
+  },
+  {
+    key: "accountAdmin",
+    label: "账号管理员",
+    account: SEED_TEST_ACCOUNTS.accountAdmin,
+  },
 ] as const;
 
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
   const [selectedAccount, setSelectedAccount] =
-    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("conferenceOrganizer");
+    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("accountAdmin");
 
   const phoneForm = useForm<PhoneFormValues>({
     resolver: zodResolver(phoneSchema),
-    defaultValues: { phone: SEED_TEST_ACCOUNTS.conferenceOrganizer.phone, code: "" },
+    defaultValues: { phone: SEED_TEST_ACCOUNTS.accountAdmin.phone, code: "" },
   });
 
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
     defaultValues: {
-      email: SEED_TEST_ACCOUNTS.conferenceOrganizer.email,
+      email: SEED_TEST_ACCOUNTS.accountAdmin.email,
       password: SEED_PASSWORD,
     },
   });

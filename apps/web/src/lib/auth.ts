@@ -67,21 +67,17 @@ function toOwnedOrgSummary(org: {
 function toLegacyRole(
   userType: PrismaUserType,
   activeOrgType: string | null | undefined,
+  boothId?: string | null,
 ): AppUserRole {
   if (userType === PrismaUserType.PLATFORM_ADMIN) {
     return PrismaUserRole.PLATFORM_ADMIN as AppUserRole;
   }
   if (userType === PrismaUserType.ACCOUNT_ADMIN) {
-    switch (activeOrgType) {
-      case "EXPO_ORGANIZER":
-        return PrismaUserRole.EXPO_ORGANIZER as AppUserRole;
-      case "EXHIBITOR":
-        return PrismaUserRole.EXHIBITOR as AppUserRole;
-      case "ORGANIZATION":
-      case "CONFERENCE_ORGANIZER":
-      default:
-        return PrismaUserRole.ORGANIZER as AppUserRole;
+    // 兼容旧 seed：纯展商组织仍映射 EXHIBITOR；统一账号默认为 ORGANIZER
+    if (activeOrgType === "EXHIBITOR" && boothId) {
+      return PrismaUserRole.EXHIBITOR as AppUserRole;
     }
+    return PrismaUserRole.ORGANIZER as AppUserRole;
   }
   return PrismaUserRole.ORGANIZER as AppUserRole;
 }
@@ -95,7 +91,7 @@ function syncLegacyTokenFields(token: {
   entityId?: string | null;
 }) {
   const userType = token.userType ?? PrismaUserType.END_USER;
-  token.role = toLegacyRole(userType, token.activeOrgType);
+  token.role = toLegacyRole(userType, token.activeOrgType, token.boothId);
   if (
     token.role === (PrismaUserRole.EXHIBITOR as AppUserRole) &&
     token.boothId
@@ -153,7 +149,7 @@ async function hydrateAccountAdminToken(userId: string) {
 
   let boothId: string | null = null;
   let boothEventName: string | null = null;
-  if (activeOrgType === "EXHIBITOR" && activeOrgId) {
+  if (activeOrgId) {
     const booth = await resolveExhibitorBooth(activeOrgId);
     boothId = booth?.id ?? null;
     boothEventName = booth?.eventName ?? null;
@@ -364,6 +360,7 @@ export const authOptions: NextAuthOptions = {
       session.user.role = toLegacyRole(
         userType,
         token.activeOrgType as string | null,
+        token.boothId as string | null,
       );
       session.user.entityId =
         userType === PrismaUserType.ACCOUNT_ADMIN &&

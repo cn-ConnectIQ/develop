@@ -1,5 +1,4 @@
 import {
-  AccountType,
   ActivityType,
   prisma,
   PrismaUserRole,
@@ -344,27 +343,8 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   const activeOrgType = session.user.activeOrgType;
-  if (
-    activeOrgType === AccountType.EXPO_ORGANIZER &&
-    data.type !== EventType.EXPO
-  ) {
-    return createErrorResponse(
-      "展览主办方只能创建展会类型活动",
-      ErrorCode.VALIDATION_ERROR,
-      400,
-    );
-  }
-  if (
-    activeOrgType === AccountType.CONFERENCE_ORGANIZER &&
-    data.type === EventType.EXPO
-  ) {
-    return createErrorResponse(
-      "会议主办方不能创建展会类型活动",
-      ErrorCode.VALIDATION_ERROR,
-      400,
-    );
-  }
-  // ORGANIZATION 及平台管理员：可创建任意类型活动
+  // 统一账号模型：已审核组织可创建任意类型活动（由 activityType 区分能力）
+  void activeOrgType;
 
   const activityType =
     data.type === EventType.EXPO ? ActivityType.EXPO : ActivityType.CONFERENCE;
