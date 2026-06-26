@@ -6,6 +6,7 @@ import {
 } from "@connectiq/database";
 import { getEventPhase } from "@/lib/event-utils";
 import { getBoothRankings } from "@/lib/booth-rankings-service";
+import { LIVE_STATS_REALTIME_TABLES } from "@/lib/realtime/channels";
 import type { InteractionRef } from "@/lib/interaction/schemas";
 import { buildHourlyBuckets, calcCheckinRate } from "@/lib/checkin";
 
@@ -86,6 +87,8 @@ export type LiveOpsPayload = {
   realtime: {
     tables: string[];
     event_id: string;
+    aggregate_channel: string;
+    poll_fallback: string;
   };
 };
 
@@ -352,14 +355,10 @@ export async function getLiveOpsData(eventId: string): Promise<LiveOpsPayload> {
       })),
     },
     realtime: {
-      tables: [
-        "check_ins",
-        "participants",
-        "business_connections",
-        "interaction_sessions",
-        "leads",
-      ],
+      tables: [...LIVE_STATS_REALTIME_TABLES],
       event_id: eventId,
+      aggregate_channel: `event:${eventId}:live-stats`,
+      poll_fallback: `/api/events/${eventId}/live-stats`,
     },
   };
 }

@@ -9,6 +9,9 @@ import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { getOrCreateContactCard } from "@/lib/contact-card-service";
 import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
+import { code2Session } from "@/lib/wechat/auth";
+import { getWxMiniCredentials } from "@/lib/wechat/config";
+import { getWechatAccessToken } from "@/lib/wechat/access-token";
 
 export type MiniLoginUserPayload = {
   id: string;
@@ -79,45 +82,12 @@ async function findUserByPhone(phone: string) {
 }
 
 async function exchangeWxCode(code: string): Promise<{ openid: string }> {
-  const appId = process.env.WECHAT_MINI_APP_ID;
-  const secret = process.env.WECHAT_MINI_APP_SECRET;
-
-  if (!appId || !secret) {
-    if (process.env.NODE_ENV === "development") {
-      // wx.login code 一次性；开发环境用稳定 openid，保证同一测试用户 id 不变
-      if (code.startsWith("test_openid:")) {
-        return { openid: code.slice("test_openid:".length) };
-      }
-      return { openid: "dev-openid-default" };
-    }
-    throw new ApiError("微信登录未配置", ErrorCode.INTERNAL_ERROR, 500);
-  }
-
-  const url = new URL("https://api.weixin.qq.com/sns/jscode2session");
-  url.searchParams.set("appid", appId);
-  url.searchParams.set("secret", secret);
-  url.searchParams.set("js_code", code);
-  url.searchParams.set("grant_type", "authorization_code");
-
-  const res = await fetch(url);
-  const data = (await res.json()) as {
-    openid?: string;
-    errcode?: number;
-    errmsg?: string;
-  };
-
-  if (!data.openid) {
-    throw new ApiError(data.errmsg ?? "微信登录失败", ErrorCode.VALIDATION_ERROR, 400);
-  }
-
-  return { openid: data.openid };
+  const { openid } = await code2Session(code);
+  return { openid };
 }
 
 async function exchangePhoneCode(phoneCode: string): Promise<string> {
-  const appId = process.env.WECHAT_MINI_APP_ID;
-  const secret = process.env.WECHAT_MINI_APP_SECRET;
-
-  if (!appId || !secret) {
+  if (!getWxMiniCredentials()) {
     if (process.env.NODE_ENV === "development") {
       const demo = await prisma.user.findFirst({
         where: { phone: "13800138000" },
@@ -125,19 +95,12 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
       });
       return demo?.phone ?? "13800138000";
     }
-    throw new ApiError("微信手机号授权未配置", ErrorCode.INTERNAL_ERROR, 500);
+    throw new ApiError("微信手机号授权未配置", ErrorCode.WECHAT_NOT_CONFIGURED, 500);
   }
 
-  const tokenRes = await fetch(
-    `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${appId}&secret=${secret}`,
-  );
-  const tokenData = (await tokenRes.json()) as { access_token?: string };
-  if (!tokenData.access_token) {
-    throw new ApiError("获取微信 access_token 失败", ErrorCode.INTERNAL_ERROR, 500);
-  }
-
+  const accessToken = await getWechatAccessToken();
   const phoneRes = await fetch(
-    `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${tokenData.access_token}`,
+    `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${accessToken}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -146,6 +109,7 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
   );
   const phoneData = (await phoneRes.json()) as {
     phone_info?: { purePhoneNumber?: string; phoneNumber?: string };
+    errcode?: number;
     errmsg?: string;
   };
 

@@ -41,7 +41,7 @@ export async function grantLotteryWinPoints(
 
 export async function sendLotteryWinNotification(
   winners: Array<{ id: string; userId: string; prizeName: string }>,
-  lottery: Pick<Lottery, "title">,
+  lottery: Pick<Lottery, "id" | "title">,
 ) {
   if (winners.length === 0) return;
 
@@ -58,4 +58,14 @@ export async function sendLotteryWinNotification(
       data: { notified: true },
     }),
   ]);
+
+  const { sendLotteryResultSubscribe } = await import("@/lib/wechat/subscribe-message");
+  for (const winner of winners) {
+    void sendLotteryResultSubscribe({
+      toUserId: winner.userId,
+      lotteryTitle: lottery.title,
+      prizeName: winner.prizeName,
+      lotteryId: lottery.id,
+    });
+  }
 }

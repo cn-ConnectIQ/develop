@@ -1,6 +1,14 @@
-import { prisma } from "@connectiq/database";
+import {
+  AdminStatus,
+  UserType as PrismaUserType,
+  prisma,
+} from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
-import { ApiError, requireAuth } from "@/lib/api-auth";
+import { ApiError, requireAccountAdmin, requireAuth } from "@/lib/api-auth";
+
+export type MobileAuthResult = { userId: string };
+
+export type MobileAccountAdminResult = { userId: string; orgId: string };
 
 /** 解析小程序 Bearer：dev-mock-token / mini_{userId}_* */
 export async function resolveMiniBearerUserId(token: string): Promise<string | null> {
@@ -49,4 +57,47 @@ export async function resolveMobileUserId(request: Request): Promise<string> {
   if (userId) return userId;
 
   throw new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
+}
+
+/** 小程序 / 移动端鉴权（session 或 mini_ token） */
+export async function requireMobileAuth(request: Request): Promise<MobileAuthResult> {
+  const userId = await resolveMobileUserId(request);
+  return { userId };
+}
+
+/** 移动端账号管理员鉴权（session 或 mini_ token + ACCOUNT_ADMIN） */
+export async function requireMobileAccountAdmin(
+  request: Request,
+): Promise<MobileAccountAdminResult> {
+  const sessionResult = await requireAccountAdmin();
+  if (!("error" in sessionResult)) {
+    return {
+      userId: sessionResult.session.user.id,
+      orgId: sessionResult.orgId,
+    };
+  }
+
+  const userId = await resolveMobileUserId(request);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      userType: true,
+      org: { select: { id: true, adminStatus: true } },
+      ownedOrg: { select: { id: true, adminStatus: true } },
+    },
+  });
+
+  if (!user || user.userType !== PrismaUserType.ACCOUNT_ADMIN) {
+    throw new ApiError("仅账号管理员可访问", ErrorCode.FORBIDDEN, 403);
+  }
+
+  const org = user.org ?? user.ownedOrg;
+  if (!org) {
+    throw new ApiError("账号未关联组织", ErrorCode.FORBIDDEN, 403);
+  }
+  if (org.adminStatus !== AdminStatus.APPROVED) {
+    throw new ApiError("账号尚未审核通过", ErrorCode.FORBIDDEN, 403);
+  }
+
+  return { userId, orgId: org.id };
 }

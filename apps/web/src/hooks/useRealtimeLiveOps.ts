@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { subscribeEventLiveStats } from "@/lib/realtime/subscribe-live-stats";
 
 type UseRealtimeLiveOpsOptions = {
   eventId: string;
@@ -10,7 +10,9 @@ type UseRealtimeLiveOpsOptions = {
 };
 
 /**
- * 订阅现场指挥中心相关表变更；未配置 Supabase 时静默降级（依赖轮询）。
+ * 订阅现场指挥中心 / AD 实时概览相关表变更。
+ * 频道约定：`event:{eventId}:live-stats`（见 `@/lib/realtime/channels`）
+ * 未配置 Supabase 时静默降级，依赖 `live-ops` / `live-stats` 轮询。
  */
 export function useRealtimeLiveOps({
   eventId,
@@ -23,64 +25,10 @@ export function useRealtimeLiveOps({
   useEffect(() => {
     if (!enabled || !eventId) return;
 
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
+    const unsubscribe = subscribeEventLiveStats(eventId, () => {
+      callbackRef.current();
+    });
 
-    const channel = supabase
-      .channel(`live-ops-${eventId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "check_ins",
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => callbackRef.current(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "participants",
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => callbackRef.current(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "business_connections",
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => callbackRef.current(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "interaction_sessions",
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => callbackRef.current(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "leads",
-        },
-        () => callbackRef.current(),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    return unsubscribe ?? undefined;
   }, [eventId, enabled]);
 }

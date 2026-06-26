@@ -56,6 +56,7 @@ export const POST = withErrorHandler(async (request) => {
       parsed.data.target_user_id,
       fromUser.name,
       event?.name,
+      result.request_id ?? result.requestId,
     );
   }
 

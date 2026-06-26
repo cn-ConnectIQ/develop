@@ -288,27 +288,34 @@ async function notifyExchangeAccepted(
   fromUserId: string,
   accepterName: string,
   eventName?: string,
+  requestId?: string,
 ) {
-  void fromUserId;
-  void accepterName;
-  void eventName;
-  // 微信订阅消息：{name} 已同意交换微信（EXCHANGE_RESULT 模板）
+  const { sendExchangeResultSubscribe } = await import("@/lib/wechat/subscribe-message");
+  void sendExchangeResultSubscribe({
+    toUserId: fromUserId,
+    accepterName,
+    eventName,
+    requestId,
+  });
 }
 
 async function notifyExchangeDeclined(fromUserId: string) {
   void fromUserId;
-  // 微信订阅消息：交换请求暂未通过（中性文案）
 }
 
 async function notifyIncomingExchangeRequest(
   toUserId: string,
   fromName: string,
   eventName?: string,
+  requestId?: string,
 ) {
-  void toUserId;
-  void fromName;
-  void eventName;
-  // 微信订阅消息：{name} 在 {event} 想与你交换微信
+  const { sendExchangeRequestSubscribe } = await import("@/lib/wechat/subscribe-message");
+  void sendExchangeRequestSubscribe({
+    toUserId,
+    fromName,
+    eventName,
+    requestId,
+  });
 }
 
 export async function acceptExchangeRequest(
@@ -368,8 +375,9 @@ export async function acceptExchangeRequest(
 
   await notifyExchangeAccepted(
     request.fromUserId,
-    request.fromUser.name,
+    request.toUser.name,
     request.event?.name,
+    requestId,
   );
 
   return result;

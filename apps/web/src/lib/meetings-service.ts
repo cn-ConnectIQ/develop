@@ -116,6 +116,27 @@ export async function bookMeeting(input: {
     });
   }
 
+  const [requester, event] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: input.requesterId },
+      select: { name: true },
+    }),
+    prisma.event.findUnique({
+      where: { id: input.eventId },
+      select: { name: true },
+    }),
+  ]);
+  if (requester && event) {
+    const { sendMeetingInviteSubscribe } = await import("@/lib/wechat/subscribe-message");
+    void sendMeetingInviteSubscribe({
+      toUserId: input.recipientId,
+      requesterName: requester.name,
+      eventName: event.name,
+      scheduledAt: finalMeeting.scheduledStart ?? input.startsAt,
+      meetingId: finalMeeting.id,
+    });
+  }
+
   return finalMeeting;
 }
 
