@@ -93,7 +93,13 @@ function getEventHomeHref(
   event: EventListItem,
   role: string | undefined,
 ): string {
+  if (event.listRole === "EXHIBITOR" && event.boothId) {
+    return `/exhibitor/booths/${event.boothId}`;
+  }
   if (role === UserRole.EXPO_ORGANIZER && event.type === "EXPO") {
+    return `/expos/${event.id}`;
+  }
+  if (event.type === "EXPO" && event.activityType === "EXPO") {
     return `/expos/${event.id}`;
   }
   return `/events/${event.id}`;
@@ -105,6 +111,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
   const refetch = useEventsMutationRefetch();
   const { data: session } = useSession();
   const eventHomeHref = getEventHomeHref(event, session?.user?.role);
+  const isExhibitorListItem = event.listRole === "EXHIBITOR";
 
   const reviewStatus = event.review?.status ?? event.reviewStatus ?? "DRAFT";
   const isPendingReview = reviewStatus === "PENDING_REVIEW";
@@ -214,6 +221,16 @@ export function EventCard({ event, onEdit }: EventCardProps) {
             >
               {event.name}
             </Link>
+            {event.listRole === "HOST" && event.type === "EXPO" && (
+              <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green">
+                主办
+              </span>
+            )}
+            {isExhibitorListItem && (
+              <span className="rounded-full bg-brand-blue-light px-2 py-0.5 text-xs font-medium text-brand-blue">
+                参展
+              </span>
+            )}
             {(isPendingReview || isRevisionRequired || isRejected) && (
               <ReviewStatusBadge status={reviewStatus} />
             )}
@@ -227,6 +244,12 @@ export function EventCard({ event, onEdit }: EventCardProps) {
             )}
             {event.location ? ` · ${event.location}` : ""}
           </p>
+
+          {isExhibitorListItem && event.boothCode && (
+            <p className="mt-1 text-xs text-text-muted">
+              展位 {event.boothCode} · 点击进入展商工作台
+            </p>
+          )}
 
           {isPendingReview && (
             <p className="mt-1 text-xs text-text-muted">
@@ -281,10 +304,21 @@ export function EventCard({ event, onEdit }: EventCardProps) {
 
         {phase !== "ended" && !isPendingReview && !isRevisionRequired && !isRejected && (
           <div className="hidden shrink-0 text-right sm:block">
-            <p className="text-2xl font-bold text-brand-blue">
-              {event._count.participants}
-            </p>
-            <p className="text-xs text-text-muted">报名人数</p>
+            {isExhibitorListItem ? (
+              <>
+                <p className="text-2xl font-bold text-brand-blue">
+                  {event.boothCode ?? "—"}
+                </p>
+                <p className="text-xs text-text-muted">我的展位</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-brand-blue">
+                  {event._count.participants}
+                </p>
+                <p className="text-xs text-text-muted">报名人数</p>
+              </>
+            )}
           </div>
         )}
 
@@ -359,9 +393,9 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                   }}
                 >
                   <Pencil className="size-4" />
-                  进入工作台
+                  {isExhibitorListItem ? "进入展位工作台" : "进入工作台"}
                 </DropdownMenuItem>
-                {phase === "draft" && !isPendingReview && (
+                {!isExhibitorListItem && phase === "draft" && !isPendingReview && (
                   <>
                     <DropdownMenuItem
                       disabled={isPendingReview}
@@ -388,7 +422,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                     </DropdownMenuItem>
                   </>
                 )}
-                {phase !== "draft" && (
+                {phase !== "draft" && !isExhibitorListItem && (
                   <DropdownMenuItem
                     onClick={() => {
                       window.location.href = `/events/${event.id}/participants`;

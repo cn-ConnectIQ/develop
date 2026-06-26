@@ -9,9 +9,11 @@ import {
   EventType,
   IntentCategory,
   InviteStatus,
+  LeadStatus,
   MemberTier,
   OrgJoinSource,
   OrgStaffRole,
+  ParticipantInviteStatus,
   ReviewStatus,
   SignalType,
   StampRallyStatus,
@@ -21,6 +23,7 @@ import {
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/client";
+import { seedInteractionDemoData } from "./seed-interactions";
 
 const SEED_PASSWORD = "ConnectIQ2024!";
 
@@ -67,6 +70,7 @@ const SEED_EVENT_SLUGS = [
   "product-growth-salon-beijing",
   "enterprise-digital-expo-2025",
   "innovation-summit-2025",
+  "smart-link-industry-expo-2026",
   // 旧版 seed 兼容清理
   "product-salon-2025",
   "connectiq-summit-2026",
@@ -661,13 +665,299 @@ async function main() {
     },
   });
 
+  const hostedExpoEvent = await prisma.event.upsert({
+    where: { slug: "smart-link-industry-expo-2026" },
+    update: {
+      status: EventStatus.LIVE,
+      reviewStatus: ReviewStatus.LIVE,
+      orgId: unifiedOrg.id,
+    },
+    create: {
+      name: "智链未来产业博览会 2026",
+      slug: "smart-link-industry-expo-2026",
+      type: EventType.EXPO,
+      activityType: ActivityType.EXPO,
+      status: EventStatus.LIVE,
+      reviewStatus: ReviewStatus.LIVE,
+      description:
+        "ConnectIQ 创新中心主办的 B2B 产业展会，覆盖智能制造、企业服务与 MarTech 三大展区",
+      location: "上海 · 国家会展中心（虹桥）",
+      startDate: daysAgo(1),
+      endDate: daysFromNow(2),
+      organizerId: unifiedAdmin.id,
+      orgId: unifiedOrg.id,
+      settings: { create: { key: "event_category", value: "EXPO" } },
+    },
+  });
+
+  const hostedExpoHall = await prisma.expoHall.upsert({
+    where: { id: "seed-hall-smart-link-expo" },
+    update: { name: "1 号馆 · 智链主展", floor: "1F" },
+    create: {
+      id: "seed-hall-smart-link-expo",
+      eventId: hostedExpoEvent.id,
+      name: "1 号馆 · 智链主展",
+      floor: "1F",
+    },
+  });
+
+  for (const [index, tag] of INTENT_TAGS.slice(0, 8).entries()) {
+    await prisma.intentTag.upsert({
+      where: {
+        eventId_slug: { eventId: hostedExpoEvent.id, slug: tag.slug },
+      },
+      update: {
+        label: tag.label,
+        category: tag.category,
+        color: tag.color,
+        sortOrder: index + 1,
+      },
+      create: {
+        eventId: hostedExpoEvent.id,
+        label: tag.label,
+        slug: tag.slug,
+        category: tag.category,
+        color: tag.color,
+        sortOrder: index + 1,
+      },
+    });
+  }
+
+  const hostedBoothSpecs = [
+    {
+      code: "A-101",
+      name: "云端 CRM 科技",
+      orgId: exhibitorOrg.id,
+      operatorId: exhibitorAdmin.id,
+      x: 8,
+      y: 10,
+    },
+    {
+      code: "A-102",
+      name: "李经理 SaaS 工具",
+      orgId: liExhibitorOrg.id,
+      operatorId: confAdmin.id,
+      x: 22,
+      y: 10,
+    },
+    {
+      code: "A-103",
+      name: "数字营销实验室",
+      orgId: expoOrg.id,
+      operatorId: expoAdmin.id,
+      x: 36,
+      y: 10,
+    },
+  ] as const;
+
+  for (const spec of hostedBoothSpecs) {
+    await prisma.exhibitorBooth.upsert({
+      where: {
+        eventId_code: { eventId: hostedExpoEvent.id, code: spec.code },
+      },
+      update: {
+        companyOrgId: spec.orgId,
+        operatorUserId: spec.operatorId,
+        status: BoothStatus.OCCUPIED,
+      },
+      create: {
+        name: spec.name,
+        code: spec.code,
+        eventId: hostedExpoEvent.id,
+        hallId: hostedExpoHall.id,
+        companyOrgId: spec.orgId,
+        operatorUserId: spec.operatorId,
+        status: BoothStatus.OCCUPIED,
+        positionData: { x: spec.x, y: spec.y, width: 6, height: 5 },
+        positionX: spec.x,
+        positionY: spec.y,
+        hallLabel: "1 号馆",
+      },
+    });
+  }
+
+  await prisma.ticketType.upsert({
+    where: { id: "seed-ticket-smart-expo-vip" },
+    update: { name: "VIP 通票", price: 0, quota: 200 },
+    create: {
+      id: "seed-ticket-smart-expo-vip",
+      eventId: hostedExpoEvent.id,
+      name: "VIP 通票",
+      price: 0,
+      quota: 200,
+    },
+  });
+
+  await prisma.ticketType.upsert({
+    where: { id: "seed-ticket-smart-expo-standard" },
+    update: { name: "标准观众票", price: 0, quota: 800 },
+    create: {
+      id: "seed-ticket-smart-expo-standard",
+      eventId: hostedExpoEvent.id,
+      name: "标准观众票",
+      price: 0,
+      quota: 800,
+    },
+  });
+
+  const hostedAttendeeSpecs = [
+    { id: "seed-part-smart-expo-1", name: "林峰", company: "智造科技", jobTitle: "采购总监" },
+    { id: "seed-part-smart-expo-2", name: "何雨", company: "云链物流", jobTitle: "运营副总" },
+    { id: "seed-part-smart-expo-3", name: "唐悦", company: "新锐 MarTech", jobTitle: "市场负责人" },
+    { id: "seed-part-smart-expo-4", name: "宋航", company: "华东工业集团", jobTitle: "信息化主管" },
+    { id: "seed-part-smart-expo-5", name: "许曼", company: "跨境电商业态联盟", jobTitle: "合伙人" },
+  ] as const;
+
+  for (const spec of hostedAttendeeSpecs) {
+    await prisma.participant.upsert({
+      where: { id: spec.id },
+      update: {
+        name: spec.name,
+        company: spec.company,
+        jobTitle: spec.jobTitle,
+        inviteStatus: ParticipantInviteStatus.ACTIVATED,
+      },
+      create: {
+        id: spec.id,
+        eventId: hostedExpoEvent.id,
+        name: spec.name,
+        company: spec.company,
+        jobTitle: spec.jobTitle,
+        email: `${spec.id}@seed.connectiq.local`,
+        inviteStatus: ParticipantInviteStatus.ACTIVATED,
+      },
+    });
+  }
+
+  for (const participantId of hostedAttendeeSpecs.slice(0, 3).map((s) => s.id)) {
+    await prisma.checkIn.upsert({
+      where: { id: `seed-checkin-${participantId}` },
+      update: { checkedInAt: daysAgo(0, 2) },
+      create: {
+        id: `seed-checkin-${participantId}`,
+        eventId: hostedExpoEvent.id,
+        participantId,
+        method: "qr",
+        checkedInAt: daysAgo(0, 2),
+      },
+    });
+  }
+
+  const digitalExpoHall = await prisma.expoHall.findFirst({
+    where: { eventId: expoEvent.id },
+  });
+
+  if (digitalExpoHall) {
+    await prisma.exhibitorBooth.upsert({
+      where: {
+        eventId_code: { eventId: expoEvent.id, code: "C-18" },
+      },
+      update: {
+        companyOrgId: unifiedOrg.id,
+        operatorUserId: unifiedAdmin.id,
+        status: BoothStatus.OCCUPIED,
+      },
+      create: {
+        name: "ConnectIQ 创新展台",
+        code: "C-18",
+        eventId: expoEvent.id,
+        hallId: digitalExpoHall.id,
+        companyOrgId: unifiedOrg.id,
+        operatorUserId: unifiedAdmin.id,
+        status: BoothStatus.OCCUPIED,
+        positionData: { x: 48, y: 18, width: 7, height: 6 },
+        positionX: 48,
+        positionY: 18,
+        hallLabel: "A 馆",
+      },
+    });
+  }
+
+  const participatedAttendeeSpecs = [
+    { id: "seed-part-digital-expo-u1", name: "马晨", company: "华东智造", jobTitle: "CTO" },
+    { id: "seed-part-digital-expo-u2", name: "冯莉", company: "企服优选", jobTitle: "采购经理" },
+    { id: "seed-part-digital-expo-u3", name: "韩冰", company: "极客营销", jobTitle: "增长负责人" },
+    { id: "seed-part-digital-expo-u4", name: "曹阳", company: "数据驱动科技", jobTitle: "产品总监" },
+  ] as const;
+
+  for (const spec of participatedAttendeeSpecs) {
+    await prisma.participant.upsert({
+      where: { id: spec.id },
+      update: {
+        name: spec.name,
+        company: spec.company,
+        jobTitle: spec.jobTitle,
+      },
+      create: {
+        id: spec.id,
+        eventId: expoEvent.id,
+        name: spec.name,
+        company: spec.company,
+        jobTitle: spec.jobTitle,
+        email: `${spec.id}@seed.connectiq.local`,
+      },
+    });
+  }
+
+  const unifiedParticipationBooth = await prisma.exhibitorBooth.findFirst({
+    where: { eventId: expoEvent.id, code: "C-18" },
+  });
+
+  if (unifiedParticipationBooth) {
+    const leadSpecs = [
+      {
+        id: "seed-lead-unified-expo-1",
+        participantId: participatedAttendeeSpecs[0].id,
+        status: LeadStatus.NEW,
+        intentGrade: "A",
+      },
+      {
+        id: "seed-lead-unified-expo-2",
+        participantId: participatedAttendeeSpecs[1].id,
+        status: LeadStatus.CONTACTED,
+        intentGrade: "B",
+      },
+      {
+        id: "seed-lead-unified-expo-3",
+        participantId: participatedAttendeeSpecs[2].id,
+        status: LeadStatus.QUALIFIED,
+        intentGrade: "A",
+      },
+      {
+        id: "seed-lead-unified-expo-4",
+        participantId: participatedAttendeeSpecs[3].id,
+        status: LeadStatus.NEW,
+        intentGrade: "C",
+      },
+    ] as const;
+
+    for (const spec of leadSpecs) {
+      await prisma.lead.upsert({
+        where: { id: spec.id },
+        update: {
+          status: spec.status,
+          intentGrade: spec.intentGrade,
+          notes: "Seed 测试线索 — 扫码采集",
+        },
+        create: {
+          id: spec.id,
+          boothId: unifiedParticipationBooth.id,
+          participantId: spec.participantId,
+          status: spec.status,
+          intentGrade: spec.intentGrade,
+          notes: "Seed 测试线索 — 扫码采集",
+        },
+      });
+    }
+  }
+
   await prisma.organization.update({
     where: { id: unifiedOrg.id },
-    data: { eventCount: 1 },
+    data: { eventCount: 2 },
   });
 
   console.log(
-    "✓ ⑦ 统一组织 13800000008 → 公开主页 /org/connectiq-innovation-hub",
+    "✓ ⑦ 统一组织 13800000008 → 会议 + 主办展会「智链未来产业博览会 2026」+ 参展「2025 企业数字化展览会」",
   );
 
   // ── ④⑤ 待审核账号管理员 ─────────────────────────────────────
@@ -796,6 +1086,23 @@ async function main() {
     endUsers.push(user);
   }
   console.log("✓ 最终用户 × 10（5 COMPLETE + 5 ACTIVE）");
+
+  const unifiedBoothForSignals = await prisma.exhibitorBooth.findFirst({
+    where: { eventId: expoEvent.id, code: "C-18" },
+  });
+  if (unifiedBoothForSignals) {
+    await prisma.boothVisitSignal.createMany({
+      data: endUsers.slice(5, 9).map((user, index) => ({
+        userId: user.id,
+        eventId: expoEvent.id,
+        signalType: SignalType.BOOTH_SCAN,
+        entityId: unifiedBoothForSignals.id,
+        entityType: "BOOTH",
+        payload: { source: "seed_unified_booth", index },
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   // ── OrgMember：5 人 → SaaS 增长研究院 ───────────────────────
   const confMemberSpecs: Array<{
@@ -959,6 +1266,31 @@ async function main() {
 
   console.log("✓ 集章路线 + 展位坐标 + BoothVisitSignal 示例数据");
 
+  // ── 互动演示数据（Poll / Lottery / Session 全类型）──────────
+  const hostedBoothA101 = await prisma.exhibitorBooth.findFirst({
+    where: { eventId: hostedExpoEvent.id, code: "A-101" },
+  });
+  const unifiedBoothC18 = await prisma.exhibitorBooth.findFirst({
+    where: { eventId: expoEvent.id, code: "C-18" },
+  });
+  const interactionMeta = await seedInteractionDemoData({
+    hostedExpoEventId: hostedExpoEvent.id,
+    expoEventId: expoEvent.id,
+    summitEventId: summitEvent.id,
+    unifiedAdminId: unifiedAdmin.id,
+    expoAdminId: expoAdmin.id,
+    confAdminId: confAdmin.id,
+    endUserIds: endUsers.map((u) => u.id),
+    hostedParticipantIds: hostedAttendeeSpecs.map((s) => s.id),
+    expoParticipantIds: participatedAttendeeSpecs.map((s) => s.id),
+    hostedBoothA101Id: hostedBoothA101?.id,
+    unifiedBoothC18Id: unifiedBoothC18?.id,
+    unifiedOrgId: unifiedOrg.id,
+  });
+  console.log(
+    `✓ 互动演示数据：Poll×6 + Lottery×5 + Session（扫码码 ${interactionMeta.sessionCodes.hostedPoll} 等）`,
+  );
+
   // ── 汇总 ────────────────────────────────────────────────────
   console.log("\n✅ Seed 完成\n");
   console.log("── 账号密码登录（推荐）──");
@@ -990,6 +1322,8 @@ async function main() {
   console.log("  Booth: 3");
   console.log("  StampRally: 1");
   console.log("  BoothVisitSignal: 示例");
+  console.log("  互动 Poll/Lottery/Session: 见 seed-interactions.ts");
+  console.log(`  扫码演示: /i/${interactionMeta.sessionCodes.hostedPoll}（主办展会投票）`);
   console.log(`\n  平台管理员 ID: ${platformAdmin.id}`);
   console.log(`  时间: ${now.toISOString()}`);
 }

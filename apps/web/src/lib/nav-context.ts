@@ -62,6 +62,15 @@ export function isNavItemActive(
   return true;
 }
 
+/** 账号管理员平台级首页（活动列表 / 账号中心） */
+export function getAccountCenterHref(): string {
+  return "/events";
+}
+
+export function getAccountCenterLabel(): string {
+  return "返回账号中心";
+}
+
 /** 平台级首页：有平台管理员权限时返回平台概览 */
 export function getPlatformHomeHref(
   role: string,

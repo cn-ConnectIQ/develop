@@ -17,6 +17,8 @@ import {
 } from "@/config/navigation";
 import {
   extractEventIdFromPath,
+  getAccountCenterHref,
+  getAccountCenterLabel,
   getAdminNavMode,
   getPlatformHomeHref,
   getPlatformHomeLabel,
@@ -323,9 +325,13 @@ export function Sidebar({
 
   const showPlatformBack =
     navMode === "event" &&
+    userType !== "ACCOUNT_ADMIN" &&
     (navRole === UserRole.PLATFORM_ADMIN ||
       eventNavRole === UserRole.EXPO_ORGANIZER ||
       (eventNavRole === UserRole.ORGANIZER && hasPlatformAdmin));
+
+  const showAccountCenterBack =
+    navMode === "event" && userType === "ACCOUNT_ADMIN";
 
   const visibleGroups =
     navMode === "platform"
@@ -399,6 +405,28 @@ export function Sidebar({
           >
             <ArrowLeft className="size-3.5 shrink-0" />
             {getPlatformHomeLabel(role, hasPlatformAdmin)}
+          </Link>
+        </div>
+      )}
+
+      {showAccountCenterBack && !collapsed && (
+        <div className="border-b border-white/[0.08] px-2.5 py-2">
+          <Link href={getAccountCenterHref()} className="admin-sb-back">
+            <ArrowLeft className="size-3.5 shrink-0" />
+            {getAccountCenterLabel()}
+          </Link>
+        </div>
+      )}
+
+      {showAccountCenterBack && collapsed && (
+        <div className="flex justify-center border-b border-white/[0.08] py-2">
+          <Link
+            href={getAccountCenterHref()}
+            className="flex size-8 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            title={getAccountCenterLabel()}
+            aria-label={getAccountCenterLabel()}
+          >
+            <ArrowLeft className="size-4" />
           </Link>
         </div>
       )}

@@ -14,6 +14,7 @@
     "db:fix-enum-migration": "tsx prisma/fix-enum-migration.ts",
     "db:seed": "prisma db seed",
     "db:seed:expo-mock": "tsx prisma/seed-expo-mock.ts",
+    "db:seed:interactions": "tsx prisma/seed-interactions.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

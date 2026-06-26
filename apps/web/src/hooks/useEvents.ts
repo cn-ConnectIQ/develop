@@ -14,6 +14,7 @@ export type EventListItem = {
   name: string;
   slug: string;
   type: string;
+  activityType?: string;
   category: EventCategory | null;
   status: string;
   reviewStatus: string;
@@ -22,6 +23,9 @@ export type EventListItem = {
   startDate: string | null;
   endDate: string | null;
   createdAt?: string;
+  listRole?: "HOST" | "EXHIBITOR";
+  boothId?: string | null;
+  boothCode?: string | null;
   readiness: { completed: number; total: number };
   review: EventReviewInfo | null;
   _count: {

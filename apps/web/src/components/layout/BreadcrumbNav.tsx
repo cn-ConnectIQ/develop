@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useCurrentEvent } from "@/hooks/useCurrentEvent";
-import { extractEventIdFromPath, isEventScopedRoute } from "@/lib/nav-context";
+import {
+  getAccountCenterHref,
+  isEventScopedRoute,
+} from "@/lib/nav-context";
 import { cn } from "@/lib/utils";
 
 const SEGMENT_LABELS: Record<string, string> = {
@@ -54,8 +58,10 @@ function isOpaqueIdSegment(seg: string) {
 
 export function BreadcrumbNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const { currentEvent } = useCurrentEvent();
   const segments = pathname.split("/").filter(Boolean);
+  const isAccountAdmin = session?.user?.userType === "ACCOUNT_ADMIN";
 
   if (segments.length === 0) return null;
 
@@ -93,6 +99,17 @@ export function BreadcrumbNav() {
         aria-label="面包屑"
         className="hidden min-w-0 flex-1 items-center gap-1.5 overflow-hidden md:flex"
       >
+        {isAccountAdmin && (
+          <>
+            <Link
+              href={getAccountCenterHref()}
+              className="shrink-0 text-xs text-text-muted transition-colors hover:text-[var(--admin-ink)]"
+            >
+              账号中心
+            </Link>
+            <span className="shrink-0 text-xs text-text-tertiary">/</span>
+          </>
+        )}
         <span className="truncate text-xs text-text-muted">{eventName}</span>
         <span className="shrink-0 text-xs text-text-tertiary">/</span>
         <span className="truncate text-xs font-medium text-[var(--admin-ink)]">

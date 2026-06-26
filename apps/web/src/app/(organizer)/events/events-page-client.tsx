@@ -59,7 +59,7 @@ export function EventsPageClient() {
     <AdminPageBody>
       <PageHead
         title="我的活动"
-        description="管理您主办的所有会议与展会"
+        description="管理您主办或参展的会议与展会"
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 size-4" />

@@ -90,10 +90,20 @@ function buildOrganizerWhere(session: {
   const { id: userId, role, activeOrgId } = session.user;
 
   if (activeOrgId) {
+    const participated = {
+      booths: { some: { companyOrgId: activeOrgId } },
+    };
     if (role === AppUserRole.EXPO_ORGANIZER) {
-      return { orgId: activeOrgId, type: EventType.EXPO };
+      return {
+        OR: [
+          { orgId: activeOrgId, type: EventType.EXPO },
+          { ...participated, type: EventType.EXPO },
+        ],
+      };
     }
-    return { orgId: activeOrgId };
+    return {
+      OR: [{ orgId: activeOrgId }, participated],
+    };
   }
 
   if (role === AppUserRole.EXPO_ORGANIZER) {
@@ -112,6 +122,7 @@ function serializeEvent(
       logoUrl: string | null;
       isVerified: boolean;
     } | null;
+    booths?: Array<{ id: string; code: string; name: string }>;
     _count: {
       participants: number;
       checkIns: number;
@@ -126,6 +137,7 @@ function serializeEvent(
       rejectionReason: string | null;
     } | null;
   },
+  activeOrgId?: string | null,
 ) {
   const categorySetting = event.settings[0]?.value;
   const category =
@@ -143,6 +155,10 @@ function serializeEvent(
     _count: event._count,
   });
 
+  const isHost = !activeOrgId || event.orgId === activeOrgId;
+  const participatingBooth = event.booths?.[0] ?? null;
+  const listRole = isHost ? "HOST" : "EXHIBITOR";
+
   return {
     id: event.id,
     name: event.name,
@@ -157,6 +173,9 @@ function serializeEvent(
     startDate: event.startDate?.toISOString() ?? null,
     endDate: event.endDate?.toISOString() ?? null,
     createdAt: event.createdAt.toISOString(),
+    listRole,
+    boothId: listRole === "EXHIBITOR" ? participatingBooth?.id ?? null : null,
+    boothCode: listRole === "EXHIBITOR" ? participatingBooth?.code ?? null : null,
     review: event.review
       ? {
           status: event.review.status,
@@ -198,6 +217,7 @@ export const GET = withErrorHandler(async (request) => {
   const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 50), 1), 100);
 
   const baseWhere = buildOrganizerWhere(session);
+  const activeOrgId = session.user.activeOrgId;
   const where = {
     ...baseWhere,
     ...(statusFilter ? { status: statusFilter } : {}),
@@ -255,6 +275,15 @@ export const GET = withErrorHandler(async (request) => {
           rejectionReason: true,
         },
       },
+      ...(activeOrgId
+        ? {
+            booths: {
+              where: { companyOrgId: activeOrgId },
+              select: { id: true, code: true, name: true },
+              take: 1,
+            },
+          }
+        : {}),
     },
   });
 
@@ -277,7 +306,7 @@ export const GET = withErrorHandler(async (request) => {
 
   return createSuccessResponse(
     {
-      events: pageItems.map(serializeEvent),
+      events: pageItems.map((event) => serializeEvent(event, activeOrgId)),
       stats,
     },
     {
