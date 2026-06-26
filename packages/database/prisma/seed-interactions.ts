@@ -14,6 +14,15 @@ import {
   SignalType,
 } from "@prisma/client";
 import { prisma } from "../src/client";
+import {
+  seedLotteryEntries,
+  seedMultiChoiceResponses,
+  seedPollSubmissionPack,
+  seedQnaResponses,
+  seedQuizResponses,
+  seedRatingResponses,
+  seedWordCloudResponses,
+} from "./seed-interaction-responses";
 
 /** 固定 ID，便于 upsert 与清理 */
 export const SEED_INT = {
@@ -52,9 +61,28 @@ export const SEED_INT = {
     pollSingle: "seed-int-expo-poll-single",
     pollSingleO1: "seed-int-expo-poll-single-o1",
     pollSingleO2: "seed-int-expo-poll-single-o2",
+    pollMulti: "seed-int-expo-poll-multi",
+    pollMultiO1: "seed-int-expo-poll-multi-o1",
+    pollMultiO2: "seed-int-expo-poll-multi-o2",
+    pollMultiO3: "seed-int-expo-poll-multi-o3",
+    pollRating: "seed-int-expo-poll-rating",
+    pollWordCloud: "seed-int-expo-poll-wc",
+    pollQna: "seed-int-expo-poll-qna",
+    pollSurvey: "seed-int-expo-poll-survey",
+    pollSurveyO1: "seed-int-expo-poll-survey-o1",
+    pollSurveyO2: "seed-int-expo-poll-survey-o2",
+    pollSurveyO3: "seed-int-expo-poll-survey-o3",
+    pollQuiz: "seed-int-expo-poll-quiz",
+    pollQuizO1: "seed-int-expo-poll-quiz-o1",
+    pollQuizO2: "seed-int-expo-poll-quiz-o2",
     lotteryOpen: "seed-int-expo-lottery-open",
+    lotteryCheckin: "seed-int-expo-lottery-checkin",
+    lotteryQuiz: "seed-int-expo-lottery-quiz",
+    lotteryActivity: "seed-int-expo-lottery-activity",
     sessionPoll: "seed-int-expo-session-poll",
+    sessionLottery: "seed-int-expo-session-lottery",
     sessionCode: "SEEDX1",
+    sessionCodeLottery: "SEEDX2",
   },
   // SaaS 增长峰会 — 会议 Q&A
   summit: {
@@ -93,8 +121,16 @@ export const SEED_INT = {
     pollRating: "seed-int-innovation-poll-rating",
     pollWordCloud: "seed-int-innovation-poll-wc",
     pollAnnouncement: "seed-int-innovation-poll-ann",
+    pollQuiz: "seed-int-innovation-poll-quiz",
+    pollQuizO1: "seed-int-innovation-poll-quiz-o1",
+    pollQuizO2: "seed-int-innovation-poll-quiz-o2",
+    pollSurvey: "seed-int-innovation-poll-survey",
+    pollSurveyO1: "seed-int-innovation-poll-survey-o1",
+    pollSurveyO2: "seed-int-innovation-poll-survey-o2",
+    pollSurveyO3: "seed-int-innovation-poll-survey-o3",
     lotteryRandom: "seed-int-innovation-lottery-random",
     lotteryActivity: "seed-int-innovation-lottery-activity",
+    lotteryQuiz: "seed-int-innovation-lottery-quiz",
     sessionPoll: "seed-int-innovation-session-poll",
     sessionQna: "seed-int-innovation-session-qna",
     sessionLottery: "seed-int-innovation-session-lottery",
@@ -107,11 +143,22 @@ export const SEED_INT = {
     pollSingle: "seed-int-salon-poll-single",
     pollSingleO1: "seed-int-salon-poll-single-o1",
     pollSingleO2: "seed-int-salon-poll-single-o2",
+    pollMulti: "seed-int-salon-poll-multi",
+    pollMultiO1: "seed-int-salon-poll-multi-o1",
+    pollMultiO2: "seed-int-salon-poll-multi-o2",
+    pollMultiO3: "seed-int-salon-poll-multi-o3",
+    pollWordCloud: "seed-int-salon-poll-wc",
+    pollSurvey: "seed-int-salon-poll-survey",
+    pollSurveyO1: "seed-int-salon-poll-survey-o1",
+    pollSurveyO2: "seed-int-salon-poll-survey-o2",
+    pollSurveyO3: "seed-int-salon-poll-survey-o3",
     pollQna: "seed-int-salon-poll-qna",
     pollRating: "seed-int-salon-poll-rating",
     lotteryOpen: "seed-int-salon-lottery-open",
     sessionPoll: "seed-int-salon-session-poll",
+    sessionQna: "seed-int-salon-session-qna",
     sessionCode: "SEEDSL",
+    sessionCodeQna: "SEEDSL2",
   },
 } as const;
 
@@ -137,10 +184,14 @@ const ALL_SEED_LOTTERY_IDS = [
   SEED_INT.hostedExpo.lotteryActivity,
   SEED_INT.hostedExpo.lotteryQuiz,
   SEED_INT.expo.lotteryOpen,
+  SEED_INT.expo.lotteryCheckin,
+  SEED_INT.expo.lotteryQuiz,
+  SEED_INT.expo.lotteryActivity,
   SEED_INT.summit.lotteryRandom,
   SEED_INT.summit.lotteryQuiz,
   SEED_INT.innovation.lotteryRandom,
   SEED_INT.innovation.lotteryActivity,
+  SEED_INT.innovation.lotteryQuiz,
   SEED_INT.salon.lotteryOpen,
   "seed-int-expo-booth-lottery",
 ];
@@ -150,6 +201,7 @@ const ALL_SEED_SESSION_IDS = [
   SEED_INT.hostedExpo.sessionLottery,
   SEED_INT.hostedExpo.sessionBooth,
   SEED_INT.expo.sessionPoll,
+  SEED_INT.expo.sessionLottery,
   SEED_INT.summit.sessionQna,
   SEED_INT.summit.sessionPoll,
   SEED_INT.summit.sessionLottery,
@@ -157,6 +209,7 @@ const ALL_SEED_SESSION_IDS = [
   SEED_INT.innovation.sessionQna,
   SEED_INT.innovation.sessionLottery,
   SEED_INT.salon.sessionPoll,
+  SEED_INT.salon.sessionQna,
   "seed-int-expo-booth-session",
 ];
 
@@ -673,6 +726,10 @@ async function seedHostedExpoInteractions(ctx: SeedInteractionsContext) {
     });
   }
 
+  await seedLotteryEntries(H.lotteryCheckin, ctx.endUserIds, "seed-int-entry-hosted-checkin", 5);
+  await seedLotteryEntries(H.lotteryActivity, ctx.endUserIds, "seed-int-entry-hosted-activity", 5);
+  await seedLotteryEntries(H.lotteryQuiz, ctx.endUserIds, "seed-int-entry-hosted-quiz", 5);
+
   if (ctx.endUserIds[0]) {
     await prisma.lotteryWinner.upsert({
       where: { id: "seed-int-winner-finished-1" },
@@ -721,6 +778,12 @@ async function seedHostedExpoInteractions(ctx: SeedInteractionsContext) {
       status: PollStatus.LIVE,
       displayOrder: 10,
     });
+
+    await seedRatingResponses(
+      "seed-int-hosted-booth-poll",
+      participants.slice(0, 5),
+      "seed-int-res-hosted-booth",
+    );
 
     await upsertSession({
       id: H.sessionBooth,
@@ -775,6 +838,7 @@ async function seedHostedExpoInteractions(ctx: SeedInteractionsContext) {
 async function seedExpoInteractions(ctx: SeedInteractionsContext) {
   const E = SEED_INT.expo;
   const { expoEventId: eventId, expoAdminId: creatorId } = ctx;
+  const participants = ctx.expoParticipantIds;
 
   await setEventFeatureFlags(eventId);
 
@@ -791,18 +855,91 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
     ],
   });
 
-  for (let i = 0; i < ctx.expoParticipantIds.length; i++) {
-    await prisma.pollResponse.upsert({
-      where: { id: `seed-int-res-expo-single-${i}` },
-      update: {},
-      create: {
-        id: `seed-int-res-expo-single-${i}`,
-        pollId: E.pollSingle,
-        participantId: ctx.expoParticipantIds[i],
-        optionId: i % 2 === 0 ? E.pollSingleO1 : E.pollSingleO2,
-      },
-    });
-  }
+  await upsertPoll({
+    id: E.pollMulti,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【多选】您关注哪些数字化方向？",
+    status: PollStatus.LIVE,
+    options: [
+      { id: E.pollMultiO1, text: "AI 与自动化", displayOrder: 1 },
+      { id: E.pollMultiO2, text: "数据治理", displayOrder: 2 },
+      { id: E.pollMultiO3, text: "客户体验", displayOrder: 3 },
+    ],
+  });
+
+  await upsertPoll({
+    id: E.pollWordCloud,
+    eventId,
+    createdById: creatorId,
+    type: PollType.WORD_CLOUD,
+    title: "【词云】用一个词形容本次展会",
+    status: PollStatus.LIVE,
+  });
+
+  await upsertPoll({
+    id: E.pollRating,
+    eventId,
+    createdById: creatorId,
+    type: PollType.RATING,
+    title: "【评分】展会整体满意度",
+    status: PollStatus.LIVE,
+  });
+
+  await upsertPoll({
+    id: E.pollQna,
+    eventId,
+    createdById: creatorId,
+    type: PollType.QNA,
+    title: "【问答】向主办方提问",
+    status: PollStatus.LIVE,
+  });
+
+  await upsertPoll({
+    id: E.pollSurvey,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【问卷】您希望下届展会增加哪些服务？",
+    status: PollStatus.LIVE,
+    options: [
+      { id: E.pollSurveyO1, text: "VIP 商务配对", displayOrder: 1 },
+      { id: E.pollSurveyO2, text: "行业报告下载", displayOrder: 2 },
+      { id: E.pollSurveyO3, text: "线上回放", displayOrder: 3 },
+    ],
+  });
+
+  await upsertPoll({
+    id: E.pollQuiz,
+    eventId,
+    createdById: creatorId,
+    type: PollType.SINGLE_CHOICE,
+    title: "【答题】B2B 展会最有效的获客方式是？",
+    status: PollStatus.LIVE,
+    options: [
+      { id: E.pollQuizO1, text: "现场互动 + 线索收集", displayOrder: 1 },
+      { id: E.pollQuizO2, text: "仅发放宣传册", displayOrder: 2 },
+    ],
+  });
+
+  await seedPollSubmissionPack({
+    prefix: "seed-int-res-expo",
+    participantIds: participants,
+    single: { pollId: E.pollSingle, optionIds: [E.pollSingleO1, E.pollSingleO2] },
+    multi: { pollId: E.pollMulti, optionIds: [E.pollMultiO1, E.pollMultiO2, E.pollMultiO3] },
+    wordCloud: { pollId: E.pollWordCloud },
+    rating: { pollId: E.pollRating },
+    qna: { pollId: E.pollQna },
+    quiz: { pollId: E.pollQuiz, correctOptionId: E.pollQuizO1, wrongOptionId: E.pollQuizO2 },
+  });
+
+  await seedMultiChoiceResponses(
+    E.pollSurvey,
+    [E.pollSurveyO1, E.pollSurveyO2, E.pollSurveyO3],
+    participants,
+    "seed-int-res-expo-survey",
+  );
 
   await prisma.lottery.upsert({
     where: { id: E.lotteryOpen },
@@ -816,24 +953,61 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       status: LotteryStatus.OPEN,
       prizes: DEFAULT_PRIZES.slice(0, 2),
       winnerCount: 2,
-      entryCount: 2,
     },
   });
 
-  if (ctx.endUserIds[2]) {
-    await prisma.lotteryEntry.upsert({
-      where: {
-        lotteryId_userId: { lotteryId: E.lotteryOpen, userId: ctx.endUserIds[2] },
-      },
-      update: {},
-      create: {
-        id: "seed-int-entry-expo-1",
-        lotteryId: E.lotteryOpen,
-        userId: ctx.endUserIds[2],
-        source: LotteryEntrySource.MANUAL,
-      },
-    });
-  }
+  await prisma.lottery.upsert({
+    where: { id: E.lotteryCheckin },
+    update: {},
+    create: {
+      id: E.lotteryCheckin,
+      eventId,
+      createdById: creatorId,
+      title: "【签到抽奖】已签到观众专属",
+      type: LotteryType.CHECKIN_BASED,
+      status: LotteryStatus.OPEN,
+      requireCheckin: true,
+      prizes: DEFAULT_PRIZES.slice(0, 1),
+      winnerCount: 1,
+    },
+  });
+
+  await prisma.lottery.upsert({
+    where: { id: E.lotteryActivity },
+    update: { requirePollId: E.pollSingle },
+    create: {
+      id: E.lotteryActivity,
+      eventId,
+      createdById: creatorId,
+      title: "【参与抽奖】完成逛展投票后可抽",
+      type: LotteryType.ACTIVITY_BASED,
+      status: LotteryStatus.OPEN,
+      requirePollId: E.pollSingle,
+      prizes: DEFAULT_PRIZES.slice(0, 1),
+      winnerCount: 1,
+    },
+  });
+
+  await prisma.lottery.upsert({
+    where: { id: E.lotteryQuiz },
+    update: { quizPollId: E.pollQuiz },
+    create: {
+      id: E.lotteryQuiz,
+      eventId,
+      createdById: creatorId,
+      title: "【答题抽奖】答对展会知识题参与",
+      type: LotteryType.QUIZ_BASED,
+      status: LotteryStatus.OPEN,
+      quizPollId: E.pollQuiz,
+      prizes: DEFAULT_PRIZES.slice(0, 1),
+      winnerCount: 1,
+    },
+  });
+
+  await seedLotteryEntries(E.lotteryOpen, ctx.endUserIds, "seed-int-entry-expo-open", 5);
+  await seedLotteryEntries(E.lotteryCheckin, ctx.endUserIds, "seed-int-entry-expo-checkin", 4);
+  await seedLotteryEntries(E.lotteryActivity, ctx.endUserIds, "seed-int-entry-expo-activity", 4);
+  await seedLotteryEntries(E.lotteryQuiz, ctx.endUserIds, "seed-int-entry-expo-quiz", 4);
 
   await upsertSession({
     id: E.sessionPoll,
@@ -843,7 +1017,18 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
     sessionCode: E.sessionCode,
     interactions: [{ type: "poll", id: E.pollSingle }],
     scanCount: 55,
-    participantCount: ctx.expoParticipantIds.length,
+    participantCount: participants.length,
+  });
+
+  await upsertSession({
+    id: E.sessionLottery,
+    eventId,
+    createdById: creatorId,
+    name: "逛展幸运抽奖",
+    sessionCode: E.sessionCodeLottery,
+    interactions: [{ type: "lottery", id: E.lotteryOpen }],
+    scanCount: 38,
+    participantCount: 5,
   });
 
   if (ctx.unifiedBoothC18Id && ctx.unifiedOrgId) {
@@ -882,36 +1067,30 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       },
     });
 
-    if (ctx.endUserIds[3]) {
-      await prisma.lotteryEntry.upsert({
-        where: {
-          lotteryId_userId: {
-            lotteryId: "seed-int-expo-booth-lottery",
-            userId: ctx.endUserIds[3],
-          },
-        },
-        update: {},
-        create: {
-          id: "seed-int-entry-expo-booth-1",
-          lotteryId: "seed-int-expo-booth-lottery",
-          userId: ctx.endUserIds[3],
-          source: LotteryEntrySource.MANUAL,
-        },
-      });
-    }
+    await seedLotteryEntries(
+      "seed-int-expo-booth-lottery",
+      ctx.endUserIds,
+      "seed-int-entry-expo-booth",
+      4,
+    );
 
-    for (const [i, pid] of ctx.expoParticipantIds.slice(0, 2).entries()) {
-      await prisma.pollResponse.upsert({
-        where: { id: `seed-int-res-expo-booth-rating-${i}` },
-        update: {},
-        create: {
-          id: `seed-int-res-expo-booth-rating-${i}`,
-          pollId: "seed-int-expo-booth-rating",
-          participantId: pid,
-          rating: 4 + i,
-        },
-      });
-    }
+    await seedRatingResponses(
+      "seed-int-expo-booth-rating",
+      participants.slice(0, 4),
+      "seed-int-res-expo-booth-rating",
+    );
+
+    await seedQnaResponses(
+      "seed-int-expo-booth-poll",
+      participants.slice(0, 4),
+      "seed-int-res-expo-booth-qna",
+      [
+        "ConnectIQ 支持哪些 CRM 对接？",
+        "小程序端互动有哪些类型？",
+        "如何导出线索数据？",
+        "是否支持私有化部署？",
+      ],
+    );
 
     await upsertSession({
       id: "seed-int-expo-booth-session",
@@ -1094,6 +1273,21 @@ async function seedSummitInteractions(ctx: SeedInteractionsContext) {
     });
   }
 
+  await seedMultiChoiceResponses(
+    S.pollMulti,
+    [S.pollMultiO1, S.pollMultiO2],
+    participants.slice(0, 6),
+    "seed-int-res-summit",
+  );
+
+  await seedQuizResponses(
+    S.pollQuiz,
+    S.pollQuizO1,
+    S.pollQuizO2,
+    participants.slice(0, 5),
+    "seed-int-res-summit",
+  );
+
   await prisma.lottery.upsert({
     where: { id: S.lotteryRandom },
     update: { status: LotteryStatus.OPEN, entryCount: 4 },
@@ -1138,6 +1332,8 @@ async function seedSummitInteractions(ctx: SeedInteractionsContext) {
       },
     });
   }
+
+  await seedLotteryEntries(S.lotteryQuiz, ctx.endUserIds, "seed-int-entry-summit-quiz", 5);
 
   await upsertSession({
     id: S.sessionQna,
@@ -1251,6 +1447,35 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
     displayOrder: 6,
   });
 
+  await upsertPoll({
+    id: I.pollQuiz,
+    eventId,
+    createdById: creatorId,
+    type: PollType.SINGLE_CHOICE,
+    title: "【答题】活动运营中最常用的互动形式是？",
+    status: PollStatus.LIVE,
+    displayOrder: 7,
+    options: [
+      { id: I.pollQuizO1, text: "现场投票 + 问答", displayOrder: 1 },
+      { id: I.pollQuizO2, text: "仅静态 PPT", displayOrder: 2 },
+    ],
+  });
+
+  await upsertPoll({
+    id: I.pollSurvey,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【问卷】您最希望 ConnectIQ 优先上线哪些能力？",
+    status: PollStatus.LIVE,
+    displayOrder: 8,
+    options: [
+      { id: I.pollSurveyO1, text: "AI 智能配对", displayOrder: 1 },
+      { id: I.pollSurveyO2, text: "多活动统一管理", displayOrder: 2 },
+      { id: I.pollSurveyO3, text: "数据大屏", displayOrder: 3 },
+    ],
+  });
+
   for (let i = 0; i < participants.length; i++) {
     const pid = participants[i]!;
     await prisma.pollResponse.upsert({
@@ -1274,6 +1499,30 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
       },
     });
   }
+
+  await seedMultiChoiceResponses(
+    I.pollMulti,
+    [I.pollMultiO1, I.pollMultiO2],
+    participants,
+    "seed-int-res-innovation",
+  );
+
+  await seedWordCloudResponses(I.pollWordCloud, participants, "seed-int-res-innovation");
+
+  await seedQuizResponses(
+    I.pollQuiz,
+    I.pollQuizO1,
+    I.pollQuizO2,
+    participants,
+    "seed-int-res-innovation",
+  );
+
+  await seedMultiChoiceResponses(
+    I.pollSurvey,
+    [I.pollSurveyO1, I.pollSurveyO2, I.pollSurveyO3],
+    participants,
+    "seed-int-res-innovation-survey",
+  );
 
   const innovationQna = [
     { id: "seed-int-res-innovation-qna-1", text: "ConnectIQ 是否支持私有化部署？", idx: 0 },
@@ -1325,6 +1574,26 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
     },
   });
 
+  await prisma.lottery.upsert({
+    where: { id: I.lotteryQuiz },
+    update: { quizPollId: I.pollQuiz },
+    create: {
+      id: I.lotteryQuiz,
+      eventId,
+      createdById: creatorId,
+      title: "【答题抽奖】答对运营知识题参与",
+      type: LotteryType.QUIZ_BASED,
+      status: LotteryStatus.OPEN,
+      quizPollId: I.pollQuiz,
+      prizes: DEFAULT_PRIZES.slice(0, 1),
+      winnerCount: 1,
+    },
+  });
+
+  await seedLotteryEntries(I.lotteryRandom, ctx.endUserIds, "seed-int-entry-innovation-random", 5);
+  await seedLotteryEntries(I.lotteryActivity, ctx.endUserIds, "seed-int-entry-innovation-activity", 4);
+  await seedLotteryEntries(I.lotteryQuiz, ctx.endUserIds, "seed-int-entry-innovation-quiz", 4);
+
   await upsertSession({
     id: I.sessionPoll,
     eventId,
@@ -1366,6 +1635,8 @@ async function seedSalonInteractions(ctx: SeedInteractionsContext) {
   const creatorId = ctx.confAdminId;
   const participants = ctx.salonParticipantIds ?? [];
 
+  await setEventFeatureFlags(eventId);
+
   await upsertPoll({
     id: L.pollSingle,
     eventId,
@@ -1376,6 +1647,43 @@ async function seedSalonInteractions(ctx: SeedInteractionsContext) {
     options: [
       { id: L.pollSingleO1, text: "增长实验框架", displayOrder: 1 },
       { id: L.pollSingleO2, text: "案例拆解", displayOrder: 2 },
+    ],
+  });
+
+  await upsertPoll({
+    id: L.pollMulti,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【多选】您希望下次沙龙深入哪些话题？",
+    status: PollStatus.LIVE,
+    options: [
+      { id: L.pollMultiO1, text: "A/B 测试", displayOrder: 1 },
+      { id: L.pollMultiO2, text: "留存优化", displayOrder: 2 },
+      { id: L.pollMultiO3, text: "渠道归因", displayOrder: 3 },
+    ],
+  });
+
+  await upsertPoll({
+    id: L.pollWordCloud,
+    eventId,
+    createdById: creatorId,
+    type: PollType.WORD_CLOUD,
+    title: "【词云】用一个词形容今天的沙龙",
+    status: PollStatus.LIVE,
+  });
+
+  await upsertPoll({
+    id: L.pollSurvey,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【问卷】您对沙龙形式的偏好？",
+    status: PollStatus.LIVE,
+    options: [
+      { id: L.pollSurveyO1, text: "案例拆解为主", displayOrder: 1 },
+      { id: L.pollSurveyO2, text: "互动讨论为主", displayOrder: 2 },
+      { id: L.pollSurveyO3, text: "嘉宾 Q&A 为主", displayOrder: 3 },
     ],
   });
 
@@ -1397,30 +1705,30 @@ async function seedSalonInteractions(ctx: SeedInteractionsContext) {
     status: PollStatus.LIVE,
   });
 
-  for (let i = 0; i < participants.length; i++) {
-    const pid = participants[i]!;
-    await prisma.pollResponse.upsert({
-      where: { id: `seed-int-res-salon-single-${i}` },
-      update: {},
-      create: {
-        id: `seed-int-res-salon-single-${i}`,
-        pollId: L.pollSingle,
-        participantId: pid,
-        optionId: i % 2 === 0 ? L.pollSingleO1 : L.pollSingleO2,
-      },
-    });
-  }
-
-  await prisma.pollResponse.upsert({
-    where: { id: "seed-int-res-salon-qna-1" },
-    update: {},
-    create: {
-      id: "seed-int-res-salon-qna-1",
+  await seedPollSubmissionPack({
+    prefix: "seed-int-res-salon",
+    participantIds: participants,
+    single: { pollId: L.pollSingle, optionIds: [L.pollSingleO1, L.pollSingleO2] },
+    multi: { pollId: L.pollMulti, optionIds: [L.pollMultiO1, L.pollMultiO2, L.pollMultiO3] },
+    wordCloud: { pollId: L.pollWordCloud },
+    rating: { pollId: L.pollRating },
+    qna: {
       pollId: L.pollQna,
-      participantId: participants[0],
-      textAnswer: "如何在小团队快速验证增长假设？",
+      questions: [
+        "如何在小团队快速验证增长假设？",
+        "冷启动阶段如何获取第一批用户？",
+        "B2B 产品如何做 PLG？",
+        "留存指标应该看哪些维度？",
+      ],
     },
   });
+
+  await seedMultiChoiceResponses(
+    L.pollSurvey,
+    [L.pollSurveyO1, L.pollSurveyO2, L.pollSurveyO3],
+    participants,
+    "seed-int-res-salon-survey",
+  );
 
   await prisma.lottery.upsert({
     where: { id: L.lotteryOpen },
@@ -1437,6 +1745,8 @@ async function seedSalonInteractions(ctx: SeedInteractionsContext) {
     },
   });
 
+  await seedLotteryEntries(L.lotteryOpen, ctx.endUserIds, "seed-int-entry-salon", 4);
+
   await upsertSession({
     id: L.sessionPoll,
     eventId,
@@ -1446,6 +1756,17 @@ async function seedSalonInteractions(ctx: SeedInteractionsContext) {
     interactions: [{ type: "poll", id: L.pollSingle }],
     scanCount: 28,
     participantCount: participants.length,
+  });
+
+  await upsertSession({
+    id: L.sessionQna,
+    eventId,
+    createdById: creatorId,
+    name: "沙龙现场问答",
+    sessionCode: L.sessionCodeQna,
+    interactions: [{ type: "poll", id: L.pollQna }],
+    scanCount: 19,
+    participantCount: Math.min(participants.length, 4),
   });
 }
 
@@ -1556,7 +1877,7 @@ async function main() {
   console.log(`  主办展位 A-101:   ${result.sessionCodes.hostedBooth}`);
   console.log(`  数字化展览投票:   ${result.sessionCodes.expo}`);
   console.log(`  参展 C-18 展台:   ${result.sessionCodes.expoBooth}`);
-  console.log(`  峰会问答:         ${result.sessionCodes.summit}`);
+  console.log(`  峰会问答:         ${result.sessionCodes.summitQna}`);
   console.log("\n── Poll 类型（智链博览会 LIVE）──");
   console.log("  单选 / 多选 / 词云 / 评分 / 问答 / 公告 / 答题 + 1 草稿");
   console.log("\n── Lottery 类型 ──");
