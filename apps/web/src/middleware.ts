@@ -1,3 +1,4 @@
+import "@/lib/auth-env";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import {
