@@ -249,6 +249,12 @@ function getEventNavigationGroups(
                 isNew: true,
               },
               {
+                label: "意图采集结果",
+                href: `/events/${eventId}/matchmaking/responses`,
+                icon: ClipboardList,
+                isNew: true,
+              },
+              {
                 label: "邀请管理",
                 href: `/events/${eventId}/invite-campaigns`,
                 icon: Send,

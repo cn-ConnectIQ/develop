@@ -56,6 +56,16 @@ export const SEED_MTG = {
     `${MTG_PREFIX}-meeting-summit-01`,
     `${MTG_PREFIX}-meeting-summit-02`,
   ],
+  intents: [
+    `${MTG_PREFIX}-intent-hosted-01`,
+    `${MTG_PREFIX}-intent-hosted-02`,
+    `${MTG_PREFIX}-intent-hosted-03`,
+    `${MTG_PREFIX}-intent-hosted-04`,
+    `${MTG_PREFIX}-intent-hosted-05`,
+    `${MTG_PREFIX}-intent-hosted-06`,
+    `${MTG_PREFIX}-intent-summit-01`,
+    `${MTG_PREFIX}-intent-summit-02`,
+  ],
 } as const;
 
 export type SeedMeetingsContext = {
@@ -93,6 +103,9 @@ function daysAgo(days: number, hours = 10) {
 export async function clearSeedMeetingData() {
   await prisma.meeting.deleteMany({
     where: { id: { in: [...SEED_MTG.meetings] } },
+  });
+  await prisma.userEventIntent.deleteMany({
+    where: { id: { in: [...SEED_MTG.intents] } },
   });
   await prisma.meetingTable.deleteMany({
     where: { id: { in: Object.values(SEED_MTG.tables) } },
@@ -508,6 +521,108 @@ async function seedScheduledMeetings(
   }
 }
 
+async function seedUserEventIntents(ctx: SeedMeetingsContext) {
+  const users = ctx.endUserIds;
+  const u = (i: number) => users[i];
+  if (users.length < 8) return;
+
+  const specs = [
+    {
+      id: SEED_MTG.intents[0]!,
+      eventId: ctx.hostedExpoEventId,
+      userId: u(0)!,
+      role: "采购",
+      supplyTags: ["ERP 实施经验"],
+      demandTags: ["智能制造方案", "MES 系统"],
+      topics: ["工业 4.0", "产线数字化"],
+    },
+    {
+      id: SEED_MTG.intents[1]!,
+      eventId: ctx.hostedExpoEventId,
+      userId: u(1)!,
+      role: "合作",
+      supplyTags: ["MarTech 工具", "活动运营"],
+      demandTags: ["B2B 获客"],
+      topics: ["私域运营"],
+    },
+    {
+      id: SEED_MTG.intents[2]!,
+      eventId: ctx.hostedExpoEventId,
+      userId: u(2)!,
+      role: "销售",
+      supplyTags: ["会展 SaaS", "签到系统"],
+      demandTags: ["大型展会主办方"],
+      topics: ["活动科技"],
+    },
+    {
+      id: SEED_MTG.intents[3]!,
+      eventId: ctx.hostedExpoEventId,
+      userId: u(3)!,
+      role: "投资",
+      supplyTags: ["产业基金"],
+      demandTags: ["A 轮 SaaS", "工业软件"],
+      topics: ["企业服务投资"],
+    },
+    {
+      id: SEED_MTG.intents[4]!,
+      eventId: ctx.hostedExpoEventId,
+      userId: u(4)!,
+      role: "采购",
+      supplyTags: ["供应链资源"],
+      demandTags: ["自动化设备"],
+      topics: ["智能制造"],
+    },
+    {
+      id: SEED_MTG.intents[5]!,
+      eventId: ctx.hostedExpoEventId,
+      userId: u(5)!,
+      role: "学习交流",
+      supplyTags: ["数据分析"],
+      demandTags: ["AI 落地案例"],
+      topics: ["AI 落地"],
+    },
+    {
+      id: SEED_MTG.intents[6]!,
+      eventId: ctx.saasSummitEventId,
+      userId: u(0)!,
+      role: "销售",
+      supplyTags: ["增长方法论"],
+      demandTags: ["PLG 实践"],
+      topics: ["B2B 增长"],
+    },
+    {
+      id: SEED_MTG.intents[7]!,
+      eventId: ctx.saasSummitEventId,
+      userId: u(1)!,
+      role: "合作",
+      supplyTags: ["渠道资源"],
+      demandTags: ["SaaS 联名活动"],
+      topics: ["渠道合作"],
+    },
+  ];
+
+  for (const row of specs) {
+    await prisma.userEventIntent.upsert({
+      where: { userId_eventId: { userId: row.userId, eventId: row.eventId } },
+      update: {
+        role: row.role,
+        supplyTags: row.supplyTags,
+        demandTags: row.demandTags,
+        topics: row.topics,
+      },
+      create: {
+        id: row.id,
+        userId: row.userId,
+        eventId: row.eventId,
+        role: row.role,
+        supplyTags: row.supplyTags,
+        demandTags: row.demandTags,
+        topics: row.topics,
+      },
+    });
+  }
+}
+
 export async function seedMeetingDemoData(ctx: SeedMeetingsContext) {
   await clearSeedMeetingData();
 
@@ -548,6 +663,7 @@ export async function seedMeetingDemoData(ctx: SeedMeetingsContext) {
   };
 
   await seedScheduledMeetings(ctx, baseDates);
+  await seedUserEventIntents(ctx);
 
   const tableCount = Object.keys(SEED_MTG.tables).length;
   const meetingCount =
@@ -557,6 +673,7 @@ export async function seedMeetingDemoData(ctx: SeedMeetingsContext) {
   return {
     tableCount,
     meetingCount,
+    intentCount: SEED_MTG.intents.length,
     hostedAreaCount: 2,
     conflictMeetingIds: [
       SEED_MTG.meetings[8],

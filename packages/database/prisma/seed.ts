@@ -1341,7 +1341,7 @@ async function main() {
     endUserIds: endUsers.map((u) => u.id),
   });
   console.log(
-    `✓ 会面演示数据：${meetingMeta.hostedAreaCount} 洽谈区 + ${meetingMeta.tableCount} 桌位 + ${meetingMeta.meetingCount} 条会面（含冲突示例）`,
+    `✓ 会面演示数据：${meetingMeta.hostedAreaCount} 洽谈区 + ${meetingMeta.tableCount} 桌位 + ${meetingMeta.meetingCount} 条会面 + ${meetingMeta.intentCount} 条意图（含冲突示例）`,
   );
 
   // ── 汇总 ────────────────────────────────────────────────────

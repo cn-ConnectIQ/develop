@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ListChecks } from "lucide-react";
 import {
   AdminContent,
   AdminHeader,
   AdminPage,
 } from "@/components/admin/admin-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { IntentFormBuilder } from "@/components/meetings/IntentFormBuilder";
 import { PremeetSettings } from "@/components/meetings/PremeetSettings";
 import {
@@ -103,11 +106,20 @@ export function MatchmakingSetupClient({
         description={eventName}
         breadcrumb={["活动", "匹配预热"]}
         actions={
-          dirty ? (
-            <Button onClick={() => void handleSave()} disabled={saving}>
-              {saving ? "保存中…" : "保存全部"}
-            </Button>
-          ) : null
+          <div className="flex gap-2">
+            <Link
+              href={`/events/${eventId}/matchmaking/responses`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <ListChecks className="mr-1 size-4" />
+              查看采集结果
+            </Link>
+            {dirty ? (
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving ? "保存中…" : "保存全部"}
+              </Button>
+            ) : null}
+          </div>
         }
       />
       <AdminContent>
