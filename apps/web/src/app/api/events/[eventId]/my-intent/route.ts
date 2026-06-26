@@ -11,12 +11,21 @@ import {
   upsertMyEventIntent,
 } from "@/lib/user-event-intent-service";
 
-const patchBodySchema = z.object({
-  role: z.string().max(64).optional().nullable(),
-  supply_tags: z.array(z.string().max(64)).max(20).optional(),
-  demand_tags: z.array(z.string().max(64)).max(20).optional(),
-  topics: z.array(z.string().max(64)).max(20).optional(),
-});
+const patchBodySchema = z
+  .object({
+    role: z.string().max(64).optional().nullable(),
+    supply_tags: z.array(z.string().max(64)).max(20).optional(),
+    demand_tags: z.array(z.string().max(64)).max(20).optional(),
+    topics: z.array(z.string().max(64)).max(20).optional(),
+  })
+  .refine(
+    (data) =>
+      data.role !== undefined ||
+      data.supply_tags !== undefined ||
+      data.demand_tags !== undefined ||
+      data.topics !== undefined,
+    { message: "请至少提供一个字段（role / supply_tags / demand_tags / topics）" },
+  );
 
 /** 参会者读取当前活动的意向采集结果 */
 export const GET = withErrorHandler(async (request, context) => {

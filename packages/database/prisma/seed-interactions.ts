@@ -353,7 +353,18 @@ async function upsertSession(params: {
   });
 }
 
-async function setEventFeatureFlags(eventId: string) {
+type SeedFeatureFlagOverrides = Partial<{
+  speedNetworking: boolean;
+  inviteSystem: boolean;
+  aiBoothRoute: boolean;
+  aiReferral: boolean;
+  highValueBuyerPush: boolean;
+}>;
+
+async function setEventFeatureFlags(
+  eventId: string,
+  overrides: SeedFeatureFlagOverrides = {},
+) {
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -367,6 +378,7 @@ async function setEventFeatureFlags(eventId: string) {
         aiReferral: false,
         highValueBuyerPush: false,
         inviteSystem: false,
+        ...overrides,
       },
     },
   });
@@ -417,7 +429,7 @@ async function seedHostedExpoInteractions(ctx: SeedInteractionsContext) {
   const H = SEED_INT.hostedExpo;
   const { hostedExpoEventId: eventId, unifiedAdminId: creatorId } = ctx;
 
-  await setEventFeatureFlags(eventId);
+  await setEventFeatureFlags(eventId, { inviteSystem: true });
 
   // ── Poll 套件（6 种 LIVE + 1 DRAFT + 测验题）──
   await upsertPoll({
@@ -1120,7 +1132,10 @@ async function seedSummitInteractions(ctx: SeedInteractionsContext) {
       ? ctx.summitParticipantIds
       : ctx.hostedParticipantIds;
 
-  await setEventFeatureFlags(eventId);
+  await setEventFeatureFlags(eventId, {
+    speedNetworking: true,
+    inviteSystem: true,
+  });
 
   await upsertPoll({
     id: S.pollSingle,
@@ -1376,7 +1391,7 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
   const creatorId = ctx.unifiedAdminId;
   const participants = ctx.innovationParticipantIds ?? [];
 
-  await setEventFeatureFlags(eventId);
+  await setEventFeatureFlags(eventId, { speedNetworking: true });
 
   await upsertPoll({
     id: I.pollSingle,

@@ -7,6 +7,7 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import { updateEventSnSession } from "@/lib/sn-sessions-service";
 
 const patchSchema = z.object({
@@ -22,6 +23,8 @@ export const PATCH = withErrorHandler(async (request, context) => {
   }
 
   await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "speedNetworking");
+  if (disabled) return disabled;
   const body = await request.json().catch(() => ({}));
   const parsed = patchSchema.safeParse(body);
 

@@ -112,9 +112,20 @@ export async function upsertMyEventIntent(
     throw new ApiError("您尚未报名该活动", ErrorCode.FORBIDDEN, 403);
   }
 
-  const supplyTags = normalizeTags(input.supply_tags);
-  const demandTags = normalizeTags(input.demand_tags);
-  const topics = normalizeTags(input.topics);
+  const existing = await prisma.userEventIntent.findUnique({
+    where: { userId_eventId: { userId, eventId } },
+  });
+
+  const supplyTags =
+    input.supply_tags !== undefined
+      ? normalizeTags(input.supply_tags)
+      : undefined;
+  const demandTags =
+    input.demand_tags !== undefined
+      ? normalizeTags(input.demand_tags)
+      : undefined;
+  const topics =
+    input.topics !== undefined ? normalizeTags(input.topics) : undefined;
   const role =
     input.role === undefined
       ? undefined
@@ -122,21 +133,42 @@ export async function upsertMyEventIntent(
         ? null
         : input.role.trim() || null;
 
+  const mergedRole = role !== undefined ? role : (existing?.role ?? null);
+  const mergedSupply =
+    supplyTags !== undefined ? supplyTags : (existing?.supplyTags ?? []);
+  const mergedDemand =
+    demandTags !== undefined ? demandTags : (existing?.demandTags ?? []);
+  const mergedTopics = topics !== undefined ? topics : (existing?.topics ?? []);
+
+  const hasContent =
+    Boolean(mergedRole) ||
+    mergedSupply.length > 0 ||
+    mergedDemand.length > 0 ||
+    mergedTopics.length > 0;
+
+  if (!existing && !hasContent) {
+    throw new ApiError(
+      "请至少填写角色、供给标签、需求标签或话题中的一项",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
   const intent = await prisma.userEventIntent.upsert({
     where: { userId_eventId: { userId, eventId } },
     create: {
       userId,
       eventId,
-      role: role ?? null,
-      supplyTags,
-      demandTags,
-      topics,
+      role: mergedRole,
+      supplyTags: mergedSupply,
+      demandTags: mergedDemand,
+      topics: mergedTopics,
     },
     update: {
       ...(role !== undefined ? { role } : {}),
-      ...(input.supply_tags !== undefined ? { supplyTags } : {}),
-      ...(input.demand_tags !== undefined ? { demandTags } : {}),
-      ...(input.topics !== undefined ? { topics } : {}),
+      ...(supplyTags !== undefined ? { supplyTags } : {}),
+      ...(demandTags !== undefined ? { demandTags } : {}),
+      ...(topics !== undefined ? { topics } : {}),
     },
   });
 

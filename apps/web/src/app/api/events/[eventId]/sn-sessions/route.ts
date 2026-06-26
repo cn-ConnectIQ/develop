@@ -6,6 +6,7 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import {
   createEventSnSession,
   listEventSnSessions,
@@ -22,6 +23,8 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
 
   await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "speedNetworking");
+  if (disabled) return disabled;
   const sessions = await listEventSnSessions(eventId);
   return createSuccessResponse(sessions, { total: sessions.length });
 });
@@ -33,6 +36,8 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "speedNetworking");
+  if (disabled) return disabled;
   const body = await request.json().catch(() => ({}));
   const parsed = createSchema.safeParse(body);
 

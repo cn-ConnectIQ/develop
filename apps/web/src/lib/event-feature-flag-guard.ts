@@ -11,6 +11,7 @@ const FEATURE_DISABLED_MESSAGES: Partial<Record<EventFeatureFlagKey, string>> =
     aiReferral: "AI 引荐未开启",
     aiBoothRoute: "AI 展位路线未开启",
     highValueBuyerPush: "高价值买家推送未开启",
+    speedNetworking: "Speed Networking 未开启",
   };
 
 /** 功能未开启时返回 403 响应，否则返回 null */
