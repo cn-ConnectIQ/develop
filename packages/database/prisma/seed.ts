@@ -26,6 +26,10 @@ import { prisma } from "../src/client";
 import { seedInteractionDemoData } from "./seed-interactions";
 import { seedEventFeatureDemoData } from "./seed-event-features";
 import { seedMeetingDemoData } from "./seed-meetings";
+import {
+  MOBILE_TEST_PHONE,
+  seedMobileTestAttendee,
+} from "./seed-mobile-test-attendee";
 
 const SEED_PASSWORD = "ConnectIQ2024!";
 
@@ -53,6 +57,7 @@ const END_USER_PHONES = [
   "13900000008",
   "13900000009",
   "13900000010",
+  "13770626459",
 ] as const;
 
 const SEED_ORG_SLUGS = [
@@ -1275,6 +1280,11 @@ async function main() {
     throw new Error("缺少 innovation-summit-2025 活动");
   }
 
+  const mobileTestMeta = await seedMobileTestAttendee();
+  console.log(
+    `✓ 移动端测试 ${MOBILE_TEST_PHONE} → ${mobileTestMeta.eventCount} 场活动参会者`,
+  );
+
   const hostedBooths = await prisma.exhibitorBooth.findMany({
     where: { eventId: hostedExpoEvent.id, code: { in: ["A-101", "A-102", "A-103"] } },
     orderBy: { code: "asc" },
@@ -1362,6 +1372,12 @@ async function main() {
   console.log("  统一组织:       13800000008  陈主编  → /org/connectiq-innovation-hub");
   console.log("  待审核:         13800000005 / 13800000006");
   console.log("  已拒绝:         13800000007");
+  console.log(`\n── 移动端测试（参会者）──`);
+  console.log(`  手机号:         ${MOBILE_TEST_PHONE}  钱测试`);
+  console.log(`  邮箱:           ${MOBILE_TEST_PHONE}@phone.connectiq.local`);
+  console.log(`  密码:           ${SEED_PASSWORD}`);
+  console.log("  已加入: SaaS增长峰会 / 产品增长沙龙 / 创新活动运营峰会 / 智链博览会 / 企业数字化展览会");
+  console.log("  小程序: wx-login-phone 绑定此手机号后可走 discover → home 全链路");
   console.log("\n── 活动 ──");
   console.log(`  LIVE:      ${summitEvent.name}`);
   console.log(`  PUBLISHED: ${salonEvent.name}`);
