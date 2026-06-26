@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import {
   RegistrationSource,
   UserAccountStatus,
@@ -7,17 +7,23 @@ import {
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import { getOrCreateContactCard } from "@/lib/contact-card-service";
+import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
 
-export type MiniAuthUserPayload = {
+export type MiniLoginUserPayload = {
   id: string;
   name: string;
-  phone?: string;
-  status: "SHADOW" | "ACTIVE" | "COMPLETE";
-  user_type: "END_USER" | "ACCOUNT_ADMIN" | "PLATFORM_ADMIN";
-  org_id?: string | null;
-  avatar_url?: string;
-  company?: string;
-  title?: string;
+  avatar: string | null;
+  company: string | null;
+  title: string | null;
+  userType: "END_USER" | "ACCOUNT_ADMIN" | "PLATFORM_ADMIN";
+  hasProfile: boolean;
+  hasWechatQr: boolean;
+};
+
+export type MiniWxLoginResult = {
+  token: string;
+  user: MiniLoginUserPayload;
 };
 
 const userSelect = {
@@ -29,46 +35,27 @@ const userSelect = {
   profile: {
     select: {
       company: true,
+      valueProposition: true,
       accountStatus: true,
     },
   },
 } as const;
 
-type DbUser = NonNullable<Awaited<ReturnType<typeof findUserByPhone>>>;
+type DbUser = NonNullable<Awaited<ReturnType<typeof findUserByWechatOpenId>>>;
 
-function mapAccountStatus(status: UserAccountStatus): MiniAuthUserPayload["status"] {
-  if (status === UserAccountStatus.SHADOW) return "SHADOW";
-  if (status === UserAccountStatus.COMPLETE) return "COMPLETE";
-  return "ACTIVE";
-}
-
-function mapUserType(userType: PrismaUserType): MiniAuthUserPayload["user_type"] {
+function mapUserType(userType: PrismaUserType): MiniLoginUserPayload["userType"] {
   if (userType === PrismaUserType.PLATFORM_ADMIN) return "PLATFORM_ADMIN";
   if (userType === PrismaUserType.ACCOUNT_ADMIN) return "ACCOUNT_ADMIN";
   return "END_USER";
 }
 
-export function formatMiniAuthUser(user: DbUser): MiniAuthUserPayload {
-  return {
-    id: user.id,
-    name: user.name,
-    phone: user.phone ?? undefined,
-    status: mapAccountStatus(user.profile?.accountStatus ?? UserAccountStatus.ACTIVE),
-    user_type: mapUserType(user.userType),
-    org_id: user.orgId,
-    company: user.profile?.company ?? undefined,
-  };
+function openidToEmail(openid: string): string {
+  const digest = createHash("sha256").update(openid).digest("hex").slice(0, 32);
+  return `wx_${digest}@mini.connectiq.local`;
 }
 
 export function issueMiniAuthToken(userId: string): string {
   return `mini_${userId}_${randomUUID()}`;
-}
-
-async function findUserByPhone(phone: string) {
-  return prisma.user.findFirst({
-    where: { phone },
-    select: userSelect,
-  });
 }
 
 async function findUserByWechatOpenId(openid: string) {
@@ -84,13 +71,24 @@ async function findUserByWechatOpenId(openid: string) {
   });
 }
 
-async function exchangeWxCode(code: string): Promise<{ openid: string; sessionKey?: string }> {
+async function findUserByPhone(phone: string) {
+  return prisma.user.findFirst({
+    where: { phone },
+    select: userSelect,
+  });
+}
+
+async function exchangeWxCode(code: string): Promise<{ openid: string }> {
   const appId = process.env.WECHAT_MINI_APP_ID;
   const secret = process.env.WECHAT_MINI_APP_SECRET;
 
   if (!appId || !secret) {
     if (process.env.NODE_ENV === "development") {
-      return { openid: `dev-openid-${code.slice(0, 8) || "mock"}` };
+      // wx.login code 一次性；开发环境用稳定 openid，保证同一测试用户 id 不变
+      if (code.startsWith("test_openid:")) {
+        return { openid: code.slice("test_openid:".length) };
+      }
+      return { openid: "dev-openid-default" };
     }
     throw new ApiError("微信登录未配置", ErrorCode.INTERNAL_ERROR, 500);
   }
@@ -102,7 +100,11 @@ async function exchangeWxCode(code: string): Promise<{ openid: string; sessionKe
   url.searchParams.set("grant_type", "authorization_code");
 
   const res = await fetch(url);
-  const data = (await res.json()) as { openid?: string; errcode?: number; errmsg?: string };
+  const data = (await res.json()) as {
+    openid?: string;
+    errcode?: number;
+    errmsg?: string;
+  };
 
   if (!data.openid) {
     throw new ApiError(data.errmsg ?? "微信登录失败", ErrorCode.VALIDATION_ERROR, 400);
@@ -129,7 +131,7 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
   const tokenRes = await fetch(
     `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${appId}&secret=${secret}`,
   );
-  const tokenData = (await tokenRes.json()) as { access_token?: string; errcode?: number };
+  const tokenData = (await tokenRes.json()) as { access_token?: string };
   if (!tokenData.access_token) {
     throw new ApiError("获取微信 access_token 失败", ErrorCode.INTERNAL_ERROR, 500);
   }
@@ -144,11 +146,11 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
   );
   const phoneData = (await phoneRes.json()) as {
     phone_info?: { purePhoneNumber?: string; phoneNumber?: string };
-    errcode?: number;
     errmsg?: string;
   };
 
-  const phone = phoneData.phone_info?.purePhoneNumber ?? phoneData.phone_info?.phoneNumber;
+  const phone =
+    phoneData.phone_info?.purePhoneNumber ?? phoneData.phone_info?.phoneNumber;
   if (!phone) {
     throw new ApiError(phoneData.errmsg ?? "获取手机号失败", ErrorCode.VALIDATION_ERROR, 400);
   }
@@ -174,9 +176,43 @@ async function ensureWechatIdentity(userId: string, openid: string) {
   });
 }
 
+async function findOrCreateUserByOpenId(openid: string): Promise<DbUser> {
+  const existing = await findUserByWechatOpenId(openid);
+  if (existing) {
+    await ensureWechatIdentity(existing.id, openid);
+    return existing;
+  }
+
+  const email = openidToEmail(openid);
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash: "mini_program",
+      name: "微信用户",
+      userType: PrismaUserType.END_USER,
+      profile: {
+        create: {
+          accountStatus: UserAccountStatus.SHADOW,
+          registrationSource: RegistrationSource.WECHAT,
+        },
+      },
+      identities: {
+        create: {
+          provider: "wechat_mini",
+          value: openid,
+          verified: true,
+        },
+      },
+    },
+    select: userSelect,
+  });
+
+  return user;
+}
+
 async function createEndUserByPhone(phone: string): Promise<DbUser> {
   const email = `wx_${phone}@mini.connectiq.local`;
-  const user = await prisma.user.create({
+  return prisma.user.create({
     data: {
       email,
       passwordHash: "mini_program",
@@ -192,42 +228,132 @@ async function createEndUserByPhone(phone: string): Promise<DbUser> {
     },
     select: userSelect,
   });
-  return user;
 }
 
-export async function miniWxLogin(code: string) {
-  const { openid } = await exchangeWxCode(code);
-  let user = await findUserByWechatOpenId(openid);
+async function buildLoginUserPayload(userId: string): Promise<MiniLoginUserPayload> {
+  const [user, contactCard, intent] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: userSelect,
+    }),
+    prisma.contactCard.findUnique({
+      where: { userId },
+      select: { wechatQrUrl: true, headline: true },
+    }),
+    prisma.userEventIntent.findFirst({
+      where: { userId },
+      select: { role: true, supplyTags: true, demandTags: true, topics: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
 
   if (!user) {
-    throw new ApiError("请先授权手机号完成注册", ErrorCode.UNAUTHORIZED, 401);
+    throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  await ensureWechatIdentity(user.id, openid);
+  const hasProfile = Boolean(
+    user.profile?.company ||
+      user.profile?.valueProposition ||
+      contactCard?.headline ||
+      intent?.role ||
+      (intent?.supplyTags.length ?? 0) > 0 ||
+      (intent?.demandTags.length ?? 0) > 0 ||
+      (intent?.topics.length ?? 0) > 0,
+  );
 
   return {
-    openid,
-    token: issueMiniAuthToken(user.id),
-    user: formatMiniAuthUser(user),
+    id: user.id,
+    name: user.name,
+    avatar: null,
+    company: user.profile?.company ?? null,
+    title: user.profile?.valueProposition ?? null,
+    userType: mapUserType(user.userType),
+    hasProfile,
+    hasWechatQr: Boolean(contactCard?.wechatQrUrl),
   };
 }
 
-export async function miniWxLoginWithPhone(wxCode: string, phoneCode: string) {
+async function linkUserToEvent(userId: string, eventId?: string) {
+  if (!eventId) return;
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true },
+  });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  await ensureParticipantForUser(eventId, userId);
+}
+
+export async function miniWxLogin(
+  code: string,
+  eventId?: string,
+): Promise<MiniWxLoginResult> {
+  const { openid } = await exchangeWxCode(code);
+  const user = await findOrCreateUserByOpenId(openid);
+  await linkUserToEvent(user.id, eventId);
+
+  // 确保名片占位存在，便于后续 hasWechatQr 判断
+  await getOrCreateContactCard(user.id);
+
+  return {
+    token: issueMiniAuthToken(user.id),
+    user: await buildLoginUserPayload(user.id),
+  };
+}
+
+export async function miniWxLoginWithPhone(
+  wxCode: string,
+  phoneCode: string,
+  eventId?: string,
+): Promise<MiniWxLoginResult> {
   const [{ openid }, phone] = await Promise.all([
     exchangeWxCode(wxCode),
     exchangePhoneCode(phoneCode),
   ]);
 
   let user = await findUserByPhone(phone);
-
   if (!user) {
     user = await createEndUserByPhone(phone);
   }
 
   await ensureWechatIdentity(user.id, openid);
+  await linkUserToEvent(user.id, eventId);
+  await getOrCreateContactCard(user.id);
 
   return {
     token: issueMiniAuthToken(user.id),
-    user: formatMiniAuthUser(user),
+    user: await buildLoginUserPayload(user.id),
+  };
+}
+
+/** @deprecated 使用 MiniLoginUserPayload */
+export type MiniAuthUserPayload = {
+  id: string;
+  name: string;
+  phone?: string;
+  status: "SHADOW" | "ACTIVE" | "COMPLETE";
+  user_type: "END_USER" | "ACCOUNT_ADMIN" | "PLATFORM_ADMIN";
+  org_id?: string | null;
+  avatar_url?: string;
+  company?: string;
+  title?: string;
+};
+
+export function formatMiniAuthUser(user: DbUser): MiniAuthUserPayload {
+  return {
+    id: user.id,
+    name: user.name,
+    phone: user.phone ?? undefined,
+    status:
+      user.profile?.accountStatus === UserAccountStatus.SHADOW
+        ? "SHADOW"
+        : user.profile?.accountStatus === UserAccountStatus.COMPLETE
+          ? "COMPLETE"
+          : "ACTIVE",
+    user_type: mapUserType(user.userType),
+    org_id: user.orgId,
+    company: user.profile?.company ?? undefined,
+    title: user.profile?.valueProposition ?? undefined,
   };
 }

@@ -7,7 +7,7 @@ import {
 import { getEventDashboardMobile } from "@/lib/event-dashboard-mobile-service";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 
-/** 小程序活动主页聚合数据（与 /home 相同） */
+/** 小程序活动主页聚合数据（别名：home） */
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {

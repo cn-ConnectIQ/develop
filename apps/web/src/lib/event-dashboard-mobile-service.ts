@@ -1,58 +1,272 @@
-import { EventStatus, MeetingStatus, prisma } from "@connectiq/database";
+import {
+  EventStatus,
+  LotteryStatus,
+  PollStatus,
+  PollType,
+  StampRallyStatus,
+  prisma,
+} from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
-import { findParticipantForUser } from "@/lib/interaction/participant-user";
-import { mapMeetingToScheduleItem } from "@/lib/meetings-service";
+import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
 
-export type ApiEventOrg = {
+export type ApiMobileHomeEvent = {
   id: string;
   name: string;
-  slug: string;
-  logo_url: string | null;
-  is_verified: boolean;
+  activityType: string;
+  status: "DRAFT" | "PUBLISHED" | "LIVE" | "ENDED";
+  dayLabel: string;
 };
 
-function mapEventStatus(status: EventStatus): "DRAFT" | "PUBLISHED" | "LIVE" | "ENDED" {
+export type ApiMobileAiRecommendation = {
+  userId: string;
+  name: string;
+  avatar: string | null;
+  company: string | null;
+  title: string | null;
+  matchReason: string;
+};
+
+export type ApiMobileLiveInteraction = {
+  id: string;
+  type: string;
+  title: string;
+  isLive: boolean;
+};
+
+export type ApiMobileAnnouncement = {
+  id: string;
+  content: string;
+  time: string;
+};
+
+export type ApiMobileStampRally = {
+  current: number;
+  total: number;
+  prize: string;
+};
+
+export type ApiMobileHomeOrg = {
+  name: string;
+  isVerified: boolean;
+};
+
+export type ApiEventDashboardMobile = {
+  event: ApiMobileHomeEvent;
+  aiRecommendations: ApiMobileAiRecommendation[];
+  liveInteraction: ApiMobileLiveInteraction | null;
+  announcements: ApiMobileAnnouncement[];
+  stampRally: ApiMobileStampRally | null;
+  org: ApiMobileHomeOrg | null;
+};
+
+function mapEventStatus(status: EventStatus): ApiMobileHomeEvent["status"] {
   if (status === EventStatus.ARCHIVED) return "ENDED";
   if (status === EventStatus.LIVE) return "LIVE";
   if (status === EventStatus.PUBLISHED) return "PUBLISHED";
   return "DRAFT";
 }
 
-function splitLocation(location: string | null | undefined): {
-  city?: string;
-  venue?: string;
-} {
-  if (!location) return {};
-  const parts = location.split("·").map((s) => s.trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    return { city: parts[0], venue: parts.slice(1).join(" · ") };
+function computeDayLabel(startDate: Date | null, endDate: Date | null): string {
+  const now = new Date();
+  if (!startDate) return "活动进行中";
+  if (now < startDate) {
+    const days = Math.ceil(
+      (startDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+    );
+    return days <= 1 ? "明天开始" : `${days} 天后开始`;
   }
-  return { venue: location };
+  if (endDate && now > endDate) return "已结束";
+  const dayIndex =
+    Math.floor((now.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) +
+    1;
+  return `Day ${Math.max(1, dayIndex)}`;
 }
 
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+function scoreIntentMatch(
+  my: { supplyTags: string[]; demandTags: string[] },
+  peer: { supplyTags: string[]; demandTags: string[] },
+): { score: number; reason: string } {
+  let score = 0;
+  const reasons: string[] = [];
+
+  for (const tag of my.demandTags) {
+    if (peer.supplyTags.includes(tag)) {
+      score += 30;
+      reasons.push(`对方供给「${tag}」匹配你的需求`);
+    }
+  }
+  for (const tag of my.supplyTags) {
+    if (peer.demandTags.includes(tag)) {
+      score += 30;
+      reasons.push(`你的供给「${tag}」匹配对方需求`);
+    }
+  }
+  for (const tag of my.demandTags) {
+    if (peer.demandTags.includes(tag)) {
+      score += 10;
+      reasons.push(`共同关注「${tag}」`);
+    }
+  }
+
+  return {
+    score,
+    reason: reasons[0] ?? "基于意向标签的智能推荐",
+  };
 }
 
-function endOfToday() {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d;
+async function loadAiRecommendations(
+  eventId: string,
+  userId: string,
+): Promise<ApiMobileAiRecommendation[]> {
+  const myIntent = await prisma.userEventIntent.findUnique({
+    where: { userId_eventId: { userId, eventId } },
+  });
+
+  const peerIntents = await prisma.userEventIntent.findMany({
+    where: {
+      eventId,
+      userId: { not: userId },
+      OR: [
+        { supplyTags: { isEmpty: false } },
+        { demandTags: { isEmpty: false } },
+        { role: { not: null } },
+      ],
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          profile: { select: { company: true, valueProposition: true } },
+        },
+      },
+    },
+    take: 30,
+  });
+
+  if (peerIntents.length === 0) return [];
+
+  const scored = peerIntents
+    .map((peer) => {
+      const match = myIntent
+        ? scoreIntentMatch(myIntent, peer)
+        : { score: 10, reason: "同场参会者，值得认识" };
+
+      return {
+        userId: peer.user.id,
+        name: peer.user.name,
+        avatar: null as string | null,
+        company: peer.user.profile?.company ?? null,
+        title: peer.role ?? peer.user.profile?.valueProposition ?? null,
+        matchReason: match.reason,
+        score: match.score + (peer.role ? 5 : 0),
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  return scored.map(({ score: _score, ...row }) => row);
 }
 
-export async function getEventDashboardMobile(eventId: string, userId: string) {
+async function loadLiveInteraction(
+  eventId: string,
+): Promise<ApiMobileLiveInteraction | null> {
+  const [livePoll, liveLottery] = await Promise.all([
+    prisma.poll.findFirst({
+      where: { eventId, status: PollStatus.LIVE },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, type: true, title: true },
+    }),
+    prisma.lottery.findFirst({
+      where: {
+        eventId,
+        status: { in: [LotteryStatus.OPEN, LotteryStatus.DRAWING] },
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, title: true },
+    }),
+  ]);
+
+  if (livePoll) {
+    return {
+      id: livePoll.id,
+      type: livePoll.type,
+      title: livePoll.title,
+      isLive: true,
+    };
+  }
+
+  if (liveLottery) {
+    return {
+      id: liveLottery.id,
+      type: "LOTTERY",
+      title: liveLottery.title,
+      isLive: true,
+    };
+  }
+
+  return null;
+}
+
+async function loadAnnouncements(eventId: string): Promise<ApiMobileAnnouncement[]> {
+  const rows = await prisma.poll.findMany({
+    where: {
+      eventId,
+      type: PollType.ANNOUNCEMENT,
+      status: { in: [PollStatus.LIVE, PollStatus.PAUSED, PollStatus.CLOSED] },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+    select: { id: true, title: true, updatedAt: true, createdAt: true },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    content: row.title,
+    time: (row.updatedAt ?? row.createdAt).toISOString(),
+  }));
+}
+
+async function loadStampRallySummary(
+  eventId: string,
+  userId: string,
+): Promise<ApiMobileStampRally | null> {
+  const enabled = await isEventFeatureEnabled(eventId, "stampRally");
+  if (!enabled) return null;
+
+  const rally = await prisma.stampRally.findFirst({
+    where: {
+      eventId,
+      status: StampRallyStatus.ACTIVE,
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, requiredCount: true, prize: true },
+  });
+
+  if (!rally) return null;
+
+  const current = await prisma.stampRecord.count({
+    where: { rallyId: rally.id, userId },
+  });
+
+  return {
+    current,
+    total: rally.requiredCount,
+    prize: rally.prize,
+  };
+}
+
+export async function getEventDashboardMobile(
+  eventId: string,
+  userId: string,
+): Promise<ApiEventDashboardMobile> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
       org: {
         select: {
-          id: true,
           name: true,
-          slug: true,
-          logoUrl: true,
           isVerified: true,
         },
       },
@@ -63,73 +277,31 @@ export async function getEventDashboardMobile(eventId: string, userId: string) {
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const participant = await findParticipantForUser(eventId, userId);
-  const locationParts = splitLocation(event.location);
-
-  const [meetings, attendeeCount, unreadNotificationCount] = await Promise.all([
-    prisma.meeting.findMany({
-      where: {
-        eventId,
-        OR: [{ requesterId: userId }, { recipientId: userId }],
-        scheduledStart: { gte: startOfToday(), lte: endOfToday() },
-        status: { not: MeetingStatus.DECLINED },
-      },
-      orderBy: { scheduledStart: "asc" },
-      include: {
-        requester: { include: { profile: true } },
-        recipient: { include: { profile: true } },
-      },
-    }),
-    prisma.participant.count({ where: { eventId } }),
-    prisma.notification.count({ where: { userId, readAt: null } }),
-  ]);
-
-  const todaySchedule = meetings.map((meeting) =>
-    mapMeetingToScheduleItem(meeting, userId, new Set()),
-  );
-
-  const org: ApiEventOrg | null = event.org
-    ? {
-        id: event.org.id,
-        name: event.org.name,
-        slug: event.org.slug,
-        logo_url: event.org.logoUrl,
-        is_verified: event.org.isVerified,
-      }
-    : null;
+  const [aiRecommendations, liveInteraction, announcements, stampRally] =
+    await Promise.all([
+      loadAiRecommendations(eventId, userId),
+      loadLiveInteraction(eventId),
+      loadAnnouncements(eventId),
+      loadStampRallySummary(eventId, userId),
+    ]);
 
   return {
     event: {
       id: event.id,
       name: event.name,
-      event_type: event.type,
-      starts_at: event.startDate?.toISOString() ?? new Date().toISOString(),
-      ends_at: event.endDate?.toISOString() ?? new Date().toISOString(),
-      city: locationParts.city,
-      venue: locationParts.venue ?? event.location ?? undefined,
+      activityType: event.activityType,
       status: mapEventStatus(event.status),
-      org,
+      dayLabel: computeDayLabel(event.startDate, event.endDate),
     },
-    participant: participant
+    aiRecommendations,
+    liveInteraction,
+    announcements,
+    stampRally,
+    org: event.org
       ? {
-          id: participant.id,
-          name: participant.name,
-          badge_qr: participant.badgeQr ?? "",
-          company: participant.company ?? undefined,
+          name: event.org.name,
+          isVerified: event.org.isVerified,
         }
-      : {
-          id: `guest-${userId}`,
-          name: "参会者",
-          badge_qr: "",
-        },
-    aiRecommendations: [],
-    recommendationTotal: 0,
-    todaySchedule,
-    activeInteraction: null,
-    activeLottery: null,
-    communityPosts: [], // @deprecated B2B 社区占位，见 lib/deprecated/b2b-social.ts
-    announcements: [],
-    unreadNotificationCount,
-    attendeeCount,
+      : null,
   };
 }
