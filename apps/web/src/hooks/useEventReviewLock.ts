@@ -1,27 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useOptionalCurrentEvent } from "@/contexts/event-context";
 
-export function useEventReviewLock(eventId: string) {
-  return useQuery({
-    queryKey: ["event-detail", eventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}`);
-      if (!res.ok) throw new Error("加载失败");
-      return (await res.json()).data as {
-        reviewStatus: string;
-        review: {
-          status: string;
-          revisionNotes: string | null;
-          rejectionReason: string | null;
-        } | null;
-      };
-    },
-    enabled: !!eventId,
-  });
-}
-
+/** 优先使用 layout 预取的活动列表，避免每个页面额外请求 /api/events/:id */
 export function useIsEventReviewLocked(eventId: string) {
-  const { data } = useEventReviewLock(eventId);
-  return data?.review?.status === "PENDING_REVIEW";
+  const ctx = useOptionalCurrentEvent();
+  const event =
+    ctx?.events.find((item) => item.id === eventId) ??
+    (ctx?.currentEventId === eventId ? ctx.currentEvent : null);
+
+  if (event) {
+    return event.review?.status === "PENDING_REVIEW";
+  }
+
+  return false;
 }

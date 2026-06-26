@@ -96,6 +96,10 @@ function getEventHomeHref(
   if (event.listRole === "EXHIBITOR" && event.boothId) {
     return `/exhibitor/booths/${event.boothId}`;
   }
+  // 主办活动：统一账号管理员进 /events/ 工作台（含 EXPO 类型）
+  if (event.listRole === "HOST") {
+    return `/events/${event.id}`;
+  }
   if (role === UserRole.EXPO_ORGANIZER && event.type === "EXPO") {
     return `/expos/${event.id}`;
   }

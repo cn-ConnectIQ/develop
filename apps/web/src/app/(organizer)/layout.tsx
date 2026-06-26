@@ -1,12 +1,9 @@
-import { AdminLayout } from "@/components/admin/admin-layout";
-import { requireAccountAdminLayoutSession } from "@/lib/layout-auth";
+import { AccountAdminShell } from "@/components/admin/account-admin-shell";
 
-export default async function OrganizerLayout({
+export default function OrganizerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireAccountAdminLayoutSession();
-
-  return <AdminLayout session={session}>{children}</AdminLayout>;
+  return <AccountAdminShell>{children}</AccountAdminShell>;
 }

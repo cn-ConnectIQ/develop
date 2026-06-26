@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { backgroundPoll } from "@/lib/query-options";
 import {
   AlertTriangle,
   BarChart3,
@@ -138,7 +139,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
   const { data, isLoading, refetch, isFetching } = useQuery<DashboardData>({
     queryKey: ["event-dashboard", eventId],
     queryFn: () => fetchDashboard(eventId),
-    refetchInterval: 15000,
+    ...backgroundPoll(30_000),
   });
 
   useRealtimeCheckin({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { backgroundPoll } from "@/lib/query-options";
 import {
   Line,
   LineChart,
@@ -132,19 +133,19 @@ export function ExhibitorDashboardClient() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["exhibitor-dashboard"],
     queryFn: fetchDashboard,
-    refetchInterval: 30000,
+    ...backgroundPoll(30_000),
   });
 
   const { data: buyers = [] } = useQuery({
     queryKey: ["exhibitor-buyers"],
     queryFn: fetchBuyers,
-    refetchInterval: 30000,
+    ...backgroundPoll(30_000),
   });
 
   const { data: leads = [] } = useQuery({
     queryKey: ["exhibitor-leads"],
     queryFn: fetchLeads,
-    refetchInterval: 30000,
+    ...backgroundPoll(30_000),
   });
 
   useRealtimeBoothLeads({

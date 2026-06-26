@@ -13,7 +13,10 @@ export default async function EventPage({
   const { eventId } = await params;
   const session = await getServerSession(authOptions);
 
-  if (session?.user.role === UserRole.EXPO_ORGANIZER) {
+  if (
+    session?.user.userType !== "ACCOUNT_ADMIN" &&
+    session?.user.role === UserRole.EXPO_ORGANIZER
+  ) {
     const event = await prisma.event.findFirst({
       where: { id: eventId, type: "EXPO" },
       select: { id: true },

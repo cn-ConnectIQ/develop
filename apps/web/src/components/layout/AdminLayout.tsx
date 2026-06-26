@@ -5,11 +5,12 @@ import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
-import { EventProvider, useCurrentEvent } from "@/hooks/useCurrentEvent";
+import { EventProvider, useCurrentEvent } from "@/contexts/event-context";
 import { useIsEventReviewLocked } from "@/hooks/useEventReviewLock";
 import { EventReviewBanner } from "@/components/events/EventReviewBanner";
 import { AdminContent } from "@/components/admin/admin-header";
 import { cn } from "@/lib/utils";
+import type { EventListResponse } from "@/hooks/useEvents";
 
 type AdminLayoutInnerProps = {
   user: AdminUser;
@@ -72,6 +73,7 @@ type AdminLayoutProps = {
   children: ReactNode;
   withEventProvider?: boolean;
   showHeader?: boolean;
+  initialEvents?: EventListResponse;
 };
 
 export function AdminLayout({
@@ -79,6 +81,7 @@ export function AdminLayout({
   children,
   withEventProvider = true,
   showHeader = true,
+  initialEvents,
 }: AdminLayoutProps) {
   const content = (
     <AdminLayoutInner user={user} showHeader={showHeader}>
@@ -87,7 +90,9 @@ export function AdminLayout({
   );
 
   if (withEventProvider) {
-    return <EventProvider>{content}</EventProvider>;
+    return (
+      <EventProvider initialEvents={initialEvents}>{content}</EventProvider>
+    );
   }
 
   return content;

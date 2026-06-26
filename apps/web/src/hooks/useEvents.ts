@@ -2,6 +2,8 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EventCategory } from "@/lib/event-utils";
+import { EVENTS_QUERY_KEY } from "@/lib/query-options";
+import type { EventFeatureFlags } from "@/lib/event-feature-flags";
 
 export type EventReviewInfo = {
   status: string;
@@ -28,6 +30,14 @@ export type EventListItem = {
   boothCode?: string | null;
   readiness: { completed: number; total: number };
   review: EventReviewInfo | null;
+  featureFlags?: EventFeatureFlags;
+  org?: {
+    id: string;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+    is_verified: boolean;
+  } | null;
   _count: {
     participants: number;
     checkIns: number;
@@ -77,9 +87,14 @@ async function fetchEvents(params: UseEventsParams = {}) {
 }
 
 export function useEvents(params: UseEventsParams = {}) {
+  const isDefaultList =
+    !params.status && !params.phase && !params.cursor && !params.limit;
+
   return useQuery({
-    queryKey: ["events", params],
+    queryKey: isDefaultList ? EVENTS_QUERY_KEY : ["events", params],
     queryFn: () => fetchEvents(params),
+    staleTime: 120_000,
+    refetchOnWindowFocus: false,
   });
 }
 

@@ -5,12 +5,19 @@ export function resolveEventNavRole(params: {
   activityType?: string | null;
   eventType?: string | null;
   isExhibitorRoute?: boolean;
+  userType?: string | null;
 }): UserRole {
-  const { activityType, eventType, isExhibitorRoute } = params;
+  const { activityType, eventType, isExhibitorRoute, userType } = params;
 
   if (isExhibitorRoute || activityType === "EXHIBITION") {
     return UserRole.EXHIBITOR;
   }
+
+  // 统一账号管理员：侧栏始终走 /events/ 主办方导航，避免误入 legacy /expos/ 路由
+  if (userType === "ACCOUNT_ADMIN" || userType === "PLATFORM_ADMIN") {
+    return UserRole.ORGANIZER;
+  }
+
   if (activityType === "EXPO" || eventType === "EXPO") {
     return UserRole.EXPO_ORGANIZER;
   }

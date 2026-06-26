@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useOptionalCurrentEvent } from "@/contexts/event-context";
 import {
   DEFAULT_EVENT_FEATURE_FLAGS,
   type EventFeatureFlags,
@@ -14,10 +15,16 @@ async function fetchFeatureFlags(eventId: string): Promise<EventFeatureFlags> {
 }
 
 export function useEventFeatureFlags(eventId: string | null | undefined) {
+  const ctx = useOptionalCurrentEvent();
+  const cached = ctx?.events.find((event) => event.id === eventId)?.featureFlags;
+
   return useQuery({
     queryKey: ["feature-flags", eventId],
     queryFn: () => fetchFeatureFlags(eventId!),
     enabled: Boolean(eventId),
-    staleTime: 60_000,
+    initialData: cached,
+    staleTime: 300_000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: cached ? false : true,
   });
 }

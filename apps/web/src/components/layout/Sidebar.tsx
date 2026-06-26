@@ -266,6 +266,7 @@ export function Sidebar({
     activityType,
     eventType,
     isExhibitorRoute,
+    userType,
   });
   const theme = getRoleTheme(navRole);
   const sidebarActiveClass = getOrgSidebarActiveClass(

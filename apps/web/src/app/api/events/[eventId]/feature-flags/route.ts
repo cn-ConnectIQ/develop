@@ -31,10 +31,15 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  return createSuccessResponse({
+  const response = createSuccessResponse({
     event_id: eventId,
     feature_flags: toApiFeatureFlags(parseEventFeatureFlags(event.featureFlags)),
   });
+  response.headers.set(
+    "Cache-Control",
+    "private, max-age=60, stale-while-revalidate=300",
+  );
+  return response;
 });
 
 const patchSchema = z

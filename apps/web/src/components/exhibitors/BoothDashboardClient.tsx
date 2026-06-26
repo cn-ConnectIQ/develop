@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { backgroundPoll } from "@/lib/query-options";
 import Link from "next/link";
 import { QrCode } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -95,7 +96,7 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["booth-dashboard", boothId],
     queryFn: () => fetchDashboard(boothId),
-    refetchInterval: 15000,
+    ...backgroundPoll(30_000),
   });
 
   useRealtimeBoothLeads({

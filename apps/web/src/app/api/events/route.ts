@@ -14,11 +14,12 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
+  listAccountAdminEvents,
+} from "@/lib/event-list-service";
+import {
   categoryToDbType,
-  computeEventReadiness,
   getEventPhase,
   slugify,
-  type EventCategory,
 } from "@/lib/event-utils";
 
 const eventCategorySchema = z.enum(["SUMMIT", "EXPO", "SALON", "TRAINING"]);
@@ -76,133 +77,6 @@ function parseCreateEventBody(body: unknown) {
   };
 }
 
-function buildOrganizerWhere(session: {
-  user: {
-    id: string;
-    role: AppUserRole;
-    activeOrgId?: string | null;
-  };
-}) {
-  if (session.user.role === AppUserRole.PLATFORM_ADMIN) {
-    return {};
-  }
-
-  const { id: userId, role, activeOrgId } = session.user;
-
-  if (activeOrgId) {
-    const participated = {
-      booths: { some: { companyOrgId: activeOrgId } },
-    };
-    if (role === AppUserRole.EXPO_ORGANIZER) {
-      return {
-        OR: [
-          { orgId: activeOrgId, type: EventType.EXPO },
-          { ...participated, type: EventType.EXPO },
-        ],
-      };
-    }
-    return {
-      OR: [{ orgId: activeOrgId }, participated],
-    };
-  }
-
-  if (role === AppUserRole.EXPO_ORGANIZER) {
-    return { organizerId: userId, type: EventType.EXPO };
-  }
-
-  return { organizerId: userId };
-}
-
-function serializeEvent(
-  event: Awaited<ReturnType<typeof prisma.event.findMany>>[number] & {
-    org?: {
-      id: string;
-      name: string;
-      slug: string;
-      logoUrl: string | null;
-      isVerified: boolean;
-    } | null;
-    booths?: Array<{ id: string; code: string; name: string }>;
-    _count: {
-      participants: number;
-      checkIns: number;
-      ticketTypes: number;
-      polls: number;
-      sessions: number;
-    };
-    settings: Array<{ value: unknown }>;
-    review?: {
-      status: string;
-      revisionNotes: string | null;
-      rejectionReason: string | null;
-    } | null;
-  },
-  activeOrgId?: string | null,
-) {
-  const categorySetting = event.settings[0]?.value;
-  const category =
-    typeof categorySetting === "string"
-      ? (categorySetting as EventCategory)
-      : null;
-
-  const readiness = computeEventReadiness({
-    name: event.name,
-    status: event.status,
-    location: event.location,
-    description: event.description,
-    startDate: event.startDate,
-    endDate: event.endDate,
-    _count: event._count,
-  });
-
-  const isHost = !activeOrgId || event.orgId === activeOrgId;
-  const participatingBooth = event.booths?.[0] ?? null;
-  const listRole = isHost ? "HOST" : "EXHIBITOR";
-
-  return {
-    id: event.id,
-    name: event.name,
-    slug: event.slug,
-    type: event.type,
-    activityType: event.activityType,
-    category,
-    status: event.status,
-    reviewStatus: event.reviewStatus,
-    description: event.description,
-    location: event.location,
-    startDate: event.startDate?.toISOString() ?? null,
-    endDate: event.endDate?.toISOString() ?? null,
-    createdAt: event.createdAt.toISOString(),
-    listRole,
-    boothId: listRole === "EXHIBITOR" ? participatingBooth?.id ?? null : null,
-    boothCode: listRole === "EXHIBITOR" ? participatingBooth?.code ?? null : null,
-    review: event.review
-      ? {
-          status: event.review.status,
-          revisionNotes: event.review.revisionNotes,
-          rejectionReason: event.review.rejectionReason,
-        }
-      : null,
-    readiness,
-    org: event.org
-      ? {
-          id: event.org.id,
-          name: event.org.name,
-          slug: event.org.slug,
-          logo_url: event.org.logoUrl,
-          is_verified: event.org.isVerified,
-        }
-      : null,
-    _count: {
-      participants: event._count.participants,
-      checkIns: event._count.checkIns,
-      ticketTypes: event._count.ticketTypes,
-      polls: event._count.polls,
-      sessions: event._count.sessions,
-    },
-  };
-}
-
 export const GET = withErrorHandler(async (request) => {
   const { session } = await requireAuth([
     AppUserRole.PLATFORM_ADMIN,
@@ -216,80 +90,21 @@ export const GET = withErrorHandler(async (request) => {
   const cursor = searchParams.get("cursor");
   const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 50), 1), 100);
 
-  const baseWhere = buildOrganizerWhere(session);
-  const activeOrgId = session.user.activeOrgId;
-  const where = {
-    ...baseWhere,
-    ...(statusFilter ? { status: statusFilter } : {}),
-  };
+  const listed = await listAccountAdminEvents(session);
+  let events = listed.events;
+  const stats = listed.stats;
 
-  const allForStats = await prisma.event.findMany({
-    where: baseWhere,
-    select: { status: true, startDate: true, endDate: true },
-  });
-
-  const stats = {
-    live: 0,
-    today: 0,
-    upcoming: 0,
-    draft: 0,
-    ended: 0,
-  };
-
-  for (const event of allForStats) {
-    const phase = getEventPhase(event);
-    stats[phase]++;
+  if (statusFilter) {
+    events = events.filter((event) => event.status === statusFilter);
   }
-
-  let events = await prisma.event.findMany({
-    where,
-    orderBy: [{ startDate: "asc" }, { createdAt: "desc" }],
-    include: {
-      org: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          logoUrl: true,
-          isVerified: true,
-        },
-      },
-      _count: {
-        select: {
-          participants: true,
-          checkIns: true,
-          ticketTypes: true,
-          polls: true,
-          sessions: true,
-        },
-      },
-      settings: {
-        where: { key: "event_category" },
-        take: 1,
-        select: { value: true },
-      },
-      review: {
-        select: {
-          status: true,
-          revisionNotes: true,
-          rejectionReason: true,
-        },
-      },
-      ...(activeOrgId
-        ? {
-            booths: {
-              where: { companyOrgId: activeOrgId },
-              select: { id: true, code: true, name: true },
-              take: 1,
-            },
-          }
-        : {}),
-    },
-  });
 
   if (phaseFilter && phaseFilter !== "all") {
     events = events.filter((event) => {
-      const phase = getEventPhase(event);
+      const phase = getEventPhase({
+        status: event.status as EventStatus,
+        startDate: event.startDate ? new Date(event.startDate) : null,
+        endDate: event.endDate ? new Date(event.endDate) : null,
+      });
       if (phaseFilter === "upcoming") {
         return phase === "upcoming" || phase === "today";
       }
@@ -297,24 +112,24 @@ export const GET = withErrorHandler(async (request) => {
     });
   }
 
-  const startIndex = cursor
-    ? events.findIndex((e) => e.id === cursor) + 1
-    : 0;
+  const startIndex = cursor ? events.findIndex((e) => e.id === cursor) + 1 : 0;
   const pageItems = events.slice(startIndex, startIndex + limit);
   const hasNext = startIndex + limit < events.length;
   const nextCursor = hasNext ? pageItems[pageItems.length - 1]?.id : undefined;
 
-  return createSuccessResponse(
+  const response = createSuccessResponse(
+    { events: pageItems, stats },
     {
-      events: pageItems.map((event) => serializeEvent(event, activeOrgId)),
-      stats,
-    },
-    {
-      total: allForStats.length,
+      total: listed.events.length,
       cursor: nextCursor ?? null,
       hasNext: Boolean(nextCursor),
     },
   );
+  response.headers.set(
+    "Cache-Control",
+    "private, max-age=30, stale-while-revalidate=120",
+  );
+  return response;
 });
 
 export const POST = withErrorHandler(async (request) => {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { backgroundPoll } from "@/lib/query-options";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AdminContent } from "@/components/admin/admin-header";
@@ -26,7 +27,7 @@ export function CheckinPageClient({ eventId }: { eventId: string }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["checkin", eventId],
     queryFn: () => fetchCheckin(eventId),
-    refetchInterval: 15000,
+    ...backgroundPoll(30_000),
   });
 
   useRealtimeCheckin({
