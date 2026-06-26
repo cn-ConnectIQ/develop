@@ -7,6 +7,7 @@ export {
   EventType,
   FeedItemType,
   IntentCategory,
+  IntentTagPool,
   InvitationStatus,
   InviteCampaignStatus,
   InviteChannel,

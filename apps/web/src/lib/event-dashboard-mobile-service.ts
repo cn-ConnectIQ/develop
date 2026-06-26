@@ -70,14 +70,14 @@ export async function getEventDashboardMobile(eventId: string, userId: string) {
     prisma.meeting.findMany({
       where: {
         eventId,
-        OR: [{ hostUserId: userId }, { guestUserId: userId }],
-        startsAt: { gte: startOfToday(), lte: endOfToday() },
+        OR: [{ requesterId: userId }, { recipientId: userId }],
+        scheduledStart: { gte: startOfToday(), lte: endOfToday() },
         status: { not: MeetingStatus.DECLINED },
       },
-      orderBy: { startsAt: "asc" },
+      orderBy: { scheduledStart: "asc" },
       include: {
-        hostUser: { include: { profile: true } },
-        guestUser: { include: { profile: true } },
+        requester: { include: { profile: true } },
+        recipient: { include: { profile: true } },
       },
     }),
     prisma.participant.count({ where: { eventId } }),

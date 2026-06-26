@@ -831,15 +831,16 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
   if (u0 && u2) {
     await prisma.meeting.upsert({
       where: { id: `${FEAT_PREFIX}-meeting-1` },
-      update: { status: MeetingStatus.CONFIRMED },
+      update: { status: MeetingStatus.ACCEPTED },
       create: {
         id: `${FEAT_PREFIX}-meeting-1`,
         eventId: ctx.saasSummitEventId,
-        hostUserId: u0,
-        guestUserId: u2,
-        status: MeetingStatus.CONFIRMED,
-        startsAt: daysFromNow(0, 2),
-        endsAt: daysFromNow(0, 3),
+        requesterId: u0,
+        recipientId: u2,
+        status: MeetingStatus.ACCEPTED,
+        scheduledStart: daysFromNow(0, 2),
+        scheduledEnd: daysFromNow(0, 3),
+        respondedAt: new Date(),
       },
     });
   }
@@ -847,16 +848,17 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
   if (u1 && u3) {
     await prisma.meeting.upsert({
       where: { id: `${FEAT_PREFIX}-meeting-2` },
-      update: { status: MeetingStatus.COMPLETED, rating: 5 },
+      update: { status: MeetingStatus.COMPLETED, wechatExchanged: true },
       create: {
         id: `${FEAT_PREFIX}-meeting-2`,
         eventId: ctx.hostedExpoEventId,
-        hostUserId: u1,
-        guestUserId: u3,
+        requesterId: u1,
+        recipientId: u3,
         status: MeetingStatus.COMPLETED,
-        startsAt: daysAgo(0, 6),
-        endsAt: daysAgo(0, 5),
-        rating: 5,
+        scheduledStart: daysAgo(0, 6),
+        scheduledEnd: daysAgo(0, 5),
+        wechatExchanged: true,
+        respondedAt: daysAgo(0, 6),
       },
     });
   }
@@ -868,11 +870,12 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
       create: {
         id: `${FEAT_PREFIX}-meeting-3`,
         eventId: ctx.innovationSummitEventId,
-        hostUserId: u0,
-        guestUserId: u3,
+        requesterId: u0,
+        recipientId: u3,
         status: MeetingStatus.PENDING,
-        startsAt: daysFromNow(20, 14),
-        endsAt: daysFromNow(20, 15),
+        scheduledStart: daysFromNow(20, 14),
+        scheduledEnd: daysFromNow(20, 15),
+        message: "想聊聊活动数字化合作机会",
       },
     });
   }
@@ -886,7 +889,11 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
       userBName: "云端 CRM",
       userBCompany: "A-101 展位",
       score: 91,
-      reason: "采购意向与 CRM 展位高度匹配",
+      reason: "你寻找 ERP 方案 ↔ TA 提供 ERP",
+      matchReason: [
+        { type: "demand_supply", label: "你寻找 ERP 方案 ↔ TA 提供 ERP", detail: "ERP" },
+        { type: "shared_topic", label: "你们都关注 智能制造", detail: "智能制造" },
+      ],
       scenario: AiMatchScenario.BUYER_TO_EXHIBITOR,
       action: AiMatchAction.VIEWED,
     },
@@ -898,7 +905,11 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
       userBName: "ConnectIQ",
       userBCompany: "C-18 展台",
       score: 85,
-      reason: "制造业数字化需求与活动科技方案契合",
+      reason: "你寻找 数字化方案 ↔ TA 提供 活动科技",
+      matchReason: [
+        { type: "demand_supply", label: "你寻找 数字化方案 ↔ TA 提供 活动科技" },
+        { type: "industry", label: "跨公司参会，存在商务合作空间" },
+      ],
       scenario: AiMatchScenario.EXHIBITOR_TO_BUYER,
       action: AiMatchAction.CONTACTED,
       connected: true,
@@ -911,7 +922,11 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
       userBName: "李思琪",
       userBCompany: "云端互动",
       score: 78,
-      reason: "同行业增长负责人，适合 peer networking",
+      reason: "你们都关注 AI 落地",
+      matchReason: [
+        { type: "shared_topic", label: "你们都关注 AI 落地", detail: "AI 落地" },
+        { type: "supply_demand", label: "TA 寻找 增长方法论 ↔ 你提供 增长方法论" },
+      ],
       scenario: AiMatchScenario.PARTICIPANT_PEER,
       action: AiMatchAction.MEETING_BOOKED,
     },
@@ -920,7 +935,13 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
   for (const m of aiSpecs) {
     await prisma.aiMatchResult.upsert({
       where: { id: m.id },
-      update: { score: m.score, action: m.action, connected: m.connected ?? false, reason: m.reason },
+      update: {
+        score: m.score,
+        action: m.action,
+        connected: m.connected ?? false,
+        reason: m.reason,
+        matchReason: m.matchReason,
+      },
       create: {
         id: m.id,
         eventId: m.eventId,
@@ -930,6 +951,7 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
         userBCompany: m.userBCompany,
         score: m.score,
         reason: m.reason,
+        matchReason: m.matchReason,
         scenario: m.scenario,
         action: m.action,
         connected: m.connected ?? false,

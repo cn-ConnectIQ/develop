@@ -1,4 +1,4 @@
-import { IntentCategory, prisma } from "@connectiq/database";
+import { IntentCategory, IntentTagPool, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 
@@ -30,6 +30,7 @@ export async function createIntentTag(input: {
   label: string;
   slug?: string;
   category?: IntentCategory | null;
+  pool?: IntentTagPool;
   color?: string | null;
   sortOrder?: number;
 }) {
@@ -46,6 +47,7 @@ export async function createIntentTag(input: {
       label: input.label.trim(),
       slug,
       category: input.category ?? null,
+      pool: input.pool ?? IntentTagPool.GENERAL,
       color: input.color ?? null,
       sortOrder: input.sortOrder ?? 0,
     },
@@ -57,6 +59,7 @@ export async function updateIntentTag(
   input: {
     label?: string;
     category?: IntentCategory | null;
+    pool?: IntentTagPool;
     color?: string | null;
     sortOrder?: number;
   },
@@ -76,6 +79,7 @@ export async function updateIntentTag(
     data: {
       ...(input.label !== undefined ? { label: input.label.trim() } : {}),
       ...(input.category !== undefined ? { category: input.category } : {}),
+      ...(input.pool !== undefined ? { pool: input.pool } : {}),
       ...(input.color !== undefined ? { color: input.color } : {}),
       ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
     },
@@ -117,6 +121,7 @@ export async function copyPlatformTagsToEvent(eventId: string, tagIds?: string[]
         label: t.label,
         slug: t.slug,
         category: t.category,
+        pool: t.pool,
         color: t.color,
         sortOrder: t.sortOrder,
       },
@@ -124,4 +129,53 @@ export async function copyPlatformTagsToEvent(eventId: string, tagIds?: string[]
     copied += 1;
   }
   return { copied };
+}
+
+export async function syncEventIntentTags(
+  eventId: string,
+  input: {
+    upsert: Array<{
+      id?: string;
+      label: string;
+      slug?: string;
+      pool?: IntentTagPool;
+      color?: string | null;
+      sortOrder?: number;
+    }>;
+    delete_ids?: string[];
+  },
+) {
+  if (input.delete_ids?.length) {
+    await prisma.intentTag.deleteMany({
+      where: { eventId, id: { in: input.delete_ids } },
+    });
+  }
+
+  const results = [];
+  for (const [index, tag] of input.upsert.entries()) {
+    if (tag.id) {
+      const updated = await updateIntentTag(
+        tag.id,
+        {
+          label: tag.label,
+          pool: tag.pool,
+          color: tag.color,
+          sortOrder: tag.sortOrder ?? index,
+        },
+        { eventId },
+      );
+      results.push(updated);
+    } else {
+      const created = await createIntentTag({
+        eventId,
+        label: tag.label,
+        slug: tag.slug,
+        pool: tag.pool,
+        color: tag.color,
+        sortOrder: tag.sortOrder ?? index,
+      });
+      results.push(created);
+    }
+  }
+  return results;
 }

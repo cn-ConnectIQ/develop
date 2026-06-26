@@ -7,6 +7,10 @@ import {
   prisma,
 } from "@connectiq/database";
 import { parseIntentTags } from "@/lib/user-me-service";
+import {
+  formatMatchReasons,
+  type MatchReasonItem,
+} from "@/lib/matchmaking-config";
 
 const MATCH_WINDOW_MS = 30 * 60 * 1000;
 const TOP_MATCHES = 20;
@@ -153,39 +157,72 @@ async function loadEventCandidates(eventId: string): Promise<UserCandidate[]> {
   });
 }
 
-function scorePair(a: UserCandidate, b: UserCandidate): { score: number; reason: string } {
+function scorePair(a: UserCandidate, b: UserCandidate): {
+  score: number;
+  reason: string;
+  matchReason: MatchReasonItem[];
+} {
   let score = 40;
-  const reasons: string[] = [];
+  const matchReason: MatchReasonItem[] = [];
 
   for (const tag of a.demandTags) {
     if (b.supplyTags.has(tag)) {
       score += 25;
-      reasons.push(`需求「${tag}」与供给匹配`);
+      matchReason.push({
+        type: "demand_supply",
+        label: `你寻找 ${tag} ↔ TA 提供 ${tag}`,
+        detail: tag,
+      });
     }
   }
   for (const tag of b.demandTags) {
     if (a.supplyTags.has(tag)) {
       score += 20;
-      reasons.push(`双向供需互补`);
+      matchReason.push({
+        type: "supply_demand",
+        label: `TA 寻找 ${tag} ↔ 你提供 ${tag}`,
+        detail: tag,
+      });
       break;
     }
+  }
+
+  const sharedTopics = [...a.demandTags].filter(
+    (t) => b.demandTags.has(t) || b.supplyTags.has(t),
+  );
+  if (sharedTopics.length > 0) {
+    score += 10;
+    matchReason.push({
+      type: "shared_topic",
+      label: `你们都关注 ${sharedTopics[0]}`,
+      detail: sharedTopics[0],
+    });
   }
 
   for (const tag of a.signalBoostTags) {
     if (b.supplyTags.has(tag) || b.demandTags.has(tag)) {
       score += 15;
-      reasons.push(`行为信号强化：${tag}`);
+      matchReason.push({
+        type: "signal",
+        label: `行为信号强化：${tag}`,
+        detail: tag,
+      });
     }
   }
 
   if (a.company && b.company && a.company !== b.company) {
     score += 5;
+    matchReason.push({
+      type: "industry",
+      label: "跨公司参会，存在商务合作空间",
+    });
   }
 
   score = Math.min(100, score);
   return {
     score,
-    reason: reasons.length > 0 ? reasons.slice(0, 2).join("；") : "同行业参会者，存在合作潜力",
+    matchReason,
+    reason: formatMatchReasons(matchReason),
   };
 }
 
@@ -220,11 +257,12 @@ export async function computeUserMatches(
     userBCompany: string | null;
     score: number;
     reason: string;
+    matchReason: MatchReasonItem[];
   }> = [];
 
   for (const peer of candidates) {
     if (peer.id === userId || known.has(peer.id)) continue;
-    const { score, reason } = scorePair(user, peer);
+    const { score, reason, matchReason } = scorePair(user, peer);
     if (score < 50) continue;
     matches.push({
       userBId: peer.id,
@@ -232,6 +270,7 @@ export async function computeUserMatches(
       userBCompany: peer.company,
       score,
       reason,
+      matchReason,
     });
   }
 
@@ -275,6 +314,7 @@ export async function refreshUserMatchResults(
       userBCompany: m.userBCompany,
       score: m.score,
       reason: m.reason,
+      matchReason: m.matchReason,
       scenario: AiMatchScenario.PARTICIPANT_PEER,
       action: AiMatchAction.PENDING,
     })),

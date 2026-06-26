@@ -60,6 +60,6 @@ export const POST = withErrorHandler(async (request, context) => {
   return createSuccessResponse({
     id: meeting.id,
     status: meeting.status,
-    cancel_reason: meeting.cancelReason,
+    cancel_reason: meeting.message,
   });
 });

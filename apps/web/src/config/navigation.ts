@@ -12,6 +12,7 @@ import {
   FileDown,
   Handshake,
   LayoutDashboard,
+  LayoutGrid,
   Link2,
   Map,
   MapPin,
@@ -47,6 +48,9 @@ export type NavGroup = {
 };
 
 const EXPO_ONLY_SUFFIXES = ["/exhibitors/map", "/exhibitors/form-config"];
+const MEETING_SETUP_SUFFIX = "/meetings/setup";
+const MATCHMAKING_SUFFIX = "/matchmaking";
+const MEETINGS_PREFIX = "/meetings/";
 
 function filterExpoItems(
   groups: NavGroup[],
@@ -63,6 +67,25 @@ function filterExpoItems(
       items: group.items.filter(
         (item) =>
           !EXPO_ONLY_SUFFIXES.some((suffix) => item.href.includes(suffix)),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+/** 参展（EXHIBITION）活动不展示会面桌调度配置 */
+function filterExhibitionItems(
+  groups: NavGroup[],
+  activityType?: string | null,
+): NavGroup[] {
+  if (activityType !== "EXHIBITION") return groups;
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          !item.href.includes(MEETING_SETUP_SUFFIX) &&
+          !item.href.includes(MATCHMAKING_SUFFIX) &&
+          !item.href.includes(MEETINGS_PREFIX),
       ),
     }))
     .filter((group) => group.items.length > 0);
@@ -170,7 +193,8 @@ function getEventNavigationGroups(
   switch (role) {
     case UserRole.PLATFORM_ADMIN:
     case UserRole.ORGANIZER:
-      return filterExpoItems(
+      return filterExhibitionItems(
+        filterExpoItems(
         [
           {
             label: "活动设置",
@@ -219,9 +243,27 @@ function getEventNavigationGroups(
                 isNew: true,
               },
               {
+                label: "匹配预热",
+                href: `/events/${eventId}/matchmaking`,
+                icon: Route,
+                isNew: true,
+              },
+              {
                 label: "邀请管理",
                 href: `/events/${eventId}/invite-campaigns`,
                 icon: Send,
+              },
+              {
+                label: "会面配置",
+                href: `/events/${eventId}/meetings/setup`,
+                icon: CalendarDays,
+                isNew: true,
+              },
+              {
+                label: "会面调度",
+                href: `/events/${eventId}/meetings/schedule`,
+                icon: LayoutGrid,
+                isNew: true,
               },
             ],
           },
@@ -345,6 +387,8 @@ function getEventNavigationGroups(
           },
         ].filter((group) => group.items.length > 0),
         eventType,
+        activityType,
+      ),
         activityType,
       );
 

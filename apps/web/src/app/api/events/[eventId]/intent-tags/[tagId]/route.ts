@@ -1,4 +1,4 @@
-import { IntentCategory } from "@connectiq/database";
+import { IntentCategory, IntentTagPool } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -12,6 +12,7 @@ import { deleteIntentTag, updateIntentTag } from "@/lib/intent-tag-service";
 const patchSchema = z.object({
   label: z.string().min(1).max(80).optional(),
   category: z.nativeEnum(IntentCategory).nullable().optional(),
+  pool: z.nativeEnum(IntentTagPool).optional(),
   color: z.string().nullable().optional(),
   sortOrder: z.number().optional(),
 });

@@ -160,6 +160,13 @@ enum IntentCategory {
   NETWORKING
 }
 
+enum IntentTagPool {
+  SUPPLY
+  DEMAND
+  TOPIC
+  GENERAL
+}
+
 enum SnSessionStatus {
   SCHEDULED
   IN_PROGRESS
@@ -225,10 +232,10 @@ enum ReferralStatus {
 
 enum MeetingStatus {
   PENDING
-  CONFIRMED
+  ACCEPTED
   DECLINED
-  COMPLETED
   CANCELLED
+  COMPLETED
   NO_SHOW
 }
 
@@ -433,9 +440,8 @@ model User {
   referralsReceived          BusinessReferral[]   @relation("ReferralRecipient")
   referralsAsA               BusinessReferral[]   @relation("ReferralUserA")
   referralsAsB               BusinessReferral[]   @relation("ReferralUserB")
-  meetingsHosted             Meeting[]            @relation("MeetingHost")
-  meetingsGuest              Meeting[]            @relation("MeetingGuest")
-  meetingsCancelled          Meeting[]            @relation("MeetingCancelledBy")
+  requestedMeetings          Meeting[]            @relation("MeetingRequester")
+  receivedMeetings           Meeting[]            @relation("MeetingRecipient")
   boothVisitSignals          BoothVisitSignal[]
   createdStampRallies        StampRally[]         @relation("StampRallyCreator")
   stampRecords               StampRecord[]
@@ -443,6 +449,7 @@ model User {
   contactCard                ContactCard?
   sentExchangeRequests       ExchangeRequest[]    @relation("ExchangeFrom")
   receivedExchangeRequests   ExchangeRequest[]    @relation("ExchangeTo")
+  userEventIntents           UserEventIntent[]
 
   // 三层角色区分
   userType UserType @default(END_USER) @map("user_type")
@@ -662,6 +669,13 @@ model Event {
   dataSource   DataSource   @default(NATIVE) @map("data_source")
   externalRefId String?     @map("external_ref_id")
   featureFlags Json           @default("{}") @map("feature_flags")
+  meetingEnabled       Boolean   @default(true) @map("meeting_enabled")
+  meetingSlotMinutes   Int       @default(20) @map("meeting_slot_minutes")
+  meetingOpenAt        DateTime? @map("meeting_open_at")
+  meetingBufferMinutes Int       @default(5) @map("meeting_buffer_minutes")
+  intentConfig         Json      @default("{}") @map("intent_config")
+  premeetEnabled       Boolean   @default(false) @map("premeet_enabled")
+  premeetOpenAt        DateTime? @map("premeet_open_at")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
@@ -688,6 +702,7 @@ model Event {
   businessConnections BusinessConnection[]
   businessReferrals   BusinessReferral[]
   meetings            Meeting[]
+  meetingAreas        MeetingArea[]
   snSessions          SnSession[]
   inviteCampaigns     InviteCampaign[]
   lotteries           Lottery[]
@@ -697,6 +712,7 @@ model Event {
   boothVisitSignals   BoothVisitSignal[]
   stampRallies        StampRally[]
   exchangeRequests    ExchangeRequest[]
+  userEventIntents    UserEventIntent[]
 
   @@map("events")
 }
@@ -862,6 +878,7 @@ model IntentTag {
   label     String
   slug      String
   category  IntentCategory?
+  pool      IntentTagPool   @default(GENERAL) @map("pool")
   color     String?
   sortOrder Int             @default(0) @map("sort_order")
   createdAt DateTime        @default(now()) @map("created_at")
@@ -1264,6 +1281,7 @@ model AiMatchResult {
   userBCompany String?         @map("user_b_company")
   score        Int
   reason       String
+  matchReason  Json            @default("[]") @map("match_reason")
   scenario     AiMatchScenario
   action       AiMatchAction   @default(PENDING)
   connected    Boolean         @default(false)
@@ -1272,6 +1290,24 @@ model AiMatchResult {
   event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@map("ai_match_results")
+}
+
+model UserEventIntent {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  eventId    String   @map("event_id")
+  supplyTags String[] @default([]) @map("supply_tags")
+  demandTags String[] @default([]) @map("demand_tags")
+  role       String?
+  topics     String[] @default([])
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@map("user_event_intents")
 }
 
 model AiGenerationLog {
@@ -1441,26 +1477,59 @@ model BusinessReferral {
 }
 
 model Meeting {
-  id            String        @id @default(cuid())
-  eventId       String        @map("event_id")
-  hostUserId    String        @map("host_user_id")
-  guestUserId   String        @map("guest_user_id")
-  status        MeetingStatus @default(PENDING)
-  startsAt      DateTime      @map("starts_at")
-  endsAt        DateTime      @map("ends_at")
-  cancelReason  String?       @map("cancel_reason")
-  cancelledById String?       @map("cancelled_by_id")
-  notifyOther   Boolean       @default(true) @map("notify_other")
-  rating        Int?
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  id        String @id @default(cuid())
+  eventId   String @map("event_id")
+  event     Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  event       Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  hostUser    User  @relation("MeetingHost", fields: [hostUserId], references: [id], onDelete: Cascade)
-  guestUser   User  @relation("MeetingGuest", fields: [guestUserId], references: [id], onDelete: Cascade)
-  cancelledBy User? @relation("MeetingCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  requesterId String @map("requester_id")
+  requester   User   @relation("MeetingRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipientId String @map("recipient_id")
+  recipient   User   @relation("MeetingRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
+  status MeetingStatus @default(PENDING)
+
+  scheduledStart DateTime? @map("scheduled_start")
+  scheduledEnd   DateTime? @map("scheduled_end")
+  tableId        String?   @map("table_id")
+  table          MeetingTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+
+  message      String?
+  fromAiMatch  Boolean @default(false) @map("from_ai_match")
+  aiMatchScore Float?  @map("ai_match_score")
+
+  wechatExchanged Boolean @default(false) @map("wechat_exchanged")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  respondedAt DateTime? @map("responded_at")
+
+  @@index([eventId, status])
+  @@index([requesterId])
+  @@index([recipientId])
   @@map("meetings")
+}
+
+model MeetingArea {
+  id        String   @id @default(cuid())
+  eventId   String   @map("event_id")
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  location  String?
+  tables    MeetingTable[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("meeting_areas")
+}
+
+model MeetingTable {
+  id        String   @id @default(cuid())
+  areaId    String   @map("area_id")
+  area      MeetingArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  name      String
+  capacity  Int      @default(2)
+  meetings  Meeting[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("meeting_tables")
 }
 
 model ConnectionInteraction {

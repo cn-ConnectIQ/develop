@@ -50,10 +50,9 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少 status", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const meeting = await updateMeetingStatus(userId, id, body.status, body.rating);
+  const meeting = await updateMeetingStatus(userId, id, body.status);
   return createSuccessResponse({
     id: meeting.id,
     status: meeting.status,
-    rating: meeting.rating,
   });
 });

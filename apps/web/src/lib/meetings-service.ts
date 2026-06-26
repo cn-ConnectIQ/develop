@@ -1,6 +1,7 @@
 import { MeetingStatus, SignalType, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import { tryAutoScheduleMeeting } from "@/lib/meetings/auto-scheduler";
 import { recordSignal } from "@/lib/signals";
 
 export type ApiMeetingStatus = MeetingStatus;
@@ -9,8 +10,8 @@ async function getMeetingForUser(meetingId: string, userId: string) {
   const meeting = await prisma.meeting.findUnique({
     where: { id: meetingId },
     include: {
-      hostUser: { include: { profile: true } },
-      guestUser: { include: { profile: true } },
+      requester: { include: { profile: true } },
+      recipient: { include: { profile: true } },
       event: true,
     },
   });
@@ -19,7 +20,7 @@ async function getMeetingForUser(meetingId: string, userId: string) {
     throw new ApiError("会面不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  if (meeting.hostUserId !== userId && meeting.guestUserId !== userId) {
+  if (meeting.requesterId !== userId && meeting.recipientId !== userId) {
     throw new ApiError("无权操作此会面", ErrorCode.FORBIDDEN, 403);
   }
 
@@ -30,13 +31,12 @@ export async function updateMeetingStatus(
   userId: string,
   meetingId: string,
   status: MeetingStatus,
-  rating?: number,
 ) {
   const meeting = await getMeetingForUser(meetingId, userId);
 
   const allowed: Partial<Record<MeetingStatus, MeetingStatus[]>> = {
-    [MeetingStatus.CONFIRMED]: [MeetingStatus.COMPLETED, MeetingStatus.NO_SHOW],
-    [MeetingStatus.PENDING]: [MeetingStatus.DECLINED, MeetingStatus.CONFIRMED],
+    [MeetingStatus.ACCEPTED]: [MeetingStatus.COMPLETED, MeetingStatus.NO_SHOW],
+    [MeetingStatus.PENDING]: [MeetingStatus.DECLINED, MeetingStatus.ACCEPTED],
   };
 
   const allowedNext = allowed[meeting.status] ?? [];
@@ -48,16 +48,25 @@ export async function updateMeetingStatus(
     where: { id: meetingId },
     data: {
       status,
-      rating: status === MeetingStatus.COMPLETED ? rating ?? meeting.rating : meeting.rating,
+      respondedAt: new Date(),
     },
   });
 
-  if (status === MeetingStatus.CONFIRMED && meeting.status === MeetingStatus.PENDING) {
-    for (const uid of [meeting.hostUserId, meeting.guestUserId]) {
-      recordSignal(uid, meeting.eventId, SignalType.MEETING_BOOKED, meetingId, "MEETING", {
-        starts_at: meeting.startsAt.toISOString(),
-      });
+  if (status === MeetingStatus.ACCEPTED && meeting.status === MeetingStatus.PENDING) {
+    const scheduleResult = await tryAutoScheduleMeeting(meetingId);
+    const scheduled = scheduleResult.ok
+      ? await prisma.meeting.findUnique({ where: { id: meetingId } })
+      : updated;
+
+    const startIso = scheduled?.scheduledStart?.toISOString();
+    if (startIso) {
+      for (const uid of [meeting.requesterId, meeting.recipientId]) {
+        recordSignal(uid, meeting.eventId, SignalType.MEETING_BOOKED, meetingId, "MEETING", {
+          starts_at: startIso,
+        });
+      }
     }
+    return scheduled ?? updated;
   }
 
   return updated;
@@ -65,12 +74,15 @@ export async function updateMeetingStatus(
 
 export async function bookMeeting(input: {
   eventId: string;
-  hostUserId: string;
-  guestUserId: string;
+  requesterId: string;
+  recipientId: string;
   startsAt: Date;
   endsAt: Date;
+  message?: string;
+  fromAiMatch?: boolean;
+  aiMatchScore?: number;
 }) {
-  if (input.hostUserId === input.guestUserId) {
+  if (input.requesterId === input.recipientId) {
     throw new ApiError("不能与自己预约", ErrorCode.VALIDATION_ERROR, 400);
   }
 
@@ -81,21 +93,30 @@ export async function bookMeeting(input: {
   const meeting = await prisma.meeting.create({
     data: {
       eventId: input.eventId,
-      hostUserId: input.hostUserId,
-      guestUserId: input.guestUserId,
-      status: MeetingStatus.CONFIRMED,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
+      requesterId: input.requesterId,
+      recipientId: input.recipientId,
+      status: MeetingStatus.ACCEPTED,
+      scheduledStart: input.startsAt,
+      scheduledEnd: input.endsAt,
+      message: input.message,
+      fromAiMatch: input.fromAiMatch ?? false,
+      aiMatchScore: input.aiMatchScore,
+      respondedAt: new Date(),
     },
   });
 
-  for (const uid of [input.hostUserId, input.guestUserId]) {
+  await tryAutoScheduleMeeting(meeting.id);
+  const scheduled = await prisma.meeting.findUnique({ where: { id: meeting.id } });
+  const finalMeeting = scheduled ?? meeting;
+
+  const startIso = finalMeeting.scheduledStart?.toISOString() ?? input.startsAt.toISOString();
+  for (const uid of [input.requesterId, input.recipientId]) {
     recordSignal(uid, input.eventId, SignalType.MEETING_BOOKED, meeting.id, "MEETING", {
-      starts_at: input.startsAt.toISOString(),
+      starts_at: startIso,
     });
   }
 
-  return meeting;
+  return finalMeeting;
 }
 
 export async function cancelMeeting(
@@ -108,28 +129,27 @@ export async function cancelMeeting(
 
   if (
     meeting.status !== MeetingStatus.PENDING &&
-    meeting.status !== MeetingStatus.CONFIRMED
+    meeting.status !== MeetingStatus.ACCEPTED
   ) {
     throw new ApiError("当前状态不可取消", ErrorCode.VALIDATION_ERROR, 400);
   }
 
   const otherUserId =
-    meeting.hostUserId === userId ? meeting.guestUserId : meeting.hostUserId;
+    meeting.requesterId === userId ? meeting.recipientId : meeting.requesterId;
   const canceller =
-    meeting.hostUserId === userId ? meeting.hostUser : meeting.guestUser;
+    meeting.requesterId === userId ? meeting.requester : meeting.recipient;
 
   const updated = await prisma.meeting.update({
     where: { id: meetingId },
     data: {
       status: MeetingStatus.CANCELLED,
-      cancelReason: reason,
-      cancelledById: userId,
-      notifyOther,
+      message: reason,
+      respondedAt: new Date(),
     },
   });
 
-  if (notifyOther) {
-    const timeLabel = meeting.startsAt.toLocaleString("zh-CN", {
+  if (notifyOther && meeting.scheduledStart) {
+    const timeLabel = meeting.scheduledStart.toLocaleString("zh-CN", {
       month: "numeric",
       day: "numeric",
       hour: "2-digit",
@@ -151,48 +171,44 @@ export function mapMeetingToScheduleItem(
   meeting: {
     id: string;
     status: MeetingStatus;
-    startsAt: Date;
-    endsAt: Date;
-    cancelReason: string | null;
-    cancelledById: string | null;
-    updatedAt: Date;
-    hostUserId: string;
-    guestUserId: string;
-    hostUser: { id: string; name: string; profile: { company: string | null } | null };
-    guestUser: { id: string; name: string; profile: { company: string | null } | null };
+    scheduledStart: Date | null;
+    scheduledEnd: Date | null;
+    message: string | null;
+    requesterId: string;
+    recipientId: string;
+    requester: { id: string; name: string; profile: { company: string | null } | null };
+    recipient: { id: string; name: string; profile: { company: string | null } | null };
   },
   currentUserId: string,
   seenCancelledIds: Set<string>,
 ) {
-  const isHost = meeting.hostUserId === currentUserId;
-  const counterparty = isHost ? meeting.guestUser : meeting.hostUser;
+  const isRequester = meeting.requesterId === currentUserId;
+  const counterparty = isRequester ? meeting.recipient : meeting.requester;
   const now = Date.now();
-  const startsMs = meeting.startsAt.getTime();
-  const endsMs = meeting.endsAt.getTime();
+  const startsMs = meeting.scheduledStart?.getTime() ?? now;
+  const endsMs = meeting.scheduledEnd?.getTime() ?? startsMs;
   const minutesUntil =
-    startsMs > now ? Math.max(1, Math.ceil((startsMs - now) / 60000)) : undefined;
+    meeting.scheduledStart && startsMs > now
+      ? Math.max(1, Math.ceil((startsMs - now) / 60000))
+      : undefined;
   const minutesOverdue =
-    meeting.status === MeetingStatus.CONFIRMED && endsMs < now
+    meeting.status === MeetingStatus.ACCEPTED && meeting.scheduledEnd && endsMs < now
       ? Math.max(1, Math.ceil((now - endsMs) / 60000))
       : undefined;
 
-  const cancelledByOther =
-    meeting.status === MeetingStatus.CANCELLED &&
-    meeting.cancelledById != null &&
-    meeting.cancelledById !== currentUserId;
+  const cancelledByOther = meeting.status === MeetingStatus.CANCELLED && !isRequester;
 
   const newlyCancelled =
     meeting.status === MeetingStatus.CANCELLED &&
     cancelledByOther &&
-    !seenCancelledIds.has(meeting.id) &&
-    Date.now() - meeting.updatedAt.getTime() < 7 * 24 * 60 * 60 * 1000;
+    !seenCancelledIds.has(meeting.id);
 
   return {
     id: meeting.id,
     type: "MEETING" as const,
     title: `与 ${counterparty.name} 的会面`,
-    starts_at: meeting.startsAt.toISOString(),
-    ends_at: meeting.endsAt.toISOString(),
+    starts_at: meeting.scheduledStart?.toISOString() ?? new Date().toISOString(),
+    ends_at: meeting.scheduledEnd?.toISOString() ?? new Date().toISOString(),
     status: meeting.status,
     counterparty: {
       id: counterparty.id,
@@ -202,7 +218,7 @@ export function mapMeetingToScheduleItem(
     minutes_until: minutesUntil,
     minutes_overdue: minutesOverdue,
     cancelled_by_other: cancelledByOther,
-    cancel_reason: meeting.cancelReason,
+    cancel_reason: meeting.status === MeetingStatus.CANCELLED ? meeting.message : null,
     newly_cancelled: newlyCancelled,
   };
 }

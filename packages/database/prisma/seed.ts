@@ -25,6 +25,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/client";
 import { seedInteractionDemoData } from "./seed-interactions";
 import { seedEventFeatureDemoData } from "./seed-event-features";
+import { seedMeetingDemoData } from "./seed-meetings";
 
 const SEED_PASSWORD = "ConnectIQ2024!";
 
@@ -1332,6 +1333,17 @@ async function main() {
     `✓ 互动演示数据：Poll×6 + Lottery×5 + Session（扫码码 ${interactionMeta.sessionCodes.hostedPoll} 等）`,
   );
 
+  // ── 会面演示数据（桌位 + 已排期会面）────────────────────────
+  const meetingMeta = await seedMeetingDemoData({
+    hostedExpoEventId: hostedExpoEvent.id,
+    saasSummitEventId: summitEvent.id,
+    innovationSummitEventId: innovationSummitEvent.id,
+    endUserIds: endUsers.map((u) => u.id),
+  });
+  console.log(
+    `✓ 会面演示数据：${meetingMeta.hostedAreaCount} 洽谈区 + ${meetingMeta.tableCount} 桌位 + ${meetingMeta.meetingCount} 条会面（含冲突示例）`,
+  );
+
   // ── 汇总 ────────────────────────────────────────────────────
   console.log("\n✅ Seed 完成\n");
   console.log("── 账号密码登录（推荐）──");
@@ -1365,6 +1377,7 @@ async function main() {
   console.log("  BoothVisitSignal: 示例");
   console.log("  活动全功能: 议程/问卷/工作人员/SN/邀请/赞助/线索/商务配对");
   console.log("  互动 Poll/Lottery/Session: 见 seed-interactions.ts");
+  console.log("  会面桌位/排期: 见 seed-meetings.ts（智链博览会 008 主办）");
   console.log(`  扫码演示: /i/${interactionMeta.sessionCodes.hostedPoll}（主办展会投票）`);
   console.log(`  创新峰会: /i/${interactionMeta.sessionCodes.innovationPoll}（008 主办会议）`);
   console.log(`  SaaS峰会: /i/${interactionMeta.sessionCodes.summitQna}（问答）`);

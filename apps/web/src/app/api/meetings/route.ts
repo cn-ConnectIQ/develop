@@ -56,8 +56,8 @@ export const POST = withErrorHandler(async (request) => {
 
   const meeting = await bookMeeting({
     eventId: parsed.data.event_id,
-    hostUserId,
-    guestUserId: parsed.data.guest_user_id,
+    requesterId: hostUserId,
+    recipientId: parsed.data.guest_user_id,
     startsAt: new Date(parsed.data.starts_at),
     endsAt: new Date(parsed.data.ends_at),
   });
@@ -65,7 +65,7 @@ export const POST = withErrorHandler(async (request) => {
   return createSuccessResponse({
     id: meeting.id,
     status: meeting.status,
-    starts_at: meeting.startsAt.toISOString(),
-    ends_at: meeting.endsAt.toISOString(),
+    starts_at: meeting.scheduledStart?.toISOString(),
+    ends_at: meeting.scheduledEnd?.toISOString(),
   });
 });
