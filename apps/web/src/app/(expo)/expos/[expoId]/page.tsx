@@ -1,3 +1,6 @@
+import { getServerSession } from "next-auth";
+import { redirect, notFound } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { AdminContent, AdminHeader, AdminPage, AiInsight, SectionCard } from "@/components/admin/admin-header";
 import { DataTable } from "@/components/admin/data-table";
 import { QuickTile, QuickTileGrid } from "@/components/admin/quick-tile";
@@ -11,7 +14,6 @@ import { getExpoDashboardData } from "@/lib/dashboard";
 import { Store, Tag, Users } from "lucide-react";
 import { ExpoOverviewSections } from "@/components/expo/ExpoOverviewSections";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
 export default async function ExpoPage({
   params,
@@ -19,6 +21,16 @@ export default async function ExpoPage({
   params: Promise<{ expoId: string }>;
 }) {
   const { expoId } = await params;
+  const session = await getServerSession(authOptions);
+
+  // 统一组织账号管理员走 /events/ 工作台，避免误入 legacy /expos/ 路由
+  if (
+    session?.user.userType === "ACCOUNT_ADMIN" ||
+    session?.user.userType === "PLATFORM_ADMIN"
+  ) {
+    redirect(`/events/${expoId}`);
+  }
+
   const expo = await getExpoDashboardData(expoId);
 
   if (!expo) notFound();
