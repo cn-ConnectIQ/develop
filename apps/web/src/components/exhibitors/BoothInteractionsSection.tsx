@@ -12,11 +12,14 @@ import {
   Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  ListSectionHeader,
+  ResourceListCard,
+} from "@/components/admin/list-panel";
 import { CreateBoothInteractionSheet } from "@/components/exhibitors/CreateBoothInteractionSheet";
 import { BoothInteractionControlSheet } from "@/components/exhibitors/BoothInteractionControlSheet";
 import type { BoothInteractionItem } from "@/lib/exhibitor/booth-interaction-types";
-import { POLL_TYPE_LABELS } from "@/lib/interactions";
-import { cn } from "@/lib/utils";
+import { POLL_TYPE_LABELS, POLL_TYPE_BADGE } from "@/lib/interactions";
 
 const typeIcons: Record<string, typeof CheckCircle> = {
   SINGLE_CHOICE: CheckCircle,
@@ -41,14 +44,13 @@ const LOTTERY_STATUS_LABELS: Record<string, string> = {
   FINISHED: "已结束",
 };
 
-function statusBadgeClass(status: string) {
-  if (status === "LIVE" || status === "OPEN") {
-    return "bg-brand-amber-light text-brand-amber";
-  }
-  if (status === "CLOSED" || status === "FINISHED") {
-    return "bg-border-light text-text-muted";
-  }
-  return "bg-brand-blue-light text-brand-blue";
+function statusVariant(
+  status: string,
+): "live" | "draft" | "ended" | "default" {
+  if (status === "LIVE" || status === "OPEN") return "live";
+  if (status === "CLOSED" || status === "FINISHED") return "ended";
+  if (status === "DRAFT" || status === "READY") return "draft";
+  return "default";
 }
 
 async function fetchBoothInteractions(boothId: string) {
@@ -93,7 +95,7 @@ export function BoothInteractionsSection({ boothId }: { boothId: string }) {
           加载中...
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {interactions.map((item) => {
             const Icon = typeIcons[item.subType] ?? CheckCircle;
             const typeLabel =
@@ -104,30 +106,23 @@ export function BoothInteractionsSection({ boothId }: { boothId: string }) {
               item.kind === "poll"
                 ? (POLL_STATUS_LABELS[item.status] ?? item.status)
                 : (LOTTERY_STATUS_LABELS[item.status] ?? item.status);
+            const iconTone =
+              item.kind === "lottery"
+                ? "bg-violet-50 text-violet-600"
+                : (POLL_TYPE_BADGE[item.subType] ?? "bg-gray-100 text-text-muted");
 
             return (
-              <div
+              <ResourceListCard
                 key={item.id}
-                className="flex items-center gap-3 rounded-xl border border-border-light bg-white p-4"
-              >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-amber-light">
-                  <Icon className="size-5 text-brand-amber" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{item.title}</p>
-                  <p className="text-sm text-text-muted">
-                    {typeLabel} · {item.participantCount} 人参与
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                      statusBadgeClass(item.status),
-                    )}
-                  >
-                    {statusLabel}
-                  </span>
+                icon={<Icon className="size-4" />}
+                iconContainerClassName={iconTone}
+                title={item.title}
+                subtitle={`${typeLabel} · ${item.participantCount} 人参与`}
+                status={{
+                  label: statusLabel,
+                  variant: statusVariant(item.status),
+                }}
+                footer={
                   <Button
                     type="button"
                     variant="outline"
@@ -137,8 +132,8 @@ export function BoothInteractionsSection({ boothId }: { boothId: string }) {
                   >
                     控制
                   </Button>
-                </div>
-              </div>
+                }
+              />
             );
           })}
 

@@ -11,24 +11,27 @@ import {
   AdminPage,
 } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
-import { BoothInteractionSheet } from "@/components/exhibitor/BoothInteractionSheet";
+import {
+  ListSectionHeader,
+  ResourceListCard,
+} from "@/components/admin/list-panel";
 import {
   BoothInteractionResults,
   BoothInteractionTypeIcon,
 } from "@/components/exhibitor/BoothInteractionResults";
+import { BoothInteractionSheet } from "@/components/exhibitor/BoothInteractionSheet";
 import { InteractionQRDisplay } from "@/components/interactions/InteractionQRDisplay";
 import {
   boothInteractionGroupStatus,
   type BoothInteractionItem,
 } from "@/lib/exhibitor/booth-interaction-types";
-import { POLL_TYPE_LABELS } from "@/lib/interactions";
+import { POLL_TYPE_LABELS, POLL_TYPE_BADGE } from "@/lib/interactions";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
 
 const POLL_STATUS: Record<string, string> = {
   DRAFT: "草稿",
@@ -288,14 +291,12 @@ function InteractionGroup({
 
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        {dotClass && (
-          <span className={cn("size-2 rounded-full", dotClass)} aria-hidden />
-        )}
-        {title}
-        <span className="text-text-muted">（{items.length}）</span>
-      </h2>
-      <div className="space-y-3">
+      <ListSectionHeader
+        title={title}
+        count={items.length}
+        dotClassName={dotClass}
+      />
+      <div className="space-y-2">
         {items.map((item) => (
           <InteractionCard
             key={item.id}
@@ -307,6 +308,14 @@ function InteractionGroup({
       </div>
     </section>
   );
+}
+
+function boothStatusVariant(
+  status: string,
+): "live" | "draft" | "ended" | "default" {
+  if (status === "LIVE" || status === "OPEN") return "live";
+  if (status === "CLOSED" || status === "FINISHED") return "ended";
+  return "draft";
 }
 
 function InteractionCard({
@@ -327,58 +336,49 @@ function InteractionCard({
       ? (POLL_STATUS[item.status] ?? item.status)
       : (LOTTERY_STATUS[item.status] ?? item.status);
   const isLive = item.status === "LIVE" || item.status === "OPEN";
+  const iconTone =
+    item.kind === "lottery"
+      ? "bg-violet-50 text-violet-600"
+      : (POLL_TYPE_BADGE[item.subType] ?? "bg-gray-100 text-text-muted");
 
   return (
-    <div className="rounded-xl border border-border-light bg-white p-4">
-      <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-amber-light">
-          <BoothInteractionTypeIcon
-            subType={item.subType}
-            kind={item.kind}
-            className="text-brand-amber"
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">{item.title}</p>
-          <p className="mt-1 text-sm text-text-muted">
-            {typeLabel} · {item.participantCount} 人参与
-            {item.requireLeadCapture ? " · 留资开启" : ""}
-          </p>
-          <span
-            className={cn(
-              "mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-              isLive
-                ? "bg-brand-green-light text-brand-green"
-                : "bg-border-light text-text-muted",
-            )}
-          >
-            {statusLabel}
-          </span>
-        </div>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={onDetail}>
-          数据 / 二维码
-        </Button>
-        {item.status === "DRAFT" && (
-          <Button
-            size="sm"
-            className="bg-brand-amber text-white hover:bg-brand-amber/90"
-            onClick={() => void onPatch(item.id, { publish: true })}
-          >
-            上线
+    <ResourceListCard
+      icon={
+        <BoothInteractionTypeIcon
+          subType={item.subType}
+          kind={item.kind}
+          className="size-4"
+        />
+      }
+      iconContainerClassName={iconTone}
+      title={item.title}
+      subtitle={`${typeLabel} · ${item.participantCount} 人参与${item.requireLeadCapture ? " · 留资开启" : ""}`}
+      status={{ label: statusLabel, variant: boothStatusVariant(item.status) }}
+      footer={
+        <>
+          <Button size="sm" variant="outline" onClick={onDetail}>
+            数据 / 二维码
           </Button>
-        )}
-        {isLive && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void onPatch(item.id, { close: true })}
-          >
-            结束
-          </Button>
-        )}
-      </div>
-    </div>
+          {item.status === "DRAFT" && (
+            <Button
+              size="sm"
+              className="bg-brand-amber text-white hover:bg-brand-amber/90"
+              onClick={() => void onPatch(item.id, { publish: true })}
+            >
+              上线
+            </Button>
+          )}
+          {isLive && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void onPatch(item.id, { close: true })}
+            >
+              结束
+            </Button>
+          )}
+        </>
+      }
+    />
   );
 }

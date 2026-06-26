@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { FilterTabs } from "@/components/admin/list-panel";
 import {
   OpenBigscreenButton,
   PushToAttendeesButton,
@@ -18,7 +19,6 @@ import {
   useRealtimeQna,
 } from "@/hooks/useRealtimeQna";
 import type { QnaResponseItem } from "@/lib/qna-service";
-import { cn } from "@/lib/utils";
 
 type SortMode = "popular" | "latest" | "unanswered";
 
@@ -274,23 +274,12 @@ export function QnaManager({
           </button>
         )}
 
-        <div className="flex overflow-hidden rounded-lg border border-border-light">
-          {sortOptions.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => setSort(opt.key)}
-              className={cn(
-                "cursor-pointer px-3 py-1 text-xs",
-                sort === opt.key
-                  ? "bg-brand-blue text-white"
-                  : "bg-white text-text-muted hover:bg-content-bg",
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <FilterTabs
+          tabs={sortOptions.map((opt) => ({ key: opt.key, label: opt.label }))}
+          value={sort}
+          onChange={setSort}
+          aria-label="问题排序"
+        />
 
         <div className="relative ml-auto w-48">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-text-muted" />

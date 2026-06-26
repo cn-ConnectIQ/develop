@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bell,
   CheckSquare,
@@ -13,7 +13,20 @@ import {
   Star,
   ToggleLeft,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  FilterTabs,
+  ListEmptyState,
+  ListIconAction,
+  ListPanel,
+  ListPanelBody,
+  ListPanelHeader,
+  SelectableListItem,
+} from "@/components/admin/list-panel";
+import {
+  InteractionTypePopover,
+  type InteractionCreateType,
+} from "@/components/interactions/InteractionTypePopover";
+import { POLL_TYPE_BADGE } from "@/lib/interactions";
 import {
   countInteractionStats,
   getInteractionResponseCount,
@@ -26,10 +39,6 @@ import {
   isPollLive,
   type InteractionItem,
 } from "@/lib/interaction-manager";
-import {
-  InteractionTypePopover,
-  type InteractionCreateType,
-} from "@/components/interactions/InteractionTypePopover";
 
 const POLL_ICONS: Record<string, typeof ToggleLeft> = {
   SINGLE_CHOICE: ToggleLeft,
@@ -39,6 +48,8 @@ const POLL_ICONS: Record<string, typeof ToggleLeft> = {
   QNA: MessageSquare,
   ANNOUNCEMENT: Bell,
 };
+
+type FilterTab = "all" | "live" | "draft";
 
 type InteractionSidebarProps = {
   items: InteractionItem[];
@@ -51,6 +62,16 @@ type InteractionSidebarProps = {
   creating?: boolean;
   lotteryEnabled?: boolean;
 };
+
+function itemFilterTab(item: InteractionItem): FilterTab {
+  const live =
+    item.kind === "poll" ? isPollLive(item.status) : isLotteryLive(item.status);
+  const draft =
+    item.kind === "poll" ? isPollDraft(item.status) : isLotteryDraft(item.status);
+  if (live) return "live";
+  if (draft) return "draft";
+  return "all";
+}
 
 export function InteractionSidebar({
   items,
@@ -65,10 +86,22 @@ export function InteractionSidebar({
 }: InteractionSidebarProps) {
   const stats = countInteractionStats(items);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterTab>("all");
+
+  const filteredItems = useMemo(() => {
+    if (filter === "all") return items;
+    return items.filter((item) => itemFilterTab(item) === filter);
+  }, [items, filter]);
+
+  const tabs = [
+    { key: "all" as const, label: "全部", count: stats.total },
+    { key: "live" as const, label: "进行中", count: stats.live },
+    { key: "draft" as const, label: "草稿", count: stats.draft },
+  ];
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col border-r border-border-light bg-white">
-      <div className="border-b border-border-light p-3">
+    <ListPanel>
+      <ListPanelHeader>
         <InteractionTypePopover
           open={popoverOpen}
           onOpenChange={setPopoverOpen}
@@ -78,42 +111,52 @@ export function InteractionSidebar({
           <button
             type="button"
             disabled={creating}
-            className="flex h-9 w-full items-center justify-center rounded-lg bg-brand-blue text-sm text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="flex h-9 w-full items-center justify-center rounded-lg bg-brand-blue text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             + 创建互动
           </button>
         </InteractionTypePopover>
-        <div className="mt-2 flex gap-2">
-          <span className="rounded-md bg-content-bg px-2 py-1 text-xs text-text-muted">
-            {stats.total} 个互动
-          </span>
-          <span className="rounded-md bg-brand-amber-light px-2 py-1 text-xs text-brand-amber">
-            {stats.live} 进行中
-          </span>
-          <span className="rounded-md bg-content-bg px-2 py-1 text-xs text-text-muted">
-            {stats.draft} 草稿
-          </span>
-        </div>
-      </div>
 
-      <div className="flex-1 space-y-1 overflow-y-auto p-2">
-        {items.map((item) => (
-          <InteractionCard
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            eventId={eventId}
-            selected={selectedId === item.id}
-            onSelect={() => onSelect(item)}
-            onPause={() => onPause(item)}
-            onStop={() => onStop(item)}
-          />
-        ))}
-      </div>
-    </aside>
+        <FilterTabs
+          className="mt-3"
+          tabs={tabs}
+          value={filter}
+          onChange={setFilter}
+          aria-label="互动筛选"
+        />
+      </ListPanelHeader>
+
+      <ListPanelBody>
+        {filteredItems.length === 0 ? (
+          <ListEmptyState>
+            {filter === "live"
+              ? "暂无进行中的互动"
+              : filter === "draft"
+                ? "暂无草稿"
+                : "暂无互动，点击上方创建"}
+          </ListEmptyState>
+        ) : (
+          <ul className="space-y-1.5">
+            {filteredItems.map((item) => (
+              <li key={`${item.kind}-${item.id}`}>
+                <InteractionListItem
+                  item={item}
+                  eventId={eventId}
+                  selected={selectedId === item.id}
+                  onSelect={() => onSelect(item)}
+                  onPause={() => onPause(item)}
+                  onStop={() => onStop(item)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </ListPanelBody>
+    </ListPanel>
   );
 }
 
-function InteractionCard({
+function InteractionListItem({
   item,
   eventId,
   selected,
@@ -141,99 +184,63 @@ function InteractionCard({
       : "抽奖";
 
   const Icon =
+    item.kind === "lottery" ? Gift : (POLL_ICONS[item.type] ?? ToggleLeft);
+
+  const iconTone =
     item.kind === "lottery"
-      ? Gift
-      : (POLL_ICONS[item.type] ?? ToggleLeft);
+      ? "bg-violet-50 text-violet-600"
+      : (POLL_TYPE_BADGE[item.type] ?? "bg-gray-100 text-text-muted");
 
   const count = getInteractionResponseCount(item);
 
-  if (live) {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onSelect}
-        onKeyDown={(e) => e.key === "Enter" && onSelect()}
-        className="group relative h-[68px] cursor-pointer rounded-xl border border-brand-amber bg-brand-amber-light/20 p-3"
-      >
-        <div className="absolute bottom-0 left-0 top-0 w-1 rounded-l-xl bg-brand-amber" />
-        <div className="pl-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Icon className="size-3.5 text-text-muted" />
-              <span className="ml-1 text-xs text-text-muted">{typeLabel}</span>
-            </div>
-            <span className="flex items-center gap-1 text-[10px] text-brand-amber">
-              <span className="size-1.5 animate-pulse rounded-full bg-brand-amber" />
-              进行中
-            </span>
-          </div>
-          <p className="mt-0.5 truncate text-[13px] font-semibold">{item.title}</p>
-          <div className="mt-1 flex items-center justify-between">
-            <span className="text-xs text-text-muted">{count} 人参与</span>
-            <div className="hidden items-center gap-2 group-hover:flex">
-              <Pause
-                className="size-3.5 cursor-pointer text-text-muted hover:text-brand-amber"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPause();
-                }}
-              />
-              <Square
-                className="size-3.5 cursor-pointer text-text-muted hover:text-brand-red"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStop();
-                }}
-              />
-              <Monitor
-                className="size-3.5 cursor-pointer text-text-muted hover:text-brand-blue"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(`/events/${eventId}/interactions/bigscreen`, "_blank");
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <SelectableListItem
+      selected={selected}
+      faded={closed}
+      icon={Icon}
+      iconClassName={iconTone}
+      typeLabel={typeLabel}
+      title={item.title}
+      meta={`${count} 人参与`}
+      statusLabel={
+        live ? "进行中" : draft ? "草稿" : closed ? "已结束" : undefined
+      }
+      statusVariant={
+        live ? "live" : draft ? "draft" : closed ? "ended" : "default"
+      }
       onClick={onSelect}
-      onKeyDown={(e) => e.key === "Enter" && onSelect()}
-      className={cn(
-        "group relative h-[68px] cursor-pointer rounded-xl border p-3 transition-colors",
-        closed && "opacity-60 hover:opacity-80",
-        selected
-          ? "border-brand-blue bg-brand-blue-light/10"
-          : "border-border-light bg-white hover:border-brand-blue/30 hover:bg-content-bg",
-      )}
-    >
-      {selected && (
-        <div className="absolute bottom-0 left-0 top-0 w-[3px] rounded-l-xl bg-brand-blue" />
-      )}
-      <div className={cn(selected && "pl-1")}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <Icon className="size-3.5 text-text-muted" />
-            <span className="ml-1 text-xs text-text-muted">{typeLabel}</span>
-          </div>
-          {closed ? (
-            <span className="text-xs text-brand-blue">查看结果 →</span>
-          ) : draft ? (
-            <span className="text-[10px] text-text-muted">草稿</span>
-          ) : null}
-        </div>
-        <p className="mt-0.5 truncate text-[13px] font-semibold">{item.title}</p>
-        {!closed && (
-          <p className="mt-1 text-xs text-text-muted">{count} 人参与</p>
-        )}
-      </div>
-    </div>
+      actions={
+        live ? (
+          <>
+            <ListIconAction
+              title="暂停"
+              className="hover:text-brand-amber"
+              onClick={() => onPause()}
+            >
+              <Pause className="size-3.5" />
+            </ListIconAction>
+            <ListIconAction
+              title="结束"
+              className="hover:text-brand-red"
+              onClick={() => onStop()}
+            >
+              <Square className="size-3.5" />
+            </ListIconAction>
+            <ListIconAction
+              title="大屏"
+              className="hover:text-brand-blue"
+              onClick={() => {
+                window.open(
+                  `/events/${eventId}/interactions/bigscreen`,
+                  "_blank",
+                );
+              }}
+            >
+              <Monitor className="size-3.5" />
+            </ListIconAction>
+          </>
+        ) : undefined
+      }
+    />
   );
 }

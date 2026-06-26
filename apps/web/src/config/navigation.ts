@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Eye,
   FileDown,
+  Gift,
   Handshake,
   LayoutDashboard,
   LayoutGrid,
@@ -309,6 +310,11 @@ function getEventNavigationGroups(
                 icon: MessageSquare,
               },
               {
+                label: "现场抽奖",
+                href: `/events/${eventId}/lottery`,
+                icon: Gift,
+              },
+              {
                 label: "集章打卡",
                 href: `/events/${eventId}/stamp-rally`,
                 icon: Trophy,
@@ -493,6 +499,11 @@ function getEventNavigationGroups(
               label: "互动管理",
               href: `/events/${eventId}/interactions`,
               icon: MessageSquare,
+            },
+            {
+              label: "现场抽奖",
+              href: `/events/${eventId}/lottery`,
+              icon: Gift,
             },
             {
               label: "邀请管理",

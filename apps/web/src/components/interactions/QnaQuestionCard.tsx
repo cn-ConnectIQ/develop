@@ -66,15 +66,20 @@ export function QnaQuestionCard({
       onClick={onSelect}
       onKeyDown={(e) => e.key === "Enter" && onSelect()}
       className={cn(
-        "group relative cursor-pointer rounded-xl border border-border-light bg-white p-4",
-        isOnScreen && "border-brand-blue/30 bg-brand-blue-light/20",
-        isAnswered && !isOnScreen && "opacity-50",
+        "group relative cursor-pointer rounded-lg border bg-white px-3 py-2.5 transition-all",
+        isOnScreen && "border-brand-blue/30 bg-brand-blue-light/10",
+        isAnswered && !isOnScreen && "opacity-55",
         isHidden && "bg-gray-50 opacity-40",
-        selected && "ring-2 ring-brand-blue/30",
+        selected
+          ? "border-brand-blue/40 shadow-sm ring-1 ring-brand-blue/15"
+          : "border-border-light hover:border-border-light hover:shadow-sm",
       )}
     >
       {isOnScreen && (
-        <div className="absolute bottom-0 left-0 top-0 w-[3px] rounded-l-xl bg-brand-blue" />
+        <div className="absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-brand-blue" />
+      )}
+      {selected && !isOnScreen && (
+        <div className="absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-brand-blue" />
       )}
 
       {isOnScreen && (

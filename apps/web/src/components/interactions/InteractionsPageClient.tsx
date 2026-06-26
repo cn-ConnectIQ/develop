@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { AdminContent } from "@/components/admin/admin-header";
+import { ResourceListCard } from "@/components/admin/list-panel";
 import { CreatePollSheet } from "@/components/interactions/CreatePollSheet";
 import { PollResultCard } from "@/components/interactions/PollResultCard";
 import type { PollListItem, SessionOption } from "@/lib/interactions";
@@ -39,8 +40,6 @@ import {
   POLL_TYPE_BADGE,
   POLL_TYPE_LABELS,
 } from "@/lib/interactions";
-import { cn } from "@/lib/utils";
-
 const typeIcons: Record<string, typeof CheckCircle> = {
   SINGLE_CHOICE: CheckCircle,
   MULTI_CHOICE: CheckSquare,
@@ -386,84 +385,58 @@ function PollListCard({
   const Icon = typeIcons[poll.type] ?? CheckCircle;
   const badgeClass = POLL_TYPE_BADGE[poll.type] ?? "bg-gray-100 text-text-muted";
   const estMinutes = estimatePollMinutes(poll.type, poll.options.length);
+  const subtitle = ended
+    ? `${poll._count.responses} 人参与 · 结束于 ${format(new Date(poll.updatedAt), "MM-dd HH:mm")}`
+    : `共 ${Math.max(poll.options.length, 1)} 题 · 预计 ${estMinutes} 分钟`;
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center gap-4 rounded-xl border border-border-light bg-white p-4",
-        ended && "bg-gray-50/80",
-      )}
-    >
-      <div
-        className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-lg",
-          badgeClass,
-        )}
-      >
-        <Icon className="size-5" />
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              "rounded px-2 py-0.5 text-[10px] font-medium",
-              badgeClass,
-            )}
-          >
-            {POLL_TYPE_LABELS[poll.type] ?? poll.type}
-          </span>
-          {poll.status === "PAUSED" && (
-            <span className="text-[10px] text-brand-amber">已暂停</span>
+    <ResourceListCard
+      faded={ended}
+      icon={<Icon className="size-4" />}
+      iconContainerClassName={badgeClass}
+      title={poll.title}
+      subtitle={`${POLL_TYPE_LABELS[poll.type] ?? poll.type} · ${subtitle}`}
+      status={
+        poll.status === "PAUSED"
+          ? { label: "已暂停", variant: "paused" }
+          : ended
+            ? { label: "已结束", variant: "ended" }
+            : undefined
+      }
+      footer={
+        <>
+          {onPublish && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-brand-blue"
+              onClick={onPublish}
+            >
+              立即发布
+            </Button>
           )}
-        </div>
-        <p className="mt-1 font-medium">{poll.title}</p>
-        <p className="text-xs text-text-muted">
-          {ended ? (
-            <>
-              {poll._count.responses} 人参与 · 结束于{" "}
-              {format(new Date(poll.updatedAt), "MM-dd HH:mm")}
-            </>
-          ) : (
-            <>
-              共 {Math.max(poll.options.length, 1)} 题 · 预计 {estMinutes} 分钟
-            </>
+          {onEdit && (
+            <Button variant="ghost" size="icon" onClick={onEdit}>
+              <Pencil className="size-4 text-text-tertiary" />
+            </Button>
           )}
-        </p>
-      </div>
-
-      <div className="flex items-center gap-1">
-        {onPublish && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-brand-blue"
-            onClick={onPublish}
-          >
-            立即发布
-          </Button>
-        )}
-        {onEdit && (
-          <Button variant="ghost" size="icon" onClick={onEdit}>
-            <Pencil className="size-4 text-text-tertiary" />
-          </Button>
-        )}
-        {onViewResults && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-brand-blue"
-            onClick={onViewResults}
-          >
-            查看结果 →
-          </Button>
-        )}
-        {onDelete && (
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="size-4 text-text-tertiary" />
-          </Button>
-        )}
-      </div>
-    </div>
+          {onViewResults && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-brand-blue"
+              onClick={onViewResults}
+            >
+              查看结果 →
+            </Button>
+          )}
+          {onDelete && (
+            <Button variant="ghost" size="icon" onClick={onDelete}>
+              <Trash2 className="size-4 text-text-tertiary" />
+            </Button>
+          )}
+        </>
+      }
+    />
   );
 }
