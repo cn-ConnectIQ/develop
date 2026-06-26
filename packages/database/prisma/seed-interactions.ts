@@ -62,17 +62,72 @@ export const SEED_INT = {
     pollSingle: "seed-int-summit-poll-single",
     pollSingleO1: "seed-int-summit-poll-single-o1",
     pollSingleO2: "seed-int-summit-poll-single-o2",
+    pollMulti: "seed-int-summit-poll-multi",
+    pollMultiO1: "seed-int-summit-poll-multi-o1",
+    pollMultiO2: "seed-int-summit-poll-multi-o2",
+    pollRating: "seed-int-summit-poll-rating",
+    pollWordCloud: "seed-int-summit-poll-wc",
+    pollAnnouncement: "seed-int-summit-poll-ann",
+    lotteryRandom: "seed-int-summit-lottery-random",
+    lotteryQuiz: "seed-int-summit-lottery-quiz",
+    pollQuiz: "seed-int-summit-poll-quiz",
+    pollQuizO1: "seed-int-summit-poll-quiz-o1",
+    pollQuizO2: "seed-int-summit-poll-quiz-o2",
     sessionQna: "seed-int-summit-session-qna",
-    sessionCode: "SEEDS1",
+    sessionPoll: "seed-int-summit-session-poll",
+    sessionLottery: "seed-int-summit-session-lottery",
+    sessionCodeQna: "SEEDS1",
+    sessionCodePoll: "SEEDS2",
+    sessionCodeLottery: "SEEDS3",
+  },
+  // 创新活动运营峰会 2025（008 主办会议）
+  innovation: {
+    pollSingle: "seed-int-innovation-poll-single",
+    pollSingleO1: "seed-int-innovation-poll-single-o1",
+    pollSingleO2: "seed-int-innovation-poll-single-o2",
+    pollSingleO3: "seed-int-innovation-poll-single-o3",
+    pollMulti: "seed-int-innovation-poll-multi",
+    pollMultiO1: "seed-int-innovation-poll-multi-o1",
+    pollMultiO2: "seed-int-innovation-poll-multi-o2",
+    pollQna: "seed-int-innovation-poll-qna",
+    pollRating: "seed-int-innovation-poll-rating",
+    pollWordCloud: "seed-int-innovation-poll-wc",
+    pollAnnouncement: "seed-int-innovation-poll-ann",
+    lotteryRandom: "seed-int-innovation-lottery-random",
+    lotteryActivity: "seed-int-innovation-lottery-activity",
+    sessionPoll: "seed-int-innovation-session-poll",
+    sessionQna: "seed-int-innovation-session-qna",
+    sessionLottery: "seed-int-innovation-session-lottery",
+    sessionCodePoll: "SEEDN1",
+    sessionCodeQna: "SEEDN2",
+    sessionCodeLottery: "SEEDN3",
+  },
+  // 产品增长沙龙
+  salon: {
+    pollSingle: "seed-int-salon-poll-single",
+    pollSingleO1: "seed-int-salon-poll-single-o1",
+    pollSingleO2: "seed-int-salon-poll-single-o2",
+    pollQna: "seed-int-salon-poll-qna",
+    pollRating: "seed-int-salon-poll-rating",
+    lotteryOpen: "seed-int-salon-lottery-open",
+    sessionPoll: "seed-int-salon-session-poll",
+    sessionCode: "SEEDSL",
   },
 } as const;
 
+function collectIds(obj: Record<string, string>, prefix: string) {
+  return Object.values(obj).filter((id) => id.startsWith(prefix));
+}
+
 const ALL_SEED_POLL_IDS = [
-  ...Object.values(SEED_INT.hostedExpo).filter((id) => id.startsWith("seed-int-hosted-poll")),
-  ...Object.values(SEED_INT.expo).filter((id) => id.startsWith("seed-int-expo-poll")),
-  ...Object.values(SEED_INT.summit).filter((id) => id.startsWith("seed-int-summit-poll")),
+  ...collectIds(SEED_INT.hostedExpo, "seed-int-hosted-poll"),
+  ...collectIds(SEED_INT.expo, "seed-int-expo-poll"),
+  ...collectIds(SEED_INT.summit, "seed-int-summit-poll"),
+  ...collectIds(SEED_INT.innovation, "seed-int-innovation-poll"),
+  ...collectIds(SEED_INT.salon, "seed-int-salon-poll"),
   "seed-int-expo-booth-poll",
   "seed-int-hosted-booth-poll",
+  "seed-int-expo-booth-rating",
 ];
 
 const ALL_SEED_LOTTERY_IDS = [
@@ -82,6 +137,12 @@ const ALL_SEED_LOTTERY_IDS = [
   SEED_INT.hostedExpo.lotteryActivity,
   SEED_INT.hostedExpo.lotteryQuiz,
   SEED_INT.expo.lotteryOpen,
+  SEED_INT.summit.lotteryRandom,
+  SEED_INT.summit.lotteryQuiz,
+  SEED_INT.innovation.lotteryRandom,
+  SEED_INT.innovation.lotteryActivity,
+  SEED_INT.salon.lotteryOpen,
+  "seed-int-expo-booth-lottery",
 ];
 
 const ALL_SEED_SESSION_IDS = [
@@ -90,6 +151,12 @@ const ALL_SEED_SESSION_IDS = [
   SEED_INT.hostedExpo.sessionBooth,
   SEED_INT.expo.sessionPoll,
   SEED_INT.summit.sessionQna,
+  SEED_INT.summit.sessionPoll,
+  SEED_INT.summit.sessionLottery,
+  SEED_INT.innovation.sessionPoll,
+  SEED_INT.innovation.sessionQna,
+  SEED_INT.innovation.sessionLottery,
+  SEED_INT.salon.sessionPoll,
   "seed-int-expo-booth-session",
 ];
 
@@ -103,12 +170,17 @@ export type SeedInteractionsContext = {
   hostedExpoEventId: string;
   expoEventId: string;
   summitEventId: string;
+  innovationSummitEventId?: string;
+  salonEventId?: string;
   unifiedAdminId: string;
   expoAdminId: string;
   confAdminId: string;
   endUserIds: string[];
   hostedParticipantIds: string[];
   expoParticipantIds: string[];
+  innovationParticipantIds?: string[];
+  summitParticipantIds?: string[];
+  salonParticipantIds?: string[];
   hostedBoothA101Id?: string | null;
   unifiedBoothC18Id?: string | null;
   unifiedOrgId?: string | null;
@@ -784,13 +856,73 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       status: PollStatus.LIVE,
     });
 
+    await upsertPoll({
+      id: "seed-int-expo-booth-rating",
+      eventId,
+      createdById: ctx.unifiedAdminId,
+      type: PollType.RATING,
+      title: "【ConnectIQ 展台】产品演示满意度",
+      status: PollStatus.LIVE,
+    });
+
+    await prisma.lottery.upsert({
+      where: { id: "seed-int-expo-booth-lottery" },
+      update: {},
+      create: {
+        id: "seed-int-expo-booth-lottery",
+        eventId,
+        createdById: ctx.unifiedAdminId,
+        boothId: ctx.unifiedBoothC18Id,
+        title: "【C-18 展台】现场幸运抽奖",
+        type: LotteryType.RANDOM,
+        status: LotteryStatus.OPEN,
+        prizes: [{ rank: 1, name: "一等奖", prize: "ConnectIQ 周边礼包", count: 3 }],
+        winnerCount: 1,
+        entryCount: 2,
+      },
+    });
+
+    if (ctx.endUserIds[3]) {
+      await prisma.lotteryEntry.upsert({
+        where: {
+          lotteryId_userId: {
+            lotteryId: "seed-int-expo-booth-lottery",
+            userId: ctx.endUserIds[3],
+          },
+        },
+        update: {},
+        create: {
+          id: "seed-int-entry-expo-booth-1",
+          lotteryId: "seed-int-expo-booth-lottery",
+          userId: ctx.endUserIds[3],
+          source: LotteryEntrySource.MANUAL,
+        },
+      });
+    }
+
+    for (const [i, pid] of ctx.expoParticipantIds.slice(0, 2).entries()) {
+      await prisma.pollResponse.upsert({
+        where: { id: `seed-int-res-expo-booth-rating-${i}` },
+        update: {},
+        create: {
+          id: `seed-int-res-expo-booth-rating-${i}`,
+          pollId: "seed-int-expo-booth-rating",
+          participantId: pid,
+          rating: 4 + i,
+        },
+      });
+    }
+
     await upsertSession({
       id: "seed-int-expo-booth-session",
       eventId,
       createdById: ctx.unifiedAdminId,
       name: "C-18 ConnectIQ 展台互动",
       sessionCode: "SEEDC18",
-      interactions: [{ type: "poll", id: "seed-int-expo-booth-poll" }],
+      interactions: [
+        { type: "poll", id: "seed-int-expo-booth-poll" },
+        { type: "lottery", id: "seed-int-expo-booth-lottery" },
+      ],
       ownerType: InteractionOwnerType.EXHIBITOR,
       boothId: ctx.unifiedBoothC18Id,
       exhibitorOrgId: ctx.unifiedOrgId,
@@ -804,18 +936,59 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
 async function seedSummitInteractions(ctx: SeedInteractionsContext) {
   const S = SEED_INT.summit;
   const { summitEventId: eventId, confAdminId: creatorId } = ctx;
+  const participants =
+    ctx.summitParticipantIds?.length
+      ? ctx.summitParticipantIds
+      : ctx.hostedParticipantIds;
+
+  await setEventFeatureFlags(eventId);
 
   await upsertPoll({
     id: S.pollSingle,
     eventId,
     createdById: creatorId,
     type: PollType.SINGLE_CHOICE,
-    title: "【峰会】哪个主题演讲最有收获？",
+    title: "【峰会投票】哪个主题演讲最有收获？",
     status: PollStatus.LIVE,
+    displayOrder: 1,
     options: [
       { id: S.pollSingleO1, text: "增长方法论", displayOrder: 1 },
       { id: S.pollSingleO2, text: "AI 赋能销售", displayOrder: 2 },
     ],
+  });
+
+  await upsertPoll({
+    id: S.pollMulti,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【多选】您希望下届峰会增加哪些议题？",
+    status: PollStatus.LIVE,
+    displayOrder: 2,
+    options: [
+      { id: S.pollMultiO1, text: "PLG 实践案例", displayOrder: 1 },
+      { id: S.pollMultiO2, text: "出海增长策略", displayOrder: 2 },
+    ],
+  });
+
+  await upsertPoll({
+    id: S.pollWordCloud,
+    eventId,
+    createdById: creatorId,
+    type: PollType.WORD_CLOUD,
+    title: "【词云】用一个词形容今天的峰会",
+    status: PollStatus.LIVE,
+    displayOrder: 3,
+  });
+
+  await upsertPoll({
+    id: S.pollRating,
+    eventId,
+    createdById: creatorId,
+    type: PollType.RATING,
+    title: "【评分】主论坛整体满意度",
+    status: PollStatus.LIVE,
+    displayOrder: 4,
   });
 
   await upsertPoll({
@@ -825,38 +998,454 @@ async function seedSummitInteractions(ctx: SeedInteractionsContext) {
     type: PollType.QNA,
     title: "【峰会问答】向嘉宾提问",
     status: PollStatus.LIVE,
+    displayOrder: 5,
   });
 
-  await prisma.pollResponse.createMany({
-    data: [
-      {
-        id: "seed-int-res-summit-qna-1",
-        pollId: S.pollQna,
-        textAnswer: "如何衡量 PLG 与 SLG 的 ROI？",
-      },
-      {
-        id: "seed-int-res-summit-qna-2",
-        pollId: S.pollQna,
-        textAnswer: "如何衡量 PLG 与 SLG 的 ROI？",
-      },
-      {
-        id: "seed-int-res-summit-qna-3",
-        pollId: S.pollQna,
-        textAnswer: "中小企业如何搭建客户成功团队？",
-      },
-    ],
-    skipDuplicates: true,
+  await upsertPoll({
+    id: S.pollAnnouncement,
+    eventId,
+    createdById: creatorId,
+    type: PollType.ANNOUNCEMENT,
+    title: "【公告】下午 15:30 开始 Speed Networking 环节",
+    status: PollStatus.LIVE,
+    displayOrder: 6,
   });
+
+  await upsertPoll({
+    id: S.pollQuiz,
+    eventId,
+    createdById: creatorId,
+    type: PollType.SINGLE_CHOICE,
+    title: "【答题】B2B SaaS 最常见的增长模型是？",
+    status: PollStatus.LIVE,
+    displayOrder: 7,
+    options: [
+      { id: S.pollQuizO1, text: "PLG", displayOrder: 1 },
+      { id: S.pollQuizO2, text: "仅 SLG", displayOrder: 2 },
+    ],
+  });
+
+  const qnaIds = [
+    "seed-int-res-summit-qna-1",
+    "seed-int-res-summit-qna-2",
+    "seed-int-res-summit-qna-3",
+    "seed-int-res-summit-qna-4",
+    "seed-int-res-summit-qna-5",
+  ];
+  const qnaTexts = [
+    "如何衡量 PLG 与 SLG 的 ROI？",
+    "如何衡量 PLG 与 SLG 的 ROI？",
+    "中小企业如何搭建客户成功团队？",
+    "AI 销售助手如何与 CRM 集成？",
+    "出海 SaaS 的本地化策略有哪些？",
+  ];
+
+  for (const [i, qid] of qnaIds.entries()) {
+    await prisma.pollResponse.upsert({
+      where: { id: qid },
+      update: { textAnswer: qnaTexts[i] },
+      create: {
+        id: qid,
+        pollId: S.pollQna,
+        participantId: participants[i % participants.length],
+        textAnswer: qnaTexts[i],
+        isOnScreen: i === 0,
+      },
+    });
+  }
+
+  await setQnaDisplayConfig(eventId, S.pollQna, {
+    pinnedResponseIds: ["seed-int-res-summit-qna-4"],
+    answeredResponseIds: ["seed-int-res-summit-qna-3"],
+    featuredResponseId: "seed-int-res-summit-qna-1",
+  });
+
+  for (let i = 0; i < Math.min(participants.length, 6); i++) {
+    const pid = participants[i]!;
+    await prisma.pollResponse.upsert({
+      where: { id: `seed-int-res-summit-single-${i}` },
+      update: {},
+      create: {
+        id: `seed-int-res-summit-single-${i}`,
+        pollId: S.pollSingle,
+        participantId: pid,
+        optionId: i % 2 === 0 ? S.pollSingleO1 : S.pollSingleO2,
+      },
+    });
+    await prisma.pollResponse.upsert({
+      where: { id: `seed-int-res-summit-rating-${i}` },
+      update: {},
+      create: {
+        id: `seed-int-res-summit-rating-${i}`,
+        pollId: S.pollRating,
+        participantId: pid,
+        rating: (i % 5) + 1,
+      },
+    });
+    await prisma.pollResponse.upsert({
+      where: { id: `seed-int-res-summit-wc-${i}` },
+      update: {},
+      create: {
+        id: `seed-int-res-summit-wc-${i}`,
+        pollId: S.pollWordCloud,
+        participantId: pid,
+        textAnswer: ["干货", "连接", "增长", "专业", "惊喜", "期待"][i % 6],
+      },
+    });
+  }
+
+  await prisma.lottery.upsert({
+    where: { id: S.lotteryRandom },
+    update: { status: LotteryStatus.OPEN, entryCount: 4 },
+    create: {
+      id: S.lotteryRandom,
+      eventId,
+      createdById: creatorId,
+      title: "【峰会抽奖】现场幸运观众",
+      type: LotteryType.RANDOM,
+      status: LotteryStatus.OPEN,
+      prizes: DEFAULT_PRIZES.slice(0, 2),
+      winnerCount: 2,
+      entryCount: 4,
+    },
+  });
+
+  await prisma.lottery.upsert({
+    where: { id: S.lotteryQuiz },
+    update: { quizPollId: S.pollQuiz },
+    create: {
+      id: S.lotteryQuiz,
+      eventId,
+      createdById: creatorId,
+      title: "【答题抽奖】答对 SaaS 知识题参与",
+      type: LotteryType.QUIZ_BASED,
+      status: LotteryStatus.OPEN,
+      quizPollId: S.pollQuiz,
+      prizes: DEFAULT_PRIZES.slice(0, 1),
+      winnerCount: 1,
+    },
+  });
+
+  for (let i = 0; i < Math.min(ctx.endUserIds.length, 4); i++) {
+    await prisma.lotteryEntry.upsert({
+      where: { lotteryId_userId: { lotteryId: S.lotteryRandom, userId: ctx.endUserIds[i]! } },
+      update: {},
+      create: {
+        id: `seed-int-entry-summit-${i}`,
+        lotteryId: S.lotteryRandom,
+        userId: ctx.endUserIds[i]!,
+        source: LotteryEntrySource.MANUAL,
+      },
+    });
+  }
 
   await upsertSession({
     id: S.sessionQna,
     eventId,
     createdById: creatorId,
     name: "主论坛现场问答",
-    sessionCode: S.sessionCode,
+    sessionCode: S.sessionCodeQna,
     interactions: [{ type: "poll", id: S.pollQna }],
     scanCount: 210,
+    participantCount: qnaIds.length,
+  });
+
+  await upsertSession({
+    id: S.sessionPoll,
+    eventId,
+    createdById: creatorId,
+    name: "主题演讲满意度投票",
+    sessionCode: S.sessionCodePoll,
+    interactions: [{ type: "poll", id: S.pollSingle }],
+    scanCount: 156,
+    participantCount: Math.min(participants.length, 6),
+  });
+
+  await upsertSession({
+    id: S.sessionLottery,
+    eventId,
+    createdById: creatorId,
+    name: "峰会幸运抽奖",
+    sessionCode: S.sessionCodeLottery,
+    interactions: [{ type: "lottery", id: S.lotteryRandom }],
+    scanCount: 98,
+    participantCount: 4,
+  });
+}
+
+async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
+  if (!ctx.innovationSummitEventId) return;
+  const I = SEED_INT.innovation;
+  const eventId = ctx.innovationSummitEventId;
+  const creatorId = ctx.unifiedAdminId;
+  const participants = ctx.innovationParticipantIds ?? [];
+
+  await setEventFeatureFlags(eventId);
+
+  await upsertPoll({
+    id: I.pollSingle,
+    eventId,
+    createdById: creatorId,
+    type: PollType.SINGLE_CHOICE,
+    title: "【会议投票】您最期待哪个议题方向？",
+    status: PollStatus.LIVE,
+    displayOrder: 1,
+    options: [
+      { id: I.pollSingleO1, text: "活动科技趋势", displayOrder: 1 },
+      { id: I.pollSingleO2, text: "会议×展览融合", displayOrder: 2 },
+      { id: I.pollSingleO3, text: "现场互动创新", displayOrder: 3 },
+    ],
+  });
+
+  await upsertPoll({
+    id: I.pollMulti,
+    eventId,
+    createdById: creatorId,
+    type: PollType.MULTI_CHOICE,
+    title: "【多选】您希望增加哪些互动形式？",
+    status: PollStatus.LIVE,
+    displayOrder: 2,
+    options: [
+      { id: I.pollMultiO1, text: "实时问答", displayOrder: 1 },
+      { id: I.pollMultiO2, text: "现场抽奖", displayOrder: 2 },
+    ],
+  });
+
+  await upsertPoll({
+    id: I.pollWordCloud,
+    eventId,
+    createdById: creatorId,
+    type: PollType.WORD_CLOUD,
+    title: "【词云】用一个词形容 ConnectIQ",
+    status: PollStatus.LIVE,
+    displayOrder: 3,
+  });
+
+  await upsertPoll({
+    id: I.pollRating,
+    eventId,
+    createdById: creatorId,
+    type: PollType.RATING,
+    title: "【评分】开幕 keynote 满意度",
+    status: PollStatus.LIVE,
+    displayOrder: 4,
+  });
+
+  await upsertPoll({
+    id: I.pollQna,
+    eventId,
+    createdById: creatorId,
+    type: PollType.QNA,
+    title: "【会议问答】向主办方提问",
+    status: PollStatus.LIVE,
+    displayOrder: 5,
+  });
+
+  await upsertPoll({
+    id: I.pollAnnouncement,
+    eventId,
+    createdById: creatorId,
+    type: PollType.ANNOUNCEMENT,
+    title: "【公告】下午将进行 Speed Networking 预配对",
+    status: PollStatus.LIVE,
+    displayOrder: 6,
+  });
+
+  for (let i = 0; i < participants.length; i++) {
+    const pid = participants[i]!;
+    await prisma.pollResponse.upsert({
+      where: { id: `seed-int-res-innovation-single-${i}` },
+      update: {},
+      create: {
+        id: `seed-int-res-innovation-single-${i}`,
+        pollId: I.pollSingle,
+        participantId: pid,
+        optionId: [I.pollSingleO1, I.pollSingleO2, I.pollSingleO3][i % 3],
+      },
+    });
+    await prisma.pollResponse.upsert({
+      where: { id: `seed-int-res-innovation-rating-${i}` },
+      update: {},
+      create: {
+        id: `seed-int-res-innovation-rating-${i}`,
+        pollId: I.pollRating,
+        participantId: pid,
+        rating: (i % 5) + 1,
+      },
+    });
+  }
+
+  const innovationQna = [
+    { id: "seed-int-res-innovation-qna-1", text: "ConnectIQ 是否支持私有化部署？", idx: 0 },
+    { id: "seed-int-res-innovation-qna-2", text: "如何与现有 CRM 对接？", idx: 1 },
+    { id: "seed-int-res-innovation-qna-3", text: "小程序端有哪些互动能力？", idx: 2 },
+  ];
+  for (const q of innovationQna) {
+    await prisma.pollResponse.upsert({
+      where: { id: q.id },
+      update: { textAnswer: q.text },
+      create: {
+        id: q.id,
+        pollId: I.pollQna,
+        participantId: participants[q.idx] ?? participants[0],
+        textAnswer: q.text,
+        isOnScreen: q.id.endsWith("qna-1"),
+      },
+    });
+  }
+
+  await prisma.lottery.upsert({
+    where: { id: I.lotteryRandom },
+    update: { status: LotteryStatus.OPEN },
+    create: {
+      id: I.lotteryRandom,
+      eventId,
+      createdById: creatorId,
+      title: "【会议抽奖】开幕幸运奖",
+      type: LotteryType.RANDOM,
+      status: LotteryStatus.OPEN,
+      prizes: DEFAULT_PRIZES.slice(0, 2),
+      winnerCount: 2,
+    },
+  });
+
+  await prisma.lottery.upsert({
+    where: { id: I.lotteryActivity },
+    update: { requirePollId: I.pollSingle },
+    create: {
+      id: I.lotteryActivity,
+      eventId,
+      createdById: creatorId,
+      title: "【参与抽奖】完成投票后可参与",
+      type: LotteryType.ACTIVITY_BASED,
+      status: LotteryStatus.OPEN,
+      requirePollId: I.pollSingle,
+      prizes: DEFAULT_PRIZES.slice(0, 1),
+      winnerCount: 1,
+    },
+  });
+
+  await upsertSession({
+    id: I.sessionPoll,
+    eventId,
+    createdById: creatorId,
+    name: "议题方向投票",
+    sessionCode: I.sessionCodePoll,
+    interactions: [{ type: "poll", id: I.pollSingle }],
+    scanCount: 67,
+    participantCount: participants.length,
+  });
+
+  await upsertSession({
+    id: I.sessionQna,
+    eventId,
+    createdById: creatorId,
+    name: "现场问答",
+    sessionCode: I.sessionCodeQna,
+    interactions: [{ type: "poll", id: I.pollQna }],
+    scanCount: 45,
+    participantCount: innovationQna.length,
+  });
+
+  await upsertSession({
+    id: I.sessionLottery,
+    eventId,
+    createdById: creatorId,
+    name: "开幕幸运抽奖",
+    sessionCode: I.sessionCodeLottery,
+    interactions: [{ type: "lottery", id: I.lotteryRandom }],
+    scanCount: 52,
     participantCount: 3,
+  });
+}
+
+async function seedSalonInteractions(ctx: SeedInteractionsContext) {
+  if (!ctx.salonEventId) return;
+  const L = SEED_INT.salon;
+  const eventId = ctx.salonEventId;
+  const creatorId = ctx.confAdminId;
+  const participants = ctx.salonParticipantIds ?? [];
+
+  await upsertPoll({
+    id: L.pollSingle,
+    eventId,
+    createdById: creatorId,
+    type: PollType.SINGLE_CHOICE,
+    title: "【沙龙投票】本次分享最有价值的部分？",
+    status: PollStatus.LIVE,
+    options: [
+      { id: L.pollSingleO1, text: "增长实验框架", displayOrder: 1 },
+      { id: L.pollSingleO2, text: "案例拆解", displayOrder: 2 },
+    ],
+  });
+
+  await upsertPoll({
+    id: L.pollQna,
+    eventId,
+    createdById: creatorId,
+    type: PollType.QNA,
+    title: "【沙龙问答】向分享嘉宾提问",
+    status: PollStatus.LIVE,
+  });
+
+  await upsertPoll({
+    id: L.pollRating,
+    eventId,
+    createdById: creatorId,
+    type: PollType.RATING,
+    title: "【评分】沙龙整体满意度",
+    status: PollStatus.LIVE,
+  });
+
+  for (let i = 0; i < participants.length; i++) {
+    const pid = participants[i]!;
+    await prisma.pollResponse.upsert({
+      where: { id: `seed-int-res-salon-single-${i}` },
+      update: {},
+      create: {
+        id: `seed-int-res-salon-single-${i}`,
+        pollId: L.pollSingle,
+        participantId: pid,
+        optionId: i % 2 === 0 ? L.pollSingleO1 : L.pollSingleO2,
+      },
+    });
+  }
+
+  await prisma.pollResponse.upsert({
+    where: { id: "seed-int-res-salon-qna-1" },
+    update: {},
+    create: {
+      id: "seed-int-res-salon-qna-1",
+      pollId: L.pollQna,
+      participantId: participants[0],
+      textAnswer: "如何在小团队快速验证增长假设？",
+    },
+  });
+
+  await prisma.lottery.upsert({
+    where: { id: L.lotteryOpen },
+    update: {},
+    create: {
+      id: L.lotteryOpen,
+      eventId,
+      createdById: creatorId,
+      title: "【沙龙抽奖】到场幸运观众",
+      type: LotteryType.RANDOM,
+      status: LotteryStatus.OPEN,
+      prizes: [{ rank: 1, name: "一等奖", prize: "增长方法论手册", count: 1 }],
+      winnerCount: 1,
+    },
+  });
+
+  await upsertSession({
+    id: L.sessionPoll,
+    eventId,
+    createdById: creatorId,
+    name: "沙龙现场投票",
+    sessionCode: L.sessionCode,
+    interactions: [{ type: "poll", id: L.pollSingle }],
+    scanCount: 28,
+    participantCount: participants.length,
   });
 }
 
@@ -865,6 +1454,8 @@ export async function seedInteractionDemoData(ctx: SeedInteractionsContext) {
   await seedHostedExpoInteractions(ctx);
   await seedExpoInteractions(ctx);
   await seedSummitInteractions(ctx);
+  await seedInnovationSummitInteractions(ctx);
+  await seedSalonInteractions(ctx);
 
   return {
     sessionCodes: {
@@ -872,7 +1463,13 @@ export async function seedInteractionDemoData(ctx: SeedInteractionsContext) {
       hostedLottery: SEED_INT.hostedExpo.sessionCodeLottery,
       hostedBooth: SEED_INT.hostedExpo.sessionCodeBooth,
       expo: SEED_INT.expo.sessionCode,
-      summit: SEED_INT.summit.sessionCode,
+      summitQna: SEED_INT.summit.sessionCodeQna,
+      summitPoll: SEED_INT.summit.sessionCodePoll,
+      summitLottery: SEED_INT.summit.sessionCodeLottery,
+      innovationPoll: SEED_INT.innovation.sessionCodePoll,
+      innovationQna: SEED_INT.innovation.sessionCodeQna,
+      innovationLottery: SEED_INT.innovation.sessionCodeLottery,
+      salon: SEED_INT.salon.sessionCode,
       expoBooth: "SEEDC18",
     },
   };

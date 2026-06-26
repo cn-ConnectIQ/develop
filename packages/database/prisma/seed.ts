@@ -24,6 +24,7 @@ import {
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/client";
 import { seedInteractionDemoData } from "./seed-interactions";
+import { seedEventFeatureDemoData } from "./seed-event-features";
 
 const SEED_PASSWORD = "ConnectIQ2024!";
 
@@ -1266,23 +1267,63 @@ async function main() {
 
   console.log("✓ 集章路线 + 展位坐标 + BoothVisitSignal 示例数据");
 
-  // ── 互动演示数据（Poll / Lottery / Session 全类型）──────────
+  const innovationSummitEvent = await prisma.event.findUnique({
+    where: { slug: "innovation-summit-2025" },
+  });
+  if (!innovationSummitEvent) {
+    throw new Error("缺少 innovation-summit-2025 活动");
+  }
+
+  const hostedBooths = await prisma.exhibitorBooth.findMany({
+    where: { eventId: hostedExpoEvent.id, code: { in: ["A-101", "A-102", "A-103"] } },
+    orderBy: { code: "asc" },
+    select: { id: true },
+  });
   const hostedBoothA101 = await prisma.exhibitorBooth.findFirst({
     where: { eventId: hostedExpoEvent.id, code: "A-101" },
   });
   const unifiedBoothC18 = await prisma.exhibitorBooth.findFirst({
     where: { eventId: expoEvent.id, code: "C-18" },
   });
+
+  // ── 活动全功能演示数据（议程/问卷/工作人员/SN/邀请/赞助/线索等）──
+  const featureMeta = await seedEventFeatureDemoData({
+    innovationSummitEventId: innovationSummitEvent.id,
+    saasSummitEventId: summitEvent.id,
+    salonEventId: salonEvent.id,
+    hostedExpoEventId: hostedExpoEvent.id,
+    digitalExpoEventId: expoEvent.id,
+    unifiedAdminId: unifiedAdmin.id,
+    confAdminId: confAdmin.id,
+    expoAdminId: expoAdmin.id,
+    unifiedOrgId: unifiedOrg.id,
+    confOrgId: confOrg.id,
+    expoOrgId: expoOrg.id,
+    endUserIds: endUsers.map((u) => u.id),
+    hostedParticipantIds: hostedAttendeeSpecs.map((s) => s.id),
+    hostedBoothIds: hostedBooths.map((b) => b.id),
+    digitalBoothC18Id: unifiedBoothC18?.id,
+  });
+  console.log(
+    "✓ 活动全功能数据：参会者/议程/问卷/工作人员/SN/邀请/赞助/线索/集章/商务配对",
+  );
+
+  // ── 互动演示数据（Poll / Lottery / Session 全类型）──────────
   const interactionMeta = await seedInteractionDemoData({
     hostedExpoEventId: hostedExpoEvent.id,
     expoEventId: expoEvent.id,
     summitEventId: summitEvent.id,
+    innovationSummitEventId: innovationSummitEvent.id,
+    salonEventId: salonEvent.id,
     unifiedAdminId: unifiedAdmin.id,
     expoAdminId: expoAdmin.id,
     confAdminId: confAdmin.id,
     endUserIds: endUsers.map((u) => u.id),
     hostedParticipantIds: hostedAttendeeSpecs.map((s) => s.id),
     expoParticipantIds: participatedAttendeeSpecs.map((s) => s.id),
+    innovationParticipantIds: featureMeta.innovationParticipantIds,
+    summitParticipantIds: featureMeta.summitParticipantIds,
+    salonParticipantIds: featureMeta.salonParticipantIds,
     hostedBoothA101Id: hostedBoothA101?.id,
     unifiedBoothC18Id: unifiedBoothC18?.id,
     unifiedOrgId: unifiedOrg.id,
@@ -1322,8 +1363,11 @@ async function main() {
   console.log("  Booth: 3");
   console.log("  StampRally: 1");
   console.log("  BoothVisitSignal: 示例");
+  console.log("  活动全功能: 议程/问卷/工作人员/SN/邀请/赞助/线索/商务配对");
   console.log("  互动 Poll/Lottery/Session: 见 seed-interactions.ts");
   console.log(`  扫码演示: /i/${interactionMeta.sessionCodes.hostedPoll}（主办展会投票）`);
+  console.log(`  创新峰会: /i/${interactionMeta.sessionCodes.innovationPoll}（008 主办会议）`);
+  console.log(`  SaaS峰会: /i/${interactionMeta.sessionCodes.summitQna}（问答）`);
   console.log(`\n  平台管理员 ID: ${platformAdmin.id}`);
   console.log(`  时间: ${now.toISOString()}`);
 }
