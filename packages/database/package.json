@@ -15,6 +15,7 @@
     "db:seed": "prisma db seed",
     "db:seed:expo-mock": "tsx prisma/seed-expo-mock.ts",
     "db:seed:mobile-test": "tsx prisma/seed-mobile-test-attendee.ts",
+    "db:seed:mobile-test-dimensions": "tsx prisma/seed-mobile-test-dimensions.ts",
     "db:seed:interactions": "tsx prisma/seed-interactions.ts",
     "db:seed:features": "tsx prisma/seed-event-features.ts",
     "db:studio": "prisma studio"

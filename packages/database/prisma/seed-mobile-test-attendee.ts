@@ -198,6 +198,14 @@ export async function seedMobileTestAttendee(): Promise<MobileTestAttendeeResult
 
 async function main() {
   const result = await seedMobileTestAttendee();
+  let dims: { dimensions: string[] } | null = null;
+  try {
+    const { seedMobileTestAttendeeDimensions } = await import("./seed-mobile-test-dimensions");
+    dims = await seedMobileTestAttendeeDimensions(result.userId);
+  } catch (err) {
+    console.warn("⚠ 全维度数据需先执行完整 pnpm db:seed：", (err as Error).message);
+  }
+
   console.log(`✓ 移动端测试账号 ${MOBILE_TEST_PHONE}（${MOBILE_TEST_NAME}）`);
   console.log(`  已加入 ${result.eventCount} 场活动：`);
   for (const name of result.eventNames) {
@@ -205,6 +213,10 @@ async function main() {
   }
   console.log(`  登录邮箱: ${phoneToEmail(MOBILE_TEST_PHONE)}`);
   console.log(`  密码: ${SEED_PASSWORD}`);
+  console.log(`  主测试活动码: TEST1377 → 智链未来产业博览会 2026`);
+  if (dims) {
+    console.log(`  全维度: ${dims.dimensions.join(" · ")}`);
+  }
   console.log("  小程序：请使用 wx-login-phone 绑定此手机号，或验证码登录");
 }
 

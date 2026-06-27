@@ -30,6 +30,10 @@ import {
   MOBILE_TEST_PHONE,
   seedMobileTestAttendee,
 } from "./seed-mobile-test-attendee";
+import {
+  MOBILE_TEST_JOIN_CODE,
+  seedMobileTestAttendeeDimensions,
+} from "./seed-mobile-test-dimensions";
 
 const SEED_PASSWORD = "ConnectIQ2024!";
 
@@ -1354,6 +1358,11 @@ async function main() {
     `✓ 会面演示数据：${meetingMeta.hostedAreaCount} 洽谈区 + ${meetingMeta.tableCount} 桌位 + ${meetingMeta.meetingCount} 条会面 + ${meetingMeta.intentCount} 条意图（含冲突示例）`,
   );
 
+  const mobileTestDims = await seedMobileTestAttendeeDimensions(mobileTestMeta.userId);
+  console.log(
+    `✓ 移动端测试 ${MOBILE_TEST_PHONE} 全维度数据（${mobileTestDims.dimensions.length} 项）· 活动码 ${MOBILE_TEST_JOIN_CODE}`,
+  );
+
   // ── 汇总 ────────────────────────────────────────────────────
   console.log("\n✅ Seed 完成\n");
   console.log("── 账号密码登录（推荐）──");
@@ -1376,7 +1385,8 @@ async function main() {
   console.log(`  手机号:         ${MOBILE_TEST_PHONE}  钱测试`);
   console.log(`  邮箱:           ${MOBILE_TEST_PHONE}@phone.connectiq.local`);
   console.log(`  密码:           ${SEED_PASSWORD}`);
-  console.log("  已加入: SaaS增长峰会 / 产品增长沙龙 / 创新活动运营峰会 / 智链博览会 / 企业数字化展览会");
+  console.log(`  已加入: SaaS增长峰会 / 产品增长沙龙 / 创新活动运营峰会 / 智链博览会 / 企业数字化展览会`);
+  console.log(`  主测试活动码: ${MOBILE_TEST_JOIN_CODE} → 智链未来产业博览会 2026`);
   console.log("  小程序: wx-login-phone 绑定此手机号后可走 discover → home 全链路");
   console.log("\n── 活动 ──");
   console.log(`  LIVE:      ${summitEvent.name}`);

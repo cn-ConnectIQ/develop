@@ -10,6 +10,7 @@ const DEMO_CODE_ALIASES: Record<string, string> = {
   DEMO: "saas-growth-summit-2025",
   CIQ2026: "smart-link-industry-expo-2026",
   "888888": "enterprise-digital-expo-2025",
+  TEST1377: "smart-link-industry-expo-2026",
 };
 
 export type ApiMobileEventByCode = {
