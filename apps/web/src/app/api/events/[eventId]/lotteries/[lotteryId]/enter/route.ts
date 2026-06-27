@@ -2,11 +2,11 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireAuth,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { enterLottery, getLotteryOrThrow } from "@/lib/interaction/lottery-service";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import { enterLottery, getLotteryOrThrow } from "@/lib/interaction/lottery-service";
+import { resolveMobileUserId } from "@/lib/mobile-user-id";
 
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -15,12 +15,12 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { user } = await requireAuth(request);
+  const userId = await resolveMobileUserId(request);
   const disabled = await guardEventFeature(eventId, "lottery");
   if (disabled) return disabled;
   await getLotteryOrThrow(eventId, lotteryId);
 
-  const entry = await enterLottery(eventId, lotteryId, user.id);
+  const entry = await enterLottery(eventId, lotteryId, userId);
 
   return createSuccessResponse(entry);
 });

@@ -40,7 +40,7 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 | **无** | 不传 Authorization | 公开接口 |
 
 > 标注为 **mobile token** 的接口走 `resolveMobileUserId`（支持 session 或 `mini_*`）。  
-> 标注为 **mobile token†** 的接口仅支持 session + `dev-mock-token`，**暂不支持** `mini_*`（联调时注意）。
+> 标注为 **mobile token†** 的接口仍仅支持 session + `dev-mock-token`（如有残留）。其余移动端接口已统一支持 `mini_*`。
 
 ### 通用错误码
 
@@ -110,6 +110,36 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 | `eventId` | string | 否 |
 
 响应：同 `wx-login`
+
+鉴权：mobile token
+
+---
+
+### POST /api/events/verify-code
+
+用途：**Z1 活动码校验**
+
+鉴权：无
+
+请求：
+
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `code` | string | 是 |
+
+响应 `data`：`{ event: Event }`（与小程序 `Event` 类型一致）
+
+---
+
+### GET /api/events/by-code/{code}
+
+用途：**Z1 活动码查询（GET fallback）**
+
+鉴权：无
+
+响应 `data`：Event 对象
+
+> 活动码来源：`EventSetting.key = join_code`，或演示别名 `DEMO2026` / `DEMO` / `CIQ2026` / `888888`。
 
 ---
 
@@ -515,7 +545,7 @@ Query：
 
 用途：**全局连接列表**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 Query：`limit`（默认 30）
 
@@ -573,7 +603,7 @@ Query：`limit`（默认 30）
 
 用途：**扫展位码签到 / 到访**（body 含 booth_id）
 
-鉴权：mobile token†
+鉴权：mobile token
 
 请求：`{ booth_id: string }`
 
@@ -585,7 +615,7 @@ Query：`limit`（默认 30）
 
 用途：**集章进度**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 响应 `data`：
 
@@ -607,7 +637,7 @@ Query：`limit`（默认 30）
 
 用途：**集章打卡**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 请求：`{ booth_id: string }`
 
@@ -627,7 +657,7 @@ Query：`limit`（默认 30）
 
 用途：**参与抽奖**
 
-鉴权：mobile token†（需 session 或 dev-mock；**mini_ token 待统一**）
+鉴权：mobile token（需 session 或 dev-mock；**mini_ token 待统一**）
 
 响应 `data`：抽奖 entry 记录
 
@@ -639,7 +669,7 @@ Query：`limit`（默认 30）
 
 用途：**AI 智能逛展路线**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 前置：`feature_flags.aiBoothRoute === true`
 
@@ -723,7 +753,7 @@ Query：`limit`（默认 30）
 
 用途：**投票/评分/词云参与**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 请求：
 
@@ -815,7 +845,7 @@ Query：`limit`（默认 30）
 
 用途：**MT3 预约会面**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 请求：
 
@@ -837,11 +867,43 @@ Query：`limit`（默认 30）
 
 ---
 
+### GET /api/me/meetings
+
+用途：**MT5 我的会面列表**
+
+鉴权：mobile token
+
+Query：`eventId`（可选）
+
+响应 `data`：`{ meetings: MeetingListItem[] }`
+
+---
+
+### GET /api/meetings/{id}
+
+用途：**MT3/MT4 会面详情**
+
+鉴权：mobile token
+
+---
+
+### GET /api/events/{eventId}/meeting-time-slots
+
+用途：**MT2 选时段**
+
+鉴权：mobile token
+
+Query：`with_user`（可选）
+
+响应 `data`：`MeetingTimeSlot[]`
+
+---
+
 ### PATCH /api/meetings/{id}
 
 用途：**接受 / 拒绝会面**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 请求：
 
@@ -857,7 +919,7 @@ Query：`limit`（默认 30）
 
 用途：**取消会面**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 请求：
 
@@ -870,9 +932,7 @@ Query：`limit`（默认 30）
 
 ---
 
-> **说明**：`GET my-meetings` / `GET meeting-slots` 专用接口尚未实现。  
-> 会面时段由客户端根据活动 `meeting-config`（主办方）或自选 `starts_at`/`ends_at` 提交。  
-> 主办方查看日程：`GET /api/events/{eventId}/meetings/schedule-grid`（requireAccountAdmin）。
+> 主办方日程网格：`GET /api/events/{eventId}/meetings/schedule-grid`（requireEventAccess）。
 
 ---
 
@@ -895,6 +955,22 @@ Query：`limit`（默认 30）
 | `eventsByType.conference` | number |
 | `eventsByType.expo` | number |
 | `eventsByType.exhibition` | number |
+
+---
+
+### GET /api/account/events/{eventId}/manage-overview
+
+用途：**AD2/AD3/AD4 活动管理面板概览**
+
+鉴权：requireAccountAdmin（session 或 mobile token + ACCOUNT_ADMIN）
+
+响应 `data`（按 `kind` 区分）：
+
+| kind | 说明 |
+|------|------|
+| `CONFERENCE` | 签到率、在场、连接数、互动人次 |
+| `EXPO` | 同上 + 展位热度排行、待审展商 |
+| `BOOTH` | 展位访客、线索、互动、AI 买家推荐数 |
 
 ---
 
@@ -1029,7 +1105,7 @@ Query：`limit`（默认 8，最大 50）
 
 用途：**个人中心**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 响应 `data`：`{ id, name, phone?, status, company?, title?, points_balance, ... }`
 
@@ -1051,7 +1127,7 @@ Query：`limit`（默认 8，最大 50）
 
 用途：**历史活动 / SN 记录**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 ---
 
@@ -1059,9 +1135,113 @@ Query：`limit`（默认 8，最大 50）
 
 用途：**AI 动态流**
 
-鉴权：mobile token†
+鉴权：mobile token
 
 Query：`page`, `limit`, `cursor`
+
+---
+
+## P1 管理者工具（AD3/AD4）
+
+鉴权：`requireMobileAccountAdmin`（session 或 mini_ token + ACCOUNT_ADMIN）
+
+### POST /api/account/events/{eventId}/broadcast
+
+用途：**全场推送**
+
+请求：`{ body: string, title?: string, urgent?: boolean }`
+
+### GET /api/account/events/{eventId}/exhibitor-reviews
+
+用途：**展商审核列表**
+
+响应 `data`：数组 `{ id, company_name, booth_code, booth_name, status }`
+
+### PATCH /api/account/events/{eventId}/exhibitor-reviews
+
+请求：`{ booth_id, action: "approve" | "reject" }`
+
+### GET /api/account/events/{eventId}/stamp-monitor
+
+响应 `data`：`{ completion_rate, booths: [{ booth_id, label, stamp_count, target_audience }] }`
+
+### GET /api/account/events/{eventId}/admin-lotteries
+
+响应 `data`：数组 `{ id, title, status, entry_count, booth_label? }`
+
+### POST /api/account/events/{eventId}/admin-lotteries/{lotteryId}/draw
+
+请求：`{ prize_rank?: number, count?: number }`
+
+响应 `data`：`{ winners, count }`
+
+### GET /api/account/events/{eventId}/admin-leads
+
+Query：`limit`（默认 50）
+
+响应 `data`：线索数组 `{ id, name, company, title, intent_level, booth_code, booth_company, crm_status, captured_at }`
+
+### POST /api/account/events/{eventId}/admin-leads/export
+
+用途：**MarketUP 导出任务（stub）**
+
+响应 `data`：`{ task_id, status, lead_count, message }`
+
+---
+
+## P1 展商移动端
+
+鉴权：`resolveMobileExhibitorBoothAccess`（展位所属组织或活动主办方管理员）
+
+### GET /api/exhibitor/booths/{boothId}/dashboard
+
+用途：**展位 dashboard（小程序 camelCase）**
+
+响应 `data`：`{ booth_id, booth_code, todayVisitors, aLeads, bLeads, cLeads, crmSyncedCount, recentLeads[] }`
+
+### GET /api/exhibitor/booths/{boothId}
+
+用途：**展位配置**
+
+响应 `data`：`{ id, booth_code, event_id, lead_form_config }`
+
+### POST /api/exhibitor/leads/voice-note
+
+用途：**语音备注上传**
+
+请求：`multipart/form-data`，字段 `file`（≤10MB）
+
+响应 `data`：`{ url: string }`
+
+---
+
+## P1 AI 辅助
+
+鉴权：`resolveMobileUserId`
+
+### GET /api/users/me/match-preview
+
+Query：`eventId`（必填）
+
+响应 `data`：数组 `{ user_id, name, company?, title?, match_score, match_reason }`
+
+### GET /api/ai/connection-note
+
+Query：`targetId`，可选 `eventId`、`refresh=1`
+
+响应 `data`：`{ note, text, accept_rate }`
+
+### POST /api/ai/accept-rate
+
+请求：`{ target_user_id, request_note, event_id? }`
+
+响应 `data`：`{ accept_rate }`
+
+### GET /api/ai/scan-brief
+
+Query：`targetUserId`，可选 `eventId`
+
+响应 `data`：`{ content, intent_match?, accept_rate }`
 
 ---
 
@@ -1069,4 +1249,6 @@ Query：`page`, `limit`, `cursor`
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-13 | P1：管理工具、展商 dashboard、AI 三件套、语音上传；小程序 admin 接 API + 扩展屏注册 |
+| 2026-06-13 | P0：manage-overview、me/meetings、meeting-time-slots、verify-code；mini_* 鉴权统一 |
 | 2026-06-13 | 初版：覆盖 wx-login → 会后全链路；标注 mobile token† 兼容缺口 |
