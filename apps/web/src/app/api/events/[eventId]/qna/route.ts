@@ -9,7 +9,7 @@ import {
   getEventMobileQna,
   submitEventMobileQnaQuestion,
 } from "@/lib/mobile-qna-service";
-import { requireMobileAuth } from "@/lib/mobile-user-id";
+import { resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
 
 const postSchema = z.object({
   text: z.string().min(1).max(500).optional(),
@@ -17,14 +17,14 @@ const postSchema = z.object({
   question: z.string().min(1).max(500).optional(),
 });
 
-/** 现场问答：列表 + 提问 */
+/** 现场问答：列表（公开读）+ 提问（需登录） */
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { userId } = await requireMobileAuth(request);
+  const userId = await resolveOptionalMobileUserId(request);
   const data = await getEventMobileQna(eventId, userId);
   return createSuccessResponse(data);
 });
@@ -35,7 +35,10 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { userId } = await requireMobileAuth(request);
+  const userId = await resolveOptionalMobileUserId(request);
+  if (!userId) {
+    return createErrorResponse("请先登录", ErrorCode.UNAUTHORIZED, 401);
+  }
   const body = await request.json().catch(() => ({}));
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) {

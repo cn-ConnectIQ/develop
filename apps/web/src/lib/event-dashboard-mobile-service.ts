@@ -87,8 +87,10 @@ import { scoreIntentMatch } from "@/lib/mobile-intent-match";
 
 async function loadAiRecommendations(
   eventId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ApiMobileAiRecommendation[]> {
+  if (!userId) return [];
+
   const myIntent = await prisma.userEventIntent.findUnique({
     where: { userId_eventId: { userId, eventId } },
   });
@@ -200,10 +202,10 @@ async function loadAnnouncements(eventId: string): Promise<ApiMobileAnnouncement
 
 async function loadStampRallySummary(
   eventId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ApiMobileStampRally | null> {
   const enabled = await isEventFeatureEnabled(eventId, "stampRally");
-  if (!enabled) return null;
+  if (!enabled || !userId) return null;
 
   const rally = await prisma.stampRally.findFirst({
     where: {
@@ -229,7 +231,7 @@ async function loadStampRallySummary(
 
 export async function getEventDashboardMobile(
   eventId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ApiEventDashboardMobile> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },

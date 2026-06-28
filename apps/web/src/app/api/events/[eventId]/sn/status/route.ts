@@ -6,7 +6,7 @@ import {
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { resolveMobileUserId } from "@/lib/mobile-user-id";
+import { resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
 import { getEventSnStatus } from "@/lib/sn-status-service";
 
 
@@ -15,7 +15,7 @@ export const GET = withErrorHandler(async (request, context) => {
   if (!eventId) {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
-  const userId = await resolveMobileUserId(request);
+  const userId = await resolveOptionalMobileUserId(request);
   const status = await getEventSnStatus(eventId, userId);
   return createSuccessResponse(status);
 });

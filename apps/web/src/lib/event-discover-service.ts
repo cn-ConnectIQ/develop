@@ -81,8 +81,10 @@ async function loadUserEventIds(userId: string): Promise<string[]> {
     .map(([eventId]) => eventId);
 }
 
-export async function getEventDiscover(userId: string): Promise<ApiEventDiscover> {
-  const recentIds = await loadUserEventIds(userId);
+export async function getEventDiscover(
+  userId?: string | null,
+): Promise<ApiEventDiscover> {
+  const recentIds = userId ? await loadUserEventIds(userId) : [];
 
   const recentEvents =
     recentIds.length === 0
@@ -126,7 +128,9 @@ export async function getEventDiscover(userId: string): Promise<ApiEventDiscover
 
   const nearby: ApiDiscoverNearbyEvent[] = await Promise.all(
     nearbyRows.map(async (event) => {
-      const participant = await findParticipantForUser(event.id, userId);
+      const participant = userId
+        ? await findParticipantForUser(event.id, userId)
+        : null;
       const canRegister =
         (event.status === EventStatus.PUBLISHED ||
           event.status === EventStatus.LIVE) &&

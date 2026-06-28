@@ -6,6 +6,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { getPollRealtimeResults } from "@/lib/poll-realtime-results";
+import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 const SSE_INTERVAL_MS = 2000;
 
@@ -17,7 +18,7 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await assertAttendeeReadableEvent(eventId);
 
   const accept = request.headers.get("accept") ?? "";
   const stream =

@@ -7,6 +7,7 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 const createPollSchema = z.object({
   title: z.string().min(1).max(200),
@@ -26,7 +27,7 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await assertAttendeeReadableEvent(eventId);
 
   const typeFilter = new URL(request.url).searchParams.get("type");
 

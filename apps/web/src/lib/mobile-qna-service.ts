@@ -38,7 +38,7 @@ async function findActiveQnaPoll(eventId: string) {
 
 export async function getEventMobileQna(
   eventId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ApiMobileQnaList> {
   const poll = await findActiveQnaPoll(eventId);
   if (!poll) {
@@ -50,7 +50,9 @@ export async function getEventMobileQna(
     return { pollId: poll.id, pollTitle: poll.title, items: [] };
   }
 
-  const participant = await findParticipantForUser(eventId, userId);
+  const participant = userId
+    ? await findParticipantForUser(eventId, userId)
+    : null;
 
   const items: ApiMobileQnaItem[] = qna.responses
     .filter((row) => !row.isHidden)

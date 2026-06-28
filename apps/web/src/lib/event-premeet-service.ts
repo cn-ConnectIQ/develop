@@ -43,7 +43,7 @@ function isPremeetOpen(
 
 export async function getEventPremeetStatus(
   eventId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ApiPremeetStatus> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -60,14 +60,16 @@ export async function getEventPremeetStatus(
     config.premeet_open_at_computed,
   );
 
-  const myIntent = await prisma.userEventIntent.findUnique({
-    where: { userId_eventId: { userId, eventId } },
-  });
+  const myIntent = userId
+    ? await prisma.userEventIntent.findUnique({
+        where: { userId_eventId: { userId, eventId } },
+      })
+    : null;
 
   const peerIntents = await prisma.userEventIntent.findMany({
     where: {
       eventId,
-      userId: { not: userId },
+      ...(userId ? { userId: { not: userId } } : {}),
       OR: [
         { supplyTags: { isEmpty: false } },
         { demandTags: { isEmpty: false } },
@@ -111,7 +113,7 @@ export async function getEventPremeetStatus(
     .map((r) => r.userId);
 
   let confirmedHighMatchCount = 0;
-  if (highMatchUserIds.length > 0) {
+  if (userId && highMatchUserIds.length > 0) {
     const [acceptedMeetings, confirmedIntents] = await Promise.all([
       prisma.meeting.count({
         where: {

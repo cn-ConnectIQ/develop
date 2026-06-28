@@ -1,10 +1,10 @@
 import {
-  AdminStatus,
   UserType as PrismaUserType,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError, requireAccountAdmin, requireAuth } from "@/lib/api-auth";
+import { isOrgAdminUsable } from "@/lib/org-access";
 
 export type MobileAuthResult = { userId: string };
 
@@ -36,6 +36,24 @@ export async function resolveMiniBearerUserId(token: string): Promise<string | n
   }
 
   return null;
+}
+
+/** 可选鉴权：无 token 时返回 null，不抛 401 */
+export async function resolveOptionalMobileUserId(
+  request: Request,
+): Promise<string | null> {
+  try {
+    const { user } = await requireAuth(request);
+    return user.id;
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.status !== 401) throw err;
+  }
+
+  const auth = request.headers.get("authorization");
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return null;
+
+  return resolveMiniBearerUserId(token);
 }
 
 /** 小程序 / 移动端 Bearer 鉴权（含 dev-mock-token、mini_ token） */
@@ -95,8 +113,8 @@ export async function requireMobileAccountAdmin(
   if (!org) {
     throw new ApiError("账号未关联组织", ErrorCode.FORBIDDEN, 403);
   }
-  if (org.adminStatus !== AdminStatus.APPROVED) {
-    throw new ApiError("账号尚未审核通过", ErrorCode.FORBIDDEN, 403);
+  if (!isOrgAdminUsable(org.adminStatus)) {
+    throw new ApiError("账号尚未可用", ErrorCode.FORBIDDEN, 403);
   }
 
   return { userId, orgId: org.id };

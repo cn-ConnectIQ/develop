@@ -10,6 +10,7 @@ import {
   getMatchmakingConfig,
   updateMatchmakingConfig,
 } from "@/lib/matchmaking-config-service";
+import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 const intentFieldSchema = z.object({
   enabled: z.boolean().optional(),
@@ -44,7 +45,7 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await assertAttendeeReadableEvent(eventId);
   const config = await getMatchmakingConfig(eventId);
   return createSuccessResponse(config);
 });

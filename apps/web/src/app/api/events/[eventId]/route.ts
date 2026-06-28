@@ -2,11 +2,13 @@ import { EventStatus, EventType, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
+  ApiError,
   createErrorResponse,
   createSuccessResponse,
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { getPublicEventById } from "@/lib/event-join-code-service";
 import {
   categoryToDbType,
   type EventCategory,
@@ -30,39 +32,52 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { event } = await requireEventAccess(eventId);
+  try {
+    const { event } = await requireEventAccess(eventId);
 
-  const review = await prisma.eventReview.findUnique({
-    where: { eventId },
-  });
+    const review = await prisma.eventReview.findUnique({
+      where: { eventId },
+    });
 
-  const categorySetting = await prisma.eventSetting.findUnique({
-    where: { eventId_key: { eventId, key: "event_category" } },
-  });
+    const categorySetting = await prisma.eventSetting.findUnique({
+      where: { eventId_key: { eventId, key: "event_category" } },
+    });
 
-  return createSuccessResponse({
-    id: event.id,
-    name: event.name,
-    slug: event.slug,
-    type: event.type,
-    status: event.status,
-    reviewStatus: event.reviewStatus,
-    description: event.description,
-    location: event.location,
-    startDate: event.startDate?.toISOString() ?? null,
-    endDate: event.endDate?.toISOString() ?? null,
-    category:
-      typeof categorySetting?.value === "string"
-        ? (categorySetting.value as EventCategory)
+    return createSuccessResponse({
+      id: event.id,
+      name: event.name,
+      slug: event.slug,
+      type: event.type,
+      status: event.status,
+      reviewStatus: event.reviewStatus,
+      description: event.description,
+      location: event.location,
+      startDate: event.startDate?.toISOString() ?? null,
+      endDate: event.endDate?.toISOString() ?? null,
+      category:
+        typeof categorySetting?.value === "string"
+          ? (categorySetting.value as EventCategory)
+          : null,
+      review: review
+        ? {
+            status: review.status,
+            revisionNotes: review.revisionNotes,
+            rejectionReason: review.rejectionReason,
+          }
         : null,
-    review: review
-      ? {
-          status: review.status,
-          revisionNotes: review.revisionNotes,
-          rejectionReason: review.rejectionReason,
-        }
-      : null,
-  });
+    });
+  } catch (err) {
+    if (!(err instanceof ApiError) || (err.status !== 401 && err.status !== 403)) {
+      throw err;
+    }
+  }
+
+  const publicEvent = await getPublicEventById(eventId);
+  if (!publicEvent) {
+    return createErrorResponse("活动不存在或未开放", ErrorCode.NOT_FOUND, 404);
+  }
+
+  return createSuccessResponse(publicEvent);
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {

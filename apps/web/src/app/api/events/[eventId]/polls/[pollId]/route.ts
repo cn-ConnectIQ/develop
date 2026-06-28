@@ -7,6 +7,7 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 const patchSchema = z.object({
   status: z.nativeEnum(PollStatus).optional(),
@@ -15,6 +16,30 @@ const patchSchema = z.object({
   extendMinutes: z.number().optional(),
   timeLimitMinutes: z.number().optional(),
   options: z.array(z.object({ id: z.string().optional(), text: z.string().min(1) })).optional(),
+});
+
+/** 单个投票详情（参会者公开读） */
+export const GET = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  const pollId = context?.params?.pollId;
+  if (!eventId || !pollId) {
+    return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  await assertAttendeeReadableEvent(eventId);
+
+  const poll = await prisma.poll.findFirst({
+    where: { id: pollId, eventId },
+    include: {
+      options: { orderBy: { displayOrder: "asc" } },
+      _count: { select: { responses: true } },
+    },
+  });
+  if (!poll) {
+    return createErrorResponse("投票不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  return createSuccessResponse(poll);
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {

@@ -165,3 +165,15 @@ export async function verifyEventJoinCode(code: string): Promise<ApiMobileEventB
   }
   return event;
 }
+
+/** 按 ID 读取公开活动（小程序邀请落地 / 活动详情） */
+export async function getPublicEventById(
+  eventId: string,
+): Promise<ApiMobileEventByCode | null> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: eventInclude,
+  });
+  if (!event || event.status === EventStatus.DRAFT) return null;
+  return mapEventRow(event);
+}

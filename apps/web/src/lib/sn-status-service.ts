@@ -116,7 +116,7 @@ function computeRoundTiming(
 
 export async function getEventSnStatus(
   eventId: string,
-  userId: string,
+  userId: string | null,
 ): Promise<ApiSnStatusResponse> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -162,7 +162,9 @@ export async function getEventSnStatus(
     },
   });
 
-  const participant = await findParticipantForUser(eventId, userId);
+  const participant = userId
+    ? await findParticipantForUser(eventId, userId)
+    : null;
   const isRegistered = Boolean(participant);
 
   if (!session) {

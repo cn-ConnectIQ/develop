@@ -15,6 +15,7 @@ import {
 import { pushLotteryToAttendees } from "@/lib/interaction-push-service";
 import { patchLotterySchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -23,7 +24,7 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await assertAttendeeReadableEvent(eventId);
 
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
   const winners = await listLotteryWinners(eventId, lotteryId);
