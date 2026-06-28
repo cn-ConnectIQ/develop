@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/api-auth";
 import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
 import { scoreIntentMatch } from "@/lib/mobile-intent-match";
 import { countUnreadNotifications } from "@/lib/mobile-notification-service";
+import { loadLatestAvatarUrlMap } from "@/lib/user-me-service";
 
 export type ApiMobileHomeEvent = {
   id: string;
@@ -130,6 +131,10 @@ async function loadAiRecommendations(
 
   if (peerIntents.length === 0) return [];
 
+  const avatarByUserId = await loadLatestAvatarUrlMap(
+    peerIntents.map((peer) => peer.user.id),
+  );
+
   const scored = peerIntents
     .map((peer) => {
       const match = myIntent
@@ -139,7 +144,7 @@ async function loadAiRecommendations(
       return {
         userId: peer.user.id,
         name: peer.user.name,
-        avatar: null as string | null,
+        avatar: avatarByUserId.get(peer.user.id) ?? null,
         company: peer.user.profile?.company ?? null,
         title: peer.role ?? peer.user.profile?.valueProposition ?? null,
         matchReason: match.reason,

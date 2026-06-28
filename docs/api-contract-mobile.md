@@ -139,7 +139,7 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 
 响应 `data`：Event 对象
 
-> 活动码来源：`EventSetting.key = join_code`，或演示别名 `DEMO2026` / `DEMO` / `CIQ2026` / `888888`。
+> 活动码来源：`EventSetting.key = join_code`，或演示别名 `DEMO2026` / `DEMO` / `CIQ2026` / `888888` / **`TEST1377`**（联调专用 → 智链未来产业博览会 2026）。
 
 ---
 
@@ -199,14 +199,18 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 | `liveInteraction.type` | string | Poll 类型或 `LOTTERY` |
 | `liveInteraction.title` | string | |
 | `liveInteraction.isLive` | boolean | |
+| `liveInteraction.countdownSeconds` | number \| null | 距 `closesAt` 剩余秒数（仅 Poll 有值） |
+| `liveInteraction.closesAt` | string \| null | ISO8601，投票截止时刻 |
 | `announcements` | array | 公告 |
 | `announcements[].id` | string | |
 | `announcements[].content` | string | |
 | `announcements[].time` | string | ISO8601 |
-| `stampRally` | object \| null | 集章进度（feature 关闭时为 null） |
+| `stampRally` | object \| null | 集章进度（feature 关闭或未登录时为 null） |
+| `stampRally.id` | string | 集章活动 ID，用于 `/stamp-rallies/{rallyId}/…` |
 | `stampRally.current` | number | |
-| `stampRally.total` | number | |
+| `stampRally.total` | number | 需集满数量（`requiredCount`） |
 | `stampRally.prize` | string | |
+| `unreadNotificationCount` | number | 未读通知数（未登录为 0） |
 | `org.name` | string | |
 | `org.isVerified` | boolean | |
 
@@ -768,6 +772,24 @@ Query：`limit`（默认 30）
 
 ---
 
+### GET /api/events/{eventId}/polls/{pollId}
+
+用途：**投票详情**（含当前用户投票状态）
+
+鉴权：mobile token（可选；未登录时 `hasVoted` 等为 false/null）
+
+响应 `data` 在 Poll 基础上额外包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `hasVoted` | boolean | 当前用户是否已参与 |
+| `myOptionId` | string \| null | 单选已投选项 ID |
+| `myOptionIds` | string[] | 多选已投选项 ID 列表 |
+
+> 需用户手机号/邮箱与活动 `Participant` 记录匹配，且已签到/报名后才会关联参会者身份。
+
+---
+
 ### GET /api/i/{sessionCode}
 
 用途：**扫码互动落地页**
@@ -1107,7 +1129,67 @@ Query：`limit`（默认 8，最大 50）
 
 鉴权：mobile token
 
-响应 `data`：`{ id, name, phone?, status, company?, title?, points_balance, ... }`
+响应 `data`：`{ id, name, phone?, status, company?, title?, points_balance, avatar_url?, ... }`
+
+---
+
+### PATCH /api/users/me
+
+用途：**更新个人资料**（与 `/api/me/profile` 等价）
+
+鉴权：mobile token
+
+请求（均可选）：
+
+| 字段 | 类型 |
+|------|------|
+| `name` | string |
+| `company` | string |
+| `title` | string |
+| `industry` | string |
+| `value_proposition` | string |
+| `avatar_url` | string |
+
+响应：同 GET `/api/users/me`
+
+---
+
+### PATCH /api/me/profile
+
+用途：**小程序 onboarding / 个人资料**（与 PATCH `/api/users/me` 等价）
+
+鉴权：mobile token
+
+请求 / 响应：同 PATCH `/api/users/me`
+
+---
+
+### GET /api/users/me/intents
+
+用途：**跨活动意向标签列表**
+
+鉴权：mobile token
+
+响应 `data`：`{ intents: IntentItem[] }`
+
+---
+
+### POST /api/users/me/intents
+
+用途：**批量保存 onboarding 意向标签**
+
+鉴权：mobile token
+
+请求：
+
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `intents` | array | 是 | 最多 50 项 |
+| `intents[].id` | string | 是 | |
+| `intents[].label` | string | 是 | |
+| `intents[].type` | `"SUPPLY"` \| `"DEMAND"` | 是 | |
+
+响应 `data`：`{ intents: IntentItem[] }`
 
 ---
 
@@ -1249,6 +1331,7 @@ Query：`targetUserId`，可选 `eventId`
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-13 | dashboard-mobile：`countdownSeconds`/`closesAt`、`stampRally.id`、`unreadNotificationCount`；Poll GET `hasVoted`；PATCH profile、POST intents；联调码 TEST1377 |
 | 2026-06-13 | P1：管理工具、展商 dashboard、AI 三件套、语音上传；小程序 admin 接 API + 扩展屏注册 |
 | 2026-06-13 | P0：manage-overview、me/meetings、meeting-time-slots、verify-code；mini_* 鉴权统一 |
 | 2026-06-13 | 初版：覆盖 wx-login → 会后全链路；标注 mobile token† 兼容缺口 |

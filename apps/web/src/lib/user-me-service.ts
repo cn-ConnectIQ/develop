@@ -139,15 +139,33 @@ export async function saveMeIntents(
 }
 
 async function loadLatestAvatarUrl(userId: string): Promise<string | undefined> {
-  const asset = await prisma.fileAsset.findFirst({
+  const map = await loadLatestAvatarUrlMap([userId]);
+  return map.get(userId);
+}
+
+/** 批量取用户最新头像 URL（每人一条，按 createdAt 降序） */
+export async function loadLatestAvatarUrlMap(
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  const assets = await prisma.fileAsset.findMany({
     where: {
-      uploaderId: userId,
+      uploaderId: { in: uniqueIds },
       mimeType: { startsWith: "image/" },
     },
     orderBy: { createdAt: "desc" },
-    select: { url: true },
+    select: { uploaderId: true, url: true },
   });
-  return asset?.url ?? undefined;
+
+  const map = new Map<string, string>();
+  for (const asset of assets) {
+    if (!map.has(asset.uploaderId)) {
+      map.set(asset.uploaderId, asset.url);
+    }
+  }
+  return map;
 }
 
 type UserWithProfile = {
