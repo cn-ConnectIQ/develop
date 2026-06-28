@@ -59,6 +59,15 @@ function mapPeerUser(input: {
   };
 }
 
+export async function countActiveConnections(userId: string): Promise<number> {
+  return prisma.businessConnection.count({
+    where: {
+      status: ConnectionStatus.ACTIVE,
+      OR: [{ userAId: userId }, { userBId: userId }],
+    },
+  });
+}
+
 export async function listActiveConnections(
   userId: string,
   limit: number,

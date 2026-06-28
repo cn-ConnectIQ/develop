@@ -263,7 +263,12 @@ export async function fetchConnectCard(
     : await getOrCreateContactCard(targetUserId);
 
   const sharedIntents = buildSharedIntents(viewerIntents, targetIntents);
-  const aiMatch = await lookupAiMatchResult(viewerId, targetUserId, eventId);
+  const aiMatch = await lookupAiMatchResult(viewerId, targetUserId, eventId).catch(
+    (error) => {
+      console.warn("[connect-card] ai match lookup skipped:", error);
+      return { score: null, reason: null, matchId: null };
+    },
+  );
   let aiMatchScore =
     aiMatch.score ?? computeMatchScore(sharedIntents);
   let matchReason: string | null =

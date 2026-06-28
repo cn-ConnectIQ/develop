@@ -10,6 +10,7 @@ import { findParticipantForUser } from "@/lib/interaction/participant-user";
 import {
   computeAiIntentFromSignals,
   computeLeadAiIntentLevel,
+  resolveUserIdForParticipant,
   type AiIntentLevel,
 } from "@/lib/exhibitor/lead-intent-service";
 
@@ -428,6 +429,68 @@ export type ExhibitorLeadItem = {
   crm_sync_status: string;
 };
 
+export type ExhibitorLeadDetail = ExhibitorLeadItem & {
+  title: string | null;
+  visitor_user_id: string | null;
+  note: string | null;
+  voice_url: string | null;
+  intent_tags: string[];
+  ai_grade_reason: string;
+  phone: string | null;
+  email: string | null;
+  visited_at: string;
+  intent_level: AiIntentLevel;
+  crm_status: string;
+};
+
+function parseLeadNotes(notes: string | null): {
+  note: string | null;
+  voice_url: string | null;
+} {
+  if (!notes?.trim()) {
+    return { note: null, voice_url: null };
+  }
+
+  try {
+    const parsed = JSON.parse(notes) as Record<string, unknown>;
+    if (parsed && typeof parsed === "object") {
+      const voice =
+        typeof parsed.voice_note_url === "string"
+          ? parsed.voice_note_url
+          : typeof parsed.voice_url === "string"
+            ? parsed.voice_url
+            : null;
+      const text =
+        typeof parsed.text_note === "string"
+          ? parsed.text_note
+          : typeof parsed.note === "string"
+            ? parsed.note
+            : typeof parsed.structured_note === "string"
+              ? parsed.structured_note
+              : null;
+      return { note: text, voice_url: voice };
+    }
+  } catch {
+    // plain text notes
+  }
+
+  const voiceMatch = notes.match(/\/uploads\/voice\/[^\s"'<>]+/);
+  return {
+    note: notes,
+    voice_url: voiceMatch?.[0] ?? null,
+  };
+}
+
+function buildAiGradeReason(level: AiIntentLevel): string {
+  if (level === "A") {
+    return "多次到访展位并完成互动或留资，AI 判定为高意向买家";
+  }
+  if (level === "B") {
+    return "有展位扫码或互动记录，建议优先跟进";
+  }
+  return "初步接触，可进一步了解需求后再分级";
+}
+
 export async function listExhibitorLeads(
   boothId: string,
   eventId: string,
@@ -471,6 +534,69 @@ export async function listExhibitorLeads(
       };
     }),
   );
+}
+
+export async function getExhibitorLeadDetail(
+  boothId: string,
+  eventId: string,
+  leadId: string,
+): Promise<ExhibitorLeadDetail | null> {
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, boothId },
+    include: {
+      participant: {
+        select: {
+          name: true,
+          company: true,
+          jobTitle: true,
+          email: true,
+          phone: true,
+        },
+      },
+      intentTags: {
+        include: {
+          intentTag: { select: { label: true } },
+        },
+      },
+    },
+  });
+
+  if (!lead) return null;
+
+  const aiLevel = await computeLeadAiIntentLevel(
+    boothId,
+    eventId,
+    lead.participant,
+    lead.intentGrade,
+  );
+  const visitorUserId = await resolveUserIdForParticipant(
+    eventId,
+    lead.participant,
+  );
+  const { note, voice_url } = parseLeadNotes(lead.notes);
+
+  return {
+    id: lead.id,
+    name: lead.participant.name,
+    company: lead.participant.company,
+    job_title: lead.participant.jobTitle,
+    title: lead.participant.jobTitle,
+    ai_intent_level: aiLevel,
+    intent_level: aiLevel,
+    intent_grade: lead.intentGrade,
+    status: lead.status,
+    created_at: lead.createdAt.toISOString(),
+    visited_at: lead.createdAt.toISOString(),
+    crm_sync_status: lead.crmSyncStatus,
+    crm_status: lead.crmSyncStatus,
+    note,
+    voice_url,
+    intent_tags: lead.intentTags.map((row) => row.intentTag.label),
+    ai_grade_reason: buildAiGradeReason(aiLevel),
+    visitor_user_id: visitorUserId,
+    phone: lead.participant.phone,
+    email: lead.participant.email,
+  };
 }
 
 export async function patchExhibitorLeadGrade(

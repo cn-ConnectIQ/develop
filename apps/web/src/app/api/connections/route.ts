@@ -10,6 +10,7 @@ import {
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 import {
   createUserConnection,
+  countActiveConnections,
   listActiveConnections,
 } from "@/lib/connections-service";
 
@@ -30,8 +31,9 @@ export const GET = withErrorHandler(async (request) => {
   }
 
   const connections = await listActiveConnections(userId, limit);
+  const total = await countActiveConnections(userId);
 
-  return createSuccessResponse({ connections });
+  return createSuccessResponse({ connections, total, count: total });
 });
 
 export const POST = withErrorHandler(async (request) => {

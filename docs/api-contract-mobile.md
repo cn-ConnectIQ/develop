@@ -172,6 +172,34 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 
 ---
 
+---
+
+### GET /api/events/{eventId}
+
+用途：**03 活动详情**（公开；未登录可访问已发布/LIVE 活动）
+
+鉴权：无（管理员 session 返回完整字段）
+
+公开响应 `data` 额外字段：
+
+| 字段 | 类型 |
+|------|------|
+| `description` | string \| null |
+| `cover_url` | string \| null |
+| `attendee_count` | number |
+| `org.name` | string |
+| `org.logo_url` | string \| undefined |
+| `org.cover_url` | string \| undefined |
+| `org.is_verified` | boolean |
+| `agenda_summary` | array |
+| `agenda_summary[].id` | string |
+| `agenda_summary[].title` | string |
+| `agenda_summary[].room` | string \| null |
+| `agenda_summary[].start_time` | string \| null |
+| `agenda_summary[].speakers` | string[] |
+
+---
+
 ### GET /api/events/{eventId}/home
 
 用途：**A/O/P 活动主页**（与 `dashboard-mobile` 等价）
@@ -553,7 +581,7 @@ Query：
 
 Query：`limit`（默认 30）
 
-响应 `data`：`{ connections: [...] }`
+响应 `data`：`{ connections: [...], total: number, count: number }`（`total` 与 `count` 相同，为 ACTIVE 连接总数）
 
 ---
 
@@ -1131,6 +1159,33 @@ Query：`limit`（默认 8，最大 50）
 
 ---
 
+### GET /api/exhibitor/leads/{leadId}
+
+用途：**M4 线索详情**（备注、语音、意向标签、访客资料）
+
+鉴权：requireExhibitorAdmin
+
+响应 `data`：
+
+| 字段 | 类型 |
+|------|------|
+| `id` | string |
+| `name` | string |
+| `company` | string \| null |
+| `title` / `job_title` | string \| null |
+| `visitor_user_id` | string \| null |
+| `intent_level` / `ai_intent_level` | `"A"` \| `"B"` \| `"C"` |
+| `ai_grade_reason` | string |
+| `note` | string \| null |
+| `voice_url` | string \| null |
+| `intent_tags` | string[] |
+| `phone` | string \| null |
+| `email` | string \| null |
+| `visited_at` | string ISO8601 |
+| `crm_status` / `crm_sync_status` | string |
+
+---
+
 ## 会后
 
 ### GET /api/events/{eventId}/my-summary
@@ -1365,6 +1420,7 @@ Query：`targetUserId`，可选 `eventId`
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-13 | P0：线索详情 GET、公开活动详情 enrichment、connections total/count |
 | 2026-06-13 | dashboard-mobile：`countdownSeconds`/`closesAt`、`stampRally.id`、`unreadNotificationCount`；Poll GET `hasVoted`；PATCH profile、POST intents；联调码 TEST1377 |
 | 2026-06-13 | P1：管理工具、展商 dashboard、AI 三件套、语音上传；小程序 admin 接 API + 扩展屏注册 |
 | 2026-06-13 | P0：manage-overview、me/meetings、meeting-time-slots、verify-code；mini_* 鉴权统一 |

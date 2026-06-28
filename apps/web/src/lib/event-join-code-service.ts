@@ -24,7 +24,24 @@ export type ApiMobileEventByCode = {
   city?: string;
   status: "DRAFT" | "PUBLISHED" | "LIVE" | "ENDED";
   cover_url?: string;
-  org?: { name: string; logo_url?: string } | null;
+  description?: string | null;
+  attendee_count?: number;
+  org?: {
+    name: string;
+    logo_url?: string;
+    cover_url?: string;
+    is_verified?: boolean;
+  } | null;
+  agenda_summary?: ApiMobileAgendaItem[];
+};
+
+export type ApiMobileAgendaItem = {
+  id: string;
+  title: string;
+  room?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  speakers: string[];
 };
 
 export function normalizeJoinCode(code: string): string {
@@ -78,10 +95,22 @@ function mapEventRow(
     location: string | null;
     startDate: Date | null;
     endDate: Date | null;
-    org: { name: string; logoUrl: string | null } | null;
+    description?: string | null;
+    org: {
+      name: string;
+      logoUrl: string | null;
+      coverUrl?: string | null;
+      isVerified?: boolean;
+    } | null;
+  },
+  extras?: {
+    attendee_count?: number;
+    agenda_summary?: ApiMobileAgendaItem[];
   },
 ): ApiMobileEventByCode {
   const { city, venue } = parseCityVenue(event.location);
+  const cover =
+    event.org?.coverUrl ?? event.org?.logoUrl ?? undefined;
   return {
     id: event.id,
     name: event.name,
@@ -92,15 +121,65 @@ function mapEventRow(
     city,
     venue,
     status: mapEventStatus(event.status),
+    description: event.description ?? null,
+    cover_url: cover ?? undefined,
+    attendee_count: extras?.attendee_count,
     org: event.org
-      ? { name: event.org.name, logo_url: event.org.logoUrl ?? undefined }
+      ? {
+          name: event.org.name,
+          logo_url: event.org.logoUrl ?? undefined,
+          cover_url: event.org.coverUrl ?? undefined,
+          is_verified: event.org.isVerified ?? false,
+        }
       : null,
+    agenda_summary: extras?.agenda_summary,
   };
 }
 
 const eventInclude = {
-  org: { select: { name: true, logoUrl: true } },
+  org: {
+    select: {
+      name: true,
+      logoUrl: true,
+      coverUrl: true,
+      isVerified: true,
+    },
+  },
 } as const;
+
+async function loadEventPublicExtras(eventId: string) {
+  const [attendee_count, sessions] = await Promise.all([
+    prisma.participant.count({ where: { eventId } }),
+    prisma.session.findMany({
+      where: { eventId },
+      orderBy: { startTime: "asc" },
+      take: 12,
+      select: {
+        id: true,
+        title: true,
+        room: true,
+        startTime: true,
+        endTime: true,
+        speakers: {
+          select: {
+            speaker: { select: { name: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const agenda_summary: ApiMobileAgendaItem[] = sessions.map((row) => ({
+    id: row.id,
+    title: row.title,
+    room: row.room,
+    start_time: row.startTime?.toISOString() ?? null,
+    end_time: row.endTime?.toISOString() ?? null,
+    speakers: row.speakers.map((s) => s.speaker.name),
+  }));
+
+  return { attendee_count, agenda_summary };
+}
 
 async function loadEventBySlug(slug: string): Promise<ApiMobileEventByCode | null> {
   const event = await prisma.event.findUnique({
@@ -175,5 +254,7 @@ export async function getPublicEventById(
     include: eventInclude,
   });
   if (!event || event.status === EventStatus.DRAFT) return null;
-  return mapEventRow(event);
+
+  const extras = await loadEventPublicExtras(eventId);
+  return mapEventRow(event, extras);
 }

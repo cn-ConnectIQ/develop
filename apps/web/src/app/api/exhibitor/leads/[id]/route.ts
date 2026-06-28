@@ -5,11 +5,30 @@ import {
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { patchExhibitorLeadGrade } from "@/lib/exhibitor/dashboard-service";
+import {
+  getExhibitorLeadDetail,
+  patchExhibitorLeadGrade,
+} from "@/lib/exhibitor/dashboard-service";
 import { requireExhibitorAdmin } from "@/lib/exhibitor/exhibitor-auth";
 
 const patchSchema = z.object({
   intent_grade: z.enum(["A", "B", "C"]),
+});
+
+export const GET = withErrorHandler(async (_request, context) => {
+  const leadId = context?.params?.id;
+  if (!leadId) {
+    return createErrorResponse("缺少线索 ID", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const { booth } = await requireExhibitorAdmin();
+  const detail = await getExhibitorLeadDetail(booth.id, booth.eventId, leadId);
+
+  if (!detail) {
+    return createErrorResponse("线索不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  return createSuccessResponse(detail);
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {
