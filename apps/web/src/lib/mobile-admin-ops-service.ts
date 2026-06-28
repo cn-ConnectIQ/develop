@@ -235,3 +235,87 @@ export async function exportAdminLeadsMarketUp(orgId: string, eventId: string) {
     message: "导出任务已创建，完成后将发送至账号邮箱",
   };
 }
+
+export async function createAdminEventLead(
+  orgId: string,
+  eventId: string,
+  input: {
+    visitor_user_id: string;
+    name?: string;
+    company?: string;
+    title?: string;
+    intent_track?: string;
+    intent_level: "A" | "B" | "C";
+    note?: string;
+    ai_grade_reason?: string;
+    booth_id?: string;
+  },
+) {
+  await assertOrgEvent(orgId, eventId);
+
+  const { ensureParticipantForUser } = await import(
+    "@/lib/interaction/participant-user"
+  );
+  const participant = await ensureParticipantForUser(
+    eventId,
+    input.visitor_user_id,
+  );
+  if (!participant) {
+    throw new ApiError("访客不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  if (input.name || input.company) {
+    await prisma.participant.update({
+      where: { id: participant.id },
+      data: {
+        ...(input.name ? { name: input.name } : {}),
+        ...(input.company ? { company: input.company } : {}),
+        ...(input.title ? { jobTitle: input.title } : {}),
+      },
+    });
+  }
+
+  let boothId = input.booth_id;
+  if (!boothId) {
+    const fallback = await prisma.exhibitorBooth.findFirst({
+      where: { eventId },
+      select: { id: true },
+      orderBy: { code: "asc" },
+    });
+    if (!fallback) {
+      throw new ApiError("活动暂无展位，无法采集线索", ErrorCode.VALIDATION_ERROR, 400);
+    }
+    boothId = fallback.id;
+  } else {
+    const booth = await prisma.exhibitorBooth.findFirst({
+      where: { id: boothId, eventId },
+      select: { id: true },
+    });
+    if (!booth) {
+      throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
+    }
+  }
+
+  const noteParts = [
+    input.intent_track ? `意向赛道：${input.intent_track}` : null,
+    input.ai_grade_reason ? `AI 评级：${input.ai_grade_reason}` : null,
+    input.note ?? null,
+  ].filter(Boolean);
+
+  const lead = await prisma.lead.create({
+    data: {
+      boothId,
+      participantId: participant.id,
+      intentGrade: input.intent_level,
+      notes: noteParts.length > 0 ? noteParts.join("\n") : null,
+    },
+  });
+
+  const { scheduleLeadMarketupSync } = await import("@/lib/marketup-sync");
+  void scheduleLeadMarketupSync(lead.id, eventId);
+
+  return {
+    id: lead.id,
+    intent_level: input.intent_level,
+  };
+}

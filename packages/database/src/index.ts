@@ -43,6 +43,8 @@ export {
   MemberTier,
   OrgJoinSource,
   AiFeedbackType,
+  MatchFeedbackSignal,
+  AiGenerationType,
   AiMatchAction,
   AiMatchScenario,
   ExchangeMethod,

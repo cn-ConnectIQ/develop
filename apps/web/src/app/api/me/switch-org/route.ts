@@ -68,9 +68,10 @@ export const POST = withErrorHandler(async (request) => {
     return forbidden("无权切换到该组织");
   }
 
-  if (staff.org.adminStatus !== AdminStatus.APPROVED) {
+  if (staff.org.adminStatus !== AdminStatus.APPROVED &&
+      staff.org.adminStatus !== AdminStatus.TRIAL) {
     return createErrorResponse(
-      "该组织尚未审核通过，无法切换",
+      "该组织尚未可用，无法切换",
       ErrorCode.FORBIDDEN,
       403,
     );

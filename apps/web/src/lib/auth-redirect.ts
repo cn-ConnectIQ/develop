@@ -12,12 +12,12 @@ export function getAccountAdminHomePath(
   return "/events";
 }
 
-function resolveApprovedAdminStatus(user: Session["user"]): string | null {
+function resolveActiveAdminStatus(user: Session["user"]): string | null {
   if (user.activeAdminStatus) return user.activeAdminStatus;
-  const approvedOrg = user.ownedOrgs?.find(
-    (org) => org.admin_status === "APPROVED",
+  const usableOrg = user.ownedOrgs?.find(
+    (org) => org.admin_status === "APPROVED" || org.admin_status === "TRIAL",
   );
-  return approvedOrg?.admin_status ?? null;
+  return usableOrg?.admin_status ?? null;
 }
 
 export function getPostLoginRedirectPath(user: Session["user"]): string {
@@ -26,7 +26,9 @@ export function getPostLoginRedirectPath(user: Session["user"]): string {
       return "/platform/overview";
 
     case "ACCOUNT_ADMIN":
-      switch (resolveApprovedAdminStatus(user)) {
+      switch (resolveActiveAdminStatus(user)) {
+        case "TRIAL":
+          return "/organizer/dashboard";
         case "APPROVED":
           return getAccountAdminHomePath(
             user.activeOrgType,

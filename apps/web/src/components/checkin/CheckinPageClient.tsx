@@ -43,6 +43,9 @@ export function CheckinPageClient({ eventId }: { eventId: string }) {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-bold">签到看板</h1>
         <div className="flex gap-2">
+          <Link href={`/events/${eventId}/scan`}>
+            <Button variant="outline">扫码核验</Button>
+          </Link>
           <Link href={`/events/${eventId}/participants?status=pending`}>
             <Button variant="outline">手动签到</Button>
           </Link>

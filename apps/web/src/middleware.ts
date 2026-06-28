@@ -1,6 +1,7 @@
 import "@/lib/auth-env";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
+import { isOrgAdminUsable } from "@/lib/org-access";
 import {
   ROLE_COOKIE_ADMIN_STATUS,
   ROLE_COOKIE_USER_TYPE,
@@ -20,6 +21,7 @@ const ACCOUNT_ADMIN_PREFIXES = [
 
 const PUBLIC_PATHS = [
   "/login",
+  "/signup",
   "/403",
   "/account-suspended",
   "/register",
@@ -132,9 +134,13 @@ export async function middleware(request: NextRequest) {
         NextResponse.redirect(new URL("/account-suspended", request.url)),
       );
     }
-    if (adminStatus !== "APPROVED") {
+    if (!isOrgAdminUsable(adminStatus)) {
       const pendingPath =
-        adminStatus === "REJECTED" ? "/register/rejected" : "/register/pending";
+        adminStatus === "REJECTED"
+          ? "/register/rejected"
+          : adminStatus === "PENDING_REVIEW"
+            ? "/register/pending"
+            : "/login";
       return applyCookieSync(
         NextResponse.redirect(new URL(pendingPath, request.url)),
       );

@@ -1,5 +1,6 @@
 import { prisma } from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
+import { isOrgAdminUsable } from "@/lib/org-access";
 import { errorResponse, successResponse } from "@connectiq/utils";
 import { getServerSession } from "next-auth/next";
 import type { Session } from "next-auth";
@@ -74,18 +75,27 @@ export async function requireAccountAdmin(
   if (session.user.userType !== "ACCOUNT_ADMIN") {
     return { error: forbidden("仅账号管理员可访问") };
   }
-  if (session.user.activeAdminStatus !== "APPROVED") {
+  if (!isOrgAdminUsable(session.user.activeAdminStatus)) {
     return {
       error: NextResponse.json(
         {
-          error: "账号尚未审核通过",
-          code: "ADMIN_NOT_APPROVED",
+          error:
+            session.user.activeAdminStatus === "PENDING_REVIEW"
+              ? "账号尚未审核通过"
+              : "账号暂不可用",
+          code:
+            session.user.activeAdminStatus === "PENDING_REVIEW"
+              ? "ADMIN_NOT_APPROVED"
+              : "ADMIN_NOT_USABLE",
           adminStatus: session.user.activeAdminStatus,
-          hint: (session.user.ownedOrgs || []).some(
-            (o) => o.admin_status === "APPROVED",
-          )
-            ? "您已有其他已通过审核的组织，请切换到该组织"
-            : null,
+          hint:
+            session.user.activeAdminStatus === "PENDING_REVIEW"
+              ? (session.user.ownedOrgs || []).some(
+                  (o) => o.admin_status === "APPROVED" || o.admin_status === "TRIAL",
+                )
+                ? "您已有其他可用组织，请切换到该组织"
+                : "可先通过免费试用体验，或等待正式审核"
+              : null,
         },
         { status: 403 },
       ),

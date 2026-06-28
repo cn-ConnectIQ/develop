@@ -1,6 +1,7 @@
 import { prisma } from "@connectiq/database";
 import type { ImportRow } from "@/lib/participants";
 import { upsertParticipantsFromRows } from "@/lib/participant-import-service";
+import { getBaigeConnectionStatus } from "@/lib/integrations/baige-connection";
 
 const BAIGE_PROVIDER = "baige";
 const BAIGE_BASE = process.env.BAIGE_API_URL ?? "https://open.baige.co/api/v1";
@@ -121,6 +122,23 @@ async function fetchBaigeRegistrations(
   if (Array.isArray(json.data)) return json.data;
   if (Array.isArray(json.registrations)) return json.registrations;
   return [];
+}
+
+export async function getBaigeEventSyncStatus(eventId: string) {
+  const [lastSync, baigeEventId, connection] = await Promise.all([
+    prisma.eventSetting.findUnique({
+      where: { eventId_key: { eventId, key: "baige_last_sync_at" } },
+    }),
+    resolveBaigeEventId(eventId),
+    getBaigeConnectionStatus(),
+  ]);
+
+  return {
+    lastSyncAt:
+      typeof lastSync?.value === "string" ? lastSync.value : null,
+    baigeEventId,
+    platformConnected: connection.connected,
+  };
 }
 
 export async function syncBaigeParticipants(

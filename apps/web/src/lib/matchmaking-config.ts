@@ -37,7 +37,8 @@ export type MatchReasonItem = {
     | "shared_topic"
     | "shared_role"
     | "signal"
-    | "industry";
+    | "industry"
+    | "semantic";
   label: string;
   detail?: string;
 };

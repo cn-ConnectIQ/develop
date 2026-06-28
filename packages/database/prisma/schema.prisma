@@ -124,6 +124,7 @@ enum AiGenerationType {
   FOLLOWUP_EMAIL
   INTRO_MESSAGE
   MONTHLY_INSIGHT
+  INTENT_PARSE
 }
 
 enum AiPromptStatus {
@@ -150,6 +151,15 @@ enum AiFeedbackType {
   TIMING_INACCURATE
   CONTENT_QUALITY
   CONTENT_POOR
+}
+
+/// 推荐配对反馈信号（采纳 / 忽略 / 婉拒）
+enum MatchFeedbackSignal {
+  EXCHANGED
+  MEETING
+  VIEWED
+  IGNORED
+  DECLINED
 }
 
 enum IntentCategory {
@@ -337,6 +347,7 @@ enum UserType {
 // 账号管理员的审核状态
 enum AdminStatus {
   PENDING_REVIEW // 已提交申请，等待审核
+  TRIAL // 自助试用，可创建活动体验核心功能
   APPROVED // 审核通过，可正常使用管理端
   REJECTED // 审核拒绝（附原因）
   SUSPENDED // 已暂停（违规或其他原因）
@@ -450,6 +461,10 @@ model User {
   sentExchangeRequests       ExchangeRequest[]    @relation("ExchangeFrom")
   receivedExchangeRequests   ExchangeRequest[]    @relation("ExchangeTo")
   userEventIntents           UserEventIntent[]
+  matchBriefsAsViewer        MatchBrief[]         @relation("MatchBriefViewer")
+  matchBriefsAsTarget        MatchBrief[]         @relation("MatchBriefTarget")
+  matchFeedbacksAsViewer     MatchFeedback[]      @relation("MatchFeedbackViewer")
+  matchFeedbacksAsTarget     MatchFeedback[]      @relation("MatchFeedbackTarget")
 
   // 三层角色区分
   userType UserType @default(END_USER) @map("user_type")
@@ -465,6 +480,7 @@ model User {
   orgStaffInvites       OrgStaff[]             @relation("OrgStaffInviter")
   submittedApplications OrganizerApplication[]
   reviewedApplications  OrganizerApplication[] @relation("ApplicationReviewer")
+  organizerTrialProfiles OrganizerTrialProfile[]
   submittedEventReviews EventReview[]          @relation("EventReviewSubmitter")
   reviewedEventReviews  EventReview[]          @relation("EventReviewer")
   operatedBooths        ExhibitorBooth[]       @relation("BoothOperator")
@@ -506,8 +522,10 @@ model Organization {
 
   orgCreditCode String?     @map("org_credit_code")
   isVerified    Boolean     @default(false) @map("is_verified")
+  /// B 端账号审核/试用状态（主办方/展商客户，非参会者）
   adminStatus   AdminStatus @default(PENDING_REVIEW) @map("admin_status")
 
+  /// B 端跨活动累计（账号留存维度，非 C 端参会者社交图谱）
   totalEvents       Int @default(0) @map("total_events")
   totalParticipants Int @default(0) @map("total_participants")
   totalLeads        Int @default(0) @map("total_leads")
@@ -526,6 +544,7 @@ model Organization {
   events          Event[]
   application     OrganizerApplication?
   exhibitorBooths ExhibitorBooth[]      @relation("BoothOrg")
+  trialProfile    OrganizerTrialProfile?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -542,7 +561,7 @@ model OrgMember {
   userId String       @map("user_id")
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // 关系来源
+  /// C 端参会者与组织的关系（用户池/营销触达，非 B2B 持久社交）
   joinSource    OrgJoinSource @map("join_source")
   sourceEventId String?       @map("source_event_id")
   sourceEvent   Event?        @relation("MemberSourceEvent", fields: [sourceEventId], references: [id], onDelete: SetNull)
@@ -578,6 +597,7 @@ model OrgStaff {
   userId String       @map("user_id")
   user   User         @relation("OrgStaffMember", fields: [userId], references: [id], onDelete: Cascade)
 
+  /// B 端账号管理员（主办方/展商），保留跨活动历史与累计数据
   role      OrgStaffRole
   invitedBy String?      @map("invited_by")
   inviter   User?        @relation("OrgStaffInviter", fields: [invitedBy], references: [id], onDelete: SetNull)
@@ -591,6 +611,65 @@ model OrgStaff {
 
   @@unique([orgId, userId])
   @@map("org_staff")
+}
+
+model OrganizerTrialProfile {
+  id     String @id @default(cuid())
+  orgId  String @unique @map("org_id")
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  signupSource String @default("self_service_organizer") @map("signup_source")
+  companyName  String @map("company_name")
+  contactName  String? @map("contact_name")
+
+  trialStartedAt DateTime @default(now()) @map("trial_started_at")
+  lastActiveAt   DateTime @default(now()) @map("last_active_at")
+
+  eventsCreated        Int @default(0) @map("events_created")
+  eventsPublished      Int @default(0) @map("events_published")
+  participantsImported Int @default(0) @map("participants_imported")
+  connectionsTotal     Int @default(0) @map("connections_total")
+  leadsTotal           Int @default(0) @map("leads_total")
+  conversionScore      Int @default(0) @map("conversion_score")
+
+  firstEventAt      DateTime? @map("first_event_at")
+  firstImportAt     DateTime? @map("first_import_at")
+  firstPublishedAt  DateTime? @map("first_published_at")
+  firstConnectionAt DateTime? @map("first_connection_at")
+
+  conversionSignals Json @default("[]") @map("conversion_signals")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([trialStartedAt])
+  @@map("organizer_trial_profiles")
+}
+
+/// 向上转化钩子展示/点击/关闭追踪（BAGEVENT / MARKETUP）
+model ConversionHookEvent {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+  orgId  String? @map("org_id")
+
+  target  String
+  context String
+  trigger String
+  action  String
+
+  eventId String? @map("event_id")
+  boothId String? @map("booth_id")
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([target, context, action, createdAt])
+  @@index([userId, target, context, trigger])
+  @@index([orgId, createdAt])
+  @@map("conversion_hook_events")
 }
 
 model OrganizerApplication {
@@ -713,6 +792,9 @@ model Event {
   stampRallies        StampRally[]
   exchangeRequests    ExchangeRequest[]
   userEventIntents    UserEventIntent[]
+  matchBriefs         MatchBrief[]
+  matchFeedbacks      MatchFeedback[]
+  matchWeightTuning   MatchWeightTuning?
 
   @@map("events")
 }
@@ -1293,21 +1375,82 @@ model AiMatchResult {
 }
 
 model UserEventIntent {
-  id         String   @id @default(cuid())
-  userId     String   @map("user_id")
-  eventId    String   @map("event_id")
-  supplyTags String[] @default([]) @map("supply_tags")
-  demandTags String[] @default([]) @map("demand_tags")
-  role       String?
-  topics     String[] @default([])
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  eventId       String   @map("event_id")
+  supplyTags    String[] @default([]) @map("supply_tags")
+  demandTags    String[] @default([]) @map("demand_tags")
+  role          String?
+  topics        String[] @default([])
+  industry      String?
+  region        String?
+  rawIntentText String?  @map("raw_intent_text")
+  /// 阶段二：pgvector 语义召回（需启用 pgvector 扩展后 db push）
+  embedding     Unsupported("vector(1024)")?
+  intentParsedAt DateTime? @map("intent_parsed_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
+  @@index([eventId, intentParsedAt])
   @@map("user_event_intents")
+}
+
+/// AI 生成的见面简报缓存（viewer → target @ event）
+model MatchBrief {
+  id              String   @id @default(cuid())
+  viewerId        String   @map("viewer_id")
+  targetId        String   @map("target_id")
+  eventId         String   @map("event_id")
+  brief           String
+  matchReason     String   @map("match_reason")
+  matchScore      Float    @map("match_score")
+  matchDimensions Json     @map("match_dimensions")
+  generatedAt     DateTime @default(now()) @map("generated_at")
+
+  viewer User  @relation("MatchBriefViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  target User  @relation("MatchBriefTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  event  Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, targetId, eventId])
+  @@index([eventId, generatedAt])
+  @@map("match_briefs")
+}
+
+/// 推荐采纳反馈（交换微信 / 约会面 / 查看名片 / 忽略 / 婉拒）
+model MatchFeedback {
+  id              String              @id @default(cuid())
+  viewerId        String              @map("viewer_id")
+  targetId        String              @map("target_id")
+  eventId         String              @map("event_id")
+  signal          MatchFeedbackSignal
+  matchScore      Float               @map("match_score")
+  matchDimensions Json                @default("[]") @map("match_dimensions")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  viewer User  @relation("MatchFeedbackViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  target User  @relation("MatchFeedbackTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  event  Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, signal, createdAt])
+  @@index([viewerId, targetId, eventId, createdAt])
+  @@map("match_feedbacks")
+}
+
+/// 离线反馈分析产出的 rank 权重覆盖（按活动，cron 周期性写入）
+model MatchWeightTuning {
+  id         String   @id @default(cuid())
+  eventId    String?  @unique @map("event_id")
+  weights    Json
+  sampleSize Int      @map("sample_size")
+  computedAt DateTime @default(now()) @map("computed_at")
+
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("match_weight_tunings")
 }
 
 model AiGenerationLog {

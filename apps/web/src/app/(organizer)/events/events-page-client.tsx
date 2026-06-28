@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { CalendarDays, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
 import { PageHead } from "@/components/admin/page-head";
 import { EventCard, EventCardSkeleton } from "@/components/events/EventCard";
@@ -24,7 +25,6 @@ const tabs: Array<{ id: TabFilter; label: string }> = [
 
 export function EventsPageClient() {
   const [tab, setTab] = useState<TabFilter>("all");
-  const [createOpen, setCreateOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<EventListItem | null>(null);
   const { data, isLoading } = useEvents();
 
@@ -61,10 +61,10 @@ export function EventsPageClient() {
         title="我的活动"
         description="管理您主办或参展的会议与展会"
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Link href="/events/new" className={cn(buttonVariants())}>
             <Plus className="mr-1 size-4" />
             创建活动
-          </Button>
+          </Link>
         }
       />
 
@@ -105,13 +105,16 @@ export function EventsPageClient() {
             <p className="mt-1 text-sm text-text-muted">
               创建您的第一个活动，开始管理参会者与现场执行
             </p>
-            <Button
-              className="mt-4 bg-brand-blue text-white hover:bg-brand-blue/90"
-              onClick={() => setCreateOpen(true)}
+            <Link
+              href="/events/new"
+              className={cn(
+                buttonVariants(),
+                "mt-4 bg-brand-blue text-white hover:bg-brand-blue/90",
+              )}
             >
               <Plus className="mr-1 size-4" />
               创建活动
-            </Button>
+            </Link>
           </div>
         )}
 
@@ -121,21 +124,15 @@ export function EventsPageClient() {
             event={event}
             onEdit={(e) => {
               setEditEvent(e);
-              setCreateOpen(false);
             }}
           />
         ))}
       </div>
 
       <CreateEventSheet
-        open={createOpen || !!editEvent}
+        open={!!editEvent}
         onOpenChange={(open) => {
-          if (!open) {
-            setCreateOpen(false);
-            setEditEvent(null);
-          } else {
-            setCreateOpen(open);
-          }
+          if (!open) setEditEvent(null);
         }}
         editEvent={editEvent}
       />

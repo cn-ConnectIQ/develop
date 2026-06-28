@@ -17,14 +17,24 @@ const patchBodySchema = z
     supply_tags: z.array(z.string().max(64)).max(20).optional(),
     demand_tags: z.array(z.string().max(64)).max(20).optional(),
     topics: z.array(z.string().max(64)).max(20).optional(),
+    industry: z.string().max(64).optional().nullable(),
+    region: z.string().max(64).optional().nullable(),
+    raw_intent_text: z.string().max(2000).optional().nullable(),
+    defer_llm_parse: z.boolean().optional(),
   })
   .refine(
     (data) =>
       data.role !== undefined ||
       data.supply_tags !== undefined ||
       data.demand_tags !== undefined ||
-      data.topics !== undefined,
-    { message: "请至少提供一个字段（role / supply_tags / demand_tags / topics）" },
+      data.topics !== undefined ||
+      data.industry !== undefined ||
+      data.region !== undefined ||
+      data.raw_intent_text !== undefined,
+    {
+      message:
+        "请至少提供一个字段（role / supply_tags / demand_tags / topics / industry / region / raw_intent_text）",
+    },
   );
 
 /** 参会者读取当前活动的意向采集结果 */

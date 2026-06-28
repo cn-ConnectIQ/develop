@@ -49,7 +49,13 @@ async function fetchSyncStats(eventId: string) {
   return (await res.json()).data as SyncStats;
 }
 
-export function EventMarketupSyncClient({ eventId }: { eventId: string }) {
+export function EventMarketupSyncClient({
+  eventId,
+  embedded = false,
+}: {
+  eventId: string;
+  embedded?: boolean;
+}) {
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -77,22 +83,26 @@ export function EventMarketupSyncClient({ eventId }: { eventId: string }) {
   });
 
   if (isLoading) {
+    const loading = (
+      <p className="py-20 text-center text-sm text-text-muted">加载中…</p>
+    );
+    if (embedded) return loading;
     return (
       <AdminPage>
-        <AdminContent>
-          <p className="py-20 text-center text-sm text-text-muted">加载中…</p>
-        </AdminContent>
+        <AdminContent>{loading}</AdminContent>
       </AdminPage>
     );
   }
 
   if (isError || !data) {
+    const error = (
+      <p className="py-16 text-center text-sm text-brand-red">加载失败</p>
+    );
+    if (embedded) return error;
     return (
       <AdminPage>
         <AdminHeader title="MarketUP 同步" breadcrumb={["活动", "MarketUP 同步"]} />
-        <AdminContent>
-          <p className="py-16 text-center text-sm text-brand-red">加载失败</p>
-        </AdminContent>
+        <AdminContent>{error}</AdminContent>
       </AdminPage>
     );
   }
@@ -100,36 +110,48 @@ export function EventMarketupSyncClient({ eventId }: { eventId: string }) {
   const syncRate =
     data.total > 0 ? Math.round((data.synced / data.total) * 1000) / 10 : 0;
 
-  return (
-    <AdminPage>
-      <AdminHeader
-        title="MarketUP CRM 同步"
-        description="现场采集线索自动回流 MarketUP（S2D），配置映射后新线索将实时推送"
-        breadcrumb={["活动", "MarketUP 同步"]}
-        actions={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              disabled={isFetching}
-              onClick={() => void refetch()}
-            >
-              <RefreshCw
-                className={cn("mr-1 size-4", isFetching && "animate-spin")}
-              />
-              刷新
-            </Button>
-            <Link
-              href={`/events/${eventId}/exhibitors/form-config`}
-              className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
-            >
-              <ClipboardList className="mr-1 size-4" />
-              字段映射配置
-            </Link>
-          </div>
-        }
-      />
+  const headerActions = (
+    <div className="flex gap-2">
+      <Button
+        variant="outline"
+        disabled={isFetching}
+        onClick={() => void refetch()}
+      >
+        <RefreshCw
+          className={cn("mr-1 size-4", isFetching && "animate-spin")}
+        />
+        刷新
+      </Button>
+      <Link
+        href={`/events/${eventId}/exhibitors/form-config`}
+        className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
+      >
+        <ClipboardList className="mr-1 size-4" />
+        字段映射配置
+      </Link>
+    </div>
+  );
 
-      <AdminContent>
+  const body = (
+    <>
+      {!embedded && (
+        <AdminHeader
+          title="MarketUP CRM 同步"
+          description="现场采集线索自动回流 MarketUP（S2D），配置映射后新线索将实时推送"
+          breadcrumb={["活动", "MarketUP 同步"]}
+          actions={headerActions}
+        />
+      )}
+      {embedded && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-[var(--admin-ink)]">
+            MarketUP CRM 同步
+          </h2>
+          {headerActions}
+        </div>
+      )}
+
+      <AdminContent className={embedded ? "px-0" : undefined}>
         <StatGrid columns={4}>
           <StatCard label="已同步" value={data.synced} accent="green" />
           <StatCard label="同步中" value={data.pending} accent="blue" />
@@ -294,6 +316,10 @@ export function EventMarketupSyncClient({ eventId }: { eventId: string }) {
           </table>
         </div>
       </AdminContent>
-    </AdminPage>
+    </>
   );
+
+  if (embedded) return body;
+
+  return <AdminPage>{body}</AdminPage>;
 }

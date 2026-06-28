@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getSession, signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
@@ -181,6 +182,12 @@ export function LoginForm() {
           ConnectIQ
         </CardTitle>
         <CardDescription>管理后台</CardDescription>
+        <p className="mt-3 text-center text-sm text-text-muted">
+          首次使用？{" "}
+          <Link href="/signup/organizer" className="font-medium text-brand-blue hover:underline">
+            免费试用：办一场活动，体验现场连接
+          </Link>
+        </p>
       </CardHeader>
       <CardContent className="p-0">
         <Tabs defaultValue="email">

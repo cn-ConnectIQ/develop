@@ -18,6 +18,10 @@ import {
 } from "@/lib/connect-card-service";
 import { parseIntentTags } from "@/lib/user-me-service";
 import { recordSignal } from "@/lib/signals";
+import {
+  MatchFeedbackSignal,
+  trackMatchFeedback,
+} from "@/lib/ai/matching/match-feedback-service";
 
 export type ApiExchangeRequestUser = {
   id: string;
@@ -418,6 +422,15 @@ export async function declineExchangeRequest(
   });
 
   await notifyExchangeDeclined(request.fromUserId);
+
+  if (request.eventId) {
+    trackMatchFeedback({
+      viewerId: request.fromUserId,
+      targetId: request.toUserId,
+      eventId: request.eventId,
+      signal: MatchFeedbackSignal.DECLINED,
+    });
+  }
 
   return { status: "DECLINED" };
 }

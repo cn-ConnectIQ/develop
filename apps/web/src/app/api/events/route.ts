@@ -14,8 +14,10 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
-  listAccountAdminEvents,
-} from "@/lib/event-list-service";
+  assertTrialCanCreateEvent,
+  recordTrialSignal,
+} from "@/lib/organizer-trial-service";
+import { listAccountAdminEvents } from "@/lib/event-list-service";
 import {
   categoryToDbType,
   getEventPhase,
@@ -186,6 +188,16 @@ export const POST = withErrorHandler(async (request) => {
     );
   }
 
+  try {
+    await assertTrialCanCreateEvent(resolvedOrgId);
+  } catch (error) {
+    return createErrorResponse(
+      error instanceof Error ? error.message : "试用额度已用尽",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
   const activeOrgType = session.user.activeOrgType;
   // 统一账号模型：已审核组织可创建任意类型活动（由 activityType 区分能力）
   void activeOrgType;
@@ -243,6 +255,7 @@ export const POST = withErrorHandler(async (request) => {
       where: { id: orgId },
       data: { eventCount: { increment: 1 } },
     });
+    void recordTrialSignal(orgId, "event_created", { eventId: event.id });
   }
 
   return createSuccessResponse({

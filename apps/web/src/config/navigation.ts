@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Eye,
   FileDown,
+  FileUp,
   Gift,
   Handshake,
   LayoutDashboard,
@@ -29,6 +30,7 @@ import {
   Tag,
   Ticket,
   Trophy,
+  UserCheck,
   Users,
   UserCog,
 } from "lucide-react";
@@ -52,6 +54,83 @@ const EXPO_ONLY_SUFFIXES = ["/exhibitors/map", "/exhibitors/form-config"];
 const MEETING_SETUP_SUFFIX = "/meetings/setup";
 const MATCHMAKING_SUFFIX = "/matchmaking";
 const MEETINGS_PREFIX = "/meetings/";
+
+function isExpoEvent(
+  eventType?: string | null,
+  activityType?: string | null,
+): boolean {
+  return activityType === "EXPO" || eventType === "EXPO";
+}
+
+/** 统一账号 EXPO 活动：注入展会专属侧栏入口 */
+function injectExpoOrganizerItems(
+  groups: NavGroup[],
+  eventId: string,
+  eventType?: string | null,
+  activityType?: string | null,
+): NavGroup[] {
+  if (!isExpoEvent(eventType, activityType)) return groups;
+
+  return groups.map((group) => {
+    if (group.label === "展商管理") {
+    const extra: NavItem[] = [
+      {
+        label: "展会配置",
+        href: `/events/${eventId}/expo-settings`,
+        icon: Settings,
+        isNew: true,
+      },
+      {
+        label: "展商审核",
+        href: `/events/${eventId}/exhibitor-reviews`,
+        icon: UserCheck,
+        isNew: true,
+      },
+      {
+        label: "展商列表",
+        href: `/events/${eventId}/exhibitors/booths`,
+        icon: Store,
+      },
+      {
+        label: "全场线索",
+        href: `/events/${eventId}/admin-leads`,
+        icon: ClipboardList,
+        isNew: true,
+      },
+    ];
+    const existingHrefs = new Set(group.items.map((item) => item.href));
+    const merged = [
+      ...extra.filter((item) => !existingHrefs.has(item.href)),
+      ...group.items,
+    ];
+    return { ...group, items: merged };
+    }
+
+    if (group.label === "现场执行") {
+      const scanItem: NavItem = {
+        label: "扫码核验",
+        href: `/events/${eventId}/scan`,
+        icon: ScanLine,
+        isNew: true,
+      };
+      if (group.items.some((item) => item.href === scanItem.href)) return group;
+      return { ...group, items: [scanItem, ...group.items] };
+    }
+
+    if (group.label === "互动管理") {
+      const monitorItem: NavItem = {
+        label: "集章监控",
+        href: `/events/${eventId}/stamp-monitor`,
+        icon: Trophy,
+        isNew: true,
+      };
+      if (group.items.some((item) => item.href === monitorItem.href)) return group;
+      return { ...group, items: [...group.items, monitorItem] };
+    }
+
+    return group;
+  });
+}
 
 function filterExpoItems(
   groups: NavGroup[],
@@ -161,6 +240,7 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
       {
         label: "PLATFORM",
         items: [
+          { label: "账号管理中心", href: "/organizer/dashboard", icon: LayoutDashboard },
           { label: "活动列表", href: "/events", icon: CalendarDays },
           { label: "用户池", href: "/members", icon: Users },
           { label: "信誉展示页", href: "/org-profile", icon: Settings },
@@ -182,7 +262,10 @@ export function getEventNavigation(
   activityType?: string | null,
 ): NavGroup[] {
   const groups = getEventNavigationGroups(role, eventId, eventType, activityType);
-  return filterNavByFeatureFlags(groups, featureFlags);
+  return filterNavByFeatureFlags(
+    injectExpoOrganizerItems(groups, eventId, eventType, activityType),
+    featureFlags,
+  );
 }
 
 function getEventNavigationGroups(
@@ -230,6 +313,11 @@ function getEventNavigationGroups(
                 label: "名单管理",
                 href: `/events/${eventId}/participants`,
                 icon: Users,
+              },
+              {
+                label: "数据导入",
+                href: `/events/${eventId}/data-import`,
+                icon: FileUp,
               },
               {
                 label: "AI 展位路线",
@@ -346,6 +434,12 @@ function getEventNavigationGroups(
           {
             label: "现场执行",
             items: [
+              {
+                label: "扫码核验",
+                href: `/events/${eventId}/scan`,
+                icon: ScanLine,
+                isNew: true,
+              },
               {
                 label: "签到看板",
                 href: `/events/${eventId}/checkin`,
@@ -484,6 +578,12 @@ function getEventNavigationGroups(
               label: "买家签到看板",
               href: `/events/${eventId}/checkin`,
               icon: ScanLine,
+            },
+            {
+              label: "扫码核验",
+              href: `/events/${eventId}/scan`,
+              icon: ScanLine,
+              isNew: true,
             },
             {
               label: "通知发送",

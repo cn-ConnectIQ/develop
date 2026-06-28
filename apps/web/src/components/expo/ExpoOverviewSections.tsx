@@ -416,7 +416,7 @@ export function ExpoOverviewSections({ expoId }: { expoId: string }) {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { href: `/expos/${expoId}/booths`, icon: ClipboardList, label: "展位管理" },
+          { href: `/events/${expoId}/exhibitors/booths`, icon: ClipboardList, label: "展位管理" },
           { href: `/events/${expoId}/exhibitors/form-config`, icon: ClipboardList, label: "采集表单" },
           ...(featureFlags?.speedNetworking
             ? [{ href: `/events/${expoId}/speed-networking`, icon: Handshake, label: "Speed Networking" }]

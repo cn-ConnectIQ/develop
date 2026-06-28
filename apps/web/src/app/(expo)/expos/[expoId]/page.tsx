@@ -23,12 +23,12 @@ export default async function ExpoPage({
   const { expoId } = await params;
   const session = await getServerSession(authOptions);
 
-  // 统一组织账号管理员走 /events/ 工作台，避免误入 legacy /expos/ 路由
+  // 统一组织账号管理员走 /events/ 工作台与展会配置
   if (
     session?.user.userType === "ACCOUNT_ADMIN" ||
     session?.user.userType === "PLATFORM_ADMIN"
   ) {
-    redirect(`/events/${expoId}`);
+    redirect(`/events/${expoId}/expo-settings`);
   }
 
   const expo = await getExpoDashboardData(expoId);

@@ -11,8 +11,11 @@ import {
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { getOrCreateContactCard } from "@/lib/contact-card-service";
+import { getOrGenerateMatchBrief } from "@/lib/ai/match-brief-service";
+import type { MatchDimensionHit } from "@/lib/ai/matching/types";
 import { parseIntentTags, type ApiProfileIntentTag } from "@/lib/user-me-service";
 import { recordSignal } from "@/lib/signals";
+import { MatchFeedbackSignal, trackMatchFeedback } from "@/lib/ai/matching/match-feedback-service";
 
 export type SharedIntentItem = {
   label: string;
@@ -31,6 +34,14 @@ export type ApiConnectCard = {
   aiBrief: string;
   aiMatchScore: number | null;
   matchReason: string | null;
+  /** LLM 简报正文（与 aiBrief 相同，B2 契约字段） */
+  brief?: string;
+  /** 规则+LLM 匹配分（与 aiMatchScore 相同） */
+  matchScore?: number | null;
+  /** 命中的匹配维度 */
+  matchDimensions?: MatchDimensionHit[];
+  /** 简报是否来自缓存 */
+  briefCached?: boolean;
   sharedIntents: SharedIntentItem[];
   connectionStatus: "NONE" | "PENDING" | "ACTIVE";
   canExchange: boolean;
@@ -253,8 +264,38 @@ export async function fetchConnectCard(
 
   const sharedIntents = buildSharedIntents(viewerIntents, targetIntents);
   const aiMatch = await lookupAiMatchResult(viewerId, targetUserId, eventId);
-  const aiMatchScore =
+  let aiMatchScore =
     aiMatch.score ?? computeMatchScore(sharedIntents);
+  let matchReason: string | null =
+    aiMatch.reason ??
+    sharedIntents[0]?.description ??
+    (aiMatchScore != null ? "基于双方商业意图标签的互补匹配" : null);
+  let aiBrief = buildAiBrief({
+    name: target.name,
+    company: target.profile?.company ?? undefined,
+    title: target.profile?.valueProposition ?? undefined,
+    headline: card.headline ?? undefined,
+    valueProposition: target.profile?.valueProposition ?? undefined,
+    sharedIntents,
+  });
+  let matchDimensions: MatchDimensionHit[] | undefined;
+  let briefCached: boolean | undefined;
+
+  if (eventId) {
+    const matchBrief = await getOrGenerateMatchBrief(
+      viewerId,
+      targetUserId,
+      eventId,
+    );
+    if (matchBrief) {
+      aiBrief = matchBrief.brief;
+      matchReason = matchBrief.match_reason;
+      aiMatchScore = matchBrief.match_score;
+      matchDimensions = matchBrief.match_dimensions;
+      briefCached = matchBrief.cached;
+    }
+  }
+
   const connectionStatus = await resolveConnectionStatus(
     viewerId,
     targetUserId,
@@ -272,19 +313,13 @@ export async function fetchConnectCard(
       title: target.profile?.valueProposition ?? undefined,
       headline: card.headline ?? undefined,
     },
-    aiBrief: buildAiBrief({
-      name: target.name,
-      company: target.profile?.company ?? undefined,
-      title: target.profile?.valueProposition ?? undefined,
-      headline: card.headline ?? undefined,
-      valueProposition: target.profile?.valueProposition ?? undefined,
-      sharedIntents,
-    }),
+    aiBrief,
     aiMatchScore,
-    matchReason:
-      aiMatch.reason ??
-      sharedIntents[0]?.description ??
-      (aiMatchScore != null ? "基于双方商业意图标签的互补匹配" : null),
+    matchReason,
+    brief: aiBrief,
+    matchScore: aiMatchScore,
+    matchDimensions,
+    briefCached,
     sharedIntents,
     connectionStatus,
     canExchange,
@@ -297,6 +332,17 @@ export async function fetchConnectCard(
     if (card.show_phone && target.phone) result.peerPhone = target.phone;
     if (card.show_email && card.email) result.peerEmail = card.email;
     if (card.wechat_id) result.peerWechatId = card.wechat_id;
+  }
+
+  if (eventId) {
+    trackMatchFeedback({
+      viewerId,
+      targetId: targetUserId,
+      eventId,
+      signal: MatchFeedbackSignal.VIEWED,
+      matchScore: aiMatchScore ?? undefined,
+      matchDimensions,
+    });
   }
 
   return result;
@@ -599,6 +645,23 @@ export async function performWechatExchange(input: {
   });
 
   await recordExchangeSignals({ viewerId, targetUserId, eventId, boothId });
+
+  if (eventId) {
+    trackMatchFeedback({
+      viewerId,
+      targetId: targetUserId,
+      eventId,
+      signal: MatchFeedbackSignal.EXCHANGED,
+      matchScore: input.aiMatchScore ?? undefined,
+    });
+    trackMatchFeedback({
+      viewerId: targetUserId,
+      targetId: viewerId,
+      eventId,
+      signal: MatchFeedbackSignal.EXCHANGED,
+      matchScore: input.aiMatchScore ?? undefined,
+    });
+  }
 
   if (input.fromAiMatch) {
     await recordPositiveAiMatchFeedback({

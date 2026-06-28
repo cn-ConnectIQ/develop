@@ -5,6 +5,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { getPostLoginRedirectPath } from "@/lib/auth-redirect";
+import { isOrgAdminUsable } from "@/lib/org-access";
 import { resolveOrgHomeRoute } from "@/lib/org-home-route";
 
 export const GET = withErrorHandler(async () => {
@@ -16,8 +17,11 @@ export const GET = withErrorHandler(async () => {
   }
 
   if (user.userType === "ACCOUNT_ADMIN") {
-    if (user.activeAdminStatus !== "APPROVED") {
+    if (!isOrgAdminUsable(user.activeAdminStatus)) {
       return createSuccessResponse({ path: getPostLoginRedirectPath(user) });
+    }
+    if (user.activeAdminStatus === "TRIAL") {
+      return createSuccessResponse({ path: "/organizer/dashboard" });
     }
     if (user.activeOrgId && user.activeOrgType) {
       const path = await resolveOrgHomeRoute(

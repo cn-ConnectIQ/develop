@@ -1,7 +1,6 @@
 import { ActivityType, EventStatus, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
-import { countEventsByType } from "@/lib/event-discover-service";
 
 export type ApiAccountOverview = {
   totalEvents: number;
@@ -40,31 +39,10 @@ function buildKeyMetric(
 }
 
 export async function getAccountOverview(orgId: string): Promise<ApiAccountOverview> {
-  const org = await prisma.organization.findUnique({
-    where: { id: orgId },
-    select: {
-      totalEvents: true,
-      totalParticipants: true,
-      totalLeads: true,
-      totalConnections: true,
-    },
-  });
-  if (!org) {
-    throw new ApiError("组织不存在", ErrorCode.NOT_FOUND, 404);
-  }
-
-  const events = await prisma.event.findMany({
-    where: { orgId },
-    select: { activityType: true },
-  });
-
-  return {
-    totalEvents: org.totalEvents,
-    totalParticipants: org.totalParticipants,
-    totalLeads: org.totalLeads,
-    totalConnections: org.totalConnections,
-    eventsByType: countEventsByType(events),
-  };
+  const { refreshAndGetAccountOverview } = await import(
+    "@/lib/org-account-center-service"
+  );
+  return refreshAndGetAccountOverview(orgId);
 }
 
 export async function listAccountEvents(orgId: string): Promise<ApiAccountEventItem[]> {

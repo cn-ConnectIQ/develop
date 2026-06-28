@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminContent } from "@/components/admin/admin-header";
 import { StatCard, StatGrid } from "@/components/admin/stat-card";
 import { cn } from "@/lib/utils";
+import { UpgradeHookCard } from "@/components/conversion/UpgradeHookCard";
 
 const PURPLE = "#534AB7";
 const BLUE = "#185FA5";
@@ -202,6 +203,16 @@ export function ReportsPageClient({ eventId }: { eventId: string }) {
         <Bot className="size-5 shrink-0 text-brand-blue" />
         <p className="text-sm text-brand-blue">{aiSummary}</p>
       </div>
+
+      {event.phase === "ended" && (
+        <UpgradeHookCard
+          className="mb-6"
+          target="BAGEVENT"
+          context="event_report_summary"
+          trigger="first_event_completed"
+          eventId={eventId}
+        />
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6 flex h-auto flex-wrap gap-1 bg-transparent p-0">

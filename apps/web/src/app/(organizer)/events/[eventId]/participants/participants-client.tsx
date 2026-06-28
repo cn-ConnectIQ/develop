@@ -8,14 +8,12 @@ import {
   Bot,
   Columns3,
   Filter,
-  RefreshCw,
   Search,
   Upload,
   UserPlus,
 } from "lucide-react";
-import { format } from "date-fns";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
@@ -24,12 +22,9 @@ import {
   useEventDateLabel,
 } from "@/components/invites/CreateCampaignSheet";
 import { AddParticipantSheet } from "@/components/participants/AddParticipantSheet";
-import { ImportSheet } from "@/components/participants/ImportSheet";
 import { ParticipantTable } from "@/components/participants/ParticipantTable";
 import { useCurrentEvent } from "@/contexts/event-context";
 import type { ParticipantListItem } from "@/lib/participants";
-import { LockedOverlay } from "@/components/events/EventReviewBanner";
-import { useIsEventReviewLocked } from "@/hooks/useEventReviewLock";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { cn } from "@/lib/utils";
@@ -95,7 +90,6 @@ async function fetchParticipants(
 
 export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const { currentEvent } = useCurrentEvent();
-  const isReviewLocked = useIsEventReviewLocked(eventId);
   const { data: featureFlags } = useEventFeatureFlags(eventId);
   const showInviteSystem = isFeatureFlagEnabled(featureFlags, "inviteSystem");
   const searchParams = useSearchParams();
@@ -104,11 +98,9 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>(initialStatus);
-  const [importOpen, setImportOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [bulkInviteIds, setBulkInviteIds] = useState<string[] | undefined>();
-  const [lastSync, setLastSync] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
@@ -217,45 +209,13 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-col items-end gap-0.5">
-            <Button
-              variant="outline"
-              onClick={async () => {
-                const res = await fetch(
-                  `/api/events/${eventId}/participants/sync-baige`,
-                  { method: "POST" },
-                );
-                const json = await res.json();
-                if (!res.ok) {
-                  toast.error(json.error?.message ?? json.error ?? "同步失败");
-                  return;
-                }
-                setLastSync(json.data.synced_at);
-                toast.success(json.data.message);
-                void refetch();
-              }}
-            >
-              <RefreshCw className="mr-1 size-4" />
-              同步百格数据
-            </Button>
-            {lastSync ? (
-              <span className="text-[10px] text-text-muted">
-                最后同步 {format(new Date(lastSync), "M/d HH:mm")}
-              </span>
-            ) : (
-              <span className="text-[10px] text-text-muted">尚未同步</span>
-            )}
-          </div>
-          <LockedOverlay locked={isReviewLocked} tooltip="审核通过后可用">
-            <Button
-              variant="outline"
-              disabled={isReviewLocked}
-              onClick={() => !isReviewLocked && setImportOpen(true)}
-            >
-              <Upload className="mr-1 size-4" />
-              导入 Excel
-            </Button>
-          </LockedOverlay>
+          <Link
+            href={`/events/${eventId}/data-import`}
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            <Upload className="mr-1 size-4" />
+            数据导入
+          </Link>
           <Button
             className="bg-brand-blue text-white hover:bg-brand-blue/90"
             onClick={() => setAddOpen(true)}
@@ -384,13 +344,6 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         onRemove={handleRemove}
         onRefresh={() => void refetch()}
         onBulkInvite={showInviteSystem ? (ids) => openInviteSheet(ids) : undefined}
-      />
-
-      <ImportSheet
-        eventId={eventId}
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => void refetch()}
       />
 
       <AddParticipantSheet

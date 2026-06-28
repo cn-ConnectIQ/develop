@@ -1,5 +1,6 @@
 import { ErrorCode } from "@connectiq/types";
 import { prisma, SignalType } from "@connectiq/database";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ApiError,
@@ -8,14 +9,22 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { resolveMobileUserId } from "@/lib/mobile-user-id";
+import { performStaffBadgeCheckin } from "@/lib/checkin-staff";
 import { buildHourlyBuckets, calcCheckinRate } from "@/lib/checkin";
 import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
+import {
+  requireMobileAccountAdmin,
+  resolveMobileUserId,
+} from "@/lib/mobile-user-id";
 import { recordSignal } from "@/lib/signals";
 import { stampBoothForActiveRallies } from "@/lib/stamp-rally-service";
 
-const postSchema = z.object({
-  booth_id: z.string().cuid(),
+const boothScanSchema = z.object({
+  booth_id: z.string().min(1),
+});
+
+const staffCheckinSchema = z.object({
+  badge_qr: z.string().min(1),
 });
 
 
@@ -161,22 +170,69 @@ export const GET = withErrorHandler(async (_request, context) => {
   });
 });
 
-/** 参会者扫展位码签到 */
+/** 参会者扫展位码签到 / 工作人员扫胸牌签到 */
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const userId = await resolveMobileUserId(request);
   const body = await request.json().catch(() => ({}));
-  const parsed = postSchema.safeParse(body);
-  if (!parsed.success) {
+
+  const staffParsed = staffCheckinSchema.safeParse(body);
+  if (staffParsed.success) {
+    try {
+      await requireEventAccess(request, eventId);
+    } catch {
+      await requireMobileAccountAdmin(request);
+    }
+
+    try {
+      const result = await performStaffBadgeCheckin(
+        eventId,
+        staffParsed.data.badge_qr,
+      );
+
+      if (result.already_checked_in) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "该参会者已签到",
+            code: "ALREADY_CHECKED_IN",
+            participant: result.participant,
+            checked_in_at: result.checked_in_at,
+            data: {
+              participant: result.participant,
+              checked_in_at: result.checked_in_at,
+            },
+          },
+          { status: 409 },
+        );
+      }
+
+      return createSuccessResponse({
+        participant: result.participant,
+        checked_in_at: result.checked_in_at,
+        name: result.participant.name,
+        ticket_type: result.participant.ticket_type,
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return createErrorResponse(err.message, ErrorCode.NOT_FOUND, 404);
+      }
+      throw err;
+    }
+  }
+
+  const boothParsed = boothScanSchema.safeParse(body);
+  if (!boothParsed.success) {
     return createErrorResponse("参数错误", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  const userId = await resolveMobileUserId(request);
+
   const booth = await prisma.exhibitorBooth.findFirst({
-    where: { id: parsed.data.booth_id, eventId },
+    where: { id: boothParsed.data.booth_id, eventId },
     select: { id: true, name: true, code: true },
   });
   if (!booth) {

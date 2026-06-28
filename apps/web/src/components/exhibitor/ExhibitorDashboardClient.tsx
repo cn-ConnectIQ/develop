@@ -38,6 +38,7 @@ import {
 import { InteractionQRDisplay } from "@/components/interactions/InteractionQRDisplay";
 import { useRealtimeBoothLeads } from "@/hooks/useRealtimeBoothLeads";
 import { cn } from "@/lib/utils";
+import { UpgradeHookCard } from "@/components/conversion/UpgradeHookCard";
 
 type DashboardPayload = ExhibitorDashboardStats & {
   booth: {
@@ -232,6 +233,14 @@ export function ExhibitorDashboardClient() {
       <AdminContent>
         <ExhibitorStatsCards stats={data} />
 
+        <UpgradeHookCard
+          className="mt-6"
+          target="MARKETUP"
+          context="exhibitor_dashboard"
+          trigger="lead_threshold"
+          boothId={booth.id}
+        />
+
         <section className="admin-card mt-6 p-5">
           <h2 className="font-semibold text-brand-purple">
             🎯 AI 为你推荐的高意向买家
@@ -255,6 +264,15 @@ export function ExhibitorDashboardClient() {
               ))
             )}
           </div>
+          {buyers.length > 0 && (
+            <UpgradeHookCard
+              className="mt-4"
+              target="MARKETUP"
+              context="exhibitor_ai_buyers"
+              trigger="ai_buyer_view"
+              boothId={booth.id}
+            />
+          )}
         </section>
 
         <section className="admin-card mt-6 p-5">

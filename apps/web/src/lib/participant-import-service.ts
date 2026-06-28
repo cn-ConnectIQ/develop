@@ -1,6 +1,7 @@
 import { prisma } from "@connectiq/database";
 import type { ImportRow } from "@/lib/participants";
 import { generateBadgeQr } from "@/lib/participants";
+import { recordTrialSignal } from "@/lib/organizer-trial-service";
 
 export type ParticipantImportResult = {
   created: number;
@@ -57,6 +58,20 @@ export async function upsertParticipantsFromRows(
         },
       });
       created++;
+    }
+  }
+
+  const imported = created + updated;
+  if (imported > 0) {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { orgId: true },
+    });
+    if (event?.orgId) {
+      void recordTrialSignal(event.orgId, "participants_imported", {
+        eventId,
+        count: imported,
+      });
     }
   }
 

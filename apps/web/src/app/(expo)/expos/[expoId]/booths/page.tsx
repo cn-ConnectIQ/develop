@@ -1,20 +1,11 @@
-import { prisma } from "@connectiq/database";
-import { notFound } from "next/navigation";
-import { ExpoBoothsPageClient } from "@/components/expo/ExpoBoothsPageClient";
+import { redirect } from "next/navigation";
 
+/** @deprecated 使用 /events/[eventId]/exhibitors/booths */
 export default async function ExpoBoothsPage({
   params,
 }: {
   params: Promise<{ expoId: string }>;
 }) {
   const { expoId } = await params;
-
-  const expo = await prisma.event.findUnique({
-    where: { id: expoId },
-    select: { id: true, name: true },
-  });
-
-  if (!expo) notFound();
-
-  return <ExpoBoothsPageClient eventId={expoId} eventName={expo.name} />;
+  redirect(`/events/${expoId}/exhibitors/booths`);
 }

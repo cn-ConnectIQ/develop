@@ -6,6 +6,10 @@ import {
   ReviewStatus,
   UserType,
 } from "@connectiq/database";
+import {
+  assertTrialCanPublishEvent,
+  recordTrialSignal,
+} from "@/lib/organizer-trial-service";
 
 export class EventReviewError extends Error {
   constructor(
@@ -172,6 +176,10 @@ export async function publishEvent(eventId: string) {
     throw new EventReviewError(validationError, "VALIDATION_ERROR");
   }
 
+  if (event.orgId) {
+    await assertTrialCanPublishEvent(event.orgId, eventId);
+  }
+
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -179,6 +187,10 @@ export async function publishEvent(eventId: string) {
       status: EventStatus.PUBLISHED,
     },
   });
+
+  if (event.orgId) {
+    void recordTrialSignal(event.orgId, "event_published", { eventId });
+  }
 
   return { reviewStatus: ReviewStatus.PUBLISHED, status: EventStatus.PUBLISHED };
 }

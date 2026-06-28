@@ -5,7 +5,20 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { syncBaigeParticipants } from "@/lib/integrations/baige-sync";
+import {
+  getBaigeEventSyncStatus,
+  syncBaigeParticipants,
+} from "@/lib/integrations/baige-sync";
+
+export const GET = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  if (!eventId) {
+    return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
+  }
+  await requireEventAccess(eventId);
+  const status = await getBaigeEventSyncStatus(eventId);
+  return createSuccessResponse(status);
+});
 
 export const POST = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;

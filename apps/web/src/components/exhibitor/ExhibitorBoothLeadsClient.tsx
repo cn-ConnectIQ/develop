@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Download } from "lucide-react";
 import { AdminContent, AdminHeader, AdminPage, SectionCard } from "@/components/admin/admin-header";
+import { UpgradeHookCard } from "@/components/conversion/UpgradeHookCard";
+import { Button } from "@/components/ui/button";
 import {
   CrmSyncStatusBadge,
   formatDateTime,
@@ -52,10 +55,44 @@ export function ExhibitorBoothLeadsClient({
   const router = useRouter();
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [showExportHook, setShowExportHook] = useState(false);
 
   function openLead(leadId: string) {
     setSelectedLeadId(leadId);
     setSheetOpen(true);
+  }
+
+  function exportCsv() {
+    if (leads.length === 0) return;
+
+    const header = ["姓名", "公司", "邮箱", "手机", "状态", "意向标签", "创建时间"];
+    const rows = leads.map((row) => [
+      row.participant.name,
+      row.participant.company ?? "",
+      row.participant.email ?? "",
+      row.participant.phone ?? "",
+      row.status,
+      row.intentTags.map((t) => t.intentTag.label).join("、"),
+      row.createdAt,
+    ]);
+
+    const csv = [header, ...rows]
+      .map((line) =>
+        line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      )
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `线索-${boothCode}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setShowExportHook(true);
   }
 
   return (
@@ -66,9 +103,30 @@ export function ExhibitorBoothLeadsClient({
         breadcrumb={["线索管理", title]}
       />
       <AdminContent>
+        <UpgradeHookCard
+          className="mb-4"
+          target="MARKETUP"
+          context="exhibitor_leads_list"
+          trigger="lead_threshold"
+          boothId={boothId}
+        />
+
         <SectionCard
           title={`${title}（${leads.length}）`}
           description="点击行查看详情并更新跟进状态"
+          action={
+            leads.length > 0 ? (
+              <Button
+                id="export"
+                variant="outline"
+                size="sm"
+                onClick={exportCsv}
+              >
+                <Download className="mr-1 size-4" />
+                导出 CSV
+              </Button>
+            ) : undefined
+          }
         >
           <div className="overflow-x-auto rounded-lg border border-border-light/60">
             <Table>
@@ -154,6 +212,17 @@ export function ExhibitorBoothLeadsClient({
             </Table>
           </div>
         </SectionCard>
+
+        {showExportHook && (
+          <UpgradeHookCard
+            className="mt-4"
+            target="MARKETUP"
+            context="exhibitor_leads_export"
+            trigger="export_click"
+            boothId={boothId}
+            forceShow
+          />
+        )}
       </AdminContent>
 
       <LeadDetailSheet

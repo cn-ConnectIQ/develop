@@ -14,8 +14,8 @@ import {
 } from "@/lib/interaction/session-service";
 
 const respondSchema = z.object({
-  option_id: z.string().cuid().optional(),
-  option_ids: z.array(z.string().cuid()).optional(),
+  option_id: z.string().min(1).optional(),
+  option_ids: z.array(z.string().min(1)).optional(),
   text_answer: z.string().optional(),
   rating: z.number().int().min(1).max(5).optional(),
 });

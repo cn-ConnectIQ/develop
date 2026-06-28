@@ -56,12 +56,12 @@ export const createInteractionSessionSchema = z.object({
 });
 
 export const participateSessionSchema = z.object({
-  user_id: z.string().cuid().optional().nullable(),
+  user_id: z.string().min(1).optional().nullable(),
   poll_response: z
     .object({
-      poll_id: z.string().cuid(),
-      option_id: z.string().cuid().optional(),
-      option_ids: z.array(z.string().cuid()).optional(),
+      poll_id: z.string().min(1),
+      option_id: z.string().min(1).optional(),
+      option_ids: z.array(z.string().min(1)).optional(),
       text_answer: z.string().max(500).optional(),
       rating: z.number().int().min(1).max(5).optional(),
     })
@@ -70,7 +70,7 @@ export const participateSessionSchema = z.object({
 
 /** @deprecated 使用 participateSessionSchema */
 export const joinSessionSchema = z.object({
-  user_id: z.string().cuid().optional().nullable(),
+  user_id: z.string().min(1).optional().nullable(),
 });
 
 export const createBoothInteractionSchema = z.discriminatedUnion("kind", [

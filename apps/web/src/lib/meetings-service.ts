@@ -3,6 +3,10 @@ import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { tryAutoScheduleMeeting } from "@/lib/meetings/auto-scheduler";
 import { recordSignal } from "@/lib/signals";
+import {
+  MatchFeedbackSignal,
+  trackMatchFeedback,
+} from "@/lib/ai/matching/match-feedback-service";
 
 export type ApiMeetingStatus = MeetingStatus;
 
@@ -136,6 +140,14 @@ export async function bookMeeting(input: {
       meetingId: finalMeeting.id,
     });
   }
+
+  trackMatchFeedback({
+    viewerId: input.requesterId,
+    targetId: input.recipientId,
+    eventId: input.eventId,
+    signal: MatchFeedbackSignal.MEETING,
+    matchScore: input.aiMatchScore ?? undefined,
+  });
 
   return finalMeeting;
 }
