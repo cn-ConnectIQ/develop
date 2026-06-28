@@ -15,6 +15,15 @@ export type ApiMeUser = {
   points_balance: number;
 };
 
+export type UpdateMeUserInput = {
+  name?: string;
+  company?: string;
+  title?: string;
+  industry?: string;
+  value_proposition?: string;
+  avatar_url?: string;
+};
+
 export type ApiProfileIntentTag = {
   id: string;
   label: string;
@@ -80,25 +89,19 @@ export function parseIntentTags(value: unknown): ApiProfileIntentTag[] {
 }
 
 export async function fetchMeUser(userId: string): Promise<ApiMeUser> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { profile: true },
-  });
+  const [user, avatarUrl] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    }),
+    loadLatestAvatarUrl(userId),
+  ]);
 
   if (!user) {
     throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  return {
-    id: user.id,
-    name: user.name,
-    phone: user.phone ?? undefined,
-    status: user.profile?.accountStatus ?? UserAccountStatus.ACTIVE,
-    company: user.profile?.company ?? undefined,
-    industry: user.profile?.industry ?? undefined,
-    value_proposition: user.profile?.valueProposition ?? undefined,
-    points_balance: user.profile?.pointsBalance ?? 0,
-  };
+  return mapMeUser(user, avatarUrl);
 }
 
 export async function fetchMeIntents(userId: string): Promise<ApiProfileIntentTag[]> {
@@ -108,4 +111,138 @@ export async function fetchMeIntents(userId: string): Promise<ApiProfileIntentTa
   });
 
   return parseIntentTags(profile?.intentTags);
+}
+
+export async function saveMeIntents(
+  userId: string,
+  intents: unknown,
+  options?: { markActive?: boolean },
+): Promise<ApiProfileIntentTag[]> {
+  const normalized = parseIntentTags(intents);
+
+  await prisma.userProfile.upsert({
+    where: { userId },
+    create: {
+      userId,
+      intentTags: normalized,
+      accountStatus: options?.markActive
+        ? UserAccountStatus.ACTIVE
+        : UserAccountStatus.ACTIVE,
+    },
+    update: {
+      intentTags: normalized,
+      ...(options?.markActive ? { accountStatus: UserAccountStatus.ACTIVE } : {}),
+    },
+  });
+
+  return normalized;
+}
+
+async function loadLatestAvatarUrl(userId: string): Promise<string | undefined> {
+  const asset = await prisma.fileAsset.findFirst({
+    where: {
+      uploaderId: userId,
+      mimeType: { startsWith: "image/" },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { url: true },
+  });
+  return asset?.url ?? undefined;
+}
+
+type UserWithProfile = {
+  id: string;
+  name: string;
+  phone: string | null;
+  profile: {
+    accountStatus: UserAccountStatus;
+    company: string | null;
+    industry: string | null;
+    valueProposition: string | null;
+    pointsBalance: number;
+  } | null;
+};
+
+function mapMeUser(user: UserWithProfile, avatarUrl?: string): ApiMeUser {
+  return {
+    id: user.id,
+    name: user.name,
+    phone: user.phone ?? undefined,
+    status: user.profile?.accountStatus ?? UserAccountStatus.ACTIVE,
+    avatar_url: avatarUrl,
+    company: user.profile?.company ?? undefined,
+    title: user.profile?.valueProposition ?? undefined,
+    industry: user.profile?.industry ?? undefined,
+    value_proposition: user.profile?.valueProposition ?? undefined,
+    points_balance: user.profile?.pointsBalance ?? 0,
+  };
+}
+
+export async function updateMeUser(
+  userId: string,
+  input: UpdateMeUserInput,
+): Promise<ApiMeUser> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { profile: true },
+  });
+
+  if (!user) {
+    throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  if (input.name?.trim()) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { name: input.name.trim() },
+    });
+  }
+
+  const profileUpdate: {
+    company?: string | null;
+    industry?: string | null;
+    valueProposition?: string | null;
+    accountStatus?: UserAccountStatus;
+  } = {};
+
+  if (input.company !== undefined) profileUpdate.company = input.company.trim() || null;
+  if (input.industry !== undefined) profileUpdate.industry = input.industry.trim() || null;
+  const title = input.title ?? input.value_proposition;
+  if (title !== undefined) profileUpdate.valueProposition = title.trim() || null;
+
+  const hasProfileFields =
+    Boolean(input.company?.trim()) ||
+    Boolean(title?.trim()) ||
+    Boolean(input.industry?.trim());
+
+  if (hasProfileFields) {
+    profileUpdate.accountStatus = UserAccountStatus.ACTIVE;
+  }
+
+  if (Object.keys(profileUpdate).length > 0) {
+    await prisma.userProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...profileUpdate,
+        accountStatus: profileUpdate.accountStatus ?? UserAccountStatus.ACTIVE,
+      },
+      update: profileUpdate,
+    });
+  }
+
+  if (input.avatar_url?.trim()) {
+    const url = input.avatar_url.trim();
+    await prisma.fileAsset.create({
+      data: {
+        uploaderId: userId,
+        url,
+        filename: url.split("/").pop() ?? "avatar",
+        mimeType: "image/jpeg",
+        size: 0,
+      },
+    });
+  }
+
+  return fetchMeUser(userId);
 }

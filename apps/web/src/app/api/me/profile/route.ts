@@ -17,13 +17,7 @@ const patchBodySchema = z.object({
   avatar_url: z.string().max(2048).optional(),
 });
 
-
-export const GET = withErrorHandler(async (request) => {
-  const userId = await resolveMobileUserId(request);
-  const user = await fetchMeUser(userId);
-  return createSuccessResponse(user);
-});
-
+/** 小程序 onboarding / 个人资料 PATCH */
 export const PATCH = withErrorHandler(async (request) => {
   const userId = await resolveMobileUserId(request);
   const body = await request.json().catch(() => ({}));
@@ -38,5 +32,11 @@ export const PATCH = withErrorHandler(async (request) => {
   }
 
   const user = await updateMeUser(userId, parsed.data);
+  return createSuccessResponse(user);
+});
+
+export const GET = withErrorHandler(async (request) => {
+  const userId = await resolveMobileUserId(request);
+  const user = await fetchMeUser(userId);
   return createSuccessResponse(user);
 });

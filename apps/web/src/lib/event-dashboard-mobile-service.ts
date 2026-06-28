@@ -9,6 +9,8 @@ import {
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
+import { scoreIntentMatch } from "@/lib/mobile-intent-match";
+import { countUnreadNotifications } from "@/lib/mobile-notification-service";
 
 export type ApiMobileHomeEvent = {
   id: string;
@@ -32,6 +34,8 @@ export type ApiMobileLiveInteraction = {
   type: string;
   title: string;
   isLive: boolean;
+  countdownSeconds?: number | null;
+  closesAt?: string | null;
 };
 
 export type ApiMobileAnnouncement = {
@@ -41,6 +45,7 @@ export type ApiMobileAnnouncement = {
 };
 
 export type ApiMobileStampRally = {
+  id: string;
   current: number;
   total: number;
   prize: string;
@@ -57,6 +62,7 @@ export type ApiEventDashboardMobile = {
   liveInteraction: ApiMobileLiveInteraction | null;
   announcements: ApiMobileAnnouncement[];
   stampRally: ApiMobileStampRally | null;
+  unreadNotificationCount: number;
   org: ApiMobileHomeOrg | null;
 };
 
@@ -80,10 +86,15 @@ function computeDayLabel(startDate: Date | null, endDate: Date | null): string {
   const dayIndex =
     Math.floor((now.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) +
     1;
-  return `Day ${Math.max(1, dayIndex)}`;
+  return `进行中 · 第 ${Math.max(1, dayIndex)} 天`;
 }
 
-import { scoreIntentMatch } from "@/lib/mobile-intent-match";
+function countdownSecondsFromClosesAt(closesAt: Date | null | undefined): number | null {
+  if (!closesAt) return null;
+  const diff = closesAt.getTime() - Date.now();
+  if (!Number.isFinite(diff)) return null;
+  return Math.max(0, Math.round(diff / 1000));
+}
 
 async function loadAiRecommendations(
   eventId: string,
@@ -146,9 +157,13 @@ async function loadLiveInteraction(
 ): Promise<ApiMobileLiveInteraction | null> {
   const [livePoll, liveLottery] = await Promise.all([
     prisma.poll.findFirst({
-      where: { eventId, status: PollStatus.LIVE },
+      where: {
+        eventId,
+        status: PollStatus.LIVE,
+        type: { not: PollType.ANNOUNCEMENT },
+      },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, type: true, title: true },
+      select: { id: true, type: true, title: true, closesAt: true },
     }),
     prisma.lottery.findFirst({
       where: {
@@ -161,11 +176,14 @@ async function loadLiveInteraction(
   ]);
 
   if (livePoll) {
+    const countdownSeconds = countdownSecondsFromClosesAt(livePoll.closesAt);
     return {
       id: livePoll.id,
       type: livePoll.type,
       title: livePoll.title,
       isLive: true,
+      countdownSeconds,
+      closesAt: livePoll.closesAt?.toISOString() ?? null,
     };
   }
 
@@ -223,6 +241,7 @@ async function loadStampRallySummary(
   });
 
   return {
+    id: rally.id,
     current,
     total: rally.requiredCount,
     prize: rally.prize,
@@ -249,12 +268,13 @@ export async function getEventDashboardMobile(
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const [aiRecommendations, liveInteraction, announcements, stampRally] =
+  const [aiRecommendations, liveInteraction, announcements, stampRally, unreadNotificationCount] =
     await Promise.all([
       loadAiRecommendations(eventId, userId),
       loadLiveInteraction(eventId),
       loadAnnouncements(eventId),
       loadStampRallySummary(eventId, userId),
+      userId ? countUnreadNotifications(userId) : Promise.resolve(0),
     ]);
 
   return {
@@ -269,6 +289,7 @@ export async function getEventDashboardMobile(
     liveInteraction,
     announcements,
     stampRally,
+    unreadNotificationCount,
     org: event.org
       ? {
           name: event.org.name,

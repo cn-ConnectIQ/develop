@@ -7,6 +7,8 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { loadPollVoteState } from "@/lib/poll-vote-state";
+import { resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 const patchSchema = z.object({
@@ -19,7 +21,7 @@ const patchSchema = z.object({
 });
 
 /** 单个投票详情（参会者公开读） */
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const pollId = context?.params?.pollId;
   if (!eventId || !pollId) {
@@ -27,6 +29,8 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
 
   await assertAttendeeReadableEvent(eventId);
+
+  const userId = await resolveOptionalMobileUserId(request);
 
   const poll = await prisma.poll.findFirst({
     where: { id: pollId, eventId },
@@ -39,7 +43,14 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("投票不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  return createSuccessResponse(poll);
+  const voteState = await loadPollVoteState(eventId, pollId, poll.type, userId);
+
+  return createSuccessResponse({
+    ...poll,
+    hasVoted: voteState.hasVoted,
+    myOptionId: voteState.myOptionId,
+    myOptionIds: voteState.myOptionIds,
+  });
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {

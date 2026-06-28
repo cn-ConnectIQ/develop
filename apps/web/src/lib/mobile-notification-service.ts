@@ -69,6 +69,12 @@ function parseRoute(
   return { routeTarget: "BROADCAST", routePayload: {} };
 }
 
+export async function countUnreadNotifications(userId: string): Promise<number> {
+  return prisma.notification.count({
+    where: { userId, readAt: null },
+  });
+}
+
 export async function listMobileNotifications(
   userId: string,
 ): Promise<ApiMobileNotification[]> {
