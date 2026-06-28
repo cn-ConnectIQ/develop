@@ -28,6 +28,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   "speed-networking": "Speed Networking",
   "ai-referral": "AI 引荐",
   "high-value-buyer-push": "高价值买家推送",
+  manage: "活动管理",
+  scan: "扫码核验",
   "marketup-sync": "MarketUP 同步",
   settings: "活动设置",
   "org-profile": "信誉展示页",

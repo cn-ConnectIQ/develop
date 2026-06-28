@@ -289,6 +289,12 @@ function getEventNavigationGroups(
                 icon: LayoutDashboard,
               },
               {
+                label: "活动管理",
+                href: `/events/${eventId}/manage`,
+                icon: LayoutGrid,
+                isNew: true,
+              },
+              {
                 label: "现场指挥中心",
                 href: `/events/${eventId}/live-ops`,
                 icon: Monitor,

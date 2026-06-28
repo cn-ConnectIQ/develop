@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EventGeneralSettingsForm } from "@/components/events/EventGeneralSettingsForm";
 import {
   EVENT_FEATURE_FLAG_GROUPS,
   type EventFeatureFlagKey,
@@ -94,7 +95,7 @@ export function EventSettingsClient({
         }
       />
       <AdminContent>
-        <Tabs defaultValue="features" className="w-full">
+        <Tabs defaultValue="general" className="w-full">
           <TabsList className="mb-6 flex h-auto flex-wrap gap-1 bg-transparent p-0">
             <TabsTrigger
               value="general"
@@ -111,21 +112,7 @@ export function EventSettingsClient({
           </TabsList>
 
           <TabsContent value="general">
-            <SectionCard
-              title="基本信息"
-              description="活动名称、时间、地点等核心信息请在活动工作台维护"
-            >
-              <p className="text-sm text-text-muted">
-                当前活动：<span className="font-medium text-text">{eventName}</span>
-              </p>
-              <p className="mt-3 text-sm text-text-muted">
-                如需编辑活动详情，请返回
-                <a href={`/events/${eventId}`} className="mx-1 text-brand-blue hover:underline">
-                  活动工作台
-                </a>
-                或联系平台管理员。
-              </p>
-            </SectionCard>
+            <EventGeneralSettingsForm eventId={eventId} />
           </TabsContent>
 
           <TabsContent value="features">
