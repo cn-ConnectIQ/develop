@@ -52,80 +52,85 @@ export async function getOrGenerateMatchBrief(
   targetId: string,
   eventId: string,
 ): Promise<MatchBriefPayload | null> {
-  const cached = await prisma.matchBrief.findUnique({
-    where: {
-      viewerId_targetId_eventId: { viewerId, targetId, eventId },
-    },
-  });
+  try {
+    const cached = await prisma.matchBrief.findUnique({
+      where: {
+        viewerId_targetId_eventId: { viewerId, targetId, eventId },
+      },
+    });
 
-  if (cached) {
-    const stale = await isCacheStale(cached.generatedAt, targetId, eventId);
-    if (!stale) {
-      return {
-        brief: cached.brief,
-        match_reason: cached.matchReason,
-        match_score: cached.matchScore,
-        match_dimensions: serializeDimensions(cached.matchDimensions),
-        cached: true,
-        generated_at: cached.generatedAt.toISOString(),
-      };
+    if (cached) {
+      const stale = await isCacheStale(cached.generatedAt, targetId, eventId);
+      if (!stale) {
+        return {
+          brief: cached.brief,
+          match_reason: cached.matchReason,
+          match_score: cached.matchScore,
+          match_dimensions: serializeDimensions(cached.matchDimensions),
+          cached: true,
+          generated_at: cached.generatedAt.toISOString(),
+        };
+      }
     }
+
+    const pair = await matchPair(viewerId, targetId, eventId);
+    if (!pair) return null;
+
+    const [event, viewerUser, targetUser] = await Promise.all([
+      prisma.event.findUnique({
+        where: { id: eventId },
+        select: { name: true },
+      }),
+      loadProfileForBrief(viewerId, eventId),
+      loadProfileForBrief(targetId, eventId),
+    ]);
+
+    if (!viewerUser || !targetUser) return null;
+
+    const generated = await generateBrief({
+      viewerProfile: viewerUser,
+      targetProfile: targetUser,
+      matchDimensions: pair.dimensions,
+      matchScore: pair.score,
+      eventName: event?.name,
+    });
+
+    const dimensionsJson = pair.dimensions as unknown as Prisma.InputJsonValue;
+
+    const row = await prisma.matchBrief.upsert({
+      where: {
+        viewerId_targetId_eventId: { viewerId, targetId, eventId },
+      },
+      create: {
+        viewerId,
+        targetId,
+        eventId,
+        brief: generated.brief,
+        matchReason: generated.match_reason,
+        matchScore: pair.score,
+        matchDimensions: dimensionsJson,
+      },
+      update: {
+        brief: generated.brief,
+        matchReason: generated.match_reason,
+        matchScore: pair.score,
+        matchDimensions: dimensionsJson,
+        generatedAt: new Date(),
+      },
+    });
+
+    return {
+      brief: row.brief,
+      match_reason: row.matchReason,
+      match_score: row.matchScore,
+      match_dimensions: pair.dimensions,
+      cached: false,
+      generated_at: row.generatedAt.toISOString(),
+    };
+  } catch (error) {
+    console.warn("[match-brief] generation failed:", error);
+    return null;
   }
-
-  const pair = await matchPair(viewerId, targetId, eventId);
-  if (!pair) return null;
-
-  const [event, viewerUser, targetUser] = await Promise.all([
-    prisma.event.findUnique({
-      where: { id: eventId },
-      select: { name: true },
-    }),
-    loadProfileForBrief(viewerId, eventId),
-    loadProfileForBrief(targetId, eventId),
-  ]);
-
-  if (!viewerUser || !targetUser) return null;
-
-  const generated = await generateBrief({
-    viewerProfile: viewerUser,
-    targetProfile: targetUser,
-    matchDimensions: pair.dimensions,
-    matchScore: pair.score,
-    eventName: event?.name,
-  });
-
-  const dimensionsJson = pair.dimensions as unknown as Prisma.InputJsonValue;
-
-  const row = await prisma.matchBrief.upsert({
-    where: {
-      viewerId_targetId_eventId: { viewerId, targetId, eventId },
-    },
-    create: {
-      viewerId,
-      targetId,
-      eventId,
-      brief: generated.brief,
-      matchReason: generated.match_reason,
-      matchScore: pair.score,
-      matchDimensions: dimensionsJson,
-    },
-    update: {
-      brief: generated.brief,
-      matchReason: generated.match_reason,
-      matchScore: pair.score,
-      matchDimensions: dimensionsJson,
-      generatedAt: new Date(),
-    },
-  });
-
-  return {
-    brief: row.brief,
-    match_reason: row.matchReason,
-    match_score: row.matchScore,
-    match_dimensions: pair.dimensions,
-    cached: false,
-    generated_at: row.generatedAt.toISOString(),
-  };
 }
 
 async function loadProfileForBrief(userId: string, eventId: string) {

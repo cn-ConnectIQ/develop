@@ -408,7 +408,11 @@ export async function submitPollResponse(
     },
   });
 
-  if (existing && poll.type !== "WORD_CLOUD") {
+  if (
+    existing &&
+    poll.type !== PollType.WORD_CLOUD &&
+    poll.type !== PollType.QNA
+  ) {
     throw new ApiError("您已参与过该投票", ErrorCode.VALIDATION_ERROR, 400);
   }
 

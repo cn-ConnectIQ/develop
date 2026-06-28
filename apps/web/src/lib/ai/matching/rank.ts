@@ -150,23 +150,27 @@ export async function rankCandidates(
   let llmAdjustments = new Map<string, { delta: number; reason: string }>();
 
   if (eventId && enableLlm && candidates.length > 0) {
-    const borderline = selectBorderlineCandidates(
-      scoredRows,
-      topN,
-      llmConfig,
-    );
-    llmAdjustments = await applyLlmComplementRanking(
-      userId,
-      eventId,
-      borderline,
-      llmConfig,
-    );
+    try {
+      const borderline = selectBorderlineCandidates(
+        scoredRows,
+        topN,
+        llmConfig,
+      );
+      llmAdjustments = await applyLlmComplementRanking(
+        userId,
+        eventId,
+        borderline,
+        llmConfig,
+      );
 
-    for (const row of scoredRows) {
-      const llm = llmAdjustments.get(row.candidate.userId);
-      if (llm) {
-        row.adjustedScore = clampScore(row.adjustedScore + llm.delta);
+      for (const row of scoredRows) {
+        const llm = llmAdjustments.get(row.candidate.userId);
+        if (llm) {
+          row.adjustedScore = clampScore(row.adjustedScore + llm.delta);
+        }
       }
+    } catch (error) {
+      console.warn("[rank] llm complement skipped:", error);
     }
   }
 

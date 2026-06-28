@@ -282,17 +282,21 @@ export async function fetchConnectCard(
   let briefCached: boolean | undefined;
 
   if (eventId) {
-    const matchBrief = await getOrGenerateMatchBrief(
-      viewerId,
-      targetUserId,
-      eventId,
-    );
-    if (matchBrief) {
-      aiBrief = matchBrief.brief;
-      matchReason = matchBrief.match_reason;
-      aiMatchScore = matchBrief.match_score;
-      matchDimensions = matchBrief.match_dimensions;
-      briefCached = matchBrief.cached;
+    try {
+      const matchBrief = await getOrGenerateMatchBrief(
+        viewerId,
+        targetUserId,
+        eventId,
+      );
+      if (matchBrief) {
+        aiBrief = matchBrief.brief;
+        matchReason = matchBrief.match_reason;
+        aiMatchScore = matchBrief.match_score;
+        matchDimensions = matchBrief.match_dimensions;
+        briefCached = matchBrief.cached;
+      }
+    } catch (error) {
+      console.warn("[connect-card] match brief skipped:", error);
     }
   }
 
