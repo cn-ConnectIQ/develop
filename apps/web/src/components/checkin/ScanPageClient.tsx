@@ -2,12 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Check, ScanLine, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { AdminContent } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
@@ -28,6 +37,21 @@ type VisitorProfile = {
 };
 
 type LeadPhase = "scan" | "form" | "saved";
+
+type BoothOption = { id: string; code: string; name: string };
+
+async function fetchBooths(eventId: string): Promise<BoothOption[]> {
+  const res = await fetch(`/api/events/${eventId}/booths`);
+  if (!res.ok) return [];
+  const json = await res.json();
+  const rows = json.data?.booths ?? json.data ?? [];
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row: { id: string; code: string; name: string }) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+  }));
+}
 
 function suggestIntentLevel(visitor: VisitorProfile): {
   level: "A" | "B" | "C";
@@ -81,10 +105,30 @@ async function postLead(
 }
 
 export function ScanPageClient({ eventId }: { eventId: string }) {
-  const [mode, setMode] = useState<ScanMode>("checkin");
+  const searchParams = useSearchParams();
+  const initialMode: ScanMode =
+    searchParams.get("mode") === "lead_capture" ? "lead_capture" : "checkin";
+  const initialBoothId =
+    searchParams.get("boothId") ?? searchParams.get("booth_id") ?? "";
+
+  const [mode, setMode] = useState<ScanMode>(initialMode);
+  const [boothId, setBoothId] = useState(initialBoothId);
   const [input, setInput] = useState("");
   const [processing, setProcessing] = useState(false);
   const [flashOk, setFlashOk] = useState(false);
+
+  const { data: booths = [] } = useQuery({
+    queryKey: ["event-booths", eventId],
+    queryFn: () => fetchBooths(eventId),
+    enabled: mode === "lead_capture",
+  });
+
+  useEffect(() => {
+    if (initialBoothId) return;
+    if (booths.length === 1) {
+      setBoothId(booths[0]!.id);
+    }
+  }, [booths, initialBoothId]);
 
   const [leadPhase, setLeadPhase] = useState<LeadPhase>("scan");
   const [visitor, setVisitor] = useState<VisitorProfile | null>(null);
@@ -177,6 +221,10 @@ export function ScanPageClient({ eventId }: { eventId: string }) {
 
   const handleSubmit = async () => {
     if (!visitor || submitting) return;
+    if (!boothId) {
+      toast.error("请先选择归属展位");
+      return;
+    }
     setSubmitting(true);
     try {
       const [company, title] = companyTitle.includes("·")
@@ -185,6 +233,7 @@ export function ScanPageClient({ eventId }: { eventId: string }) {
 
       await postLead(eventId, {
         visitor_user_id: visitor.id,
+        booth_id: boothId,
         name: name.trim() || visitor.name,
         company: company || visitor.company,
         title: title || visitor.title,
@@ -248,6 +297,7 @@ export function ScanPageClient({ eventId }: { eventId: string }) {
             setMode("checkin");
             setLeadPhase("scan");
             setVisitor(null);
+            setBoothId(initialBoothId);
             setInput("");
             focusInput();
           }}
@@ -261,6 +311,7 @@ export function ScanPageClient({ eventId }: { eventId: string }) {
             setMode("lead_capture");
             setLeadPhase("scan");
             setVisitor(null);
+            setBoothId(initialBoothId);
             setInput("");
             focusInput();
           }}
@@ -306,6 +357,27 @@ export function ScanPageClient({ eventId }: { eventId: string }) {
           <p className="mb-4 text-sm font-medium text-brand-blue">
             已识别访客名片 · 信息已预填，确认入库
           </p>
+
+          {booths.length > 0 && (
+            <div className="mb-4">
+              <Label>归属展位</Label>
+              <Select
+                value={boothId}
+                onValueChange={(value) => value && setBoothId(value)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="选择展位" />
+                </SelectTrigger>
+                <SelectContent>
+                  {booths.map((booth) => (
+                    <SelectItem key={booth.id} value={booth.id}>
+                      {booth.code} · {booth.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="mb-4 flex items-center gap-3">
             <div className="flex size-12 items-center justify-center rounded-full bg-brand-blue/10 text-lg font-semibold text-brand-blue">

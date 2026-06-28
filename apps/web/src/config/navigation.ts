@@ -97,6 +97,11 @@ function injectExpoOrganizerItems(
         icon: ClipboardList,
         isNew: true,
       },
+      {
+        label: "意向标签",
+        href: `/events/${eventId}/intent-tags`,
+        icon: Tag,
+      },
     ];
     const existingHrefs = new Set(group.items.map((item) => item.href));
     const merged = [
@@ -196,8 +201,6 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
             label: "内容审核",
             href: "/moderation",
             icon: Shield,
-            badge: "3",
-            badgeVariant: "danger",
           },
         ],
       },
@@ -505,220 +508,19 @@ function getEventNavigationGroups(
       );
 
     case UserRole.EXPO_ORGANIZER:
-      return [
-        {
-          label: "活动设置",
-          items: [
-            {
-              label: "基本信息",
-              href: `/expos/${eventId}`,
-              icon: LayoutDashboard,
-            },
-            {
-              label: "功能模块",
-              href: `/events/${eventId}/settings`,
-              icon: Settings,
-            },
-            {
-              label: "展商报名配置",
-              href: `/expos/${eventId}#registration`,
-              icon: ClipboardList,
-            },
-            {
-              label: "买家报名配置",
-              href: `/expos/${eventId}#buyer`,
-              icon: Users,
-            },
-            {
-              label: "工作人员",
-              href: `/expos/${eventId}#staff`,
-              icon: UserCog,
-            },
-          ],
-        },
-        {
-          label: "展商管理",
-          items: [
-            {
-              label: "展位地图",
-              href: `/events/${eventId}/exhibitors/map`,
-              icon: Map,
-            },
-            {
-              label: "展商列表",
-              href: `/expos/${eventId}/booths`,
-              icon: Store,
-            },
-            {
-              label: "采集表单配置",
-              href: `/events/${eventId}/exhibitors/form-config`,
-              icon: ClipboardList,
-            },
-            {
-              label: "MarketUP 同步",
-              href: `/events/${eventId}/marketup-sync`,
-              icon: Sparkles,
-              isNew: true,
-            },
-            {
-              label: "Hosted Buyer",
-              href: `/expos/${eventId}/leads#hosted-buyer`,
-              icon: Handshake,
-            },
-          ],
-        },
-        {
-          label: "买家管理",
-          items: [
-            {
-              label: "买家名单",
-              href: `/expos/${eventId}/leads`,
-              icon: Users,
-            },
-            {
-              label: "参会者名单",
-              href: `/events/${eventId}/participants`,
-              icon: ClipboardList,
-            },
-            {
-              label: "买家签到看板",
-              href: `/events/${eventId}/checkin`,
-              icon: ScanLine,
-            },
-            {
-              label: "扫码核验",
-              href: `/events/${eventId}/scan`,
-              icon: ScanLine,
-              isNew: true,
-            },
-            {
-              label: "通知发送",
-              href: `/expos/${eventId}#notifications`,
-              icon: Bell,
-            },
-          ],
-        },
-        {
-          label: "互动管理",
-          items: [
-            {
-              label: "互动管理",
-              href: `/events/${eventId}/interactions`,
-              icon: MessageSquare,
-            },
-            {
-              label: "现场抽奖",
-              href: `/events/${eventId}/lottery`,
-              icon: Gift,
-            },
-            {
-              label: "邀请管理",
-              href: `/events/${eventId}/invite-campaigns`,
-              icon: Send,
-            },
-          ],
-        },
-        {
-          label: "AI 配置",
-          items: [
-            {
-              label: "买卖撮合配置",
-              href: `/expos/${eventId}#matching`,
-              icon: Bot,
-            },
-            {
-              label: "AI 引荐配置",
-              href: `/events/${eventId}/ai-referral`,
-              icon: Bot,
-            },
-            {
-              label: "AI 展位路线",
-              href: `/events/${eventId}/booth-route`,
-              icon: MapPin,
-            },
-            {
-              label: "高价值买家推送",
-              href: `/events/${eventId}/high-value-buyer-push`,
-              icon: Bell,
-            },
-            {
-              label: "撮合预览",
-              href: `/expos/${eventId}#matching-preview`,
-              icon: Eye,
-            },
-            {
-              label: "意向标签",
-              href: `/expos/${eventId}/tags`,
-              icon: Tag,
-            },
-          ],
-        },
-        {
-          label: "现场执行",
-          items: [
-            {
-              label: "展会概览",
-              href: `/expos/${eventId}`,
-              icon: Monitor,
-            },
-            {
-              label: "集章打卡",
-              href: `/events/${eventId}/stamp-rally`,
-              icon: Trophy,
-              isNew: true,
-            },
-            {
-              label: "展位人气榜",
-              href: `/events/${eventId}/booth-ranking`,
-              icon: BarChart3,
-              isNew: true,
-            },
-            {
-              label: "场馆地图管理",
-              href: `/events/${eventId}/exhibitors/map`,
-              icon: MapPin,
-            },
-            {
-              label: "互动大屏",
-              href: `/events/${eventId}/interactions/bigscreen`,
-              icon: Monitor,
-              external: true,
-            },
-            {
-              label: "Poll 投票大屏",
-              href: `/events/${eventId}/bigscreen`,
-              icon: Monitor,
-              external: true,
-            },
-          ],
-        },
-        {
-          label: "数据报告",
-          items: [
-            {
-              label: "连接数据分析",
-              href: `/events/${eventId}/connections`,
-              icon: Link2,
-              isNew: true,
-            },
-            {
-              label: "展商 ROI 报告",
-              href: `/events/${eventId}/reports#exhibitor-roi`,
-              icon: BarChart3,
-            },
-            {
-              label: "买卖配对报告",
-              href: `/events/${eventId}/reports#matching`,
-              icon: Handshake,
-            },
-            {
-              label: "签到报告",
-              href: `/events/${eventId}/reports#checkin`,
-              icon: ScanLine,
-            },
-          ],
-        },
-      ].filter((group) => group.items.length > 0);
+      return filterExhibitionItems(
+        filterExpoItems(
+          getEventNavigationGroups(
+            UserRole.ORGANIZER,
+            eventId,
+            eventType ?? "EXPO",
+            activityType ?? "EXPO",
+          ),
+          eventType ?? "EXPO",
+          activityType ?? "EXPO",
+        ),
+        activityType ?? "EXPO",
+      );
 
     case UserRole.EXHIBITOR: {
       const boothId = eventId;

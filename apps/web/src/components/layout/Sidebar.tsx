@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOutWithCleanup } from "@/lib/auth-redirect";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import { UserRole } from "@connectiq/types";
 import {
@@ -299,6 +300,40 @@ export function Sidebar({
   );
 
   const platformGroups = getPlatformNavigation(navRole);
+
+  const showModerationBadge =
+    navMode === "platform" &&
+    navRole === UserRole.PLATFORM_ADMIN &&
+    !isExhibitorRoute;
+
+  const { data: moderationPending = 0 } = useQuery({
+    queryKey: ["platform-moderation-pending"],
+    queryFn: async () => {
+      const res = await fetch("/api/platform/moderation");
+      if (!res.ok) return 0;
+      const json = (await res.json()) as { data?: { pendingCount?: number } };
+      return json.data?.pendingCount ?? 0;
+    },
+    enabled: showModerationBadge,
+    refetchInterval: 60_000,
+  });
+
+  const platformGroupsWithBadges = useMemo(() => {
+    if (moderationPending <= 0) return platformGroups;
+    return platformGroups.map((group) => ({
+      ...group,
+      items: group.items.map((item) =>
+        item.href === "/moderation"
+          ? {
+              ...item,
+              badge: String(moderationPending),
+              badgeVariant: "danger" as const,
+            }
+          : item,
+      ),
+    }));
+  }, [platformGroups, moderationPending]);
+
   const eventNav = navContextId
     ? getEventNavigation(
         eventNavRole,
@@ -338,7 +373,7 @@ export function Sidebar({
     navMode === "platform"
       ? isExhibitorRoute && eventNav.length > 0
         ? eventNav
-        : [...platformGroups, ...aiOpsGroups]
+        : [...platformGroupsWithBadges, ...aiOpsGroups]
       : eventNav;
 
   const flatItems = visibleGroups.flatMap((g) =>

@@ -368,7 +368,11 @@ function BoothPanel({ data, eventId }: { data: ManageOverviewBooth; eventId: str
             </>
           ) : null}
           <ActionTile
-            href={`/events/${eventId}/scan?mode=lead_capture`}
+            href={
+              boothId
+                ? `/events/${eventId}/scan?mode=lead_capture&boothId=${boothId}`
+                : `/events/${eventId}/scan?mode=lead_capture`
+            }
             icon={ScanLine}
             title="扫码采集线索"
             desc="扫描访客名片入库"

@@ -72,19 +72,19 @@ export default async function ExpoPage({
             <QuickTile
               title="展位管理"
               description={`${expo._count.booths} 个展位`}
-              href={`/expos/${expoId}/booths`}
+              href={`/events/${expoId}/exhibitors/booths`}
               icon={Store}
             />
             <QuickTile
               title="线索管理"
               description="查看全部展位线索"
-              href={`/expos/${expoId}/leads`}
+              href={`/events/${expoId}/admin-leads`}
               icon={Users}
             />
             <QuickTile
               title="意向标签"
               description={`${expo._count.intentTags} 个标签`}
-              href={`/expos/${expoId}/tags`}
+              href={`/events/${expoId}/intent-tags`}
               icon={Tag}
             />
           </QuickTileGrid>

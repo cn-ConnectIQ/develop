@@ -100,12 +100,6 @@ function getEventHomeHref(
   if (event.listRole === "HOST") {
     return `/events/${event.id}`;
   }
-  if (role === UserRole.EXPO_ORGANIZER && event.type === "EXPO") {
-    return `/expos/${event.id}`;
-  }
-  if (event.type === "EXPO" && event.activityType === "EXPO") {
-    return `/expos/${event.id}`;
-  }
   return `/events/${event.id}`;
 }
 
@@ -137,10 +131,6 @@ export function EventCard({ event, onEdit }: EventCardProps) {
       : null;
 
   const prepProgress = event.readiness ?? { completed: 0, total: 9 };
-
-  function handlePlaceholder(action: string) {
-    toast.info(`${action}功能将在后续版本开放`);
-  }
 
   async function handleCopy() {
     const res = await fetch(`/api/events/${event.id}/copy`, { method: "POST" });

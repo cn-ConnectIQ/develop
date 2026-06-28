@@ -17,6 +17,7 @@ const ACCOUNT_ADMIN_PREFIXES = [
   "/booths",
   "/members",
   "/org-profile",
+  "/integrations",
 ] as const;
 
 const PUBLIC_PATHS = [
@@ -172,6 +173,8 @@ export const config = {
     "/members/:path*",
     "/org-profile",
     "/org-profile/:path*",
+    "/integrations",
+    "/integrations/:path*",
     "/api/:path*",
   ],
 };

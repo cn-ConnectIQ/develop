@@ -138,7 +138,7 @@ function BoothRankingContent({ eventId }: { eventId: string }) {
 
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
             <Link
-              href={`/expos/${eventId}/booths`}
+              href={`/events/${eventId}/exhibitors/booths`}
               className="inline-flex items-center text-brand-blue hover:underline"
             >
               <ExternalLink className="mr-1 size-3.5" />

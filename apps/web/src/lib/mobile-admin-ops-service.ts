@@ -227,12 +227,27 @@ function mapCrmStatus(status: string): "SYNCED" | "PENDING" | "FAILED" {
 
 export async function exportAdminLeadsMarketUp(orgId: string, eventId: string) {
   await assertOrgEvent(orgId, eventId);
-  const count = await prisma.lead.count({ where: { booth: { eventId } } });
+  const leads = await prisma.lead.findMany({
+    where: {
+      booth: { eventId },
+      crmSyncStatus: { in: ["PENDING", "FAILED"] },
+    },
+    select: { id: true },
+  });
+
+  const { scheduleLeadMarketupSync } = await import("@/lib/marketup-sync");
+  await Promise.allSettled(
+    leads.map((lead) => scheduleLeadMarketupSync(lead.id, eventId)),
+  );
+
   return {
     task_id: `export-${eventId}-${Date.now()}`,
     status: "QUEUED" as const,
-    lead_count: count,
-    message: "导出任务已创建，完成后将发送至账号邮箱",
+    lead_count: leads.length,
+    message:
+      leads.length > 0
+        ? `已触发 ${leads.length} 条线索同步至 MarketUP`
+        : "所有线索已同步，无需导出",
   };
 }
 
@@ -277,23 +292,19 @@ export async function createAdminEventLead(
 
   let boothId = input.booth_id;
   if (!boothId) {
-    const fallback = await prisma.exhibitorBooth.findFirst({
-      where: { eventId },
-      select: { id: true },
-      orderBy: { code: "asc" },
-    });
-    if (!fallback) {
-      throw new ApiError("活动暂无展位，无法采集线索", ErrorCode.VALIDATION_ERROR, 400);
-    }
-    boothId = fallback.id;
-  } else {
-    const booth = await prisma.exhibitorBooth.findFirst({
-      where: { id: boothId, eventId },
-      select: { id: true },
-    });
-    if (!booth) {
-      throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
-    }
+    throw new ApiError(
+      "请指定展位后再采集线索",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
+  const booth = await prisma.exhibitorBooth.findFirst({
+    where: { id: boothId, eventId },
+    select: { id: true },
+  });
+  if (!booth) {
+    throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
   }
 
   const noteParts = [
@@ -313,6 +324,17 @@ export async function createAdminEventLead(
 
   const { scheduleLeadMarketupSync } = await import("@/lib/marketup-sync");
   void scheduleLeadMarketupSync(lead.id, eventId);
+
+  const { recordSignal } = await import("@/lib/signals");
+  const { SignalType } = await import("@connectiq/database");
+  recordSignal(
+    input.visitor_user_id,
+    eventId,
+    SignalType.BOOTH_LEAD_CAPTURED,
+    boothId,
+    "BOOTH",
+    { intent_level: input.intent_level, source: "admin_scan" },
+  );
 
   return {
     id: lead.id,

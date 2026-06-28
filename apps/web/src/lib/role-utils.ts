@@ -44,7 +44,7 @@ export function getRoleHomePath(
     case UserRole.ORGANIZER:
       return entityId ? `/events/${entityId}` : "/events";
     case UserRole.EXPO_ORGANIZER:
-      return entityId ? `/expos/${entityId}` : "/events";
+      return entityId ? `/events/${entityId}` : "/events";
     case UserRole.EXHIBITOR:
       return "/exhibitor/dashboard";
     default:
