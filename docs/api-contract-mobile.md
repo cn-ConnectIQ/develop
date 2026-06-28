@@ -615,9 +615,43 @@ Query：`limit`（默认 30）
 
 ---
 
+### GET /api/events/{eventId}/stamp-passport
+
+用途：**集章护照**（小程序 F 屏；无需事先知道 `rallyId`）
+
+鉴权：mobile token
+
+响应 `data`：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `event_id` | string | |
+| `rally_id` | string | 当前 ACTIVE 集章 ID，客户端可缓存 |
+| `required_count` | number | 需集满数量 |
+| `stamped_booth_ids` | string[] | 已盖章展位 ID |
+| `stamped_count` | number | 已盖章数 |
+| `reward_title` | string | 奖品名称 |
+| `reward_description` | string \| null | |
+| `reward_claimed` | boolean | 是否已兑奖 |
+| `completed` | boolean | 是否已集满 |
+
+错误码：`NOT_FOUND`（无 ACTIVE 集章）
+
+---
+
+### POST /api/events/{eventId}/booths/{boothId}/stamp
+
+用途：**展位集章打卡**（`stamp-passport` 的打卡别名，自动匹配路线）
+
+鉴权：mobile token
+
+响应 `data`：同 GET `stamp-passport`
+
+---
+
 ### GET /api/events/{eventId}/stamp-rallies/{rallyId}/my-progress
 
-用途：**集章进度**
+用途：**集章进度**（已知 `rallyId` 时）
 
 鉴权：mobile token
 

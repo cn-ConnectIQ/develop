@@ -412,6 +412,73 @@ export async function getMyStampProgress(
   };
 }
 
+/** 小程序 stamp-passport 契约（无需客户端事先知道 rallyId） */
+export type ApiStampPassport = {
+  event_id: string;
+  rally_id: string;
+  required_count: number;
+  stamped_booth_ids: string[];
+  stamped_count: number;
+  reward_title: string;
+  reward_description: string | null;
+  reward_claimed: boolean;
+  completed: boolean;
+};
+
+async function findActiveStampRallyForEvent(eventId: string) {
+  return prisma.stampRally.findFirst({
+    where: { eventId, status: StampRallyStatus.ACTIVE },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getStampPassportForEvent(
+  eventId: string,
+  userId: string,
+): Promise<ApiStampPassport> {
+  const rally = await findActiveStampRallyForEvent(eventId);
+  if (!rally) {
+    throw new ApiError("暂无进行中的集章活动", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const progress = await getMyStampProgress(eventId, rally.id, userId);
+
+  return {
+    event_id: eventId,
+    rally_id: rally.id,
+    required_count: progress.total,
+    stamped_booth_ids: progress.stamps.map((s) => s.booth_id),
+    stamped_count: progress.count,
+    reward_title: rally.prize,
+    reward_description: rally.description,
+    reward_claimed: progress.redeemed,
+    completed: progress.completed,
+  };
+}
+
+/** 按展位打卡（自动匹配 ACTIVE 集章路线，供 /booths/{boothId}/stamp） */
+export async function stampAtEventBooth(
+  eventId: string,
+  userId: string,
+  boothId: string,
+): Promise<ApiStampPassport> {
+  const rally = await prisma.stampRally.findFirst({
+    where: {
+      eventId,
+      status: StampRallyStatus.ACTIVE,
+      boothIds: { has: boothId },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!rally) {
+    throw new ApiError("该展位暂无集章活动", ErrorCode.NOT_FOUND, 404);
+  }
+
+  await stampBooth(eventId, rally.id, userId, boothId);
+  return getStampPassportForEvent(eventId, userId);
+}
+
 export async function listEventBoothsForRally(eventId: string) {
   return prisma.exhibitorBooth.findMany({
     where: { eventId },
