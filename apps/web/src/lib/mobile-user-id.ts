@@ -13,10 +13,15 @@ export type MobileAccountAdminResult = { userId: string; orgId: string };
 /** 解析小程序 Bearer：dev-mock-token / mini_{userId}_* */
 export async function resolveMiniBearerUserId(token: string): Promise<string | null> {
   if (token === "dev-mock-token") {
-    const demo = await prisma.user.findFirst({
-      where: { phone: "13800138000" },
-      select: { id: true },
-    });
+    const demo =
+      (await prisma.user.findFirst({
+        where: { phone: "13770626459" },
+        select: { id: true },
+      })) ??
+      (await prisma.user.findFirst({
+        where: { phone: "13800138000" },
+        select: { id: true },
+      }));
     if (demo) return demo.id;
     const anyUser = await prisma.user.findFirst({ select: { id: true } });
     return anyUser?.id ?? null;

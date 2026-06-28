@@ -9,9 +9,15 @@ import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { getOrCreateContactCard } from "@/lib/contact-card-service";
 import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
+import { cacheDel, cacheGet } from "@/lib/redis";
+import { smsVerifyKey } from "@/lib/sms";
 import { code2Session } from "@/lib/wechat/auth";
 import { getWxMiniCredentials } from "@/lib/wechat/config";
 import { getWechatAccessToken } from "@/lib/wechat/access-token";
+
+/** 与 packages/database/prisma/seed-mobile-test-attendee.ts 保持一致 */
+export const MINI_DEV_TEST_PHONE = "13770626459";
+export const MINI_DEV_TEST_SMS_CODE = "888888";
 
 export type MiniLoginUserPayload = {
   id: string;
@@ -258,6 +264,44 @@ export async function miniWxLogin(
   await linkUserToEvent(user.id, eventId);
 
   // 确保名片占位存在，便于后续 hasWechatQr 判断
+  await getOrCreateContactCard(user.id);
+
+  return {
+    token: issueMiniAuthToken(user.id),
+    user: await buildLoginUserPayload(user.id),
+  };
+}
+
+async function verifyMiniSmsCode(phone: string, code: string) {
+  const allowDevBypass =
+    !process.env.ALIYUN_SMS_ACCESS_KEY?.trim() &&
+    phone === MINI_DEV_TEST_PHONE &&
+    code === MINI_DEV_TEST_SMS_CODE;
+
+  if (allowDevBypass) return;
+
+  const stored = await cacheGet(smsVerifyKey(phone));
+  if (!stored || stored !== code) {
+    throw new ApiError("验证码错误或已过期", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  await cacheDel(smsVerifyKey(phone));
+}
+
+/** 小程序短信验证码登录（联调 / 真机测试） */
+export async function miniPhoneLogin(
+  phone: string,
+  code: string,
+  eventId?: string,
+): Promise<MiniWxLoginResult> {
+  await verifyMiniSmsCode(phone, code);
+
+  let user = await findUserByPhone(phone);
+  if (!user) {
+    user = await createEndUserByPhone(phone);
+  }
+
+  await linkUserToEvent(user.id, eventId);
   await getOrCreateContactCard(user.id);
 
   return {

@@ -11,7 +11,7 @@ import { resolveMobileUserId } from "@/lib/mobile-user-id";
 import { stampBooth } from "@/lib/stamp-rally-service";
 
 const bodySchema = z.object({
-  booth_id: z.string().cuid(),
+  booth_id: z.string().min(1),
 });
 
 
