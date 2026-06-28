@@ -17,6 +17,12 @@ import { parseIntentTags, type ApiProfileIntentTag } from "@/lib/user-me-service
 import { recordSignal } from "@/lib/signals";
 import { MatchFeedbackSignal, trackMatchFeedback } from "@/lib/ai/matching/match-feedback-service";
 
+const CONNECT_CARD_PROFILE_SELECT = {
+  company: true,
+  valueProposition: true,
+  intentTags: true,
+} as const;
+
 export type SharedIntentItem = {
   label: string;
   description: string;
@@ -228,7 +234,7 @@ export async function fetchConnectCard(
   const target = await prisma.user.findUnique({
     where: { id: targetUserId },
     include: {
-      profile: true,
+      profile: { select: CONNECT_CARD_PROFILE_SELECT },
       contactCard: true,
     },
   });
@@ -237,10 +243,15 @@ export async function fetchConnectCard(
     throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const viewerProfile = await prisma.userProfile.findUnique({
-    where: { userId: viewerId },
-    select: { intentTags: true },
-  });
+  let viewerProfile: { intentTags: unknown } | null = null;
+  try {
+    viewerProfile = await prisma.userProfile.findUnique({
+      where: { userId: viewerId },
+      select: { intentTags: true },
+    });
+  } catch (error) {
+    console.warn("[connect-card] viewer profile skipped:", error);
+  }
 
   const viewerIntents = parseIntentTags(viewerProfile?.intentTags);
   const targetIntents = parseIntentTags(target.profile?.intentTags);
@@ -309,7 +320,10 @@ export async function fetchConnectCard(
     viewerId,
     targetUserId,
     eventId,
-  );
+  ).catch((error) => {
+    console.warn("[connect-card] connection status skipped:", error);
+    return "NONE" as const;
+  });
 
   const canExchange = card.allow_exchange !== false;
   const hasWechatQr = Boolean(card.wechat_qr_url);

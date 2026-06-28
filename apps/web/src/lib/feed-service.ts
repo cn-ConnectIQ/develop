@@ -71,6 +71,20 @@ function buildActorFromProfile(
   };
 }
 
+function actorFromPayload(payload: Record<string, unknown>): ApiFeedActor | null {
+  const raw = payload.actor;
+  if (!raw || typeof raw !== "object") return null;
+  const a = raw as Record<string, unknown>;
+  if (typeof a.id !== "string" || typeof a.name !== "string") return null;
+  return {
+    id: a.id,
+    name: a.name,
+    avatar_url: typeof a.avatar_url === "string" ? a.avatar_url : undefined,
+    company: typeof a.company === "string" ? a.company : undefined,
+    title: typeof a.title === "string" ? a.title : undefined,
+  };
+}
+
 export function mapFeedItem(row: {
   id: string;
   type: DbFeedItemType;
@@ -90,8 +104,8 @@ export function mapFeedItem(row: {
   const payload = parsePayload(row.content);
   const type = mapDbType(row.type);
 
-  let actor: ApiFeedActor | null = null;
-  if (row.user) {
+  let actor: ApiFeedActor | null = actorFromPayload(payload);
+  if (!actor && row.user) {
     actor = buildActorFromProfile(row.user.id, row.user.name, row.user.profile);
   }
 

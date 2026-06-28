@@ -40,9 +40,9 @@ export const INTERACTION_TYPE_SHORT: Record<string, string> = {
   MULTI_CHOICE: "多选",
   WORD_CLOUD: "词云",
   RATING: "评分",
+  SURVEY: "满意度问卷",
   QNA: "问答",
   ANNOUNCEMENT: "公告",
-  SURVEY: "问卷",
   LOTTERY: "抽奖",
 };
 

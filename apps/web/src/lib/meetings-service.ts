@@ -76,6 +76,71 @@ export async function updateMeetingStatus(
   return updated;
 }
 
+export async function submitMeetingRating(
+  userId: string,
+  meetingId: string,
+  rating: number,
+  comment?: string,
+) {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new ApiError("评分须为 1–5 的整数", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const meeting = await getMeetingForUser(meetingId, userId);
+
+  const rateableStatuses: MeetingStatus[] = [
+    MeetingStatus.COMPLETED,
+    MeetingStatus.ACCEPTED,
+    MeetingStatus.NO_SHOW,
+  ];
+  if (!rateableStatuses.includes(meeting.status)) {
+    throw new ApiError("当前会面状态不可评分", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  if (
+    meeting.status === MeetingStatus.ACCEPTED &&
+    meeting.scheduledEnd &&
+    meeting.scheduledEnd.getTime() > Date.now()
+  ) {
+    throw new ApiError("会面尚未结束，暂不可评分", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const isRequester = meeting.requesterId === userId;
+  const existingRating = isRequester ? meeting.requesterRating : meeting.recipientRating;
+  if (existingRating != null) {
+    throw new ApiError("您已提交过评分", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const trimmedComment = comment?.trim() || null;
+  const updated = await prisma.meeting.update({
+    where: { id: meetingId },
+    data: isRequester
+      ? {
+          requesterRating: rating,
+          requesterRatingComment: trimmedComment,
+        }
+      : {
+          recipientRating: rating,
+          recipientRatingComment: trimmedComment,
+        },
+  });
+
+  trackMatchFeedback({
+    viewerId: userId,
+    targetId: isRequester ? meeting.recipientId : meeting.requesterId,
+    eventId: meeting.eventId,
+    signal: MatchFeedbackSignal.MEETING,
+    matchScore: meeting.aiMatchScore ?? undefined,
+  });
+
+  return {
+    id: updated.id,
+    rating,
+    comment: trimmedComment,
+    role: isRequester ? ("requester" as const) : ("recipient" as const),
+  };
+}
+
 export async function bookMeeting(input: {
   eventId: string;
   requesterId: string;

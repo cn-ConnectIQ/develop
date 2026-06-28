@@ -93,6 +93,7 @@ enum PollType {
   MULTI_CHOICE
   WORD_CLOUD
   RATING
+  SURVEY
   QNA
   ANNOUNCEMENT
 }
@@ -1641,6 +1642,11 @@ model Meeting {
   aiMatchScore Float?  @map("ai_match_score")
 
   wechatExchanged Boolean @default(false) @map("wechat_exchanged")
+
+  requesterRating        Int?    @map("requester_rating")
+  recipientRating        Int?    @map("recipient_rating")
+  requesterRatingComment String? @map("requester_rating_comment")
+  recipientRatingComment String? @map("recipient_rating_comment")
 
   createdAt   DateTime  @default(now()) @map("created_at")
   respondedAt DateTime? @map("responded_at")

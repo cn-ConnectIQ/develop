@@ -32,6 +32,9 @@ const MOBILE_TEST_NAME = "钱测试";
 export const MOBILE_TEST_JOIN_CODE = "TEST1377";
 export const MOBILE_TEST_PRIMARY_EVENT_SLUG = "smart-link-industry-expo-2026";
 
+/** 生产/预览环境 TEST1377 活动 ID（与 slug 解析互为兜底） */
+export const MOBILE_TEST_PRODUCTION_EVENT_ID = "cmqurkwkt001rzcpbzojv2mi4";
+
 const PREFIX = "seed-m1377";
 
 const SEED_INT_HOSTED = {
@@ -56,6 +59,7 @@ const SEED_INT_HOSTED = {
   stampRally: "seed-feat-stamp-hosted-expo",
   test1377Lottery: `${PREFIX}-lottery-live`,
   test1377Session: `${PREFIX}-session-lottery`,
+  test1377SurveyPoll: `${PREFIX}-poll-survey`,
 } as const;
 
 const TEST1377_LOTTERY_PRIZES = [
@@ -208,6 +212,53 @@ async function ensureHostedExpoMobileFeatures(eventId: string) {
   return { organizerId: event.organizerId };
 }
 
+async function ensureSpeedNetworkingFlags(eventIds: string[]) {
+  const uniqueIds = [...new Set(eventIds.filter(Boolean))];
+  for (const eventId of uniqueIds) {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { featureFlags: true },
+    });
+    if (!event) continue;
+
+    const flags =
+      event.featureFlags && typeof event.featureFlags === "object"
+        ? (event.featureFlags as Record<string, boolean>)
+        : {};
+
+    await prisma.event.update({
+      where: { id: eventId },
+      data: {
+        featureFlags: {
+          ...flags,
+          speedNetworking: true,
+        },
+      },
+    });
+  }
+}
+
+async function ensureTest1377SurveyPoll(eventId: string, creatorId: string) {
+  await prisma.poll.upsert({
+    where: { id: SEED_INT_HOSTED.test1377SurveyPoll },
+    update: {
+      title: "【满意度】您对本次活动的整体评价",
+      type: PollType.SURVEY,
+      status: PollStatus.LIVE,
+    },
+    create: {
+      id: SEED_INT_HOSTED.test1377SurveyPoll,
+      eventId,
+      createdById: creatorId,
+      type: PollType.SURVEY,
+      title: "【满意度】您对本次活动的整体评价",
+      status: PollStatus.LIVE,
+      displayOrder: 0,
+      showResults: true,
+    },
+  });
+}
+
 async function ensureExtraExpoBooths(eventId: string) {
   const template = await prisma.exhibitorBooth.findFirst({
     where: { eventId, code: "A-101" },
@@ -337,6 +388,111 @@ async function ensurePeerAvatarsAndIntents(eventId: string) {
   }
 }
 
+async function ensureSchemaCompat() {
+  const statements = [
+    `ALTER TYPE "PollType" ADD VALUE IF NOT EXISTS 'SURVEY'`,
+    `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS requester_rating INT`,
+    `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recipient_rating INT`,
+    `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS requester_rating_comment TEXT`,
+    `ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recipient_rating_comment TEXT`,
+    `ALTER TABLE user_event_intents ADD COLUMN IF NOT EXISTS industry TEXT`,
+  ];
+  for (const sql of statements) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+    } catch {
+      // 部分托管库不支持 IF NOT EXISTS，忽略
+    }
+  }
+}
+
+async function resolveMobileTestEvent() {
+  const byId = await prisma.event.findUnique({
+    where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+    select: { id: true, name: true, startDate: true },
+  });
+  if (byId) return byId;
+
+  const bySlug = await prisma.event.findUnique({
+    where: { slug: MOBILE_TEST_PRIMARY_EVENT_SLUG },
+    select: { id: true, name: true, startDate: true },
+  });
+  if (bySlug) return bySlug;
+
+  throw new Error(
+    `缺少测试活动（ID ${MOBILE_TEST_PRODUCTION_EVENT_ID} 或 slug ${MOBILE_TEST_PRIMARY_EVENT_SLUG}）`,
+  );
+}
+
+function stampRallyIdForEvent(eventId: string) {
+  return `${PREFIX}-stamp-rally-${eventId.slice(-8)}`;
+}
+
+async function ensureCommunityPostsSeed(
+  eventId: string,
+  userId: string,
+  peers: Array<{ id: string; name: string; phone: string }>,
+) {
+  const posts = [
+    {
+      id: `${PREFIX}-cp-1`,
+      author_user_id: peers[0]?.id ?? userId,
+      author_name: peers[0]?.name ?? "张伟",
+      author_avatar: peers[0] ? avatarSeedUrl(peers[0].phone) : undefined,
+      content: "主论坛的工业软件圆桌有没有回放？想回去给团队分享。",
+      topic: "论坛",
+      like_count: 12,
+      comment_count: 3,
+      created_at: daysAgo(0, 2).toISOString(),
+    },
+    {
+      id: `${PREFIX}-cp-2`,
+      author_user_id: peers[1]?.id ?? userId,
+      author_name: peers[1]?.name ?? "李娜",
+      author_avatar: peers[1] ? avatarSeedUrl(peers[1].phone) : undefined,
+      content: "A-101 展位的 CRM 演示很清晰，有做渠道代理的朋友可以一起聊聊。",
+      topic: "展位",
+      like_count: 8,
+      comment_count: 1,
+      created_at: daysAgo(0, 4).toISOString(),
+    },
+    {
+      id: `${PREFIX}-cp-3`,
+      author_user_id: userId,
+      author_name: MOBILE_TEST_NAME,
+      content: "下午有没有想一起逛营销自动化展区的？可以结对扫码集章。",
+      topic: "组队",
+      like_count: 5,
+      comment_count: 0,
+      created_at: daysAgo(0, 1).toISOString(),
+    },
+  ];
+  await prisma.eventSetting.upsert({
+    where: { eventId_key: { eventId, key: "community_posts" } },
+    create: { eventId, key: "community_posts", value: posts },
+    update: { value: posts },
+  });
+  await prisma.eventSetting.upsert({
+    where: { eventId_key: { eventId, key: "community_icebreakers" } },
+    create: {
+      eventId,
+      key: "community_icebreakers",
+      value: [
+        "你今天是带着什么采购/合作目标来的？",
+        "现场哪场论坛最值得推荐？",
+        "有没有想一起结对逛展的？",
+      ],
+    },
+    update: {
+      value: [
+        "你今天是带着什么采购/合作目标来的？",
+        "现场哪场论坛最值得推荐？",
+        "有没有想一起结对逛展的？",
+      ],
+    },
+  });
+}
+
 async function ensureStampRallyProgress(
   eventId: string,
   userId: string,
@@ -351,18 +507,20 @@ async function ensureStampRallyProgress(
 
   const boothIds = allBooths.map((b) => b.id);
   const requiredCount = Math.min(STAMP_RALLY_TARGET, boothIds.length);
+  const rallyId = stampRallyIdForEvent(eventId);
 
   await prisma.stampRally.upsert({
-    where: { id: SEED_INT_HOSTED.stampRally },
+    where: { id: rallyId },
     update: {
       status: StampRallyStatus.ACTIVE,
+      eventId,
       boothIds,
       totalBooths: boothIds.length,
       requiredCount,
       prize: "ConnectIQ 限定礼盒 + 现场抽奖资格",
     },
     create: {
-      id: SEED_INT_HOSTED.stampRally,
+      id: rallyId,
       eventId,
       createdById: creatorId,
       name: "智链博览会集章之旅",
@@ -380,15 +538,15 @@ async function ensureStampRallyProgress(
     await prisma.stampRecord.upsert({
       where: {
         rallyId_userId_boothId: {
-          rallyId: SEED_INT_HOSTED.stampRally,
+          rallyId,
           userId,
           boothId: booth.id,
         },
       },
       update: {},
       create: {
-        id: `${PREFIX}-stamp-${booth.code.replace(/[^a-z0-9]/gi, "")}`,
-        rallyId: SEED_INT_HOSTED.stampRally,
+        id: `${PREFIX}-stamp-${rallyId.slice(-6)}-${booth.code.replace(/[^a-z0-9]/gi, "")}`,
+        rallyId,
         userId,
         boothId: booth.id,
       },
@@ -473,6 +631,9 @@ async function ensureMobileTestInteractions(
 
   await ensureTest1377LiveLottery(eventId, creatorId, userId);
   labels.push("TEST1377 专属抽奖(T1377L)");
+
+  await ensureTest1377SurveyPoll(eventId, creatorId);
+  labels.push("满意度问卷(SURVEY·LIVE)");
 
   const baselinePoll = await prisma.poll.findUnique({
     where: { id: H.pollSingle },
@@ -637,13 +798,9 @@ export async function seedMobileTestAttendeeDimensions(
     throw new Error(`未找到测试用户 ${MOBILE_TEST_PHONE}，请先执行 seedMobileTestAttendee`);
   }
 
-  const event = await prisma.event.findUnique({
-    where: { slug: MOBILE_TEST_PRIMARY_EVENT_SLUG },
-    select: { id: true, name: true, startDate: true },
-  });
-  if (!event) {
-    throw new Error(`缺少主测试活动 ${MOBILE_TEST_PRIMARY_EVENT_SLUG}`);
-  }
+  await ensureSchemaCompat();
+
+  const event = await resolveMobileTestEvent();
 
   const dimensions: string[] = [];
 
@@ -655,7 +812,8 @@ export async function seedMobileTestAttendeeDimensions(
   dimensions.push("活动码");
 
   const { organizerId } = await ensureHostedExpoMobileFeatures(event.id);
-  dimensions.push("功能开关(全开)");
+  await ensureSpeedNetworkingFlags([event.id, MOBILE_TEST_PRODUCTION_EVENT_ID]);
+  dimensions.push("功能开关(全开·含 SN)");
 
   const extraBooths = await ensureExtraExpoBooths(event.id);
   if (extraBooths.length > 0) {
@@ -701,6 +859,16 @@ export async function seedMobileTestAttendeeDimensions(
     findPeer("13900000002"),
     findPeer("13900000003"),
   ]);
+
+  await ensureCommunityPostsSeed(
+    event.id,
+    user.id,
+    [
+      peerA ? { id: peerA.id, name: peerA.name, phone: "13900000001" } : null,
+      peerB ? { id: peerB.id, name: peerB.name, phone: "13900000002" } : null,
+    ].filter(Boolean) as Array<{ id: string; name: string; phone: string }>,
+  );
+  dimensions.push("社区讨论(3 条)");
 
   if (peerA) {
     await prisma.businessConnection.upsert({
@@ -835,7 +1003,7 @@ export async function seedMobileTestAttendeeDimensions(
   }
 
   const rally = await prisma.stampRally.findUnique({
-    where: { id: SEED_INT_HOSTED.stampRally },
+    where: { id: stampRallyIdForEvent(event.id) },
     select: { id: true },
   });
   if (rally && booths.length > 0) {
@@ -1013,36 +1181,88 @@ export async function seedMobileTestAttendeeDimensions(
   }
   dimensions.push("通知(6 条·5 未读)");
 
+  const feedActor = (
+    peer: { id: string; name: string; profile?: { company: string | null } | null },
+    phone: string,
+    title?: string,
+  ) => ({
+    id: peer.id,
+    name: peer.name,
+    avatar_url: avatarSeedUrl(phone),
+    company: peer.profile?.company ?? undefined,
+    title,
+  });
+
   const feedItems = [
+    {
+      id: `${PREFIX}-feed-referral`,
+      type: FeedItemType.AI_REFERRAL,
+      content: JSON.stringify({
+        actor_a: peerA ? feedActor(peerA, "13900000001", "CEO") : null,
+        actor_b: peerB ? feedActor(peerB, "13900000002", "销售总监") : null,
+        is_read: false,
+      }),
+      aiScore: 92,
+      triggerReason: "双方均在寻找 CRM 与营销自动化合作，采购意向高度匹配",
+    },
+    {
+      id: `${PREFIX}-feed-followup`,
+      type: FeedItemType.REMINDER,
+      content: JSON.stringify({
+        actor: peerC ? feedActor(peerC, "13900000003", "市场负责人") : null,
+        is_read: false,
+      }),
+      aiScore: null,
+      triggerReason: "上次会面后 7 天未跟进，建议发送一条个性化消息",
+      expiresAt: hoursFromNow(48),
+    },
+    {
+      id: `${PREFIX}-feed-contact`,
+      type: FeedItemType.INSIGHT,
+      content: JSON.stringify({
+        actor: peerB ? feedActor(peerB, "13900000002", "销售总监") : null,
+        content:
+          "李娜刚刚更新了公司动态：正在拓展华东 MarTech 渠道，与你的 SaaS 集成需求高度相关。",
+        is_read: true,
+      }),
+      aiScore: null,
+      triggerReason: null,
+    },
     {
       id: `${PREFIX}-feed-match`,
       type: FeedItemType.MATCH,
-      content: "与张伟在意向标签「CRM软件」上高度匹配，建议发起连接。",
+      content: JSON.stringify({
+        actor: peerA ? feedActor(peerA, "13900000001", "CEO") : null,
+        content: "张伟在意向标签「CRM软件」上与你高度匹配，建议发起连接。",
+        is_read: false,
+      }),
       aiScore: 86,
-    },
-    {
-      id: `${PREFIX}-feed-insight`,
-      type: FeedItemType.INSIGHT,
-      content: "你在上午逛了 3 个智能制造展位，下午可重点关注营销自动化展区。",
-      aiScore: 72,
+      triggerReason: "意向标签重叠 · CRM软件",
     },
   ];
   for (const item of feedItems) {
     await prisma.feedItem.upsert({
       where: { id: item.id },
-      update: { content: item.content },
+      update: {
+        content: item.content,
+        type: item.type,
+        aiScore: item.aiScore ?? undefined,
+        triggerReason: item.triggerReason ?? undefined,
+        expiresAt: item.expiresAt ?? null,
+      },
       create: {
         id: item.id,
         userId: user.id,
         eventId: event.id,
         type: item.type,
         content: item.content,
-        aiScore: item.aiScore,
-        triggerReason: "mobile_test_seed",
+        aiScore: item.aiScore ?? undefined,
+        triggerReason: item.triggerReason ?? undefined,
+        expiresAt: item.expiresAt ?? null,
       },
     });
   }
-  dimensions.push("AI 动态(2 条)");
+  dimensions.push("AI 动态(4 条·引荐/跟进/动态/匹配)");
 
   const saasEvent = await prisma.event.findUnique({
     where: { slug: "saas-growth-summit-2025" },

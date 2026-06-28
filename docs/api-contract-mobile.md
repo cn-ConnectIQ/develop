@@ -1016,6 +1016,25 @@ Query：`with_user`（可选）
 
 ---
 
+### POST /api/meetings/{id}/rating
+
+用途：**B7 会面评分**
+
+鉴权：mobile token
+
+请求：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `rating` | number 1–5 | 必填 |
+| `comment` | string | 可选，≤500 字 |
+
+响应 `data`：`{ id, rating, comment, role: "requester" | "recipient" }`
+
+错误：会面未结束、已评过分、状态不可评分 → `VALIDATION_ERROR`
+
+---
+
 > 主办方日程网格：`GET /api/events/{eventId}/meetings/schedule-grid`（requireEventAccess）。
 
 ---
@@ -1304,11 +1323,63 @@ Query：`limit`（默认 8，最大 50）
 
 ### GET /api/feed
 
-用途：**AI 动态流**
+用途：**R1 机会雷达 / AI 动态流**
 
 鉴权：mobile token
 
 Query：`page`, `limit`, `cursor`
+
+响应 `data`：`FeedItem[]`（`type`: `AI_REFERRAL` | `FOLLOW_UP_REMINDER` | `CONTACT_UPDATE` | `EVENT_RECOMMEND`）
+
+响应 `meta`：`{ hasNext, cursor, page }`
+
+> `content` 为 JSON 时可携带 `actor` / `actor_a` / `actor_b` / `payload` 等字段；空列表为真实空态（非 mock）。
+
+---
+
+### GET /api/events/{eventId}/community/posts
+
+用途：**N1 社区讨论列表**
+
+鉴权：可选（公开读）
+
+响应 `data`：`CommunityPost[]`；`meta.total`
+
+---
+
+### POST /api/events/{eventId}/community/posts
+
+用途：**N2 发帖**
+
+鉴权：mobile token
+
+请求：`{ content: string }`（≤2000 字）
+
+---
+
+### GET /api/events/{eventId}/community/icebreakers
+
+用途：**破冰话题**
+
+鉴权：无
+
+响应 `data`：`string[]`
+
+---
+
+### GET /api/users/me/value-dashboard
+
+用途：**AI6 聚合仪表盘（可选）**
+
+鉴权：mobile token
+
+响应 `data`：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `connections_count` | number | 活跃连接数 |
+| `referrals_count` | number | 引荐相关总数 |
+| `points_balance` | number | 当前积分余额 |
 
 ---
 
