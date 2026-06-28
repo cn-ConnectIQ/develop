@@ -7,7 +7,10 @@ import {
   ConnectionStatus,
   ExchangeStatus,
   FeedItemType,
+  InteractionOwnerType,
   LotteryEntrySource,
+  LotteryStatus,
+  LotteryType,
   MeetingStatus,
   PointsReason,
   PollStatus,
@@ -33,12 +36,33 @@ const PREFIX = "seed-m1377";
 
 const SEED_INT_HOSTED = {
   lotteryRandom: SEED_INT.hostedExpo.lotteryRandom,
+  lotteryCheckin: SEED_INT.hostedExpo.lotteryCheckin,
+  lotteryActivity: SEED_INT.hostedExpo.lotteryActivity,
+  lotteryQuiz: SEED_INT.hostedExpo.lotteryQuiz,
+  lotteryFinished: SEED_INT.hostedExpo.lotteryRandomFinished,
   pollSingle: SEED_INT.hostedExpo.pollSingle,
   pollSingleOpt1: SEED_INT.hostedExpo.pollSingleOpt1,
   pollMulti: SEED_INT.hostedExpo.pollMulti,
+  pollMultiO1: SEED_INT.hostedExpo.pollMultiO1,
+  pollMultiO2: SEED_INT.hostedExpo.pollMultiO2,
+  pollWordCloud: SEED_INT.hostedExpo.pollWordCloud,
+  pollRating: SEED_INT.hostedExpo.pollRating,
+  pollQna: SEED_INT.hostedExpo.pollQna,
+  pollQuiz: SEED_INT.hostedExpo.pollQuiz,
+  pollQuizO2: SEED_INT.hostedExpo.pollQuizO2,
   pollAnnouncement: SEED_INT.hostedExpo.pollAnnouncement,
+  sessionCodePoll: SEED_INT.hostedExpo.sessionCodePoll,
+  sessionCodeLottery: SEED_INT.hostedExpo.sessionCodeLottery,
   stampRally: "seed-feat-stamp-hosted-expo",
+  test1377Lottery: `${PREFIX}-lottery-live`,
+  test1377Session: `${PREFIX}-session-lottery`,
 } as const;
+
+const TEST1377_LOTTERY_PRIZES = [
+  { rank: 1, name: "一等奖 · MacBook Air" },
+  { rank: 2, name: "二等奖 · iPad" },
+  { rank: 3, name: "三等奖 · ConnectIQ 周边礼盒" },
+];
 
 const STAMP_RALLY_TARGET = 12;
 const STAMP_RALLY_STAMPED = 6;
@@ -372,6 +396,221 @@ async function ensureStampRallyProgress(
   }
 }
 
+async function ensureTest1377LiveLottery(
+  eventId: string,
+  creatorId: string,
+  userId: string,
+) {
+  await prisma.lottery.upsert({
+    where: { id: SEED_INT_HOSTED.test1377Lottery },
+    update: {
+      status: LotteryStatus.OPEN,
+      title: "【TEST1377】现场幸运大抽奖",
+      entryCount: 1,
+    },
+    create: {
+      id: SEED_INT_HOSTED.test1377Lottery,
+      eventId,
+      createdById: creatorId,
+      title: "【TEST1377】现场幸运大抽奖",
+      description: "联调专用 · 扫码 T1377L 或小程序直接进入参与",
+      type: LotteryType.RANDOM,
+      status: LotteryStatus.OPEN,
+      prizes: TEST1377_LOTTERY_PRIZES,
+      winnerCount: 3,
+      entryCount: 0,
+    },
+  });
+
+  await prisma.interactionSession.upsert({
+    where: { id: SEED_INT_HOSTED.test1377Session },
+    update: {
+      isActive: true,
+      sessionCode: "T1377L",
+      interactions: [{ type: "lottery", id: SEED_INT_HOSTED.test1377Lottery }],
+      scanCount: 56,
+      participantCount: 12,
+    },
+    create: {
+      id: SEED_INT_HOSTED.test1377Session,
+      eventId,
+      createdById: creatorId,
+      name: "TEST1377 现场抽奖",
+      sessionCode: "T1377L",
+      interactions: [{ type: "lottery", id: SEED_INT_HOSTED.test1377Lottery }],
+      ownerType: InteractionOwnerType.ORGANIZER,
+      isActive: true,
+      scanCount: 56,
+      participantCount: 12,
+    },
+  });
+
+  await prisma.lotteryEntry.upsert({
+    where: {
+      lotteryId_userId: {
+        lotteryId: SEED_INT_HOSTED.test1377Lottery,
+        userId,
+      },
+    },
+    update: {},
+    create: {
+      id: `${PREFIX}-lottery-test1377-entry`,
+      lotteryId: SEED_INT_HOSTED.test1377Lottery,
+      userId,
+      source: LotteryEntrySource.MANUAL,
+    },
+  });
+}
+
+async function ensureMobileTestInteractions(
+  eventId: string,
+  userId: string,
+  participantId: string,
+  creatorId: string,
+): Promise<string[]> {
+  const labels: string[] = [];
+  const H = SEED_INT_HOSTED;
+
+  await ensureTest1377LiveLottery(eventId, creatorId, userId);
+  labels.push("TEST1377 专属抽奖(T1377L)");
+
+  const baselinePoll = await prisma.poll.findUnique({
+    where: { id: H.pollSingle },
+    select: { id: true },
+  });
+  if (!baselinePoll) {
+    labels.push("互动套件(需先 pnpm db:seed:interactions)");
+    return labels;
+  }
+
+  const lotterySpecs = [
+    { id: H.lotteryRandom, entryId: `${PREFIX}-lottery-random`, source: LotteryEntrySource.MANUAL },
+    { id: H.lotteryCheckin, entryId: `${PREFIX}-lottery-checkin`, source: LotteryEntrySource.AUTO_CHECKIN },
+    { id: H.lotteryActivity, entryId: `${PREFIX}-lottery-activity`, source: LotteryEntrySource.AUTO_ACTIVITY },
+    { id: H.lotteryQuiz, entryId: `${PREFIX}-lottery-quiz`, source: LotteryEntrySource.AUTO_ACTIVITY },
+  ] as const;
+
+  let lotteryCount = 0;
+  for (const spec of lotterySpecs) {
+    const lottery = await prisma.lottery.findUnique({
+      where: { id: spec.id },
+      select: { id: true, status: true },
+    });
+    if (!lottery) continue;
+
+    await prisma.lottery.update({
+      where: { id: spec.id },
+      data: { status: LotteryStatus.OPEN },
+    });
+
+    await prisma.lotteryEntry.upsert({
+      where: { lotteryId_userId: { lotteryId: spec.id, userId } },
+      update: { source: spec.source },
+      create: {
+        id: spec.entryId,
+        lotteryId: spec.id,
+        userId,
+        source: spec.source,
+      },
+    });
+    lotteryCount += 1;
+  }
+  if (lotteryCount > 0) {
+    labels.push(`抽奖参与(${lotteryCount + 1} 场含 TEST1377)`);
+  }
+
+  const finishedLottery = await prisma.lottery.findUnique({
+    where: { id: H.lotteryFinished },
+    select: { id: true },
+  });
+  if (finishedLottery) {
+    await prisma.lotteryWinner.upsert({
+      where: { id: `${PREFIX}-lottery-win-finished` },
+      update: {
+        prizeRank: 2,
+        prizeName: "二等奖 · ConnectIQ 限定礼盒",
+        notified: true,
+      },
+      create: {
+        id: `${PREFIX}-lottery-win-finished`,
+        lotteryId: H.lotteryFinished,
+        userId,
+        prizeRank: 2,
+        prizeName: "二等奖 · ConnectIQ 限定礼盒",
+        drawnAt: daysAgo(1, 2),
+        notified: true,
+      },
+    });
+    labels.push("历史中奖记录");
+  }
+
+  const pollSpecs = [
+    {
+      pollId: H.pollSingle,
+      resId: `${PREFIX}-poll-single`,
+      data: { optionId: H.pollSingleOpt1 },
+    },
+    {
+      pollId: H.pollMulti,
+      resId: `${PREFIX}-poll-multi-1`,
+      data: { optionId: H.pollMultiO1 },
+    },
+    {
+      pollId: H.pollMulti,
+      resId: `${PREFIX}-poll-multi-2`,
+      data: { optionId: H.pollMultiO2 },
+    },
+    {
+      pollId: H.pollRating,
+      resId: `${PREFIX}-poll-rating`,
+      data: { rating: 5 },
+    },
+    {
+      pollId: H.pollWordCloud,
+      resId: `${PREFIX}-poll-wc`,
+      data: { textAnswer: "专业" },
+    },
+    {
+      pollId: H.pollQuiz,
+      resId: `${PREFIX}-poll-quiz`,
+      data: { optionId: H.pollQuizO2 },
+    },
+    {
+      pollId: H.pollQna,
+      resId: `${PREFIX}-poll-qna`,
+      data: { textAnswer: "TEST1377 联调：下午主论坛是否有回放？" },
+    },
+  ] as const;
+
+  let pollCount = 0;
+  for (const spec of pollSpecs) {
+    const poll = await prisma.poll.findUnique({
+      where: { id: spec.pollId },
+      select: { id: true },
+    });
+    if (!poll) continue;
+
+    await prisma.pollResponse.upsert({
+      where: { id: spec.resId },
+      update: spec.data,
+      create: {
+        id: spec.resId,
+        pollId: spec.pollId,
+        participantId,
+        ...spec.data,
+      },
+    });
+    pollCount += 1;
+  }
+  if (pollCount > 0) {
+    labels.push(`现场互动(${pollCount} 项: 单选/多选/评分/词云/答题/Q&A)`);
+  }
+
+  labels.push(`扫码 Session(${H.sessionCodePoll}/${H.sessionCodeLottery}/T1377L)`);
+
+  return labels;
+}
+
 export type MobileTestDimensionsResult = {
   userId: string;
   eventId: string;
@@ -440,6 +679,17 @@ export async function seedMobileTestAttendeeDimensions(
   }
 
   const participantId = `seed-part-mobile-test-${MOBILE_TEST_PRIMARY_EVENT_SLUG.replace(/-/g, "_")}`;
+
+  if (organizerId) {
+    const interactionLabels = await ensureMobileTestInteractions(
+      event.id,
+      user.id,
+      participantId,
+      organizerId,
+    );
+    dimensions.push(...interactionLabels);
+  }
+
   const booths = await prisma.exhibitorBooth.findMany({
     where: { eventId: event.id, code: { in: ["A-101", "A-102", "A-103", "A-104", "A-105", "A-106"] } },
     orderBy: { code: "asc" },
@@ -606,42 +856,6 @@ export async function seedMobileTestAttendeeDimensions(
     }
   }
 
-  const lottery = await prisma.lottery.findUnique({
-    where: { id: SEED_INT_HOSTED.lotteryRandom },
-    select: { id: true },
-  });
-  if (lottery) {
-    await prisma.lotteryEntry.upsert({
-      where: { lotteryId_userId: { lotteryId: lottery.id, userId: user.id } },
-      update: {},
-      create: {
-        id: `${PREFIX}-lottery-entry`,
-        lotteryId: lottery.id,
-        userId: user.id,
-        source: LotteryEntrySource.MANUAL,
-      },
-    });
-    dimensions.push("抽奖参与");
-  }
-
-  const poll = await prisma.poll.findUnique({
-    where: { id: SEED_INT_HOSTED.pollSingle },
-    select: { id: true },
-  });
-  if (poll) {
-    await prisma.pollResponse.upsert({
-      where: { id: `${PREFIX}-poll-res` },
-      update: { optionId: SEED_INT_HOSTED.pollSingleOpt1 },
-      create: {
-        id: `${PREFIX}-poll-res`,
-        pollId: poll.id,
-        participantId,
-        optionId: SEED_INT_HOSTED.pollSingleOpt1,
-      },
-    });
-    dimensions.push("现场投票");
-  }
-
   const boothA101 = booths.find((b) => b.code === "A-101");
   if (boothA101) {
     await prisma.lead.upsert({
@@ -764,7 +978,13 @@ export async function seedMobileTestAttendeeDimensions(
     {
       id: `${PREFIX}-notif-lottery`,
       title: "抽奖即将开始",
-      body: "16:30 主舞台幸运抽奖，您已自动获得参与资格。\n<!--lottery:seed-int-hosted-lottery-random-->",
+      body: "16:30 主舞台幸运抽奖，您已自动获得参与资格。\n<!--lottery:seed-m1377-lottery-live-->",
+      read: false,
+    },
+    {
+      id: `${PREFIX}-notif-lottery-win`,
+      title: "恭喜中奖！",
+      body: "您在「昨日预热抽奖」中获得二等奖 · ConnectIQ 限定礼盒，请至服务台领取。\n<!--lottery:seed-int-hosted-lottery-done-->",
       read: false,
     },
     {
@@ -791,7 +1011,7 @@ export async function seedMobileTestAttendeeDimensions(
       },
     });
   }
-  dimensions.push("通知(5 条·4 未读)");
+  dimensions.push("通知(6 条·5 未读)");
 
   const feedItems = [
     {
