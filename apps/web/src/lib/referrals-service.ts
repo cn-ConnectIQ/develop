@@ -252,3 +252,106 @@ export async function declineReferral(
 
   return mapReferralRow(updated);
 }
+
+export type CreateReferralInput = {
+  user_a_id: string;
+  user_b_id: string;
+  recipient_id?: string;
+  event_id?: string;
+  message?: string;
+  ai_confidence?: number;
+};
+
+/** Feed「确认引荐」：由当前用户作为引荐人创建引荐记录 */
+export async function createReferral(
+  introducerId: string,
+  input: CreateReferralInput,
+): Promise<ApiReferralItem> {
+  const userAId = input.user_a_id.trim();
+  const userBId = input.user_b_id.trim();
+
+  if (!userAId || !userBId) {
+    throw new ApiError("缺少引荐对象", ErrorCode.VALIDATION_ERROR, 400);
+  }
+  if (userAId === userBId) {
+    throw new ApiError("不能引荐同一人", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const recipientId = (input.recipient_id?.trim() || userBId).trim();
+  if (recipientId !== userAId && recipientId !== userBId) {
+    throw new ApiError("recipient_id 须为被引荐方之一", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const existing = await prisma.businessReferral.findFirst({
+    where: {
+      introducerId,
+      userAId,
+      userBId,
+      status: ReferralStatus.PENDING,
+    },
+    include: referralInclude,
+  });
+  if (existing) {
+    return mapReferralRow(existing);
+  }
+
+  const userIds = [...new Set([userAId, userBId, introducerId])];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    include: { profile: { select: { company: true, valueProposition: true } } },
+  });
+  const userMap = new Map(users.map((u) => [u.id, u]));
+
+  const userA = userMap.get(userAId);
+  const userB = userMap.get(userBId);
+  if (!userA || !userB) {
+    throw new ApiError("引荐对象不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  let eventName: string | null = null;
+  if (input.event_id) {
+    const event = await prisma.event.findUnique({
+      where: { id: input.event_id },
+      select: { id: true, name: true },
+    });
+    if (!event) {
+      throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+    }
+    eventName = event.name;
+  }
+
+  const message =
+    input.message?.trim() ||
+    `${userA.name} 与 ${userB.name} 在商业意图上存在互补，建议现场建立联系。`;
+
+  const created = await prisma.businessReferral.create({
+    data: {
+      introducerId,
+      recipientId,
+      userAId,
+      userBId,
+      userAName: userA.name,
+      userACompany: userA.profile?.company ?? undefined,
+      userATitle: userA.profile?.valueProposition ?? undefined,
+      userBName: userB.name,
+      userBCompany: userB.profile?.company ?? undefined,
+      userBTitle: userB.profile?.valueProposition ?? undefined,
+      status: ReferralStatus.PENDING,
+      message,
+      aiConfidence: input.ai_confidence ?? null,
+      eventId: input.event_id ?? null,
+      eventName,
+    },
+    include: referralInclude,
+  });
+
+  await prisma.notification.create({
+    data: {
+      userId: recipientId,
+      title: "新的引荐",
+      body: `${userMap.get(introducerId)?.name ?? "有人"} 向你引荐：${userA.name} ↔ ${userB.name}`,
+    },
+  });
+
+  return mapReferralRow(created);
+}

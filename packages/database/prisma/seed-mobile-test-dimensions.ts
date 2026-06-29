@@ -474,6 +474,52 @@ async function ensurePublicEventPresentation(eventId: string, orgId: string | nu
   }
 }
 
+async function ensureEventSpeakers(eventId: string) {
+  const specs = [
+    {
+      id: `${PREFIX}-speaker-1`,
+      name: "王建国",
+      title: "腾讯云副总裁 · 产业互联网",
+      bio: "专注 B2B 数字化与企业服务二十年，主论坛分享「智链未来」主题演讲。",
+      seed: "speaker-wjg",
+    },
+    {
+      id: `${PREFIX}-speaker-2`,
+      name: "陈雅琳",
+      title: "MarTech 创新实验室负责人",
+      bio: "深耕营销自动化与渠道增长，圆桌环节分享出海 MarTech 最佳实践。",
+      seed: "speaker-cyl",
+    },
+    {
+      id: `${PREFIX}-speaker-3`,
+      name: "李明远",
+      title: "ConnectIQ 产品总监",
+      bio: "负责 AI 商务匹配与 SN 速配产品，现场演示 Connect Card 与引荐引擎。",
+      seed: "speaker-lmy",
+    },
+  ] as const;
+
+  for (const spec of specs) {
+    await prisma.speaker.upsert({
+      where: { id: spec.id },
+      update: {
+        name: spec.name,
+        title: spec.title,
+        bio: spec.bio,
+        avatarUrl: avatarSeedUrl(spec.seed),
+      },
+      create: {
+        id: spec.id,
+        eventId,
+        name: spec.name,
+        title: spec.title,
+        bio: spec.bio,
+        avatarUrl: avatarSeedUrl(spec.seed),
+      },
+    });
+  }
+}
+
 async function ensureTest1377SnSession(
   eventId: string,
   participantId: string,
@@ -939,7 +985,8 @@ export async function seedMobileTestAttendeeDimensions(
     select: { orgId: true },
   });
   await ensurePublicEventPresentation(event.id, eventOrg?.orgId ?? null);
-  dimensions.push("公开详情(描述/封面/议程)");
+  await ensureEventSpeakers(event.id);
+  dimensions.push("公开详情(描述/封面/议程/嘉宾)");
 
   await prisma.eventSetting.upsert({
     where: { eventId_key: { eventId: event.id, key: "join_code" } },

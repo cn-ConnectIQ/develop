@@ -11,6 +11,8 @@ export type ApiDiscoverRecentEvent = {
   logo: string | null;
   status: "DRAFT" | "PUBLISHED" | "LIVE" | "ENDED";
   activityType: string;
+  /** AI2 · 商机密度 0–100 */
+  opportunity_density: number;
 };
 
 export type ApiDiscoverNearbyEvent = {
@@ -19,6 +21,8 @@ export type ApiDiscoverNearbyEvent = {
   date: string | null;
   location: string | null;
   canRegister: boolean;
+  /** AI2 · 商机密度 0–100 */
+  opportunity_density: number;
 };
 
 export type ApiEventDiscover = {
@@ -39,6 +43,89 @@ function formatEventDate(startDate: Date | null, endDate: Date | null): string |
   if (!endDate) return start;
   const end = endDate.toISOString().slice(0, 10);
   return start === end ? start : `${start} ~ ${end}`;
+}
+
+type EventDensityInput = {
+  status: EventStatus;
+  participantCount: number;
+  intentCount: number;
+  connectionCount: number;
+};
+
+/** 基于规模与互动信号的商机密度启发式（0–100） */
+export function computeOpportunityDensity(input: EventDensityInput): number {
+  let score = 38;
+  if (input.status === EventStatus.LIVE) score += 28;
+  else if (input.status === EventStatus.PUBLISHED) score += 12;
+
+  if (input.participantCount >= 200) score += 18;
+  else if (input.participantCount >= 80) score += 14;
+  else if (input.participantCount >= 30) score += 10;
+  else if (input.participantCount >= 10) score += 6;
+  else if (input.participantCount >= 3) score += 3;
+
+  score += Math.min(12, Math.round(input.intentCount / 4));
+  score += Math.min(8, Math.round(input.connectionCount / 5));
+
+  return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+async function loadEventDensityMaps(eventIds: string[]) {
+  if (eventIds.length === 0) {
+    return {
+      participants: new Map<string, number>(),
+      intents: new Map<string, number>(),
+      connections: new Map<string, number>(),
+    };
+  }
+
+  const [participantRows, intentRows, connectionRows] = await Promise.all([
+    prisma.participant.groupBy({
+      by: ["eventId"],
+      where: { eventId: { in: eventIds } },
+      _count: { _all: true },
+    }),
+    prisma.userEventIntent.groupBy({
+      by: ["eventId"],
+      where: { eventId: { in: eventIds } },
+      _count: { _all: true },
+    }),
+    prisma.businessConnection.groupBy({
+      by: ["eventId"],
+      where: {
+        eventId: { in: eventIds },
+        status: "ACTIVE",
+      },
+      _count: { _all: true },
+    }),
+  ]);
+
+  return {
+    participants: new Map(
+      participantRows.map((row) => [row.eventId, row._count._all]),
+    ),
+    intents: new Map(intentRows.map((row) => [row.eventId, row._count._all])),
+    connections: new Map(
+      connectionRows
+        .filter((row): row is typeof row & { eventId: string } =>
+          Boolean(row.eventId),
+        )
+        .map((row) => [row.eventId, row._count._all]),
+    ),
+  };
+}
+
+function densityForEvent(
+  eventId: string,
+  status: EventStatus,
+  maps: Awaited<ReturnType<typeof loadEventDensityMaps>>,
+): number {
+  return computeOpportunityDensity({
+    status,
+    participantCount: maps.participants.get(eventId) ?? 0,
+    intentCount: maps.intents.get(eventId) ?? 0,
+    connectionCount: maps.connections.get(eventId) ?? 0,
+  });
 }
 
 async function loadUserEventIds(userId: string): Promise<string[]> {
@@ -97,16 +184,9 @@ export async function getEventDiscover(
         });
 
   const recentMap = new Map(recentEvents.map((e) => [e.id, e]));
-  const recent: ApiDiscoverRecentEvent[] = recentIds
+  const recentEventRows = recentIds
     .map((id) => recentMap.get(id))
-    .filter((e): e is NonNullable<typeof e> => Boolean(e))
-    .map((event) => ({
-      id: event.id,
-      name: event.name,
-      logo: event.org?.logoUrl ?? null,
-      status: mapEventStatus(event.status),
-      activityType: event.activityType,
-    }));
+    .filter((e): e is NonNullable<typeof e> => Boolean(e));
 
   const joinedSet = new Set(recentIds);
   const nearbyRows = await prisma.event.findMany({
@@ -126,6 +206,27 @@ export async function getEventDiscover(
     },
   });
 
+  const densityEventIds = [
+    ...new Set([
+      ...recentEventRows.map((event) => event.id),
+      ...nearbyRows.map((event) => event.id),
+    ]),
+  ];
+  const densityMaps = await loadEventDensityMaps(densityEventIds);
+
+  const recent: ApiDiscoverRecentEvent[] = recentEventRows.map((event) => ({
+    id: event.id,
+    name: event.name,
+    logo: event.org?.logoUrl ?? null,
+    status: mapEventStatus(event.status),
+    activityType: event.activityType,
+    opportunity_density: densityForEvent(
+      event.id,
+      event.status,
+      densityMaps,
+    ),
+  }));
+
   const nearby: ApiDiscoverNearbyEvent[] = await Promise.all(
     nearbyRows.map(async (event) => {
       const participant = userId
@@ -142,6 +243,11 @@ export async function getEventDiscover(
         date: formatEventDate(event.startDate, event.endDate),
         location: event.location,
         canRegister,
+        opportunity_density: densityForEvent(
+          event.id,
+          event.status,
+          densityMaps,
+        ),
       };
     }),
   );

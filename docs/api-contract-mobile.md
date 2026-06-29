@@ -163,12 +163,89 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 | `recent[].logo` | string \| null | 组织 logo |
 | `recent[].status` | `"DRAFT"` \| `"PUBLISHED"` \| `"LIVE"` \| `"ENDED"` | |
 | `recent[].activityType` | string | |
+| `recent[].opportunity_density` | number | AI2 · 商机密度 0–100 |
 | `nearby` | array | 附近/推荐（未加入的已发布活动） |
 | `nearby[].id` | string | |
 | `nearby[].name` | string | |
 | `nearby[].date` | string \| null | 如 `2026-06-13` 或区间 |
 | `nearby[].location` | string \| null | |
 | `nearby[].canRegister` | boolean | |
+| `nearby[].opportunity_density` | number | AI2 · 商机密度 0–100 |
+
+---
+
+### GET /api/events/{eventId}/speakers
+
+用途：**N7 演讲嘉宾**（含 avatar / bio）
+
+鉴权：无
+
+响应 `data`：array
+
+| 字段 | 类型 |
+|------|------|
+| `[].id` | string |
+| `[].name` | string |
+| `[].title` | string \| null |
+| `[].bio` | string \| null |
+| `[].avatar_url` | string \| null |
+
+---
+
+### GET /api/users/{userId}/profile
+
+用途：**AI3 名片多维评估 / 公开名片详情**
+
+鉴权：无（登录时可返回个性化 AI 评估）
+
+Query：`eventId`（可选，与登录态配合计算匹配维度）
+
+响应 `data` 主要字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | |
+| `name` | string | |
+| `company` | string \| undefined | |
+| `title` | string \| undefined | |
+| `value_proposition` | string \| undefined | |
+| `seeks` | string[] \| undefined | |
+| `offers` | string[] \| undefined | |
+| `business_score` | number \| undefined | 商务活跃度 0–100 |
+| `ai_brief` | string \| undefined | AI 连接简报 |
+| `ai_scores` | object \| undefined | `{ industry_fit, intent_overlap, activity_signal }` 0–5 |
+| `connection_status` | string \| undefined | 登录查看者与目标用户连接状态 |
+
+---
+
+### GET /api/referrals
+
+用途：**引荐列表**
+
+鉴权：mobile token
+
+Query：`role=introducer|recipient`，`limit`
+
+---
+
+### POST /api/referrals
+
+用途：**Feed 确认引荐 / 创建引荐**
+
+鉴权：mobile token
+
+请求 body：
+
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `user_a_id` | string | 是 |
+| `user_b_id` | string | 是 |
+| `recipient_id` | string | 否，默认 `user_b_id` |
+| `event_id` | string | 否 |
+| `message` | string | 否 |
+| `ai_confidence` | number | 否，0–1 |
+
+响应 `data`：与 GET 列表单项结构一致（`ApiReferralItem`）
 
 ---
 
