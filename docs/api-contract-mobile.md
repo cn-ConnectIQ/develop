@@ -1335,6 +1335,8 @@ Query：`page`, `limit`, `cursor`
 
 > `content` 为 JSON 时可携带 `actor` / `actor_a` / `actor_b` / `payload` 等字段；空列表为真实空态（非 mock）。
 
+> 列表请求前会幂等同步业务派生项：待处理交换请求、待确认引荐、待跟进连接（`feed-derived-*`）。
+
 ---
 
 ### GET /api/events/{eventId}/community/posts

@@ -18,6 +18,7 @@ import {
   ReferralStatus,
   SignalType,
   StampRallyStatus,
+  SnSessionStatus,
   BoothStatus,
   UserAccountStatus,
 } from "@prisma/client";
@@ -386,6 +387,135 @@ async function ensurePeerAvatarsAndIntents(eventId: string) {
       },
     });
   }
+}
+
+async function ensurePublicEventPresentation(eventId: string, orgId: string | null) {
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      description:
+        "ConnectIQ 创新中心主办的 B2B 产业展会，覆盖智能制造、企业服务与 MarTech 三大展区。现场含主论坛、SN 速配、集章互动与 AI 商务引荐。",
+      location: "上海 · 国家会展中心（虹桥）",
+    },
+  });
+
+  if (orgId) {
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        logoUrl:
+          "https://api.dicebear.com/7.x/shapes/svg?seed=connectiq-org",
+        coverUrl:
+          "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=600&fit=crop",
+        isVerified: true,
+      },
+    });
+  }
+
+  const agendaSpecs = [
+    {
+      id: `${PREFIX}-agenda-opening`,
+      title: "开幕主论坛 · 智链未来",
+      room: "主舞台 A 区",
+      hour: 9,
+      minute: 30,
+      durationMin: 90,
+    },
+    {
+      id: `${PREFIX}-agenda-martech`,
+      title: "MarTech 创新圆桌",
+      room: "B2B 洽谈区",
+      hour: 11,
+      minute: 0,
+      durationMin: 60,
+    },
+    {
+      id: `${PREFIX}-agenda-sn`,
+      title: "Speed Networking 速配专场",
+      room: "SN 专区 C 区",
+      hour: 14,
+      minute: 0,
+      durationMin: 120,
+    },
+    {
+      id: `${PREFIX}-agenda-closing`,
+      title: "闭幕抽奖与展商答谢",
+      room: "主舞台 A 区",
+      hour: 16,
+      minute: 30,
+      durationMin: 45,
+    },
+  ] as const;
+
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+
+  for (const spec of agendaSpecs) {
+    const start = new Date(base);
+    start.setHours(spec.hour, spec.minute, 0, 0);
+    const end = new Date(start.getTime() + spec.durationMin * 60_000);
+    await prisma.session.upsert({
+      where: { id: spec.id },
+      update: {
+        title: spec.title,
+        room: spec.room,
+        startTime: start,
+        endTime: end,
+      },
+      create: {
+        id: spec.id,
+        eventId,
+        title: spec.title,
+        room: spec.room,
+        startTime: start,
+        endTime: end,
+      },
+    });
+  }
+}
+
+async function ensureTest1377SnSession(
+  eventId: string,
+  participantId: string,
+  counterpartyParticipantId: string,
+) {
+  const sessionId = `${PREFIX}-sn-session`;
+  const startedAt = new Date(Date.now() - 8 * 60_000);
+
+  await prisma.snSession.upsert({
+    where: { id: sessionId },
+    update: {
+      status: SnSessionStatus.IN_PROGRESS,
+      roundCount: 3,
+      startedAt,
+      eventId,
+    },
+    create: {
+      id: sessionId,
+      eventId,
+      status: SnSessionStatus.IN_PROGRESS,
+      roundCount: 3,
+      startedAt,
+    },
+  });
+
+  await prisma.snPair.upsert({
+    where: { id: `${PREFIX}-sn-pair-1` },
+    update: {
+      sessionId,
+      participantAId: participantId,
+      participantBId: counterpartyParticipantId,
+      round: 1,
+    },
+    create: {
+      id: `${PREFIX}-sn-pair-1`,
+      sessionId,
+      participantAId: participantId,
+      participantBId: counterpartyParticipantId,
+      round: 1,
+      connectionEstablished: false,
+    },
+  });
 }
 
 async function ensureSchemaCompat() {
@@ -804,6 +934,13 @@ export async function seedMobileTestAttendeeDimensions(
 
   const dimensions: string[] = [];
 
+  const eventOrg = await prisma.event.findUnique({
+    where: { id: event.id },
+    select: { orgId: true },
+  });
+  await ensurePublicEventPresentation(event.id, eventOrg?.orgId ?? null);
+  dimensions.push("公开详情(描述/封面/议程)");
+
   await prisma.eventSetting.upsert({
     where: { eventId_key: { eventId: event.id, key: "join_code" } },
     create: { eventId: event.id, key: "join_code", value: { code: MOBILE_TEST_JOIN_CODE } },
@@ -837,6 +974,20 @@ export async function seedMobileTestAttendeeDimensions(
   }
 
   const participantId = `seed-part-mobile-test-${MOBILE_TEST_PRIMARY_EVENT_SLUG.replace(/-/g, "_")}`;
+
+  const counterpartyParticipant = await prisma.participant.findFirst({
+    where: { eventId: event.id, id: { startsWith: "seed-part-smart-expo" } },
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+  if (counterpartyParticipant) {
+    await ensureTest1377SnSession(
+      event.id,
+      participantId,
+      counterpartyParticipant.id,
+    );
+    dimensions.push("SN 速配(进行中·1 轮)");
+  }
 
   if (organizerId) {
     const interactionLabels = await ensureMobileTestInteractions(

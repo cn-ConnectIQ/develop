@@ -1,4 +1,5 @@
 import { FeedItemType as DbFeedItemType, AiFeedbackType, prisma } from "@connectiq/database";
+import { syncDerivedFeedItems } from "@/lib/feed-sync-service";
 
 export type ApiFeedItemType =
   | "AI_REFERRAL"
@@ -131,6 +132,12 @@ export async function listFeedItems(
   userId: string,
   options: { page: number; limit: number; cursor?: string | null },
 ) {
+  try {
+    await syncDerivedFeedItems(userId);
+  } catch (error) {
+    console.warn("[feed] derived sync skipped:", error);
+  }
+
   const { page, limit, cursor } = options;
   const take = Math.min(Math.max(limit, 1), 50);
   const skip = cursor ? 1 : (Math.max(page, 1) - 1) * take;

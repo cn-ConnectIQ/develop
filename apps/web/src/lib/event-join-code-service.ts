@@ -181,6 +181,29 @@ async function loadEventPublicExtras(eventId: string) {
   return { attendee_count, agenda_summary };
 }
 
+async function toPublicEvent(
+  event: {
+    id: string;
+    name: string;
+    type: EventType;
+    activityType: string;
+    status: EventStatus;
+    location: string | null;
+    startDate: Date | null;
+    endDate: Date | null;
+    description?: string | null;
+    org: {
+      name: string;
+      logoUrl: string | null;
+      coverUrl?: string | null;
+      isVerified?: boolean;
+    } | null;
+  },
+): Promise<ApiMobileEventByCode> {
+  const extras = await loadEventPublicExtras(event.id);
+  return mapEventRow(event, extras);
+}
+
 async function loadEventBySlug(slug: string): Promise<ApiMobileEventByCode | null> {
   const event = await prisma.event.findUnique({
     where: { slug },
@@ -190,7 +213,7 @@ async function loadEventBySlug(slug: string): Promise<ApiMobileEventByCode | nul
   if (event.status === EventStatus.DRAFT || event.status === EventStatus.ARCHIVED) {
     return null;
   }
-  return mapEventRow(event);
+  return toPublicEvent(event);
 }
 
 export async function findEventByJoinCode(code: string): Promise<ApiMobileEventByCode | null> {
@@ -214,7 +237,7 @@ export async function findEventByJoinCode(code: string): Promise<ApiMobileEventB
       include: eventInclude,
     });
     if (event && event.status !== EventStatus.DRAFT && event.status !== EventStatus.ARCHIVED) {
-      return mapEventRow(event);
+      return toPublicEvent(event);
     }
   }
 
@@ -231,7 +254,7 @@ export async function findEventByJoinCode(code: string): Promise<ApiMobileEventB
       include: eventInclude,
     });
     const fuzzy = events.find((e) => e.slug.replace(/-/g, "").toUpperCase().startsWith(normalized.slice(0, 8)));
-    if (fuzzy) return mapEventRow(fuzzy);
+    if (fuzzy) return toPublicEvent(fuzzy);
   }
 
   return null;

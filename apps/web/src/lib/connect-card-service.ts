@@ -227,6 +227,68 @@ export async function fetchConnectCard(
   targetUserId: string,
   eventId?: string,
 ): Promise<ApiConnectCard> {
+  try {
+    return await fetchConnectCardCore(viewerId, targetUserId, eventId);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.warn("[connect-card] degraded to basic card:", error);
+    return fetchConnectCardBasic(viewerId, targetUserId, eventId);
+  }
+}
+
+async function fetchConnectCardBasic(
+  viewerId: string,
+  targetUserId: string,
+  eventId?: string,
+): Promise<ApiConnectCard> {
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    include: {
+      profile: { select: CONNECT_CARD_PROFILE_SELECT },
+      contactCard: true,
+    },
+  });
+  if (!target) {
+    throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const cardRow = target.contactCard;
+  const sharedIntents: SharedIntentItem[] = [];
+  const aiBrief = buildAiBrief({
+    name: target.name,
+    company: target.profile?.company ?? undefined,
+    title: target.profile?.valueProposition ?? undefined,
+    headline: cardRow?.headline ?? undefined,
+    valueProposition: target.profile?.valueProposition ?? undefined,
+    sharedIntents,
+  });
+
+  return {
+    user: {
+      id: target.id,
+      name: target.name,
+      company: target.profile?.company ?? undefined,
+      title: target.profile?.valueProposition ?? undefined,
+      headline: cardRow?.headline ?? undefined,
+    },
+    aiBrief,
+    aiMatchScore: null,
+    matchReason: null,
+    brief: aiBrief,
+    matchScore: null,
+    sharedIntents,
+    connectionStatus: "NONE",
+    canExchange: cardRow?.allowExchange !== false,
+    hasWechatQr: Boolean(cardRow?.wechatQrUrl),
+    autoAcceptAtEvent: cardRow?.autoAcceptAtEvent === true,
+  };
+}
+
+async function fetchConnectCardCore(
+  viewerId: string,
+  targetUserId: string,
+  eventId?: string,
+): Promise<ApiConnectCard> {
   if (viewerId === targetUserId) {
     throw new ApiError("不能连接自己", ErrorCode.VALIDATION_ERROR, 400);
   }
@@ -271,7 +333,16 @@ export async function fetchConnectCard(
         auto_accept_at_event: cardRow.autoAcceptAtEvent,
         headline: cardRow.headline,
       }
-    : await getOrCreateContactCard(targetUserId);
+    : await getOrCreateContactCard(targetUserId).catch(() => ({
+        wechat_qr_url: null as string | null,
+        wechat_id: null as string | null,
+        show_phone: false,
+        show_email: false,
+        email: null as string | null,
+        allow_exchange: true,
+        auto_accept_at_event: false,
+        headline: null as string | null,
+      }));
 
   const sharedIntents = buildSharedIntents(viewerIntents, targetIntents);
   const aiMatch = await lookupAiMatchResult(viewerId, targetUserId, eventId).catch(
