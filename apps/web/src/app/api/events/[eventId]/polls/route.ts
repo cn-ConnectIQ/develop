@@ -30,12 +30,14 @@ export const GET = withErrorHandler(async (request, context) => {
   await assertAttendeeReadableEvent(eventId);
 
   const typeFilter = new URL(request.url).searchParams.get("type");
+  const statusFilter = new URL(request.url).searchParams.get("status");
 
   const [polls, sessions] = await Promise.all([
     prisma.poll.findMany({
       where: {
         eventId,
         ...(typeFilter ? { type: typeFilter as PollType } : {}),
+        ...(statusFilter ? { status: statusFilter as PollStatus } : {}),
       },
       orderBy: [
         { status: "asc" },

@@ -14,6 +14,7 @@ const createSchema = z.object({
   guest_user_id: z.string().cuid(),
   starts_at: z.string().datetime(),
   ends_at: z.string().datetime(),
+  message: z.string().max(500).optional(),
 });
 
 export const POST = withErrorHandler(async (request) => {
@@ -38,6 +39,7 @@ export const POST = withErrorHandler(async (request) => {
     recipientId: parsed.data.guest_user_id,
     startsAt: new Date(parsed.data.starts_at),
     endsAt: new Date(parsed.data.ends_at),
+    message: parsed.data.message,
   });
 
   return createSuccessResponse({

@@ -133,18 +133,30 @@ export async function upvoteEventMobileQnaQuestion(
   const text = target.textAnswer.trim();
   const participant = await ensureParticipantForUser(eventId, userId);
 
-  await prisma.pollResponse.create({
-    data: {
+  const alreadyUpvoted = await prisma.pollResponse.findFirst({
+    where: {
       pollId: poll.id,
-      participantId: participant?.id ?? null,
-      textAnswer: text,
+      participantId: participant?.id ?? undefined,
+      textAnswer: { equals: text, mode: "insensitive" },
+      NOT: { id: responseId },
     },
+    select: { id: true },
   });
 
-  recordSignal(userId, eventId, SignalType.QNA_UPVOTED, target.id, "QNA", {
-    question_text: text,
-    poll_id: poll.id,
-  });
+  if (!alreadyUpvoted) {
+    await prisma.pollResponse.create({
+      data: {
+        pollId: poll.id,
+        participantId: participant?.id ?? null,
+        textAnswer: text,
+      },
+    });
+
+    recordSignal(userId, eventId, SignalType.QNA_UPVOTED, target.id, "QNA", {
+      question_text: text,
+      poll_id: poll.id,
+    });
+  }
 
   const rows = await prisma.pollResponse.findMany({
     where: { pollId: poll.id, textAnswer: { equals: text, mode: "insensitive" } },

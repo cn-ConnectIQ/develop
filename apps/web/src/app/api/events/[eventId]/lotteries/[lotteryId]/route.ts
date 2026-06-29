@@ -8,6 +8,7 @@ import {
 } from "@/lib/api-auth";
 import {
   assertStatusTransition,
+  getLotteryMobileDetail,
   getLotteryOrThrow,
   listLotteryWinners,
   requireLotteryManageAccess,
@@ -16,8 +17,9 @@ import { pushLotteryToAttendees } from "@/lib/interaction-push-service";
 import { patchLotterySchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
+import { resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
 
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const lotteryId = context?.params?.lotteryId;
   if (!eventId || !lotteryId) {
@@ -26,13 +28,13 @@ export const GET = withErrorHandler(async (_request, context) => {
 
   await assertAttendeeReadableEvent(eventId);
 
-  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+  const userId = await resolveOptionalMobileUserId(request);
+  const mobile = await getLotteryMobileDetail(eventId, lotteryId, userId);
   const winners = await listLotteryWinners(eventId, lotteryId);
 
   return createSuccessResponse({
-    ...lottery,
+    ...mobile,
     winners,
-    entryCount: lottery.entryCount,
   });
 });
 

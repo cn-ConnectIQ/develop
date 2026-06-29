@@ -35,6 +35,7 @@ export async function updateMeetingStatus(
   userId: string,
   meetingId: string,
   status: MeetingStatus,
+  options?: { reason?: string },
 ) {
   const meeting = await getMeetingForUser(meetingId, userId);
 
@@ -48,11 +49,21 @@ export async function updateMeetingStatus(
     throw new ApiError("当前状态不可变更", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  if (status === MeetingStatus.DECLINED && meeting.recipientId !== userId) {
+    throw new ApiError("仅接收方可拒绝会面", ErrorCode.FORBIDDEN, 403);
+  }
+  if (status === MeetingStatus.ACCEPTED && meeting.recipientId !== userId) {
+    throw new ApiError("仅接收方可接受会面", ErrorCode.FORBIDDEN, 403);
+  }
+
   const updated = await prisma.meeting.update({
     where: { id: meetingId },
     data: {
       status,
       respondedAt: new Date(),
+      ...(options?.reason?.trim() && status === MeetingStatus.DECLINED
+        ? { message: options.reason.trim() }
+        : {}),
     },
   });
 
@@ -141,6 +152,28 @@ export async function submitMeetingRating(
   };
 }
 
+async function cancelActiveMeetingsForPair(
+  eventId: string,
+  userA: string,
+  userB: string,
+) {
+  await prisma.meeting.updateMany({
+    where: {
+      eventId,
+      status: { in: [MeetingStatus.PENDING, MeetingStatus.ACCEPTED] },
+      OR: [
+        { requesterId: userA, recipientId: userB },
+        { requesterId: userB, recipientId: userA },
+      ],
+    },
+    data: {
+      status: MeetingStatus.CANCELLED,
+      message: "已重新预约",
+      respondedAt: new Date(),
+    },
+  });
+}
+
 export async function bookMeeting(input: {
   eventId: string;
   requesterId: string;
@@ -159,31 +192,27 @@ export async function bookMeeting(input: {
     throw new ApiError("结束时间须晚于开始时间", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  await cancelActiveMeetingsForPair(
+    input.eventId,
+    input.requesterId,
+    input.recipientId,
+  );
+
   const meeting = await prisma.meeting.create({
     data: {
       eventId: input.eventId,
       requesterId: input.requesterId,
       recipientId: input.recipientId,
-      status: MeetingStatus.ACCEPTED,
+      status: MeetingStatus.PENDING,
       scheduledStart: input.startsAt,
       scheduledEnd: input.endsAt,
       message: input.message,
       fromAiMatch: input.fromAiMatch ?? false,
       aiMatchScore: input.aiMatchScore,
-      respondedAt: new Date(),
     },
   });
 
-  await tryAutoScheduleMeeting(meeting.id);
-  const scheduled = await prisma.meeting.findUnique({ where: { id: meeting.id } });
-  const finalMeeting = scheduled ?? meeting;
-
-  const startIso = finalMeeting.scheduledStart?.toISOString() ?? input.startsAt.toISOString();
-  for (const uid of [input.requesterId, input.recipientId]) {
-    recordSignal(uid, input.eventId, SignalType.MEETING_BOOKED, meeting.id, "MEETING", {
-      starts_at: startIso,
-    });
-  }
+  const finalMeeting = meeting;
 
   const [requester, event] = await Promise.all([
     prisma.user.findUnique({
@@ -196,6 +225,13 @@ export async function bookMeeting(input: {
     }),
   ]);
   if (requester && event) {
+    await prisma.notification.create({
+      data: {
+        userId: input.recipientId,
+        title: "新的会面邀请",
+        body: `${requester.name} 邀请你在 ${event.name} 期间会面`,
+      },
+    });
     const { sendMeetingInviteSubscribe } = await import("@/lib/wechat/subscribe-message");
     void sendMeetingInviteSubscribe({
       toUserId: input.recipientId,
@@ -217,11 +253,55 @@ export async function bookMeeting(input: {
   return finalMeeting;
 }
 
+export async function rescheduleMeeting(
+  userId: string,
+  meetingId: string,
+  startsAt: Date,
+  endsAt: Date,
+) {
+  if (endsAt <= startsAt) {
+    throw new ApiError("结束时间须晚于开始时间", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const meeting = await getMeetingForUser(meetingId, userId);
+  if (
+    meeting.status !== MeetingStatus.PENDING &&
+    meeting.status !== MeetingStatus.ACCEPTED
+  ) {
+    throw new ApiError("当前状态不可改期", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  return prisma.meeting.update({
+    where: { id: meetingId },
+    data: {
+      scheduledStart: startsAt,
+      scheduledEnd: endsAt,
+    },
+  });
+}
+
+export async function markMeetingNoShow(userId: string, meetingId: string) {
+  const meeting = await getMeetingForUser(meetingId, userId);
+  if (meeting.status !== MeetingStatus.ACCEPTED) {
+    throw new ApiError("当前状态不可标记未出现", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  return prisma.meeting.update({
+    where: { id: meetingId },
+    data: {
+      status: MeetingStatus.NO_SHOW,
+      message: meeting.message ?? "对方未出现",
+      respondedAt: new Date(),
+    },
+  });
+}
+
 export async function cancelMeeting(
   userId: string,
   meetingId: string,
   reason: string,
   notifyOther: boolean,
+  options?: { noShow?: boolean },
 ) {
   const meeting = await getMeetingForUser(meetingId, userId);
 
@@ -240,7 +320,7 @@ export async function cancelMeeting(
   const updated = await prisma.meeting.update({
     where: { id: meetingId },
     data: {
-      status: MeetingStatus.CANCELLED,
+      status: options?.noShow ? MeetingStatus.NO_SHOW : MeetingStatus.CANCELLED,
       message: reason,
       respondedAt: new Date(),
     },

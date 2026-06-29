@@ -4,7 +4,7 @@ import {
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { listLotteryWinners } from "@/lib/interaction/lottery-service";
+import { listLotteryWinnersMobile } from "@/lib/interaction/lottery-service";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 export const GET = withErrorHandler(async (_request, context) => {
@@ -15,7 +15,7 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
 
   await assertAttendeeReadableEvent(eventId);
-  const winners = await listLotteryWinners(eventId, lotteryId);
+  const payload = await listLotteryWinnersMobile(eventId, lotteryId);
 
-  return createSuccessResponse(winners, { total: winners.length });
+  return createSuccessResponse(payload);
 });

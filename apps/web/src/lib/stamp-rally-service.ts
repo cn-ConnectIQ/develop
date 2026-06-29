@@ -456,6 +456,38 @@ export async function getStampPassportForEvent(
   };
 }
 
+/** 小程序兑奖：标记 reward_claimed */
+export async function claimStampPassportReward(
+  eventId: string,
+  userId: string,
+): Promise<ApiStampPassport> {
+  const rally = await findActiveStampRallyForEvent(eventId);
+  if (!rally) {
+    throw new ApiError("暂无进行中的集章活动", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const progress = await getMyStampProgress(eventId, rally.id, userId);
+  if (!progress.completed) {
+    throw new ApiError("尚未集齐所需章数", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const winner = await prisma.stampRallyWinner.findUnique({
+    where: { rallyId_userId: { rallyId: rally.id, userId } },
+  });
+  if (!winner) {
+    throw new ApiError("完成记录不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  if (!winner.redeemed) {
+    await prisma.stampRallyWinner.update({
+      where: { id: winner.id },
+      data: { redeemed: true },
+    });
+  }
+
+  return getStampPassportForEvent(eventId, userId);
+}
+
 /** 按展位打卡（自动匹配 ACTIVE 集章路线，供 /booths/{boothId}/stamp） */
 export async function stampAtEventBooth(
   eventId: string,

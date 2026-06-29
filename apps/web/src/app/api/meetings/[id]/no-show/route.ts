@@ -4,9 +4,10 @@ import {
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { cancelMeeting } from "@/lib/meetings-service";
+import { markMeetingNoShow } from "@/lib/meetings-service";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 
+/** M5 · 标记对方未出现 */
 export const POST = withErrorHandler(async (request, context) => {
   const id = context?.params?.id;
   if (!id) {
@@ -14,27 +15,10 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const userId = await resolveMobileUserId(request);
-  const body = (await request.json()) as {
-    reason?: string;
-    notify_other?: boolean;
-    no_show?: boolean;
-  };
-
-  if (!body.reason?.trim()) {
-    return createErrorResponse("请选择取消原因", ErrorCode.VALIDATION_ERROR, 400);
-  }
-
-  const meeting = await cancelMeeting(
-    userId,
-    id,
-    body.reason.trim(),
-    body.notify_other !== false,
-    { noShow: body.no_show === true },
-  );
+  const meeting = await markMeetingNoShow(userId, id);
 
   return createSuccessResponse({
     id: meeting.id,
     status: meeting.status,
-    cancel_reason: meeting.message,
   });
 });

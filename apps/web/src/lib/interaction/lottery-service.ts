@@ -230,6 +230,231 @@ export async function enterLottery(
   }
 }
 
+/** 小程序报名响应：异步开奖不返回即时中奖 */
+export async function buildEnterLotteryMobileResponse(
+  eventId: string,
+  lotteryId: string,
+  userId: string,
+) {
+  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+
+  let hasEntered = false;
+  try {
+    await enterLottery(eventId, lotteryId, userId);
+    hasEntered = true;
+  } catch (err) {
+    if (err instanceof ApiError && err.message === "您已参与过该抽奖") {
+      hasEntered = true;
+    } else {
+      throw err;
+    }
+  }
+
+  const winner = await prisma.lotteryWinner.findFirst({
+    where: { lotteryId, userId },
+    orderBy: { drawnAt: "desc" },
+  });
+
+  const prizes = Array.isArray(lottery.prizes)
+    ? (lottery.prizes as LotteryPrizeConfig[])
+    : [];
+  const topPrize = prizes.sort((a, b) => a.rank - b.rank)[0];
+
+  const pendingDraw =
+    !winner &&
+    (lottery.status === LotteryStatus.OPEN ||
+      lottery.status === LotteryStatus.DRAWING);
+
+  return {
+    has_entered: hasEntered,
+    pending_draw: pendingDraw,
+    won: Boolean(winner),
+    prize_name: winner?.prizeName ?? topPrize?.prize ?? topPrize?.name ?? null,
+    participant_count: lottery.entryCount,
+    status: lottery.status,
+  };
+}
+
+export async function getLotteryMobileDetail(
+  eventId: string,
+  lotteryId: string,
+  userId?: string | null,
+) {
+  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+  const prizes = Array.isArray(lottery.prizes)
+    ? (lottery.prizes as LotteryPrizeConfig[])
+    : [];
+  const topPrize = prizes.sort((a, b) => a.rank - b.rank)[0];
+
+  let hasEntered = false;
+  let won = false;
+  let prizeName: string | null = topPrize?.prize ?? topPrize?.name ?? null;
+
+  if (userId) {
+    const entry = await prisma.lotteryEntry.findUnique({
+      where: { lotteryId_userId: { lotteryId, userId } },
+    });
+    hasEntered = Boolean(entry);
+
+    const winner = await prisma.lotteryWinner.findFirst({
+      where: { lotteryId, userId },
+      orderBy: { drawnAt: "desc" },
+    });
+    if (winner) {
+      won = true;
+      prizeName = winner.prizeName;
+    }
+  }
+
+  return {
+    id: lottery.id,
+    title: lottery.title,
+    status: lottery.status,
+    has_entered: hasEntered,
+    won,
+    prize_name: prizeName,
+    participant_count: lottery.entryCount,
+    description: lottery.description,
+    drawn_at: lottery.drawnAt?.toISOString() ?? null,
+  };
+}
+
+export async function listLotteryWinnersMobile(
+  eventId: string,
+  lotteryId: string,
+) {
+  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+  const winners = await listLotteryWinners(eventId, lotteryId);
+
+  const drawn =
+    lottery.status === LotteryStatus.FINISHED ||
+    lottery.drawnAt != null ||
+    winners.length > 0;
+
+  return {
+    drawn,
+    winners: winners.map((w) => ({
+      user_id: w.userId,
+      prize_tier: w.prizeRank,
+      prize_name: w.prizeName,
+    })),
+  };
+}
+
+/** 展位即时抽奖（小程序 POST /api/booths/:boothId/lottery） */
+export async function drawBoothInstantLottery(boothId: string, userId: string) {
+  const booth = await prisma.exhibitorBooth.findUnique({
+    where: { id: boothId },
+    select: { id: true, name: true, code: true, eventId: true },
+  });
+  if (!booth) {
+    throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const lottery = await prisma.lottery.findFirst({
+    where: {
+      boothId,
+      eventId: booth.eventId,
+      status: LotteryStatus.OPEN,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!lottery) {
+    throw new ApiError("该展位暂无进行中的抽奖", ErrorCode.NOT_FOUND, 404);
+  }
+
+  const existingWinner = await prisma.lotteryWinner.findFirst({
+    where: { lotteryId: lottery.id, userId },
+  });
+  if (existingWinner) {
+    return {
+      won: true,
+      prize_tier: existingWinner.prizeRank,
+      prize_name: existingWinner.prizeName,
+      pickup_note: `请至 ${booth.name}（${booth.code}）服务台领取奖品`,
+    };
+  }
+
+  try {
+    await enterLottery(booth.eventId, lottery.id, userId);
+  } catch (err) {
+    if (!(err instanceof ApiError && err.message === "您已参与过该抽奖")) {
+      throw err;
+    }
+  }
+
+  const prizes = Array.isArray(lottery.prizes)
+    ? (lottery.prizes as LotteryPrizeConfig[])
+    : [];
+  if (prizes.length === 0) {
+    return {
+      won: false,
+      prize_tier: null,
+      prize_name: null,
+      pickup_note: "感谢参与，欢迎继续关注展位活动",
+    };
+  }
+
+  const winnerCounts = await prisma.lotteryWinner.groupBy({
+    by: ["prizeRank"],
+    where: { lotteryId: lottery.id },
+    _count: { id: true },
+  });
+  const countMap = new Map(winnerCounts.map((r) => [r.prizeRank, r._count.id]));
+
+  const available = prizes.filter(
+    (p) => (countMap.get(p.rank) ?? 0) < (p.count ?? 1),
+  );
+  if (available.length === 0) {
+    return {
+      won: false,
+      prize_tier: null,
+      prize_name: null,
+      pickup_note: "奖品已发完，感谢参与",
+    };
+  }
+
+  const winChance = Math.min(0.35, 0.1 + available.length * 0.05);
+  if (Math.random() > winChance) {
+    return {
+      won: false,
+      prize_tier: null,
+      prize_name: null,
+      pickup_note: "感谢参与，欢迎继续关注展位活动",
+    };
+  }
+
+  const totalWeight = available.reduce(
+    (sum, p) => sum + ((p.count ?? 1) - (countMap.get(p.rank) ?? 0)),
+    0,
+  );
+  let roll = Math.random() * totalWeight;
+  let picked = available[0]!;
+  for (const prize of available) {
+    roll -= (prize.count ?? 1) - (countMap.get(prize.rank) ?? 0);
+    if (roll <= 0) {
+      picked = prize;
+      break;
+    }
+  }
+
+  const prizeName = picked.prize ?? picked.name;
+  await prisma.lotteryWinner.create({
+    data: {
+      lotteryId: lottery.id,
+      userId,
+      prizeRank: picked.rank,
+      prizeName,
+    },
+  });
+
+  return {
+    won: true,
+    prize_tier: picked.rank,
+    prize_name: prizeName,
+    pickup_note: `请至 ${booth.name}（${booth.code}）服务台领取奖品`,
+  };
+}
 
 export async function drawLotteryWinners(
   eventId: string,

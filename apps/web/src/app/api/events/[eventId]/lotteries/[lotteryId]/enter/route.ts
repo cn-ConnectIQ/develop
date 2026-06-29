@@ -5,7 +5,10 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
-import { enterLottery, getLotteryOrThrow } from "@/lib/interaction/lottery-service";
+import {
+  buildEnterLotteryMobileResponse,
+  getLotteryOrThrow,
+} from "@/lib/interaction/lottery-service";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 
 export const POST = withErrorHandler(async (request, context) => {
@@ -20,7 +23,7 @@ export const POST = withErrorHandler(async (request, context) => {
   if (disabled) return disabled;
   await getLotteryOrThrow(eventId, lotteryId);
 
-  const entry = await enterLottery(eventId, lotteryId, userId);
+  const result = await buildEnterLotteryMobileResponse(eventId, lotteryId, userId);
 
-  return createSuccessResponse(entry);
+  return createSuccessResponse(result);
 });
