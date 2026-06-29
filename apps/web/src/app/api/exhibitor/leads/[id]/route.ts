@@ -15,13 +15,13 @@ const patchSchema = z.object({
   intent_grade: z.enum(["A", "B", "C"]),
 });
 
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const leadId = context?.params?.id;
   if (!leadId) {
     return createErrorResponse("缺少线索 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { booth } = await requireExhibitorAdmin();
+  const { booth } = await requireExhibitorAdmin(request);
   const detail = await getExhibitorLeadDetail(booth.id, booth.eventId, leadId);
 
   if (!detail) {
@@ -37,7 +37,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少线索 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { booth } = await requireExhibitorAdmin();
+  const { booth } = await requireExhibitorAdmin(request);
   const body = await request.json().catch(() => ({}));
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {

@@ -6,8 +6,8 @@ import {
 import { getExhibitorDashboardStats } from "@/lib/exhibitor/dashboard-service";
 import { requireExhibitorAdmin } from "@/lib/exhibitor/exhibitor-auth";
 
-export const GET = withErrorHandler(async () => {
-  const { booth } = await requireExhibitorAdmin();
+export const GET = withErrorHandler(async (request) => {
+  const { booth } = await requireExhibitorAdmin(request);
   const stats = await getExhibitorDashboardStats(booth.id, booth.eventId);
   const qrDataUrl = await QRCode.toDataURL(booth.scanUrl, {
     width: 200,

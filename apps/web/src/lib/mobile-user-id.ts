@@ -3,7 +3,7 @@ import {
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
-import { ApiError, requireAccountAdmin, requireAuth } from "@/lib/api-auth";
+import { ApiError, requireAccountAdmin, requireAuth, requireEventAccessCheck } from "@/lib/api-auth";
 import { isOrgAdminUsable } from "@/lib/org-access";
 
 export type MobileAuthResult = { userId: string };
@@ -123,4 +123,33 @@ export async function requireMobileAccountAdmin(
   }
 
   return { userId, orgId: org.id };
+}
+
+/** 移动端活动管理鉴权（session 或 mini_ token + ACCOUNT_ADMIN + 活动归属组织） */
+export async function requireMobileEventAccess(
+  request: Request,
+  eventId: string,
+): Promise<MobileAccountAdminResult> {
+  const sessionResult = await requireEventAccessCheck(eventId);
+  if (!("error" in sessionResult)) {
+    const orgId = sessionResult.orgId ?? sessionResult.event.orgId;
+    if (!orgId) {
+      throw new ApiError("活动未关联组织", ErrorCode.FORBIDDEN, 403);
+    }
+    return {
+      userId: sessionResult.session.user.id,
+      orgId,
+    };
+  }
+
+  const { userId, orgId } = await requireMobileAccountAdmin(request);
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, orgId },
+    select: { id: true },
+  });
+  if (!event) {
+    throw new ApiError("你没有权限访问此活动", ErrorCode.FORBIDDEN, 403);
+  }
+
+  return { userId, orgId };
 }

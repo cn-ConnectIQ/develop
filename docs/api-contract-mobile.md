@@ -425,7 +425,7 @@ Query：`role=introducer|recipient`，`limit`
 
 用途：**AD2/AD3/AD4 实时概览**（Realtime 降级轮询，建议 15s）
 
-鉴权：requireAccountAdmin（管理者 session 或 mobile token + ACCOUNT_ADMIN）
+鉴权：requireMobileAccountAdmin（Web session 或 mobile token + `ACCOUNT_ADMIN`；参会者 `END_USER` → 403）
 
 响应 `data`：
 
@@ -1122,7 +1122,7 @@ Query：`with_user`（可选）
 
 用途：**账号管理中心概览**
 
-鉴权：requireAccountAdmin
+鉴权：requireMobileAccountAdmin（Web session 或 mobile token + `ACCOUNT_ADMIN`；参会者 `END_USER` → 403）
 
 响应 `data`：
 
@@ -1142,7 +1142,7 @@ Query：`with_user`（可选）
 
 用途：**AD2/AD3/AD4 活动管理面板概览**
 
-鉴权：requireAccountAdmin（session 或 mobile token + ACCOUNT_ADMIN）
+鉴权：requireMobileAccountAdmin（Web session 或 mobile token + `ACCOUNT_ADMIN`；参会者 `END_USER` → 403）
 
 响应 `data`（按 `kind` 区分）：
 
@@ -1158,7 +1158,7 @@ Query：`with_user`（可选）
 
 用途：**账号下活动列表**
 
-鉴权：requireAccountAdmin
+鉴权：requireMobileAccountAdmin（Web session 或 mobile token + `ACCOUNT_ADMIN`；参会者 `END_USER` → 403）
 
 响应 `data`：数组
 
@@ -1172,9 +1172,25 @@ Query：`with_user`（可选）
 
 ---
 
+### GET /api/events/{eventId}/reports/summary
+
+用途：**O6 连接报告**
+
+鉴权：requireMobileEventAccess（Web session 或 mobile token + `ACCOUNT_ADMIN` + 活动归属；参会者 → 403）
+
+---
+
+### GET/PATCH /api/events/{eventId}/booths/{boothId}/form-config
+
+用途：**H 采集表单配置**
+
+鉴权：requireMobileEventAccess（同上）
+
+---
+
 ## 展商管理（EM）
 
-> 当前鉴权为 **requireExhibitorAdmin**（Web Session）。小程序展商模式若使用 mobile token，需后续统一 `resolveMobileAccountAdmin` 展商身份。
+> 鉴权：**requireExhibitorAdmin**（Web session 或 mobile token + `ACCOUNT_ADMIN` + 关联展位；参会者 → 403）
 
 ### GET /api/exhibitor/dashboard-stats
 

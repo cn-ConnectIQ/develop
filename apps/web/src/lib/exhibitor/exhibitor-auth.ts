@@ -2,6 +2,7 @@ import { prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import type { Session } from "next-auth";
 import { ApiError, requireAccountAdmin } from "@/lib/api-auth";
+import { requireMobileAccountAdmin } from "@/lib/mobile-user-id";
 
 export type ExhibitorBoothContext = {
   id: string;
@@ -46,24 +47,33 @@ export async function resolveExhibitorBooth(
   };
 }
 
-export async function requireExhibitorAdmin(): Promise<{
-  session: Session;
+export async function requireExhibitorAdmin(request?: Request): Promise<{
+  session?: Session;
+  userId?: string;
   orgId: string;
   booth: ExhibitorBoothContext;
 }> {
-  const result = await requireAccountAdmin();
-  if ("error" in result) {
+  const sessionResult = await requireAccountAdmin();
+  if (!("error" in sessionResult)) {
+    const { session, orgId } = sessionResult;
+    const booth = await resolveExhibitorBooth(orgId);
+    if (!booth) {
+      throw new ApiError("未找到关联展位", ErrorCode.FORBIDDEN, 403);
+    }
+    return { session, orgId, booth };
+  }
+
+  if (!request) {
     throw new ApiError("无权访问", ErrorCode.FORBIDDEN, 403);
   }
 
-  const { session, orgId } = result;
-
+  const { userId, orgId } = await requireMobileAccountAdmin(request);
   const booth = await resolveExhibitorBooth(orgId);
   if (!booth) {
-    throw new ApiError("未找到关联展位", ErrorCode.NOT_FOUND, 404);
+    throw new ApiError("未找到关联展位", ErrorCode.FORBIDDEN, 403);
   }
 
-  return { session, orgId, booth };
+  return { userId, orgId, booth };
 }
 
 export async function resolveExhibitorOperatorUserId(

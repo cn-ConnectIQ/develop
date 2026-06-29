@@ -8,8 +8,8 @@ import {
   resolveExhibitorOperatorUserId,
 } from "@/lib/exhibitor/exhibitor-auth";
 
-export const GET = withErrorHandler(async () => {
-  const { booth } = await requireExhibitorAdmin();
+export const GET = withErrorHandler(async (request) => {
+  const { booth } = await requireExhibitorAdmin(request);
   const exhibitorUserId = await resolveExhibitorOperatorUserId(booth.id);
   const buyers = await listRecommendedBuyers(
     booth.id,

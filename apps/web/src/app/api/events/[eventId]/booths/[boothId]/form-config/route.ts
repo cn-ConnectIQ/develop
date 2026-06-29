@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
@@ -15,6 +14,7 @@ import {
 } from "@/lib/external-sync";
 import { normalizeLeadFormConfig } from "@/lib/form-config";
 import { withLegacyExhibitor } from "@/lib/exhibitor-booth-utils";
+import { requireMobileEventAccess } from "@/lib/mobile-user-id";
 import type { MarketupSyncConfig } from "@/types/booth";
 
 const formConfigSchema = z.object({
@@ -23,14 +23,14 @@ const formConfigSchema = z.object({
   saveAsTemplate: z.boolean().optional(),
 });
 
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const boothId = context?.params?.boothId;
   if (!eventId || !boothId) {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireMobileEventAccess(request, eventId);
 
   const [booth, booths, externalSync, templateSetting] = await Promise.all([
     prisma.exhibitorBooth.findFirst({
@@ -86,7 +86,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireMobileEventAccess(request, eventId);
   const body = await request.json();
   const parsed = formConfigSchema.safeParse(body);
   if (!parsed.success) {
