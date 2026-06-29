@@ -681,6 +681,8 @@ async function main() {
     update: {
       status: EventStatus.LIVE,
       reviewStatus: ReviewStatus.LIVE,
+      startDate: daysAgo(1),
+      endDate: daysFromNow(2),
       orgId: unifiedOrg.id,
     },
     create: {

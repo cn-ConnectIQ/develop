@@ -24,6 +24,8 @@ import {
   StampRallyStatus,
   SnSessionStatus,
   BoothStatus,
+  EventStatus,
+  ReviewStatus,
   UserAccountStatus,
   UserRole,
   UserType,
@@ -169,6 +171,53 @@ const SEED_MTG_TABLE = "seed-mtg-table-hosted-a-01";
 
 function daysAgo(days: number, hours = 10) {
   return new Date(Date.now() - days * 86_400_000 - hours * 3_600_000);
+}
+
+function daysFromNow(days: number, hours = 18) {
+  return new Date(Date.now() + days * 86_400_000 + hours * 3_600_000);
+}
+
+/** TEST1377 活动保持「进行中」：LIVE 状态 + 日期覆盖当前 */
+async function ensureMobileTestEventLive() {
+  const startDate = daysAgo(1);
+  const endDate = daysFromNow(2);
+  const data = {
+    status: EventStatus.LIVE,
+    reviewStatus: ReviewStatus.LIVE,
+    startDate,
+    endDate,
+  };
+
+  const updated: string[] = [];
+
+  try {
+    const byId = await prisma.event.update({
+      where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+      data,
+      select: { id: true, name: true },
+    });
+    updated.push(`${byId.name} (${byId.id})`);
+  } catch {
+    // 生产 ID 不存在时跳过
+  }
+
+  try {
+    const bySlug = await prisma.event.findUnique({
+      where: { slug: MOBILE_TEST_PRIMARY_EVENT_SLUG },
+      select: { id: true, name: true },
+    });
+    if (bySlug && bySlug.id !== MOBILE_TEST_PRODUCTION_EVENT_ID) {
+      await prisma.event.update({
+        where: { id: bySlug.id },
+        data,
+      });
+      updated.push(`${bySlug.name} (${bySlug.id})`);
+    }
+  } catch {
+    // slug 不存在时跳过
+  }
+
+  return updated;
 }
 
 function slotToday(hour: number, minute: number, durationMinutes = 20) {
@@ -1134,6 +1183,11 @@ export async function seedMobileTestAttendeeDimensions(
   const event = await resolveMobileTestEvent();
 
   const dimensions: string[] = [];
+
+  const liveLabels = await ensureMobileTestEventLive();
+  if (liveLabels.length > 0) {
+    dimensions.push(`活动进行中(${liveLabels.join("; ")})`);
+  }
 
   const adminRoleLabels = await ensureMobileTestAdminRoles(user.id, event.id);
   dimensions.push(...adminRoleLabels);
