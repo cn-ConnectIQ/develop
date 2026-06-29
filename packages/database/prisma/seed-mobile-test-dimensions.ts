@@ -3,15 +3,19 @@
  * 活动码 TEST1377 → 智链未来产业博览会 2026
  */
 import {
+  AccountType,
+  AdminStatus,
   ConnectionSource,
   ConnectionStatus,
   ExchangeStatus,
   FeedItemType,
   InteractionOwnerType,
+  InviteStatus,
   LotteryEntrySource,
   LotteryStatus,
   LotteryType,
   MeetingStatus,
+  OrgStaffRole,
   PointsReason,
   PollStatus,
   PollType,
@@ -21,6 +25,8 @@ import {
   SnSessionStatus,
   BoothStatus,
   UserAccountStatus,
+  UserRole,
+  UserType,
 } from "@prisma/client";
 import { prisma } from "../src/client";
 import { SEED_INT } from "./seed-interactions";
@@ -37,6 +43,9 @@ export const MOBILE_TEST_PRIMARY_EVENT_SLUG = "smart-link-industry-expo-2026";
 export const MOBILE_TEST_PRODUCTION_EVENT_ID = "cmqurkwkt001rzcpbzojv2mi4";
 
 const PREFIX = "seed-m1377";
+const MOBILE_TEST_EXHIBITOR_ORG_SLUG = "mobile-test-qian-exhibitor";
+const MOBILE_TEST_BOOTH_ID = `${PREFIX}-booth-qian-test`;
+const MOBILE_TEST_BOOTH_CODE = "T1377-Q";
 
 const SEED_INT_HOSTED = {
   lotteryRandom: SEED_INT.hostedExpo.lotteryRandom,
@@ -309,6 +318,152 @@ async function ensureExtraExpoBooths(eventId: string) {
     created.push(booth);
   }
   return created;
+}
+
+/** 13770626459 升级为主办方 + 展商双角色（保留参会者数据） */
+async function ensureMobileTestAdminRoles(
+  userId: string,
+  eventId: string,
+): Promise<string[]> {
+  const labels: string[] = [];
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, orgId: true, organizerId: true },
+  });
+  if (!event?.orgId) {
+    return labels;
+  }
+
+  await prisma.organization.update({
+    where: { id: event.orgId },
+    data: {
+      adminStatus: AdminStatus.APPROVED,
+      isVerified: true,
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      userType: UserType.ACCOUNT_ADMIN,
+      orgId: event.orgId,
+    },
+  });
+
+  await prisma.orgStaff.upsert({
+    where: { orgId_userId: { orgId: event.orgId, userId } },
+    update: {
+      role: OrgStaffRole.OWNER,
+      status: InviteStatus.ACCEPTED,
+      acceptedAt: new Date(),
+    },
+    create: {
+      orgId: event.orgId,
+      userId,
+      role: OrgStaffRole.OWNER,
+      status: InviteStatus.ACCEPTED,
+      acceptedAt: new Date(),
+    },
+  });
+
+  for (const role of [
+    UserRole.ORGANIZER,
+    UserRole.EXPO_ORGANIZER,
+    UserRole.EXHIBITOR,
+  ]) {
+    const existing = await prisma.userRoleAssignment.findFirst({
+      where: { userId, role, entityId: null },
+    });
+    if (!existing) {
+      await prisma.userRoleAssignment.create({ data: { userId, role } });
+    }
+  }
+
+  labels.push("主办方(活动组织)");
+
+  const exhibitorOrg = await prisma.organization.upsert({
+    where: { slug: MOBILE_TEST_EXHIBITOR_ORG_SLUG },
+    update: {
+      name: "钱测试参展部",
+      accountType: AccountType.EXHIBITOR,
+      adminStatus: AdminStatus.APPROVED,
+      isVerified: true,
+    },
+    create: {
+      name: "钱测试参展部",
+      slug: MOBILE_TEST_EXHIBITOR_ORG_SLUG,
+      accountType: AccountType.EXHIBITOR,
+      adminStatus: AdminStatus.APPROVED,
+      isVerified: true,
+      bio: "TEST1377 联调专用展商组织",
+    },
+  });
+
+  await prisma.orgStaff.upsert({
+    where: { orgId_userId: { orgId: exhibitorOrg.id, userId } },
+    update: {
+      role: OrgStaffRole.OWNER,
+      status: InviteStatus.ACCEPTED,
+      acceptedAt: new Date(),
+    },
+    create: {
+      orgId: exhibitorOrg.id,
+      userId,
+      role: OrgStaffRole.OWNER,
+      status: InviteStatus.ACCEPTED,
+      acceptedAt: new Date(),
+    },
+  });
+
+  const boothTemplate = await prisma.exhibitorBooth.findFirst({
+    where: { eventId },
+    select: { hallId: true, hallLabel: true },
+  });
+
+  await prisma.exhibitorBooth.upsert({
+    where: { id: MOBILE_TEST_BOOTH_ID },
+    update: {
+      name: "钱测试联调展位",
+      code: MOBILE_TEST_BOOTH_CODE,
+      companyOrgId: exhibitorOrg.id,
+      operatorUserId: userId,
+      status: BoothStatus.OCCUPIED,
+    },
+    create: {
+      id: MOBILE_TEST_BOOTH_ID,
+      eventId,
+      code: MOBILE_TEST_BOOTH_CODE,
+      name: "钱测试联调展位",
+      hallId: boothTemplate?.hallId ?? undefined,
+      hallLabel: boothTemplate?.hallLabel ?? "1 号馆",
+      companyOrgId: exhibitorOrg.id,
+      operatorUserId: userId,
+      status: BoothStatus.OCCUPIED,
+      positionX: 48,
+      positionY: 14,
+    },
+  });
+
+  const exhibitorAssignment = await prisma.userRoleAssignment.findFirst({
+    where: {
+      userId,
+      role: UserRole.EXHIBITOR,
+      entityId: MOBILE_TEST_BOOTH_ID,
+    },
+  });
+  if (!exhibitorAssignment) {
+    await prisma.userRoleAssignment.create({
+      data: {
+        userId,
+        role: UserRole.EXHIBITOR,
+        entityId: MOBILE_TEST_BOOTH_ID,
+      },
+    });
+  }
+
+  labels.push(`展商(展位 ${MOBILE_TEST_BOOTH_CODE})`);
+  return labels;
 }
 
 async function ensureLivePollCountdown() {
@@ -979,6 +1134,9 @@ export async function seedMobileTestAttendeeDimensions(
   const event = await resolveMobileTestEvent();
 
   const dimensions: string[] = [];
+
+  const adminRoleLabels = await ensureMobileTestAdminRoles(user.id, event.id);
+  dimensions.push(...adminRoleLabels);
 
   const eventOrg = await prisma.event.findUnique({
     where: { id: event.id },

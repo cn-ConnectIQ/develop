@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import {
+  AccountType,
+  InviteStatus,
   RegistrationSource,
   UserAccountStatus,
   UserType as PrismaUserType,
@@ -28,6 +30,9 @@ export type MiniLoginUserPayload = {
   userType: "END_USER" | "ACCOUNT_ADMIN" | "PLATFORM_ADMIN";
   hasProfile: boolean;
   hasWechatQr: boolean;
+  /** 小程序身份切换：ORGANIZER / EXHIBITOR / ATTENDEE */
+  role?: "ORGANIZER" | "EXHIBITOR" | "ATTENDEE";
+  staff_role?: "BOOTH";
 };
 
 export type MiniWxLoginResult = {
@@ -200,6 +205,43 @@ async function createEndUserByPhone(phone: string): Promise<DbUser> {
   });
 }
 
+async function resolveMiniAppRoleFlags(
+  userId: string,
+  userType: PrismaUserType,
+  orgId: string | null,
+): Promise<Pick<MiniLoginUserPayload, "role" | "staff_role">> {
+  if (userType !== PrismaUserType.ACCOUNT_ADMIN) {
+    return { role: "ATTENDEE" };
+  }
+
+  const exhibitorAccess = await prisma.exhibitorBooth.findFirst({
+    where: {
+      OR: [
+        { operatorUserId: userId },
+        ...(orgId ? [{ companyOrgId: orgId }] : []),
+        {
+          companyOrg: {
+            accountType: AccountType.EXHIBITOR,
+            staff: {
+              some: {
+                userId,
+                status: InviteStatus.ACCEPTED,
+              },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (exhibitorAccess) {
+    return { role: "EXHIBITOR", staff_role: "BOOTH" };
+  }
+
+  return { role: "ORGANIZER" };
+}
+
 async function buildLoginUserPayload(userId: string): Promise<MiniLoginUserPayload> {
   const [user, contactCard, intent] = await Promise.all([
     prisma.user.findUnique({
@@ -240,6 +282,7 @@ async function buildLoginUserPayload(userId: string): Promise<MiniLoginUserPaylo
     userType: mapUserType(user.userType),
     hasProfile,
     hasWechatQr: Boolean(contactCard?.wechatQrUrl),
+    ...(await resolveMiniAppRoleFlags(user.id, user.userType, user.orgId)),
   };
 }
 
