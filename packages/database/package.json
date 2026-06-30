@@ -18,6 +18,7 @@
     "db:seed:mobile-test-dimensions": "tsx prisma/seed-mobile-test-dimensions.ts",
     "db:set-test1377-live": "tsx prisma/set-test1377-live.ts",
     "db:setup-test1377-stamp-lottery": "tsx prisma/setup-test1377-stamp-lottery.ts",
+    "db:setup-test1377-triple": "tsx prisma/setup-test1377-triple-interactions.ts",
     "db:seed:interactions": "tsx prisma/seed-interactions.ts",
     "db:seed:features": "tsx prisma/seed-event-features.ts",
     "db:studio": "prisma studio"

@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/api-auth";
 import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
 import { scoreIntentMatch } from "@/lib/mobile-intent-match";
 import { countUnreadNotifications } from "@/lib/mobile-notification-service";
+import { getStampPassportForEvent } from "@/lib/stamp-rally-service";
 import { loadLatestAvatarUrlMap } from "@/lib/user-me-service";
 
 export type ApiMobileHomeEvent = {
@@ -37,6 +38,12 @@ export type ApiMobileLiveInteraction = {
   isLive: boolean;
   countdownSeconds?: number | null;
   closesAt?: string | null;
+  /** 展示标签，如「有奖投票」 */
+  label?: string;
+  boothId?: string;
+  boothCode?: string;
+  stampCurrent?: number;
+  stampTotal?: number;
 };
 
 export type ApiMobileAnnouncement = {
@@ -61,9 +68,12 @@ export type ApiEventDashboardMobile = {
   event: ApiMobileHomeEvent;
   aiRecommendations: ApiMobileAiRecommendation[];
   liveInteraction: ApiMobileLiveInteraction | null;
+  liveInteractions: ApiMobileLiveInteraction[];
   activeLottery: ApiMobileLiveInteraction | null;
   announcements: ApiMobileAnnouncement[];
   stampRally: ApiMobileStampRally | null;
+  stampEnabled: boolean;
+  stampPassport: Awaited<ReturnType<typeof getStampPassportForEvent>> | null;
   unreadNotificationCount: number;
   org: ApiMobileHomeOrg | null;
 };
@@ -158,51 +168,105 @@ async function loadAiRecommendations(
   return scored.map(({ score: _score, ...row }) => row);
 }
 
-async function loadLiveInteraction(
+/** 主页同时展示：有奖投票 / 集章打卡 / 展位打卡抽奖 */
+async function loadLiveInteractions(
   eventId: string,
-): Promise<ApiMobileLiveInteraction | null> {
-  const [livePoll, liveLottery] = await Promise.all([
-    prisma.poll.findFirst({
+  userId: string | null,
+): Promise<ApiMobileLiveInteraction[]> {
+  const items: ApiMobileLiveInteraction[] = [];
+
+  const prizePoll = await prisma.poll.findFirst({
+    where: {
+      eventId,
+      status: PollStatus.LIVE,
+      type: { notIn: [PollType.ANNOUNCEMENT, PollType.QNA] },
+      OR: [
+        { title: { contains: "有奖", mode: "insensitive" } },
+        { title: { contains: "投票", mode: "insensitive" } },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, type: true, title: true, closesAt: true },
+  });
+
+  const fallbackPoll =
+    prizePoll ??
+    (await prisma.poll.findFirst({
       where: {
         eventId,
         status: PollStatus.LIVE,
-        type: { not: PollType.ANNOUNCEMENT },
+        type: { notIn: [PollType.ANNOUNCEMENT, PollType.QNA] },
       },
       orderBy: { updatedAt: "desc" },
       select: { id: true, type: true, title: true, closesAt: true },
-    }),
-    prisma.lottery.findFirst({
+    }));
+
+  if (fallbackPoll) {
+    items.push({
+      id: fallbackPoll.id,
+      type: fallbackPoll.type,
+      title: fallbackPoll.title,
+      isLive: true,
+      label: prizePoll ? "有奖投票" : "现场投票",
+      countdownSeconds: countdownSecondsFromClosesAt(fallbackPoll.closesAt),
+      closesAt: fallbackPoll.closesAt?.toISOString() ?? null,
+    });
+  }
+
+  const stampEnabled = await isEventFeatureEnabled(eventId, "stampRally");
+  if (stampEnabled) {
+    const rally = await prisma.stampRally.findFirst({
+      where: { eventId, status: StampRallyStatus.ACTIVE },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, requiredCount: true, prize: true },
+    });
+    if (rally) {
+      const current = userId
+        ? await prisma.stampRecord.count({
+            where: { rallyId: rally.id, userId },
+          })
+        : 0;
+      items.push({
+        id: rally.id,
+        type: "STAMP",
+        title: rally.name,
+        isLive: true,
+        label: "集章打卡",
+        stampCurrent: current,
+        stampTotal: rally.requiredCount,
+      });
+    }
+  }
+
+  const lotteryEnabled = await isEventFeatureEnabled(eventId, "lottery");
+  if (lotteryEnabled) {
+    const boothLottery = await prisma.lottery.findFirst({
       where: {
         eventId,
+        boothId: { not: null },
         status: { in: [LotteryStatus.OPEN, LotteryStatus.DRAWING] },
       },
       orderBy: { updatedAt: "desc" },
-      select: { id: true, title: true },
-    }),
-  ]);
-
-  if (livePoll) {
-    const countdownSeconds = countdownSecondsFromClosesAt(livePoll.closesAt);
-    return {
-      id: livePoll.id,
-      type: livePoll.type,
-      title: livePoll.title,
-      isLive: true,
-      countdownSeconds,
-      closesAt: livePoll.closesAt?.toISOString() ?? null,
-    };
+      select: {
+        id: true,
+        title: true,
+        booth: { select: { id: true, code: true, name: true } },
+      },
+    });
+    if (boothLottery?.booth) {
+      items.push({
+        id: boothLottery.id,
+        type: "LOTTERY",
+        title: boothLottery.title,
+        isLive: true,
+        label: "展位打卡抽奖",
+        boothId: boothLottery.booth.id,
+        boothCode: boothLottery.booth.code,
+      });
+    }
   }
 
-  if (liveLottery) {
-    return {
-      id: liveLottery.id,
-      type: "LOTTERY",
-      title: liveLottery.title,
-      isLive: true,
-    };
-  }
-
-  return null;
+  return items;
 }
 
 async function loadActiveLottery(
@@ -217,7 +281,7 @@ async function loadActiveLottery(
       status: { in: [LotteryStatus.OPEN, LotteryStatus.DRAWING] },
     },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true },
+    select: { id: true, title: true, boothId: true },
   });
 
   if (!lottery) return null;
@@ -227,6 +291,7 @@ async function loadActiveLottery(
     type: "LOTTERY",
     title: lottery.title,
     isLive: true,
+    label: lottery.boothId ? "展位打卡抽奖" : "现场抽奖",
   };
 }
 
@@ -299,15 +364,23 @@ export async function getEventDashboardMobile(
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const [aiRecommendations, liveInteraction, activeLottery, announcements, stampRally, unreadNotificationCount] =
+  const [aiRecommendations, liveInteractions, activeLottery, announcements, stampRally, stampPassport, unreadNotificationCount] =
     await Promise.all([
       loadAiRecommendations(eventId, userId),
-      loadLiveInteraction(eventId),
+      loadLiveInteractions(eventId, userId),
       loadActiveLottery(eventId),
       loadAnnouncements(eventId),
       loadStampRallySummary(eventId, userId),
+      userId && (await isEventFeatureEnabled(eventId, "stampRally"))
+        ? getStampPassportForEvent(eventId, userId).catch(() => null)
+        : Promise.resolve(null),
       userId ? countUnreadNotifications(userId) : Promise.resolve(0),
     ]);
+
+  const liveInteraction =
+    liveInteractions.find(
+      (i) => i.type !== "STAMP" && i.type !== "LOTTERY",
+    ) ?? liveInteractions[0] ?? null;
 
   return {
     event: {
@@ -318,10 +391,13 @@ export async function getEventDashboardMobile(
       dayLabel: computeDayLabel(event.startDate, event.endDate),
     },
     aiRecommendations,
-    liveInteraction,
+    liveInteraction: liveInteractions[0] ?? liveInteraction,
+    liveInteractions,
     activeLottery,
     announcements,
     stampRally,
+    stampEnabled: Boolean(stampRally ?? stampPassport),
+    stampPassport,
     unreadNotificationCount,
     org: event.org
       ? {
