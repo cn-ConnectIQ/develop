@@ -19,7 +19,7 @@ const createSchema = z.object({
   prize: z.string().min(1).max(500),
   prize_image_url: z.string().optional().nullable(),
   required_count: z.number().int().min(1),
-  booth_ids: z.array(z.string().cuid()).min(1),
+  booth_ids: z.array(z.string().min(1)).min(1),
   starts_at: z.string().datetime().optional().nullable(),
   ends_at: z.string().datetime().optional().nullable(),
   status: z.nativeEnum(StampRallyStatus).optional(),
