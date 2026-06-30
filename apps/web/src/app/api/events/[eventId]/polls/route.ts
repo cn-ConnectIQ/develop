@@ -56,7 +56,13 @@ export const GET = withErrorHandler(async (request, context) => {
     }),
   ]);
 
-  return createSuccessResponse({ polls, sessions }, { total: polls.length });
+  return createSuccessResponse({
+    polls: polls.map((poll) => ({
+      ...poll,
+      participant_count: poll._count.responses,
+    })),
+    sessions,
+  }, { total: polls.length });
 });
 
 export const POST = withErrorHandler(async (request, context) => {

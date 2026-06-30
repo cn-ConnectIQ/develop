@@ -404,13 +404,22 @@ export async function listRecommendedBuyers(
 
   return top.map((row) => {
     const user = userById.get(row.userId);
+    const grade = row.intentLevel;
+    const proximity_label =
+      grade === "A" ? "同馆高意向" : grade === "B" ? "展位周边" : "路过浏览";
     return {
+      id: row.userId,
       buyer_user_id: row.userId,
+      user_id: row.userId,
       name: user?.name ?? "访客",
       company: user?.profile?.company ?? null,
+      title: jobTitleByUser.get(row.userId) ?? null,
       job_title: jobTitleByUser.get(row.userId) ?? null,
-      intent_level: row.intentLevel,
+      intent_level: grade,
+      grade,
       recommend_reason: row.reason,
+      ai_reason: row.reason,
+      proximity_label,
       occurred_at: row.occurredAt.toISOString(),
       pending_contact: !connectedSet.has(row.userId),
     };

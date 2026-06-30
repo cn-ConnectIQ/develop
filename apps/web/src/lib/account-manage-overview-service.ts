@@ -86,12 +86,27 @@ export async function getEventManageOverview(orgId: string, eventId: string) {
       peak_insight:
         base.connections > 0
           ? `已建立 ${base.connections} 个连接，互动参与 ${base.interaction_participations} 人次`
-          : undefined,
+          : base.interaction_participations > 0
+            ? `现场互动参与 ${base.interaction_participations} 人次，可引导茶歇期连接`
+            : "签到进行中，建议在议程间隙推送现场投票提升互动",
     };
   }
 
   if (kind === "EXPO") {
-    const rankings = await getBoothRankings(eventId);
+    const [rankings, boothCount, pendingRows] = await Promise.all([
+      getBoothRankings(eventId),
+      prisma.exhibitorBooth.count({ where: { eventId } }),
+      prisma.exhibitorBooth.findMany({
+        where: { eventId, operatorUserId: null },
+        select: {
+          id: true,
+          code: true,
+          companyOrg: { select: { name: true } },
+        },
+        take: 10,
+      }),
+    ]);
+
     const booth_rankings = rankings.rankings.slice(0, 8).map((b, index) => ({
       booth_id: b.booth_id,
       booth_name: b.company_name,
@@ -105,22 +120,13 @@ export async function getEventManageOverview(orgId: string, eventId: string) {
             : undefined,
     }));
 
-    const pendingRows = await prisma.exhibitorBooth.findMany({
-      where: { eventId, operatorUserId: null },
-      select: {
-        id: true,
-        code: true,
-        companyOrg: { select: { name: true } },
-      },
-      take: 10,
-    });
-
     return {
       kind: "EXPO" as const,
       event_id: event.id,
       event_name: event.name,
       status,
       ...base,
+      booth_count: boothCount,
       booth_heat_total: booth_rankings.reduce((sum, b) => sum + b.heat, 0),
       booth_rankings,
       pending_exhibitors: pendingRows.map((row) => ({
