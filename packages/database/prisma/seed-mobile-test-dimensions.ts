@@ -75,13 +75,15 @@ const SEED_INT_HOSTED = {
 } as const;
 
 const TEST1377_LOTTERY_PRIZES = [
-  { rank: 1, name: "一等奖 · MacBook Air" },
-  { rank: 2, name: "二等奖 · iPad" },
-  { rank: 3, name: "三等奖 · ConnectIQ 周边礼盒" },
+  { rank: 1, name: "一等奖", prize: "MacBook Air", count: 1 },
+  { rank: 2, name: "二等奖", prize: "iPad", count: 2 },
+  { rank: 3, name: "三等奖", prize: "ConnectIQ 限定礼盒", count: 5 },
 ];
 
-const STAMP_RALLY_TARGET = 12;
-const STAMP_RALLY_STAMPED = 6;
+/** 集章任务：扫 3 个指定展位即可兑奖并衔接抽奖 */
+const STAMP_RALLY_BOOTH_CODES = ["A-101", "A-102", "T1377-Q"] as const;
+const STAMP_RALLY_TARGET = 3;
+const STAMP_RALLY_STAMPED = 0;
 
 const EXTRA_BOOTH_SPECS = [
   { code: "A-104", name: "智链工业软件", x: 50, y: 10 },
@@ -878,14 +880,25 @@ async function ensureStampRallyProgress(
   userId: string,
   creatorId: string,
 ) {
-  const allBooths = await prisma.exhibitorBooth.findMany({
-    where: { eventId },
+  let selectedBooths = await prisma.exhibitorBooth.findMany({
+    where: { eventId, code: { in: [...STAMP_RALLY_BOOTH_CODES] } },
     orderBy: { code: "asc" },
     select: { id: true, code: true },
   });
-  if (allBooths.length === 0) return;
 
-  const boothIds = allBooths.map((b) => b.id);
+  if (selectedBooths.length < STAMP_RALLY_TARGET) {
+    const fallback = await prisma.exhibitorBooth.findMany({
+      where: { eventId },
+      orderBy: { code: "asc" },
+      take: STAMP_RALLY_TARGET,
+      select: { id: true, code: true },
+    });
+    selectedBooths = fallback;
+  }
+
+  if (selectedBooths.length === 0) return;
+
+  const boothIds = selectedBooths.map((b) => b.id);
   const requiredCount = Math.min(STAMP_RALLY_TARGET, boothIds.length);
   const rallyId = stampRallyIdForEvent(eventId);
 
@@ -894,26 +907,32 @@ async function ensureStampRallyProgress(
     update: {
       status: StampRallyStatus.ACTIVE,
       eventId,
+      name: "TEST1377 逛展集章挑战",
+      description: "打卡指定展位集满印章，兑奖后自动获得现场抽奖资格",
       boothIds,
       totalBooths: boothIds.length,
       requiredCount,
-      prize: "ConnectIQ 限定礼盒 + 现场抽奖资格",
+      prize: "限定礼品 + 【TEST1377】现场幸运大抽奖资格",
+      startsAt: daysAgo(0, 0),
+      endsAt: daysFromNow(3),
     },
     create: {
       id: rallyId,
       eventId,
       createdById: creatorId,
-      name: "智链博览会集章之旅",
-      description: "逛遍精品展位，集满印章兑换好礼",
-      prize: "ConnectIQ 限定礼盒 + 现场抽奖资格",
+      name: "TEST1377 逛展集章挑战",
+      description: "打卡指定展位集满印章，兑奖后自动获得现场抽奖资格",
+      prize: "限定礼品 + 【TEST1377】现场幸运大抽奖资格",
       requiredCount,
       totalBooths: boothIds.length,
       boothIds,
       status: StampRallyStatus.ACTIVE,
+      startsAt: daysAgo(0, 0),
+      endsAt: daysFromNow(3),
     },
   });
 
-  const stampTargets = allBooths.slice(0, STAMP_RALLY_STAMPED);
+  const stampTargets = selectedBooths.slice(0, STAMP_RALLY_STAMPED);
   for (const booth of stampTargets) {
     await prisma.stampRecord.upsert({
       where: {
@@ -932,6 +951,22 @@ async function ensureStampRallyProgress(
       },
     });
   }
+}
+
+async function ensureStampRallyLotteryLink(eventId: string, lotteryId: string) {
+  await prisma.eventSetting.upsert({
+    where: {
+      eventId_key: { eventId, key: "stamp_rally_lottery_id" },
+    },
+    create: {
+      eventId,
+      key: "stamp_rally_lottery_id",
+      value: { lottery_id: lotteryId },
+    },
+    update: {
+      value: { lottery_id: lotteryId },
+    },
+  });
 }
 
 async function ensureTest1377LiveLottery(
@@ -1256,6 +1291,8 @@ export async function seedMobileTestAttendeeDimensions(
       organizerId,
     );
     dimensions.push(...interactionLabels);
+    await ensureStampRallyLotteryLink(event.id, SEED_INT_HOSTED.test1377Lottery);
+    dimensions.push("集章→抽奖衔接");
   }
 
   const booths = await prisma.exhibitorBooth.findMany({

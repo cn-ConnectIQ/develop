@@ -61,6 +61,7 @@ export type ApiEventDashboardMobile = {
   event: ApiMobileHomeEvent;
   aiRecommendations: ApiMobileAiRecommendation[];
   liveInteraction: ApiMobileLiveInteraction | null;
+  activeLottery: ApiMobileLiveInteraction | null;
   announcements: ApiMobileAnnouncement[];
   stampRally: ApiMobileStampRally | null;
   unreadNotificationCount: number;
@@ -204,6 +205,31 @@ async function loadLiveInteraction(
   return null;
 }
 
+async function loadActiveLottery(
+  eventId: string,
+): Promise<ApiMobileLiveInteraction | null> {
+  const enabled = await isEventFeatureEnabled(eventId, "lottery");
+  if (!enabled) return null;
+
+  const lottery = await prisma.lottery.findFirst({
+    where: {
+      eventId,
+      status: { in: [LotteryStatus.OPEN, LotteryStatus.DRAWING] },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true },
+  });
+
+  if (!lottery) return null;
+
+  return {
+    id: lottery.id,
+    type: "LOTTERY",
+    title: lottery.title,
+    isLive: true,
+  };
+}
+
 async function loadAnnouncements(eventId: string): Promise<ApiMobileAnnouncement[]> {
   const rows = await prisma.poll.findMany({
     where: {
@@ -273,10 +299,11 @@ export async function getEventDashboardMobile(
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const [aiRecommendations, liveInteraction, announcements, stampRally, unreadNotificationCount] =
+  const [aiRecommendations, liveInteraction, activeLottery, announcements, stampRally, unreadNotificationCount] =
     await Promise.all([
       loadAiRecommendations(eventId, userId),
       loadLiveInteraction(eventId),
+      loadActiveLottery(eventId),
       loadAnnouncements(eventId),
       loadStampRallySummary(eventId, userId),
       userId ? countUnreadNotifications(userId) : Promise.resolve(0),
@@ -292,6 +319,7 @@ export async function getEventDashboardMobile(
     },
     aiRecommendations,
     liveInteraction,
+    activeLottery,
     announcements,
     stampRally,
     unreadNotificationCount,

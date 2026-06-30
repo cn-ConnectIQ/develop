@@ -1,10 +1,82 @@
 import {
   FeedItemType,
+  LotteryStatus,
   StampRallyStatus,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+
+/** EventSetting：集章完成后衔接的抽奖 ID */
+export const STAMP_RALLY_LOTTERY_SETTING_KEY = "stamp_rally_lottery_id";
+
+export async function resolveStampRallyLinkedLotteryId(
+  eventId: string,
+): Promise<string | null> {
+  const row = await prisma.eventSetting.findUnique({
+    where: {
+      eventId_key: { eventId, key: STAMP_RALLY_LOTTERY_SETTING_KEY },
+    },
+  });
+  if (!row?.value) return null;
+
+  const value = row.value;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "object" && value !== null) {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.lottery_id === "string") return obj.lottery_id;
+    if (typeof obj.id === "string") return obj.id;
+  }
+  return null;
+}
+
+export async function grantStampRallyLotteryEntry(
+  eventId: string,
+  userId: string,
+): Promise<{
+  lottery_id: string;
+  lottery_entered: boolean;
+  pending_draw: boolean;
+  prize_name: string | null;
+} | null> {
+  const lotteryId = await resolveStampRallyLinkedLotteryId(eventId);
+  if (!lotteryId) return null;
+
+  const lottery = await prisma.lottery.findFirst({
+    where: {
+      id: lotteryId,
+      eventId,
+      status: { in: [LotteryStatus.OPEN, LotteryStatus.DRAWING, LotteryStatus.FINISHED] },
+    },
+    select: { id: true, title: true },
+  });
+  if (!lottery) return null;
+
+  const { buildEnterLotteryMobileResponse } = await import(
+    "@/lib/interaction/lottery-service"
+  );
+
+  try {
+    const entry = await buildEnterLotteryMobileResponse(
+      eventId,
+      lotteryId,
+      userId,
+    );
+    return {
+      lottery_id: lotteryId,
+      lottery_entered: entry.has_entered,
+      pending_draw: entry.pending_draw,
+      prize_name: entry.prize_name,
+    };
+  } catch {
+    return {
+      lottery_id: lotteryId,
+      lottery_entered: false,
+      pending_draw: true,
+      prize_name: null,
+    };
+  }
+}
 
 export type ApiStampRally = {
   id: string;
@@ -355,6 +427,10 @@ export async function stampBooth(
           }),
         },
       });
+
+      void grantStampRallyLotteryEntry(eventId, userId).catch(() => {
+        // 抽奖资格发放失败不影响集章
+      });
     }
 
     completed = true;
@@ -423,6 +499,9 @@ export type ApiStampPassport = {
   reward_description: string | null;
   reward_claimed: boolean;
   completed: boolean;
+  linked_lottery_id?: string | null;
+  lottery_entered?: boolean;
+  pending_draw?: boolean;
 };
 
 async function findActiveStampRallyForEvent(eventId: string) {
@@ -442,6 +521,17 @@ export async function getStampPassportForEvent(
   }
 
   const progress = await getMyStampProgress(eventId, rally.id, userId);
+  const linkedLotteryId = await resolveStampRallyLinkedLotteryId(eventId);
+
+  let lotteryEntered: boolean | undefined;
+  if (progress.completed && linkedLotteryId) {
+    const entry = await prisma.lotteryEntry.findUnique({
+      where: {
+        lotteryId_userId: { lotteryId: linkedLotteryId, userId },
+      },
+    });
+    lotteryEntered = Boolean(entry);
+  }
 
   return {
     event_id: eventId,
@@ -453,6 +543,10 @@ export async function getStampPassportForEvent(
     reward_description: rally.description,
     reward_claimed: progress.redeemed,
     completed: progress.completed,
+    linked_lottery_id: linkedLotteryId,
+    lottery_entered: lotteryEntered,
+    pending_draw:
+      progress.completed && linkedLotteryId ? !lotteryEntered : undefined,
   };
 }
 
@@ -485,7 +579,19 @@ export async function claimStampPassportReward(
     });
   }
 
-  return getStampPassportForEvent(eventId, userId);
+  const lotteryGrant = await grantStampRallyLotteryEntry(eventId, userId);
+  const passport = await getStampPassportForEvent(eventId, userId);
+
+  if (lotteryGrant) {
+    return {
+      ...passport,
+      linked_lottery_id: lotteryGrant.lottery_id,
+      lottery_entered: lotteryGrant.lottery_entered,
+      pending_draw: lotteryGrant.pending_draw,
+    };
+  }
+
+  return passport;
 }
 
 /** 按展位打卡（自动匹配 ACTIVE 集章路线，供 /booths/{boothId}/stamp） */
