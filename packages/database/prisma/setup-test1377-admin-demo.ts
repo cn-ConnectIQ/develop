@@ -4,6 +4,7 @@
  */
 import {
   BoothStatus,
+  ConnectionSource,
   ConnectionStatus,
   SignalType,
 } from "@prisma/client";
@@ -102,20 +103,20 @@ async function main() {
         },
       ],
     },
-    select: { id: true },
+    select: { id: true, name: true, profile: { select: { company: true } } },
     take: 6,
   });
 
   if (users.length >= 2) {
     for (let i = 0; i < users.length - 1; i += 1) {
-      const a = users[i]!.id;
-      const b = users[i + 1]!.id;
+      const userA = users[i]!;
+      const userB = users[i + 1]!;
       const existing = await prisma.businessConnection.findFirst({
         where: {
           eventId: EVENT_ID,
           OR: [
-            { userAId: a, userBId: b },
-            { userAId: b, userBId: a },
+            { userAId: userA.id, userBId: userB.id },
+            { userAId: userB.id, userBId: userA.id },
           ],
         },
       });
@@ -123,8 +124,14 @@ async function main() {
         await prisma.businessConnection.create({
           data: {
             eventId: EVENT_ID,
-            userAId: a,
-            userBId: b,
+            eventName: event.name,
+            userAId: userA.id,
+            userBId: userB.id,
+            userAName: userA.name,
+            userACompany: userA.profile?.company,
+            userBName: userB.name,
+            userBCompany: userB.profile?.company,
+            source: ConnectionSource.SCAN,
             status: ConnectionStatus.ACTIVE,
           },
         });
