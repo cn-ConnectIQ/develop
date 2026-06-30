@@ -19,6 +19,8 @@
     "db:set-test1377-live": "tsx prisma/set-test1377-live.ts",
     "db:setup-test1377-stamp-lottery": "tsx prisma/setup-test1377-stamp-lottery.ts",
     "db:setup-test1377-triple": "tsx prisma/setup-test1377-triple-interactions.ts",
+    "db:smoke-test1377": "tsx prisma/smoke-test1377-flows.ts",
+    "db:verify-test1377": "tsx prisma/verify-test1377-data.ts",
     "db:seed:interactions": "tsx prisma/seed-interactions.ts",
     "db:seed:features": "tsx prisma/seed-event-features.ts",
     "db:studio": "prisma studio"

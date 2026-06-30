@@ -12,6 +12,7 @@ import {
   resolveCompanyOrgId,
   withLegacyExhibitor,
 } from "@/lib/exhibitor-booth-utils";
+import { getPublicBoothDetail } from "@/lib/mobile-booth-service";
 
 const positionSchema = z.object({
   x: z.number().min(0).max(100),
@@ -28,6 +29,22 @@ const updateBoothSchema = z.object({
   status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
   positionData: positionSchema.nullable().optional(),
   leadFormConfig: z.record(z.unknown()).optional(),
+});
+
+/** 展位详情（参会者，无需登录） */
+export const GET = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  const boothId = context?.params?.boothId;
+  if (!eventId || !boothId) {
+    return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const data = await getPublicBoothDetail(boothId);
+  if (data.eventId !== eventId) {
+    return createErrorResponse("展位不属于该活动", ErrorCode.NOT_FOUND, 404);
+  }
+
+  return createSuccessResponse(data);
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {

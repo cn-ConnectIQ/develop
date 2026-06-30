@@ -494,6 +494,8 @@ export type ApiStampPassport = {
   rally_id: string;
   required_count: number;
   stamped_booth_ids: string[];
+  /** 集章路线全部展位（用于找展位页标记 stamp_enabled） */
+  rally_booth_ids: string[];
   stamped_count: number;
   reward_title: string;
   reward_description: string | null;
@@ -538,6 +540,7 @@ export async function getStampPassportForEvent(
     rally_id: rally.id,
     required_count: progress.total,
     stamped_booth_ids: progress.stamps.map((s) => s.booth_id),
+    rally_booth_ids: rally.boothIds,
     stamped_count: progress.count,
     reward_title: rally.prize,
     reward_description: rally.description,

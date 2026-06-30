@@ -47,9 +47,13 @@ export const GET = withErrorHandler(async (request, context) => {
 
   return createSuccessResponse({
     ...poll,
+    participant_count: poll._count.responses,
     hasVoted: voteState.hasVoted,
     myOptionId: voteState.myOptionId,
     myOptionIds: voteState.myOptionIds,
+    has_voted: voteState.hasVoted,
+    my_option_id: voteState.myOptionId,
+    my_option_ids: voteState.myOptionIds,
   });
 });
 

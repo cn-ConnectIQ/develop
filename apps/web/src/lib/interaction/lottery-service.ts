@@ -5,6 +5,7 @@ import {
   findParticipantForUser,
   hasUserCheckedIn,
   hasUserPollParticipation,
+  ensureParticipantForUser,
 } from "@/lib/interaction/participant-user";
 import type { LotteryPrizeConfig } from "@/lib/interaction/schemas";
 import {
@@ -310,6 +311,7 @@ export async function getLotteryMobileDetail(
     id: lottery.id,
     title: lottery.title,
     status: lottery.status,
+    booth_id: lottery.boothId ?? null,
     has_entered: hasEntered,
     won,
     prize_name: prizeName,
@@ -341,8 +343,50 @@ export async function listLotteryWinnersMobile(
   };
 }
 
+export type BoothLotteryLeadInput = {
+  name?: string;
+  phone?: string;
+  company?: string;
+  title?: string;
+};
+
+async function captureBoothLotteryLead(
+  eventId: string,
+  boothId: string,
+  userId: string,
+  lead?: BoothLotteryLeadInput,
+) {
+  if (!lead || (!lead.name && !lead.phone && !lead.company && !lead.title)) {
+    return;
+  }
+
+  const participant = await ensureParticipantForUser(eventId, userId);
+  if (!participant) return;
+
+  const notes = JSON.stringify({ source: "booth_lottery", ...lead });
+  const existing = await prisma.lead.findFirst({
+    where: { boothId, participantId: participant.id },
+  });
+  if (!existing) {
+    await prisma.lead.create({
+      data: { boothId, participantId: participant.id, notes },
+    });
+    return;
+  }
+  if (existing.notes !== notes) {
+    await prisma.lead.update({
+      where: { id: existing.id },
+      data: { notes },
+    });
+  }
+}
+
 /** 展位即时抽奖（小程序 POST /api/booths/:boothId/lottery） */
-export async function drawBoothInstantLottery(boothId: string, userId: string) {
+export async function drawBoothInstantLottery(
+  boothId: string,
+  userId: string,
+  lead?: BoothLotteryLeadInput,
+) {
   const booth = await prisma.exhibitorBooth.findUnique({
     where: { id: boothId },
     select: { id: true, name: true, code: true, eventId: true },
@@ -363,11 +407,14 @@ export async function drawBoothInstantLottery(boothId: string, userId: string) {
     throw new ApiError("该展位暂无进行中的抽奖", ErrorCode.NOT_FOUND, 404);
   }
 
+  await captureBoothLotteryLead(booth.eventId, boothId, userId, lead);
+
   const existingWinner = await prisma.lotteryWinner.findFirst({
     where: { lotteryId: lottery.id, userId },
   });
   if (existingWinner) {
     return {
+      lottery_id: lottery.id,
       won: true,
       prize_tier: existingWinner.prizeRank,
       prize_name: existingWinner.prizeName,
@@ -388,6 +435,7 @@ export async function drawBoothInstantLottery(boothId: string, userId: string) {
     : [];
   if (prizes.length === 0) {
     return {
+      lottery_id: lottery.id,
       won: false,
       prize_tier: null,
       prize_name: null,
@@ -407,6 +455,7 @@ export async function drawBoothInstantLottery(boothId: string, userId: string) {
   );
   if (available.length === 0) {
     return {
+      lottery_id: lottery.id,
       won: false,
       prize_tier: null,
       prize_name: null,
@@ -417,6 +466,7 @@ export async function drawBoothInstantLottery(boothId: string, userId: string) {
   const winChance = Math.min(0.35, 0.1 + available.length * 0.05);
   if (Math.random() > winChance) {
     return {
+      lottery_id: lottery.id,
       won: false,
       prize_tier: null,
       prize_name: null,
@@ -449,6 +499,7 @@ export async function drawBoothInstantLottery(boothId: string, userId: string) {
   });
 
   return {
+    lottery_id: lottery.id,
     won: true,
     prize_tier: picked.rank,
     prize_name: prizeName,

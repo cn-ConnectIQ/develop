@@ -204,7 +204,7 @@ async function loadLiveInteractions(
   if (fallbackPoll) {
     items.push({
       id: fallbackPoll.id,
-      type: fallbackPoll.type,
+      type: "POLL",
       title: fallbackPoll.title,
       isLive: true,
       label: prizePoll ? "有奖投票" : "现场投票",
