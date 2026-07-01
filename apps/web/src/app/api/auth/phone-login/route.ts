@@ -14,6 +14,8 @@ const bodySchema = z.object({
     .regex(/^1[3-9]\d{9}$/, "请输入有效的中国大陆手机号"),
   code: z.string().min(4).max(8),
   eventId: z.string().optional(),
+  /** 同次 wx.login 的 code，用于绑定 openid（建议必传，便于下次静默登录） */
+  wxCode: z.string().min(1).optional(),
 });
 
 /** 小程序短信验证码登录 */
@@ -34,6 +36,7 @@ export const POST = withErrorHandler(async (request) => {
       parsed.data.phone,
       parsed.data.code,
       parsed.data.eventId,
+      parsed.data.wxCode,
     );
     return createSuccessResponse(result);
   } catch (err) {

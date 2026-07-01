@@ -38,6 +38,10 @@ export type MiniLoginUserPayload = {
 export type MiniWxLoginResult = {
   token: string;
   user: MiniLoginUserPayload;
+  /** 是否已绑定微信 openid（存于 user_identities.wechat_mini） */
+  openid_bound: boolean;
+  /** 是否已绑定手机号 */
+  has_phone: boolean;
 };
 
 const userSelect = {
@@ -133,7 +137,15 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
   return phone;
 }
 
-async function ensureWechatIdentity(userId: string, openid: string) {
+async function bindWechatOpenIdToUser(userId: string, openid: string) {
+  const existingByOpenId = await prisma.userIdentity.findFirst({
+    where: { provider: "wechat_mini", value: openid },
+    select: { id: true, userId: true },
+  });
+  if (existingByOpenId && existingByOpenId.userId !== userId) {
+    await prisma.userIdentity.delete({ where: { id: existingByOpenId.id } });
+  }
+
   await prisma.userIdentity.upsert({
     where: {
       userId_provider: { userId, provider: "wechat_mini" },
@@ -149,6 +161,11 @@ async function ensureWechatIdentity(userId: string, openid: string) {
       verified: true,
     },
   });
+}
+
+/** @deprecated 内部请用 bindWechatOpenIdToUser */
+async function ensureWechatIdentity(userId: string, openid: string) {
+  await bindWechatOpenIdToUser(userId, openid);
 }
 
 async function findOrCreateUserByOpenId(openid: string): Promise<DbUser> {
@@ -298,21 +315,44 @@ async function linkUserToEvent(userId: string, eventId?: string) {
   await ensureParticipantForUser(eventId, userId);
 }
 
+async function buildMiniLoginResult(userId: string): Promise<MiniWxLoginResult> {
+  const [user, identity, dbPhone] = await Promise.all([
+    buildLoginUserPayload(userId),
+    prisma.userIdentity.findUnique({
+      where: { userId_provider: { userId, provider: "wechat_mini" } },
+      select: { value: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    }),
+  ]);
+  await getOrCreateContactCard(userId);
+
+  return {
+    token: issueMiniAuthToken(userId),
+    user,
+    openid_bound: Boolean(identity?.value),
+    has_phone: Boolean(dbPhone?.phone),
+  };
+}
+
+/**
+ * 小程序微信 code 静默登录（回访）
+ * - 后端用 code 换 openid，不接收客户端明文 openid
+ * - 若 openid 已绑定用户（通常已授权过手机号）→ 直接发 token
+ * - 若无绑定 → 创建 SHADOW 用户并绑定 openid（待后续手机号授权合并）
+ */
 export async function miniWxLogin(
   code: string,
   eventId?: string,
 ): Promise<MiniWxLoginResult> {
   const { openid } = await exchangeWxCode(code);
   const user = await findOrCreateUserByOpenId(openid);
+  await bindWechatOpenIdToUser(user.id, openid);
   await linkUserToEvent(user.id, eventId);
 
-  // 确保名片占位存在，便于后续 hasWechatQr 判断
-  await getOrCreateContactCard(user.id);
-
-  return {
-    token: issueMiniAuthToken(user.id),
-    user: await buildLoginUserPayload(user.id),
-  };
+  return buildMiniLoginResult(user.id);
 }
 
 async function verifyMiniSmsCode(phone: string, code: string) {
@@ -336,6 +376,7 @@ export async function miniPhoneLogin(
   phone: string,
   code: string,
   eventId?: string,
+  wxCode?: string,
 ): Promise<MiniWxLoginResult> {
   await verifyMiniSmsCode(phone, code);
 
@@ -344,15 +385,23 @@ export async function miniPhoneLogin(
     user = await createEndUserByPhone(phone);
   }
 
-  await linkUserToEvent(user.id, eventId);
-  await getOrCreateContactCard(user.id);
+  if (wxCode) {
+    const { openid } = await exchangeWxCode(wxCode);
+    await bindWechatOpenIdToUser(user.id, openid);
+  }
 
-  return {
-    token: issueMiniAuthToken(user.id),
-    user: await buildLoginUserPayload(user.id),
-  };
+  await linkUserToEvent(user.id, eventId);
+
+  return buildMiniLoginResult(user.id);
 }
 
+/**
+ * 小程序微信手机号授权登录（主注册路径）
+ * - wxCode → openid；phoneCode → 手机号
+ * - 创建/查找 User（不要求活动参会资格）
+ * - 绑定 openid 到该 User，供下次 wx-login 静默登录
+ * - eventId 可选，仅用于顺带创建 Participant
+ */
 export async function miniWxLoginWithPhone(
   wxCode: string,
   phoneCode: string,
@@ -368,14 +417,10 @@ export async function miniWxLoginWithPhone(
     user = await createEndUserByPhone(phone);
   }
 
-  await ensureWechatIdentity(user.id, openid);
+  await bindWechatOpenIdToUser(user.id, openid);
   await linkUserToEvent(user.id, eventId);
-  await getOrCreateContactCard(user.id);
 
-  return {
-    token: issueMiniAuthToken(user.id),
-    user: await buildLoginUserPayload(user.id),
-  };
+  return buildMiniLoginResult(user.id);
 }
 
 /** @deprecated 使用 MiniLoginUserPayload */

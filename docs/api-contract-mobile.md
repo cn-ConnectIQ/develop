@@ -64,9 +64,18 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 
 ## 认证
 
+> **账号与 openid 逻辑（2026-06）**
+>
+> 1. 小程序 **不传明文 openid**，只传 `wx.login()` 的临时 `code` / `wxCode`，由后端调微信 `jscode2session` 换取 openid。
+> 2. **首次授权手机号**（`wx-login-phone` 或带 `wxCode` 的 `phone-login`）：
+>    - 按手机号 **创建或查找 User**（不要求活动参会资格、不校验门票）
+>    - 将 openid 写入 `user_identities`（`provider = wechat_mini`）
+>    - `eventId` 可选，仅顺带创建 Participant，**不影响账号落库**
+> 3. **再次打开小程序**：`Taro.login()` → `POST /api/auth/wx-login` → 按 openid 找到已绑定用户 → 直接发 token，**无需重复授权手机号**（需 `openid_bound` + `has_phone` 均为 true）。
+
 ### POST /api/auth/wx-login
 
-用途：**登录页 / 冷启动** — 微信 `wx.login` code 换 token + 稳定 user.id
+用途：**冷启动 / 回访静默登录** — 微信 `wx.login` code 换 token；openid 已绑定且已有手机号时免重复授权
 
 鉴权：无
 
@@ -75,13 +84,15 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `code` | string | 是 | `wx.login` 返回的 code |
-| `eventId` | string | 否 | 传入则自动关联 Participant |
+| `eventId` | string | 否 | 传入则自动关联 Participant（可选，不影响登录） |
 
 响应 `data`：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `token` | string | `mini_{userId}_{uuid}` |
+| `openid_bound` | boolean | 是否已绑定微信 openid |
+| `has_phone` | boolean | 是否已绑定手机号 |
 | `user.id` | string | **稳定用户 ID**，全站鉴权主键 |
 | `user.name` | string | |
 | `user.avatar` | string \| null | |
@@ -97,7 +108,7 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 
 ### POST /api/auth/wx-login-phone
 
-用途：**登录页** — 微信登录 + 手机号授权（绑定 phone）
+用途：**登录页主路径** — 微信手机号组件授权后，**创建 User + 绑定 openid**（与活动资格无关）
 
 鉴权：无
 
@@ -105,13 +116,30 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 
 | 字段 | 类型 | 必填 |
 |------|------|------|
-| `wxCode` | string | 是 |
+| `wxCode` | string | 是 | 同次 `wx.login` 的 code |
 | `phoneCode` | string | 是 | 微信手机号组件 code |
+| `eventId` | string | 否 | 可选，仅顺带关联 Participant |
+
+响应：同 `wx-login`（含 `openid_bound`、`has_phone`）
+
+---
+
+### POST /api/auth/phone-login
+
+用途：**短信验证码登录**（联调 / 备用）；建议同时传 `wxCode` 以绑定 openid
+
+鉴权：无
+
+请求：
+
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `phone` | string | 是 |
+| `code` | string | 是 | 短信验证码 |
+| `wxCode` | string | 否 | **强烈建议**：同次 `wx.login` 的 code，用于绑定 openid |
 | `eventId` | string | 否 |
 
 响应：同 `wx-login`
-
-鉴权：mobile token
 
 ---
 
