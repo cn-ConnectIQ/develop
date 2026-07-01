@@ -1,4 +1,4 @@
-import { PollStatus, type Poll, type PollOption } from "@connectiq/database";
+import { PollStatus, PollType } from "@connectiq/database";
 
 /** 进行中投票：LIVE；OPEN/ACTIVE 为小程序侧别名 */
 export const RUNNING_POLL_STATUSES: PollStatus[] = [
@@ -6,8 +6,26 @@ export const RUNNING_POLL_STATUSES: PollStatus[] = [
   PollStatus.PAUSED,
 ];
 
-type PollWithMeta = Poll & {
-  options?: PollOption[];
+type PollOptionRow = {
+  id: string;
+  text: string;
+  displayOrder?: number;
+  pollId?: string;
+};
+
+type PollWithMeta = {
+  id: string;
+  eventId: string;
+  title: string;
+  type: PollType;
+  status: PollStatus;
+  showResults: boolean;
+  closesAt: Date | null;
+  scheduledAt: Date | null;
+  displayOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+  options?: PollOptionRow[];
   _count?: { responses: number };
 };
 
