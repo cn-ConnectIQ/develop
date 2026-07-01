@@ -10,6 +10,10 @@ import {
 } from "@prisma/client";
 import { prisma } from "../src/client";
 import { MOBILE_TEST_PRODUCTION_EVENT_ID } from "./seed-mobile-test-dimensions";
+import {
+  ensureExhibitorOperator,
+  PENDING_BOOTH_OPERATORS,
+} from "./setup-test1377-booth-staff";
 
 const PREFIX = "seed-m1377-admin";
 const EVENT_ID = MOBILE_TEST_PRODUCTION_EVENT_ID;
@@ -44,26 +48,37 @@ async function main() {
       },
     });
 
+    const boothId = `${PREFIX}-booth-${row.code.replace(/[^a-z0-9]/gi, "")}`;
     await prisma.exhibitorBooth.upsert({
-      where: { id: `${PREFIX}-booth-${row.code.replace(/[^a-z0-9]/gi, "")}` },
+      where: { id: boothId },
       update: {
         name: row.name,
         code: row.code,
         companyOrgId: org.id,
-        operatorUserId: null,
         status: BoothStatus.BOOKED,
       },
       create: {
-        id: `${PREFIX}-booth-${row.code.replace(/[^a-z0-9]/gi, "")}`,
+        id: boothId,
         eventId: EVENT_ID,
         code: row.code,
         name: row.name,
         hallLabel: "2 号馆",
         companyOrgId: org.id,
-        operatorUserId: null,
         status: BoothStatus.BOOKED,
       },
     });
+
+    const operatorSpec = PENDING_BOOTH_OPERATORS.find((s) => s.code === row.code);
+    if (operatorSpec) {
+      await ensureExhibitorOperator({
+        orgId: org.id,
+        orgSlug: operatorSpec.orgSlug,
+        company: operatorSpec.company,
+        phone: operatorSpec.phone,
+        name: operatorSpec.name,
+        boothId,
+      });
+    }
   }
 
   const booths = await prisma.exhibitorBooth.findMany({
