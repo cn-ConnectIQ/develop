@@ -18,7 +18,9 @@ import { getWxMiniCredentials } from "@/lib/wechat/config";
 import { getWechatAccessToken } from "@/lib/wechat/access-token";
 
 /** 与 packages/database/prisma/seed-mobile-test-attendee.ts 保持一致 */
-export const MINI_DEV_TEST_PHONE = "13770626459";
+export const MINI_DEV_TEST_PHONES = ["13770626459", "19951984030"] as const;
+/** @deprecated 使用 MINI_DEV_TEST_PHONES */
+export const MINI_DEV_TEST_PHONE = MINI_DEV_TEST_PHONES[0];
 export const MINI_DEV_TEST_SMS_CODE = "888888";
 
 export type MiniLoginUserPayload = {
@@ -358,7 +360,7 @@ export async function miniWxLogin(
 async function verifyMiniSmsCode(phone: string, code: string) {
   const allowDevBypass =
     !process.env.ALIYUN_SMS_ACCESS_KEY?.trim() &&
-    phone === MINI_DEV_TEST_PHONE &&
+    (MINI_DEV_TEST_PHONES as readonly string[]).includes(phone) &&
     code === MINI_DEV_TEST_SMS_CODE;
 
   if (allowDevBypass) return;

@@ -9,7 +9,7 @@ import { MOBILE_TEST_PRODUCTION_EVENT_ID } from "./seed-mobile-test-dimensions";
 const STAFF_ROLES: OrgStaffRole[] = [
   OrgStaffRole.OWNER,
   OrgStaffRole.ADMIN,
-  OrgStaffRole.MEMBER,
+  OrgStaffRole.OPERATOR,
 ];
 
 type BoothRow = Awaited<ReturnType<typeof loadBooths>>[number];

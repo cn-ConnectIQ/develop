@@ -25,6 +25,7 @@
     "db:setup-test1377-attendee-milo": "tsx prisma/setup-test1377-attendee-milo.ts",
     "db:setup-test1377-booth-staff": "tsx prisma/setup-test1377-booth-staff.ts",
     "db:verify-test1377-booth-staff": "tsx prisma/verify-test1377-booth-staff.ts",
+    "db:verify-test1377-booth-staff-api": "tsx prisma/verify-test1377-booth-staff-api.ts",
     "db:smoke-test1377-admin": "tsx prisma/smoke-test1377-admin.ts",
     "db:seed:interactions": "tsx prisma/seed-interactions.ts",
     "db:seed:features": "tsx prisma/seed-event-features.ts",

@@ -1,6 +1,8 @@
 /**
  * TEST1377 主办方 AD API 冒烟（需 ACCOUNT_ADMIN 账号登录）
  */
+import { smokeFetch } from "./smoke-fetch";
+
 const BASE_URL =
   process.env.SMOKE_BASE_URL ??
   "https://connectiq-web-git-develop-miloqians-projects.vercel.app";
@@ -15,12 +17,11 @@ async function request(
   path: string,
   init?: RequestInit & { token?: string },
 ): Promise<{ status: number; body: unknown }> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string> | undefined),
-  };
-  if (init?.token) headers.Authorization = `Bearer ${init.token}`;
-  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  const res = await smokeFetch(`${BASE_URL}${path}`, {
+    method: init?.method,
+    body: init?.body,
+    token: init?.token,
+  });
   const text = await res.text();
   let body: unknown = text;
   try {
