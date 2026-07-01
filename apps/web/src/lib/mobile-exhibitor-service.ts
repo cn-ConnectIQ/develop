@@ -1,9 +1,10 @@
 import {
   prisma,
 } from "@connectiq/database";
-import { ErrorCode } from "@connectiq/types";
+import { ErrorCode, UserRole } from "@connectiq/types";
 import QRCode from "qrcode";
-import { ApiError } from "@/lib/api-auth";
+import type { Session } from "next-auth";
+import { ApiError, requireBoothAccess, type AuthSession } from "@/lib/api-auth";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 import {
   getExhibitorDashboardStats,
@@ -89,6 +90,68 @@ export async function resolveMobileExhibitorBoothAccess(
     boothId: booth.id,
     eventId: booth.eventId,
   };
+}
+
+type BoothAccessRecord = NonNullable<
+  Awaited<
+    ReturnType<
+      typeof prisma.exhibitorBooth.findUnique<{
+        include: { event: { select: { id: true; orgId: true; organizerId: true } } };
+      }>
+    >
+  >
+>;
+
+/** 展位 API：支持 Web Session 与小程序 Bearer */
+export async function requireBoothAccessForRequest(
+  request: Request,
+  boothId: string,
+): Promise<{ session: AuthSession; booth: BoothAccessRecord }> {
+  const auth = request.headers.get("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    const access = await resolveMobileExhibitorBoothAccess(request, boothId);
+    const booth = await prisma.exhibitorBooth.findUnique({
+      where: { id: boothId },
+      include: {
+        event: { select: { id: true, orgId: true, organizerId: true } },
+      },
+    });
+    if (!booth) {
+      throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: access.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        userType: true,
+        orgId: true,
+      },
+    });
+    if (!user) {
+      throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
+    }
+
+    const session = {
+      user: {
+        id: user.id,
+        name: user.name ?? "",
+        email: user.email ?? "",
+        role: user.role ?? UserRole.EXHIBITOR,
+        userType: user.userType,
+        activeOrgId: access.orgId ?? user.orgId ?? undefined,
+      },
+      expires: new Date(Date.now() + 86_400_000).toISOString(),
+    } as Session;
+
+    return { session, booth };
+  }
+
+  const { session, booth } = await requireBoothAccess(boothId);
+  return { session, booth: booth as BoothAccessRecord };
 }
 
 export async function buildMobileBoothDashboard(

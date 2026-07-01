@@ -13,6 +13,7 @@ import {
 } from "@/lib/interaction/lottery-service";
 import { createLotterySchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import { requireMobileEventAccess } from "@/lib/mobile-user-id";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -32,10 +33,25 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { session } = await requireEventAccess(eventId);
+  const auth = request.headers.get("authorization");
+  let createdById: string;
+  let webSession: Awaited<ReturnType<typeof requireEventAccess>>["session"] | null =
+    null;
+
+  if (auth?.startsWith("Bearer ")) {
+    const { userId } = await requireMobileEventAccess(request, eventId);
+    createdById = userId;
+  } else {
+    const { session } = await requireEventAccess(eventId);
+    webSession = session;
+    const disabled = await guardEventFeature(eventId, "lottery");
+    if (disabled) return disabled;
+    await requireLotteryManageAccess(session, eventId);
+    createdById = session.user.id;
+  }
+
   const disabled = await guardEventFeature(eventId, "lottery");
   if (disabled) return disabled;
-  await requireLotteryManageAccess(session, eventId);
 
   const body = await request.json();
   const parsed = createLotterySchema.safeParse(body);
@@ -47,7 +63,13 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
-  await assertExhibitorCanCreateLottery(session, eventId, parsed.data.booth_id);
+  if (webSession) {
+    await assertExhibitorCanCreateLottery(
+      webSession,
+      eventId,
+      parsed.data.booth_id,
+    );
+  }
 
   const prizeTotal = parsed.data.prizes.reduce(
     (sum, p) => sum + (p.count ?? 1),
@@ -59,7 +81,7 @@ export const POST = withErrorHandler(async (request, context) => {
   const lottery = await prisma.lottery.create({
     data: {
       eventId,
-      createdById: session.user.id,
+      createdById,
       boothId: parsed.data.booth_id ?? null,
       title: parsed.data.title,
       description: parsed.data.description,

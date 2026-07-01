@@ -2,7 +2,6 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireBoothAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
@@ -11,14 +10,15 @@ import {
 } from "@/lib/exhibitor/booth-interaction-service";
 import { createBoothInteractionSchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import { requireBoothAccessForRequest } from "@/lib/mobile-exhibitor-service";
 
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const boothId = context?.params?.boothId;
   if (!boothId) {
     return createErrorResponse("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireBoothAccess(boothId);
+  await requireBoothAccessForRequest(request, boothId);
   const interactions = await listBoothInteractions(boothId);
 
   return createSuccessResponse(interactions, { total: interactions.length });
@@ -30,7 +30,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { session, booth } = await requireBoothAccess(boothId);
+  const { session, booth } = await requireBoothAccessForRequest(request, boothId);
   const body = await request.json();
   const parsed = createBoothInteractionSchema.safeParse(body);
 
