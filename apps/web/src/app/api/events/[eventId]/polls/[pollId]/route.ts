@@ -4,11 +4,10 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import { loadPollVoteState } from "@/lib/poll-vote-state";
-import { resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
+import { requireMobileEventAccess, resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 
 const patchSchema = z.object({
@@ -64,7 +63,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireMobileEventAccess(request, eventId);
   const body = await request.json();
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
@@ -122,14 +121,14 @@ export const PATCH = withErrorHandler(async (request, context) => {
   return createSuccessResponse(updated);
 });
 
-export const DELETE = withErrorHandler(async (_request, context) => {
+export const DELETE = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const pollId = context?.params?.pollId;
   if (!eventId || !pollId) {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireMobileEventAccess(request, eventId);
 
   const poll = await prisma.poll.findFirst({
     where: { id: pollId, eventId },

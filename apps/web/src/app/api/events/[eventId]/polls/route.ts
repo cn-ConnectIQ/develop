@@ -4,10 +4,10 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
+import { requireMobileEventAccess } from "@/lib/mobile-user-id";
 
 const createPollSchema = z.object({
   title: z.string().min(1).max(200),
@@ -71,7 +71,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { session } = await requireEventAccess(eventId);
+  const { userId } = await requireMobileEventAccess(request, eventId);
   const body = await request.json();
   const parsed = createPollSchema.safeParse(body);
   if (!parsed.success) {
@@ -95,10 +95,17 @@ export const POST = withErrorHandler(async (request, context) => {
       ? new Date(Date.now() + parsed.data.timeLimitMinutes * 60 * 1000)
       : undefined;
 
+  if (status === PollStatus.LIVE) {
+    await prisma.poll.updateMany({
+      where: { eventId, status: PollStatus.LIVE },
+      data: { status: PollStatus.PAUSED },
+    });
+  }
+
   const poll = await prisma.poll.create({
     data: {
       eventId,
-      createdById: session.user.id,
+      createdById: userId,
       title: parsed.data.title,
       type: parsed.data.type,
       status,
@@ -120,5 +127,8 @@ export const POST = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse(poll);
+  return createSuccessResponse({
+    ...poll,
+    participant_count: poll._count.responses,
+  });
 });

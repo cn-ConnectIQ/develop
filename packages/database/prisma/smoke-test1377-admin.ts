@@ -2,7 +2,8 @@
  * TEST1377 主办方 AD API 冒烟（需 ACCOUNT_ADMIN 账号登录）
  */
 const BASE_URL =
-  process.env.SMOKE_BASE_URL ?? "http://127.0.0.1:3000";
+  process.env.SMOKE_BASE_URL ??
+  "https://connectiq-web-git-develop-miloqians-projects.vercel.app";
 const EVENT_ID = "cmqurkwkt001rzcpbzojv2mi4";
 const PHONE = "13770626459";
 const SMS_CODE = "888888";
@@ -42,7 +43,7 @@ async function login(): Promise<string> {
     method: "POST",
     body: JSON.stringify({ phone: PHONE, code: SMS_CODE, eventId: EVENT_ID }),
   });
-  if (status !== 200) throw new Error(`登录失败 ${status}`);
+  if (status !== 200) throw new Error(`登录失败 ${status}: ${JSON.stringify(body)}`);
   const data = unwrap(body) as { token?: string };
   if (!data.token) throw new Error("无 token");
   return data.token;
@@ -76,7 +77,9 @@ async function main() {
       ok:
         status === 200 &&
         Boolean(hit) &&
-        (hit?.checkin_rate != null || hit?.snapshot != null),
+        hit?.checkin_rate != null &&
+        hit?.on_site != null &&
+        hit?.connections != null,
       detail: hit
         ? `checkin=${hit.checkin_rate} on_site=${hit.on_site} conn=${hit.connections}`
         : `HTTP ${status}`,
@@ -90,30 +93,29 @@ async function main() {
     );
     const d = unwrap(body) as Record<string, unknown>;
     const rankings = d.booth_rankings ?? d.boothRankings;
+    const pending = d.pending_exhibitors ?? d.pendingExhibitors;
     steps.push({
       name: "AD3 manage-overview EXPO",
       ok:
         status === 200 &&
         String(d.kind).toUpperCase() === "EXPO" &&
         Array.isArray(rankings) &&
-        (rankings as unknown[]).length > 0,
-      detail: `HTTP ${status} rankings=${Array.isArray(rankings) ? rankings.length : 0} pending=${Array.isArray(d.pending_exhibitors) ? d.pending_exhibitors.length : 0}`,
+        (rankings as unknown[]).length > 0 &&
+        Array.isArray(pending),
+      detail: `HTTP ${status} rankings=${Array.isArray(rankings) ? rankings.length : 0} pending=${Array.isArray(pending) ? pending.length : 0}`,
     });
   }
 
   {
     const { status, body } = await request(
-      `/api/exhibitor/recommended-buyers?eventId=${EVENT_ID}&boothId=${BOOTH_ID}`,
+      `/api/account/events/${EVENT_ID}/exhibitor-reviews`,
       { token },
     );
-    const d = unwrap(body) as { buyers?: unknown[] };
-    const first = d.buyers?.[0] as Record<string, unknown> | undefined;
+    const list = unwrap(body);
     steps.push({
-      name: "AD4 recommended-buyers",
-      ok: status === 200,
-      detail: first
-        ? `buyers=${d.buyers?.length} grade=${first.grade ?? first.intent_level}`
-        : `HTTP ${status} buyers=${d.buyers?.length ?? 0}`,
+      name: "展商审核列表",
+      ok: status === 200 && Array.isArray(list),
+      detail: `HTTP ${status} count=${Array.isArray(list) ? list.length : 0}`,
     });
   }
 
@@ -126,7 +128,78 @@ async function main() {
     steps.push({
       name: "集章监控",
       ok: status === 200 && Array.isArray(d.booths),
-      detail: `HTTP ${status} booths=${Array.isArray(d.booths) ? d.booths.length : 0}`,
+      detail: `HTTP ${status} booths=${Array.isArray(d.booths) ? d.booths.length : 0} rate=${d.completion_rate}`,
+    });
+  }
+
+  {
+    const { status, body } = await request(
+      `/api/account/events/${EVENT_ID}/broadcast`,
+      {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          title: "联调推送",
+          body: "TEST1377 AD 冒烟测试",
+        }),
+      },
+    );
+    steps.push({
+      name: "全场推送",
+      ok: status === 200,
+      detail: `HTTP ${status}`,
+    });
+  }
+
+  {
+    const { status, body } = await request(
+      `/api/account/events/${EVENT_ID}/admin-lotteries`,
+      { token },
+    );
+    const list = unwrap(body);
+    steps.push({
+      name: "抽奖列表",
+      ok: status === 200 && Array.isArray(list),
+      detail: `HTTP ${status} count=${Array.isArray(list) ? list.length : 0}`,
+    });
+  }
+
+  let createdPollId = "";
+  {
+    const { status, body } = await request(`/api/events/${EVENT_ID}/polls`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({
+        title: "【管理员发起】现场投票联调",
+        type: "SINGLE_CHOICE",
+        status: "LIVE",
+        showResults: true,
+        timeLimitMinutes: 30,
+        options: ["选项 A", "选项 B", "选项 C"],
+      }),
+    });
+    const d = unwrap(body) as Record<string, unknown>;
+    createdPollId = String(d.id ?? "");
+    steps.push({
+      name: "POST 创建互动 polls",
+      ok: status === 200 && Boolean(createdPollId),
+      detail: `HTTP ${status} id=${createdPollId || "—"} type=${d.type}`,
+    });
+  }
+
+  if (createdPollId) {
+    const { status } = await request(
+      `/api/events/${EVENT_ID}/polls/${createdPollId}`,
+      {
+        method: "PATCH",
+        token,
+        body: JSON.stringify({ status: "CLOSED" }),
+      },
+    );
+    steps.push({
+      name: "PATCH 结束互动 polls",
+      ok: status === 200,
+      detail: `HTTP ${status}`,
     });
   }
 
@@ -140,18 +213,6 @@ async function main() {
       name: "线索列表",
       ok: status === 200 && Array.isArray(list),
       detail: `HTTP ${status} count=${Array.isArray(list) ? list.length : 0}`,
-    });
-  }
-
-  {
-    const { status, body } = await request(`/api/events/${EVENT_ID}/meetings`, {
-      token,
-    });
-    const d = unwrap(body) as { meetings?: unknown[] };
-    steps.push({
-      name: "会面监管",
-      ok: status === 200 && Array.isArray(d.meetings),
-      detail: `HTTP ${status} meetings=${d.meetings?.length ?? 0}`,
     });
   }
 
