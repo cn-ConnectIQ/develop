@@ -1,4 +1,6 @@
 import {
+  InviteStatus,
+  OrgStaffRole,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
@@ -76,11 +78,38 @@ export async function resolveMobileExhibitorBoothAccess(
   });
 
   const userOrgId = user?.orgId ?? user?.ownedOrg?.id ?? user?.org?.id;
-  const isBoothOrg = userOrgId === booth.companyOrgId;
+  const isBoothOrg = !!userOrgId && userOrgId === booth.companyOrgId;
   const isEventOrganizer =
-    user?.userType === "ACCOUNT_ADMIN" && userOrgId === booth.event.orgId;
+    user?.userType === "ACCOUNT_ADMIN" &&
+    !!userOrgId &&
+    userOrgId === booth.event.orgId;
 
+  let isOperatorOrStaff = false;
   if (!isBoothOrg && !isEventOrganizer) {
+    const linked = await prisma.exhibitorBooth.findFirst({
+      where: {
+        id: boothId,
+        OR: [
+          { operatorUserId: userId },
+          {
+            companyOrg: {
+              staff: {
+                some: {
+                  userId,
+                  status: InviteStatus.ACCEPTED,
+                  role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+                },
+              },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    isOperatorOrStaff = !!linked;
+  }
+
+  if (!isBoothOrg && !isEventOrganizer && !isOperatorOrStaff) {
     throw new ApiError("无权访问该展位", ErrorCode.FORBIDDEN, 403);
   }
 

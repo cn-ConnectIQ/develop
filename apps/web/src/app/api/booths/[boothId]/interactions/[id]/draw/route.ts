@@ -2,12 +2,12 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireBoothAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import { drawBoothLottery } from "@/lib/exhibitor/booth-interaction-service";
 import { drawLotterySchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import { requireBoothAccessForRequest } from "@/lib/mobile-exhibitor-service";
 
 export const POST = withErrorHandler(async (request, context) => {
   const boothId = context?.params?.boothId;
@@ -16,7 +16,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { booth } = await requireBoothAccess(boothId);
+  const { booth } = await requireBoothAccessForRequest(request, boothId);
   const disabled = await guardEventFeature(booth.eventId, "lottery");
   if (disabled) return disabled;
 
