@@ -8,18 +8,59 @@ import {
 } from "@/lib/api-auth";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 import { requireMobileEventAccess } from "@/lib/mobile-user-id";
+import {
+  resolvePollListStatusFilter,
+  serializePollForMobile,
+} from "@/lib/poll-mobile-api";
 
-const createPollSchema = z.object({
-  title: z.string().min(1).max(200),
-  type: z.nativeEnum(PollType),
-  options: z.array(z.string().min(1)).optional(),
-  status: z.nativeEnum(PollStatus).optional(),
-  showResults: z.boolean().optional(),
-  closesAt: z.string().datetime().optional(),
-  timeLimitMinutes: z.number().optional(),
-  scheduledAt: z.string().datetime().optional(),
-  publishAfterMinutes: z.number().min(1).max(1440).optional(),
-});
+const createPollSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    type: z
+      .string()
+      .superRefine((val, ctx) => {
+        if (val === "LOTTERY") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "抽奖请使用 POST /api/events/{eventId}/lotteries 或 GET /api/account/events/{eventId}/admin-lotteries",
+          });
+          return;
+        }
+        if (!Object.values(PollType).includes(val as PollType)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `type 须为 ${Object.values(PollType).join(" | ")}`,
+          });
+        }
+      })
+      .transform((val) => val as PollType),
+    options: z.array(z.string().min(1)).optional(),
+    status: z.nativeEnum(PollStatus).optional(),
+    showResults: z.boolean().optional(),
+    closesAt: z.string().datetime().optional(),
+    timeLimitMinutes: z.number().min(1).max(1440).optional(),
+    scheduledAt: z.string().datetime().optional(),
+    publishAfterMinutes: z.number().min(1).max(1440).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const choiceTypes: PollType[] = [
+      PollType.SINGLE_CHOICE,
+      PollType.MULTI_CHOICE,
+      PollType.SURVEY,
+    ];
+    if (
+      choiceTypes.includes(data.type) &&
+      data.status === PollStatus.LIVE &&
+      (!data.options || data.options.length < 2)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "单选/多选/问卷发布时需至少 2 个选项",
+        path: ["options"],
+      });
+    }
+  });
 
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -29,15 +70,19 @@ export const GET = withErrorHandler(async (request, context) => {
 
   await assertAttendeeReadableEvent(eventId);
 
-  const typeFilter = new URL(request.url).searchParams.get("type");
-  const statusFilter = new URL(request.url).searchParams.get("status");
+  const url = new URL(request.url);
+  const typeFilter = url.searchParams.get("type");
+  const statusFilter = resolvePollListStatusFilter(
+    url.searchParams.get("status"),
+    url.searchParams.get("scope"),
+  );
 
   const [polls, sessions] = await Promise.all([
     prisma.poll.findMany({
       where: {
         eventId,
         ...(typeFilter ? { type: typeFilter as PollType } : {}),
-        ...(statusFilter ? { status: statusFilter as PollStatus } : {}),
+        ...(statusFilter ? { status: { in: statusFilter } } : {}),
       },
       orderBy: [
         { status: "asc" },
@@ -57,10 +102,7 @@ export const GET = withErrorHandler(async (request, context) => {
   ]);
 
   return createSuccessResponse({
-    polls: polls.map((poll) => ({
-      ...poll,
-      participant_count: poll._count.responses,
-    })),
+    polls: polls.map((poll) => serializePollForMobile(poll, eventId)),
     sessions,
   }, { total: polls.length });
 });
@@ -127,8 +169,5 @@ export const POST = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse({
-    ...poll,
-    participant_count: poll._count.responses,
-  });
+  return createSuccessResponse(serializePollForMobile(poll, eventId));
 });

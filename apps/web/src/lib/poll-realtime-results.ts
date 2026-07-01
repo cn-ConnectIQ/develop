@@ -6,6 +6,7 @@ import {
   aggregatePollOptions,
   aggregateWordCloud,
 } from "@/lib/bigscreen-results";
+import { serializePollOptionResults } from "@/lib/poll-mobile-api";
 import { ErrorCode } from "@connectiq/types";
 
 export async function getPollRealtimeResults(eventId: string, pollId: string) {
@@ -31,6 +32,8 @@ export async function getPollRealtimeResults(eventId: string, pollId: string) {
 
   const display = await getPollDisplayConfig(eventId, pollId, poll.showResults);
   const total = poll.responses.length;
+  const checkInCount = await prisma.checkIn.count({ where: { eventId } });
+  const onsiteCount = checkInCount;
 
   let options: ReturnType<typeof aggregatePollOptions> = [];
   let wordCloud: ReturnType<typeof aggregateWordCloud> = [];
@@ -62,9 +65,11 @@ export async function getPollRealtimeResults(eventId: string, pollId: string) {
     showResults: display.showResults,
     display,
     closesAt: poll.closesAt?.toISOString() ?? null,
+    ends_at: poll.closesAt?.toISOString() ?? null,
     createdAt: poll.createdAt.toISOString(),
     total,
-    options,
+    onsite_count: onsiteCount,
+    options: serializePollOptionResults(options),
     wordCloud,
     qnaQuestions,
     featuredQuestion,

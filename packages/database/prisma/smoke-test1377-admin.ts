@@ -205,6 +205,40 @@ async function main() {
 
   {
     const { status, body } = await request(
+      `/api/events/${EVENT_ID}/polls?status=active`,
+      { token },
+    );
+    const d = unwrap(body) as { polls?: unknown[] };
+    steps.push({
+      name: "GET 进行中 polls",
+      ok: status === 200 && Array.isArray(d.polls),
+      detail: `HTTP ${status} count=${Array.isArray(d.polls) ? d.polls.length : 0}`,
+    });
+  }
+
+  const livePollId = "seed-m1377-poll-prize";
+  {
+    const { status, body } = await request(
+      `/api/events/${EVENT_ID}/polls/${livePollId}/realtime-results`,
+      { token },
+    );
+    const d = unwrap(body) as Record<string, unknown>;
+    const opts = d.options as Array<Record<string, unknown>> | undefined;
+    steps.push({
+      name: "GET realtime-results",
+      ok:
+        status === 200 &&
+        d.total != null &&
+        d.onsite_count != null &&
+        Array.isArray(opts) &&
+        (opts.length === 0 ||
+          (opts[0]?.vote_count != null && opts[0]?.percentage != null)),
+      detail: `HTTP ${status} total=${d.total} onsite=${d.onsite_count}`,
+    });
+  }
+
+  {
+    const { status, body } = await request(
       `/api/account/events/${EVENT_ID}/admin-leads`,
       { token },
     );

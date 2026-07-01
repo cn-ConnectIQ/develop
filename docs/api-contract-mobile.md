@@ -952,8 +952,91 @@ Query：`limit`（默认 30）
 | `hasVoted` | boolean | 当前用户是否已参与 |
 | `myOptionId` | string \| null | 单选已投选项 ID |
 | `myOptionIds` | string[] | 多选已投选项 ID 列表 |
+| `participant_count` | number | 参与人数 |
+| `ends_at` | string \| null | 结束时间（同 `closesAt`） |
+| `bigscreen_url` | string | 互动大屏 URL（浏览器打开投屏） |
+| `realtime_url` | string | 实时结果 JSON 路径 |
+| `sse_url` | string | SSE 推送路径（`Accept: text/event-stream`） |
 
 > 需用户手机号/邮箱与活动 `Participant` 记录匹配，且已签到/报名后才会关联参会者身份。
+
+---
+
+### POST /api/events/{eventId}/polls
+
+用途：**主办方/管理员创建并发布互动（AD 投票/问答）**
+
+鉴权：requireMobileEventAccess（Web session 或 mobile token + `ACCOUNT_ADMIN`）
+
+请求：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `title` | string | 必填 |
+| `type` | string | `SINGLE_CHOICE` \| `MULTI_CHOICE` \| `QNA` \| `WORD_CLOUD` \| `RATING` \| `SURVEY` 等；**非** `LOTTERY`（抽奖走 lotteries API） |
+| `status` | string | 可选，`LIVE` 立即发布（会将同活动其他 LIVE 置为 PAUSED） |
+| `options` | string[] | 单选/多选/问卷发布时至少 2 项；问答可省略 |
+| `timeLimitMinutes` | number | 可选，`status=LIVE` 时自动计算 `closesAt` / `ends_at` |
+| `showResults` | boolean | 可选，默认 true |
+
+响应 `data`：同列表单项，含 `participant_count`、`ends_at`、`bigscreen_url`。
+
+---
+
+### GET /api/events/{eventId}/polls
+
+用途：**互动列表**（含进行中筛选）
+
+鉴权：公开可读活动（参会者/管理员均可）
+
+Query：
+
+| 参数 | 说明 |
+|------|------|
+| `status=active` / `scope=running` / `OPEN` | 仅返回进行中：`LIVE` + `PAUSED`（小程序 `OPEN`/`ACTIVE` 别名） |
+| `status=LIVE` | 精确状态 |
+| `type` | 按 PollType 过滤 |
+
+响应 `data`：
+
+| 字段 | 类型 |
+|------|------|
+| `polls` | array |
+| `polls[].participant_count` | number |
+| `polls[].ends_at` | string \| null |
+| `polls[].bigscreen_url` | string |
+| `sessions` | array |
+
+---
+
+### PATCH /api/events/{eventId}/polls/{pollId}
+
+用途：**结束/更新互动**
+
+鉴权：requireMobileEventAccess
+
+请求示例：`{ "status": "CLOSED" }`；亦支持 `title`、`timeLimitMinutes`（配合 `status=LIVE` 重设倒计时）、`options`。
+
+---
+
+### GET /api/events/{eventId}/polls/{pollId}/realtime-results
+
+用途：**实时投票结果**（轮询或 SSE）
+
+鉴权：公开可读活动
+
+Query：`stream=sse` 或 Header `Accept: text/event-stream` 开启 SSE（约 2s 间隔）
+
+响应 `data`：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `total` | number | 总参与数 |
+| `onsite_count` | number | 现场签到人数 |
+| `ends_at` | string \| null | 倒计时截止 |
+| `options` | array | `{ id, text, count, vote_count, percentage }` |
+| `qnaQuestions` | array | 问答类型时 |
+| `wordCloud` | array | 词云类型时 |
 
 ---
 
@@ -1532,7 +1615,13 @@ Query：`page`, `limit`, `cursor`
 
 ### GET /api/account/events/{eventId}/admin-lotteries
 
+用途：**IM4 抽奖卡片 / 主办方开奖列表**
+
+鉴权：requireMobileAccountAdmin
+
 响应 `data`：数组 `{ id, title, status, entry_count, booth_label? }`
+
+> 创建抽奖请用 `POST /api/events/{eventId}/lotteries`（Web 主办方 session；字段含 `title`、`type`、`prizes[]`、`require_checkin` 等）。小程序快速创建目前仅默认标题，IM2 级配置页待扩展。
 
 ### POST /api/account/events/{eventId}/admin-lotteries/{lotteryId}/draw
 
@@ -1614,7 +1703,7 @@ Query：`targetUserId`，可选 `eventId`
 
 | 日期 | 说明 |
 |------|------|
-| 2026-06-13 | P0：线索详情 GET、公开活动详情 enrichment、connections total/count |
+| 2026-06-13 | AD 投票：polls POST/GET/PATCH、realtime-results（onsite_count/vote_count）、bigscreen_url/SSE、admin-lotteries 说明 |
 | 2026-06-13 | dashboard-mobile：`countdownSeconds`/`closesAt`、`stampRally.id`、`unreadNotificationCount`；Poll GET `hasVoted`；PATCH profile、POST intents；联调码 TEST1377 |
 | 2026-06-13 | P1：管理工具、展商 dashboard、AI 三件套、语音上传；小程序 admin 接 API + 扩展屏注册 |
 | 2026-06-13 | P0：manage-overview、me/meetings、meeting-time-slots、verify-code；mini_* 鉴权统一 |

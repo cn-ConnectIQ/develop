@@ -9,6 +9,7 @@ import {
 import { loadPollVoteState } from "@/lib/poll-vote-state";
 import { requireMobileEventAccess, resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
+import { serializePollForMobile } from "@/lib/poll-mobile-api";
 
 const patchSchema = z.object({
   status: z.nativeEnum(PollStatus).optional(),
@@ -45,8 +46,7 @@ export const GET = withErrorHandler(async (request, context) => {
   const voteState = await loadPollVoteState(eventId, pollId, poll.type, userId);
 
   return createSuccessResponse({
-    ...poll,
-    participant_count: poll._count.responses,
+    ...serializePollForMobile(poll, eventId),
     hasVoted: voteState.hasVoted,
     myOptionId: voteState.myOptionId,
     myOptionIds: voteState.myOptionIds,
@@ -118,7 +118,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse(updated);
+  return createSuccessResponse(serializePollForMobile(updated, eventId));
 });
 
 export const DELETE = withErrorHandler(async (request, context) => {
