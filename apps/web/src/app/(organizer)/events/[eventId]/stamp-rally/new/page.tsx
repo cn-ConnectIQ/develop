@@ -1,23 +1,8 @@
-import dynamic from "next/dynamic";
 import { EventType } from "@connectiq/database";
 import { notFound, redirect } from "next/navigation";
 import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
-
-const StampRallyConfigurator = dynamic(
-  () =>
-    import("@/components/stamp/StampRallyConfigurator").then(
-      (mod) => mod.StampRallyConfigurator,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-[320px] items-center justify-center">
-        <p className="text-sm text-text-muted">配置页加载中…</p>
-      </div>
-    ),
-  },
-);
+import { StampRallyConfigurator } from "@/components/stamp/StampRallyConfigurator";
 
 export default async function NewStampRallyPage({
   params,
