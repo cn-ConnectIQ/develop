@@ -2,9 +2,9 @@ import { EventType, prisma } from "@connectiq/database";
 import { notFound, redirect } from "next/navigation";
 import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
-import { StampRallyHubClient } from "@/components/stamp-rally/StampRallyHubClient";
+import { StampRallyConfigurator } from "@/components/stamp/StampRallyConfigurator";
 
-export default async function OrganizerStampRallyPage({
+export default async function NewStampRallyPage({
   params,
 }: {
   params: Promise<{ eventId: string }>;
@@ -35,10 +35,14 @@ export default async function OrganizerStampRallyPage({
     <FeatureFlagGate
       eventId={eventId}
       flag="stampRally"
-      title="集章打卡"
-      description="管理集章路线与实时监控"
+      title="新建集章打卡"
+      description="配置全场集章打卡路线"
     >
-      <StampRallyHubClient eventId={eventId} eventName={event.name} />
+      <StampRallyConfigurator
+        eventId={eventId}
+        eventName={event.name}
+        mode="create"
+      />
     </FeatureFlagGate>
   );
 }

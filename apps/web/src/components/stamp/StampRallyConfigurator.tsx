@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft } from "lucide-react";
 import { Loader2, MapPin, Trophy, Upload } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -12,7 +14,7 @@ import {
   SectionCard,
 } from "@/components/admin/admin-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -194,19 +196,30 @@ function StampPassportPreview({
 export type StampRallyConfiguratorProps = {
   eventId: string;
   eventName: string;
+  /** @deprecated Use mode + rallyId instead */
   initialRallyId?: string | null;
+  mode?: "create" | "edit";
+  rallyId?: string;
 };
 
 export function StampRallyConfigurator({
   eventId,
   eventName,
   initialRallyId,
+  mode,
+  rallyId,
 }: StampRallyConfiguratorProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const listHref = `/events/${eventId}/stamp-rally`;
+  const lockedId =
+    mode === "create"
+      ? ("new" as const)
+      : mode === "edit" && rallyId
+        ? rallyId
+        : initialRallyId ?? "new";
 
-  const [selectedId, setSelectedId] = useState<string | "new">(
-    initialRallyId ?? "new",
-  );
+  const [selectedId, setSelectedId] = useState<string | "new">(lockedId);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [coverImage, setCoverImage] = useState<string | null>(null);
@@ -276,10 +289,18 @@ export function StampRallyConfigurator({
   }, [selectedId, rallies]);
 
   useEffect(() => {
+    if (mode === "create") {
+      setSelectedId("new");
+      return;
+    }
+    if (mode === "edit" && rallyId) {
+      setSelectedId(rallyId);
+      return;
+    }
     if (initialRallyId && rallies.some((r) => r.id === initialRallyId)) {
       setSelectedId(initialRallyId);
     }
-  }, [initialRallyId, rallies]);
+  }, [mode, rallyId, initialRallyId, rallies]);
 
   const maxWeighted = useMemo(() => {
     return boothStamps.reduce((sum, s) => sum + s.weight, 0);
@@ -374,7 +395,11 @@ export function StampRallyConfigurator({
       );
 
       if (selectedId === "new" && json.data?.id) {
-        setSelectedId(json.data.id);
+        if (mode === "create") {
+          router.push(`/events/${eventId}/stamp-rally/${json.data.id}/edit`);
+        } else {
+          setSelectedId(json.data.id);
+        }
       }
       refresh();
     } catch (err) {
@@ -421,33 +446,13 @@ export function StampRallyConfigurator({
         description={eventName}
         breadcrumb={["互动管理", "集章打卡"]}
         actions={
-          <div className="flex items-center gap-2">
-            {rallies.length > 0 && (
-              <select
-                className="h-9 rounded-lg border border-border-light bg-white px-3 text-sm"
-                value={selectedId}
-                onChange={(e) =>
-                  setSelectedId(
-                    e.target.value === "new" ? "new" : e.target.value,
-                  )
-                }
-              >
-                <option value="new">+ 新建路线</option>
-                {rallies.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedId("new")}
-            >
-              新建
-            </Button>
-          </div>
+          <Link
+            href={listHref}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <ArrowLeft className="mr-1.5 size-4" />
+            返回列表
+          </Link>
         }
       />
 

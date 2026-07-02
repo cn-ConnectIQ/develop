@@ -122,17 +122,6 @@ function injectExpoOrganizerItems(
       return { ...group, items: [scanItem, ...group.items] };
     }
 
-    if (group.label === "互动管理") {
-      const monitorItem: NavItem = {
-        label: "集章监控",
-        href: `/events/${eventId}/stamp-monitor`,
-        icon: Trophy,
-        isNew: true,
-      };
-      if (group.items.some((item) => item.href === monitorItem.href)) return group;
-      return { ...group, items: [...group.items, monitorItem] };
-    }
-
     return group;
   });
 }

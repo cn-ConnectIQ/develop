@@ -291,7 +291,7 @@ function ExpoPanel({ data, eventId }: { data: ManageOverviewExpo; eventId: strin
             desc="审核入驻申请与展位分配"
           />
           <ActionTile
-            href={`/events/${eventId}/stamp-monitor`}
+            href={`/events/${eventId}/stamp-rally#monitor`}
             icon={Trophy}
             title="集章监控"
             desc="各展位打卡与完成率"
