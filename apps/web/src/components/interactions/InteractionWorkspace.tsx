@@ -159,6 +159,10 @@ function PollEditWorkspace({
   const [creatingQr, setCreatingQr] = useState(false);
   const [localPoll, setLocalPoll] = useState(poll);
 
+  useEffect(() => {
+    setLocalPoll(poll);
+  }, [poll.id]);
+
   async function createQrSession() {
     setCreatingQr(true);
     try {

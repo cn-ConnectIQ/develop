@@ -30,23 +30,42 @@ export function InteractionTitleInput({
 }: InteractionTitleInputProps) {
   const ref = useRef<HTMLDivElement>(null);
   const lastSaved = useRef(value);
+  const isFocusedRef = useRef(false);
   const resourceId = pollId ?? lotteryId ?? "";
+  const prevResourceId = useRef(resourceId);
 
   const { scheduleSave, saveState } = useInteractionAutoSave<{ title: string }>({
     debounceMs: 600,
     onSave: async (payload) => {
+      const trimmed = payload.title.trim();
+      if (!trimmed) return;
+
       if (pollId) {
-        await patchPoll(eventId, pollId, payload);
+        await patchPoll(eventId, pollId, { title: trimmed });
       } else if (lotteryId) {
-        await patchLottery(eventId, lotteryId, payload);
+        await patchLottery(eventId, lotteryId, { title: trimmed });
       }
-      lastSaved.current = payload.title;
-      onSaved?.(payload.title);
+      lastSaved.current = trimmed;
+      onSaved?.(trimmed);
     },
   });
 
   useEffect(() => {
-    if (ref.current && ref.current.textContent !== value) {
+    if (prevResourceId.current !== resourceId) {
+      prevResourceId.current = resourceId;
+      isFocusedRef.current = false;
+      if (ref.current) {
+        ref.current.textContent = value;
+        lastSaved.current = value;
+      }
+      return;
+    }
+
+    if (
+      !isFocusedRef.current &&
+      ref.current &&
+      ref.current.textContent !== value
+    ) {
       ref.current.textContent = value;
       lastSaved.current = value;
     }
@@ -60,9 +79,17 @@ export function InteractionTitleInput({
         suppressContentEditableWarning
         data-placeholder={placeholder}
         className="interaction-title-input min-h-[40px] flex-1 text-[22px] font-semibold leading-tight outline-none empty:before:pointer-events-none empty:before:text-text-tertiary empty:before:content-[attr(data-placeholder)]"
+        onFocus={() => {
+          isFocusedRef.current = true;
+        }}
+        onBlur={() => {
+          isFocusedRef.current = false;
+          const title = ref.current?.textContent ?? "";
+          lastSaved.current = title;
+        }}
         onInput={(e) => {
-          const title = e.currentTarget.textContent?.trim() ?? "";
-          if (title && title !== lastSaved.current) {
+          const title = e.currentTarget.textContent ?? "";
+          if (title !== lastSaved.current) {
             scheduleSave({ title });
           }
         }}

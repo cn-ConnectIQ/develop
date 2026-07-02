@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -43,23 +43,22 @@ export function PollOptionsEditor({
   onChange,
 }: PollOptionsEditorProps) {
   const [options, setOptions] = useState<OptionRow[]>(initialOptions);
+  const loadedPollIdRef = useRef<string | null>(null);
+  const initialOptionsRef = useRef(initialOptions);
+  initialOptionsRef.current = initialOptions;
 
   useEffect(() => {
-    setOptions(initialOptions);
-  }, [pollId, initialOptions]);
+    if (loadedPollIdRef.current === pollId) return;
+    loadedPollIdRef.current = pollId;
+    setOptions(initialOptionsRef.current);
+  }, [pollId]);
 
   const { scheduleSave } = useInteractionAutoSave<
     Array<{ id?: string; text: string }>
   >({
     debounceMs: 800,
     onSave: async (payload) => {
-      const updated = await patchPoll(eventId, pollId, { options: payload });
-      const next = (updated.options as OptionRow[]) ?? payload.map((o, i) => ({
-        id: `opt-${i}`,
-        text: o.text,
-      }));
-      setOptions(next);
-      onChange?.(next);
+      await patchPoll(eventId, pollId, { options: payload });
     },
   });
 
@@ -67,7 +66,12 @@ export function PollOptionsEditor({
     (next: OptionRow[]) => {
       setOptions(next);
       onChange?.(next);
-      scheduleSave(next.map((o) => ({ id: o.id.startsWith("new-") ? undefined : o.id, text: o.text })));
+      scheduleSave(
+        next.map((o) => ({
+          id: o.id.startsWith("new-") ? undefined : o.id,
+          text: o.text,
+        })),
+      );
     },
     [onChange, scheduleSave],
   );
