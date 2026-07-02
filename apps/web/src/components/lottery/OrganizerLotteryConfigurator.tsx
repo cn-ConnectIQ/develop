@@ -25,7 +25,10 @@ import type {
   OrganizerLotteryEligibility,
   ScreenAnimationType,
 } from "@/lib/lottery/organizer-lottery-config";
-import { defaultOrganizerEligibility } from "@/lib/lottery/organizer-lottery-config";
+import {
+  defaultOrganizerEligibility,
+  normalizeOrganizerEligibility,
+} from "@/lib/lottery/organizer-lottery-config";
 import type { EligibleCountResult } from "@/lib/lottery/organizer-lottery-service";
 import { cn } from "@/lib/utils";
 
@@ -124,7 +127,7 @@ export function OrganizerLotteryConfigurator({
         prize_type: p.prize_type as BoothLotteryPrizeDraft["prize_type"],
       })),
     );
-    setEligibility(existing.meta.eligibility);
+    setEligibility(normalizeOrganizerEligibility(existing.meta.eligibility));
     setScreenAnimation(existing.meta.screen_animation);
     setTargetEntryCount(existing.meta.target_entry_count ?? "");
   }, [existing]);
@@ -162,22 +165,27 @@ export function OrganizerLotteryConfigurator({
 
     setSaving(true);
     try {
+      const payload = {
+        owner_type: "ORGANIZER",
+        ...(lotteryId ? { id: lotteryId } : {}),
+        title,
+        description: description || null,
+        prizes: prizes.map((prize) => ({
+          ...prize,
+          image_url: prize.image_url || null,
+        })),
+        draw_at: drawAt ? new Date(drawAt).toISOString() : null,
+        eligibility: normalizeOrganizerEligibility(eligibility),
+        screen_animation: screenAnimation,
+        target_entry_count:
+          targetEntryCount === "" ? null : Number(targetEntryCount),
+        publish,
+      };
+
       const res = await fetch(`/api/events/${eventId}/lotteries`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner_type: "ORGANIZER",
-          id: lotteryId,
-          title,
-          description: description || null,
-          prizes,
-          draw_at: drawAt ? new Date(drawAt).toISOString() : null,
-          eligibility,
-          screen_animation: screenAnimation,
-          target_entry_count:
-            targetEntryCount === "" ? null : Number(targetEntryCount),
-          publish,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "保存失败");

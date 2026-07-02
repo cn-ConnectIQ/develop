@@ -1,5 +1,25 @@
 import { z } from "zod";
 
+function emptyToUndefined(value: unknown) {
+  if (value === "" || value === null || value === undefined) return undefined;
+  return value;
+}
+
+function emptyToNull(value: unknown) {
+  if (value === "" || value === undefined) return null;
+  return value;
+}
+
+const optionalCuid = z.preprocess(
+  emptyToUndefined,
+  z.string().cuid().optional(),
+);
+
+const optionalNullableCuid = z.preprocess(
+  emptyToNull,
+  z.string().cuid().nullable().optional(),
+);
+
 export const SCREEN_ANIMATION_OPTIONS = [
   {
     value: "SLOT_MACHINE",
@@ -53,6 +73,31 @@ export const defaultOrganizerEligibility = (): OrganizerLotteryEligibility => ({
   min_connections: null,
 });
 
+export function normalizeOrganizerEligibility(
+  raw: Partial<OrganizerLotteryEligibility> | undefined,
+): OrganizerLotteryEligibility {
+  const defaults = defaultOrganizerEligibility();
+  const stampRallyId =
+    typeof raw?.stamp_rally_id === "string" && raw.stamp_rally_id.trim()
+      ? raw.stamp_rally_id.trim()
+      : null;
+
+  return {
+    require_checkin: raw?.require_checkin ?? defaults.require_checkin,
+    min_interactions:
+      typeof raw?.min_interactions === "number" && raw.min_interactions > 0
+        ? raw.min_interactions
+        : null,
+    require_stamp_rally:
+      raw?.require_stamp_rally ?? defaults.require_stamp_rally,
+    stamp_rally_id: stampRallyId,
+    min_connections:
+      typeof raw?.min_connections === "number" && raw.min_connections > 0
+        ? raw.min_connections
+        : null,
+  };
+}
+
 export const defaultOrganizerMeta = (): OrganizerLotteryMeta => ({
   eligibility: defaultOrganizerEligibility(),
   screen_animation: "SLOT_MACHINE",
@@ -64,12 +109,12 @@ export const organizerEligibilitySchema = z.object({
   require_checkin: z.boolean().optional(),
   min_interactions: z.number().int().min(1).max(100).optional().nullable(),
   require_stamp_rally: z.boolean().optional(),
-  stamp_rally_id: z.string().cuid().optional().nullable(),
+  stamp_rally_id: optionalNullableCuid,
   min_connections: z.number().int().min(1).max(100).optional().nullable(),
 });
 
 export const createOrganizerLotterySchema = z.object({
-  id: z.string().cuid().optional(),
+  id: optionalCuid,
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional().nullable(),
   cover_image: z.string().optional().nullable(),
@@ -120,7 +165,7 @@ export type OrganizerLotteryDto = {
 };
 
 export const eligibleCountQuerySchema = z.object({
-  lottery_id: z.string().cuid().optional(),
+  lottery_id: optionalCuid,
   require_checkin: z
     .enum(["true", "false"])
     .optional()
@@ -130,7 +175,7 @@ export const eligibleCountQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
-  stamp_rally_id: z.string().cuid().optional(),
+  stamp_rally_id: optionalCuid,
   min_connections: z.coerce.number().int().min(1).max(100).optional(),
   target_entry_count: z.coerce.number().int().positive().optional(),
 });

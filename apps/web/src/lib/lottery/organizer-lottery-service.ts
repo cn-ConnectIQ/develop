@@ -21,6 +21,7 @@ import type {
 import {
   defaultOrganizerEligibility,
   defaultOrganizerMeta,
+  normalizeOrganizerEligibility,
 } from "@/lib/lottery/organizer-lottery-config";
 
 const metaKey = (lotteryId: string) => `organizer_lottery_meta_${lotteryId}`;
@@ -39,30 +40,29 @@ export async function loadOrganizerLotteryMeta(
 
   const obj = row.value as Record<string, unknown>;
   const eligibilityRaw = obj.eligibility as Record<string, unknown> | undefined;
-  const defaults = defaultOrganizerEligibility();
 
-  const eligibility: OrganizerLotteryEligibility = {
+  const eligibility = normalizeOrganizerEligibility({
     require_checkin:
       typeof eligibilityRaw?.require_checkin === "boolean"
         ? eligibilityRaw.require_checkin
-        : defaults.require_checkin,
+        : undefined,
     min_interactions:
       typeof eligibilityRaw?.min_interactions === "number"
         ? eligibilityRaw.min_interactions
-        : null,
+        : undefined,
     require_stamp_rally:
       typeof eligibilityRaw?.require_stamp_rally === "boolean"
         ? eligibilityRaw.require_stamp_rally
-        : defaults.require_stamp_rally,
+        : undefined,
     stamp_rally_id:
       typeof eligibilityRaw?.stamp_rally_id === "string"
         ? eligibilityRaw.stamp_rally_id
-        : null,
+        : undefined,
     min_connections:
       typeof eligibilityRaw?.min_connections === "number"
         ? eligibilityRaw.min_connections
-        : null,
-  };
+        : undefined,
+  });
 
   const animation = obj.screen_animation;
   const validAnimations = [
@@ -216,17 +216,29 @@ export async function listOrganizerGrandLotteries(
   return Promise.all(lotteries.map(mapLotteryDto));
 }
 
+async function resolveActiveOrganizerStampRallyId(eventId: string) {
+  const rally = await prisma.stampRally.findFirst({
+    where: {
+      eventId,
+      ownerType: StampOwnerType.ORGANIZER,
+      status: StampRallyStatus.ACTIVE,
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  return rally?.id ?? null;
+}
+
 export async function upsertOrganizerGrandLottery(
   eventId: string,
   session: AuthSession,
   input: CreateOrganizerLotteryInput,
 ): Promise<OrganizerLotteryDto> {
-  const eligibility: OrganizerLotteryEligibility = {
-    ...defaultOrganizerEligibility(),
-    ...input.eligibility,
-    min_interactions: input.eligibility?.min_interactions ?? null,
-    min_connections: input.eligibility?.min_connections ?? null,
-  };
+  const eligibility = normalizeOrganizerEligibility(input.eligibility);
+
+  if (eligibility.require_stamp_rally && !eligibility.stamp_rally_id) {
+    eligibility.stamp_rally_id = await resolveActiveOrganizerStampRallyId(eventId);
+  }
 
   const meta: OrganizerLotteryMeta = {
     eligibility,
