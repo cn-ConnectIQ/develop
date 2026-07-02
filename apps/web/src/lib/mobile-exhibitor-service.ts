@@ -2,6 +2,7 @@ import {
   InviteStatus,
   OrgStaffRole,
   prisma,
+  type Prisma,
 } from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
 import QRCode from "qrcode";
@@ -121,15 +122,23 @@ export async function resolveMobileExhibitorBoothAccess(
   };
 }
 
-type BoothAccessRecord = NonNullable<
-  Awaited<
-    ReturnType<
-      typeof prisma.exhibitorBooth.findUnique<{
-        include: { event: { select: { id: true; orgId: true; organizerId: true } } };
-      }>
-    >
-  >
->;
+type BoothAccessRecord = Prisma.ExhibitorBoothGetPayload<{
+  include: { event: { select: { id: true; orgId: true; organizerId: true } } };
+}>;
+
+function resolveMobileSessionRole(
+  userType: string,
+  orgId: string | null | undefined,
+  booth: Pick<BoothAccessRecord, "companyOrgId"> & {
+    event: { orgId: string };
+  },
+): UserRole {
+  if (userType === "PLATFORM_ADMIN") return UserRole.PLATFORM_ADMIN;
+  if (userType === "ACCOUNT_ADMIN" && orgId === booth.event.orgId) {
+    return UserRole.ORGANIZER;
+  }
+  return UserRole.EXHIBITOR;
+}
 
 /** 展位 API：支持 Web Session 与小程序 Bearer */
 export async function requireBoothAccessForRequest(
@@ -155,7 +164,6 @@ export async function requireBoothAccessForRequest(
         id: true,
         name: true,
         email: true,
-        role: true,
         userType: true,
         orgId: true,
       },
@@ -164,14 +172,15 @@ export async function requireBoothAccessForRequest(
       throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
     }
 
+    const activeOrgId = access.orgId ?? user.orgId ?? undefined;
     const session = {
       user: {
         id: user.id,
         name: user.name ?? "",
         email: user.email ?? "",
-        role: user.role ?? UserRole.EXHIBITOR,
+        role: resolveMobileSessionRole(user.userType, activeOrgId, booth),
         userType: user.userType,
-        activeOrgId: access.orgId ?? user.orgId ?? undefined,
+        activeOrgId,
       },
       expires: new Date(Date.now() + 86_400_000).toISOString(),
     } as Session;
