@@ -171,7 +171,7 @@ export async function getHomeStampProgress(
           : null,
     };
   } catch (err) {
-    if (err instanceof ApiError && err.statusCode === 404) {
+    if (err instanceof ApiError && err.status === 404) {
       return {
         started: false,
         rally_id: null,
