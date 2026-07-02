@@ -1,5 +1,9 @@
 import type { PollStatus } from "@connectiq/database";
 import type { PollListItem, SessionOption } from "@/lib/interactions";
+import {
+  DEFAULT_RATING_POLL_CONFIG,
+  encodeRatingConfigOption,
+} from "@/lib/rating-poll-config";
 
 export type LotteryListItem = {
   id: string;
@@ -129,6 +133,8 @@ export function getDefaultPollOptions(type: string): string[] {
       return ["选项 1", "选项 2"];
     case "ANNOUNCEMENT":
       return ["公告内容"];
+    case "RATING":
+      return [encodeRatingConfigOption(DEFAULT_RATING_POLL_CONFIG)];
     default:
       return [];
   }

@@ -36,7 +36,7 @@ import { MobilePreview } from "@/components/interactions/MobilePreview";
 import { RealtimeConsole } from "@/components/interactions/RealtimeConsole";
 import { PollOptionsEditor } from "@/components/interactions/editors/PollOptionsEditor";
 import { WordCloudEditor } from "@/components/interactions/editors/WordCloudEditor";
-import { RatingEditor } from "@/components/interactions/editors/RatingEditor";
+import { RatingPollEditor } from "@/components/interactions/editors/RatingPollEditor";
 import { SurveyEditor } from "@/components/interactions/editors/SurveyEditor";
 import { LotteryEditor } from "@/components/interactions/editors/LotteryEditor";
 import { LotteryDrawPanel } from "@/components/interactions/LotteryDrawPanel";
@@ -353,7 +353,14 @@ function PollTypeEditor({
     return <WordCloudEditor />;
   }
   if (poll.type === "RATING") {
-    return <RatingEditor />;
+    return (
+      <RatingPollEditor
+        eventId={eventId}
+        pollId={poll.id}
+        options={poll.options}
+        onChange={onOptionsChange}
+      />
+    );
   }
   if (poll.type === "QNA") {
     return (

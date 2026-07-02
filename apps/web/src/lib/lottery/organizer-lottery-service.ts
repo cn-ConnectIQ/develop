@@ -2,6 +2,7 @@ import type { Prisma } from "@connectiq/database";
 import {
   ConnectionStatus,
   LotteryDrawType,
+  LotteryEntrySource,
   LotteryOwnerType,
   LotteryStatus,
   LotteryType,
@@ -340,6 +341,10 @@ export async function upsertOrganizerGrandLottery(
 
   await saveOrganizerLotteryMeta(eventId, lotteryId, meta);
 
+  if (status === LotteryStatus.OPEN) {
+    await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
+  }
+
   const lottery = await prisma.lottery.findUniqueOrThrow({
     where: { id: lotteryId },
     include: lotteryInclude,
@@ -357,14 +362,16 @@ export type EligibleCountResult = {
   vs_target: number | null;
 };
 
-export async function countOrganizerEligibleUsers(
+type EligibleParticipantResolution = {
+  participantIds: Set<string>;
+  participantToUser: Map<string, string>;
+  totalParticipants: number;
+};
+
+async function resolveOrganizerEligibleParticipants(
   eventId: string,
   criteria: OrganizerLotteryEligibility,
-  options?: {
-    lotteryId?: string;
-    targetEntryCount?: number | null;
-  },
-): Promise<EligibleCountResult> {
+): Promise<EligibleParticipantResolution> {
   const { participants, participantToUser } =
     await buildParticipantUserMap(eventId);
 
@@ -478,6 +485,100 @@ export async function countOrganizerEligibleUsers(
     );
   }
 
+  return {
+    participantIds: eligibleIds,
+    participantToUser,
+    totalParticipants: participants.length,
+  };
+}
+
+/** 将符合门槛的参会者自动写入抽奖奖池（大屏开奖用） */
+export async function syncOrganizerLotteryEntriesFromEligibility(
+  eventId: string,
+  lotteryId: string,
+): Promise<{ synced: number; entry_count: number }> {
+  const lottery = await prisma.lottery.findFirst({
+    where: {
+      id: lotteryId,
+      eventId,
+      ownerType: LotteryOwnerType.ORGANIZER,
+      boothId: null,
+    },
+    select: { id: true, status: true },
+  });
+
+  if (!lottery) {
+    throw new ApiError("全场抽奖不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  if (
+    lottery.status !== LotteryStatus.OPEN &&
+    lottery.status !== LotteryStatus.DRAWING
+  ) {
+    const entry_count = await prisma.lotteryEntry.count({ where: { lotteryId } });
+    return { synced: 0, entry_count };
+  }
+
+  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  const { participantIds, participantToUser } =
+    await resolveOrganizerEligibleParticipants(eventId, meta.eligibility);
+
+  const userIds = [
+    ...new Set(
+      [...participantIds]
+        .map((participantId) => participantToUser.get(participantId))
+        .filter((userId): userId is string => Boolean(userId)),
+    ),
+  ];
+
+  if (userIds.length === 0) {
+    const entry_count = await prisma.lotteryEntry.count({ where: { lotteryId } });
+    return { synced: 0, entry_count };
+  }
+
+  const existing = await prisma.lotteryEntry.findMany({
+    where: { lotteryId, userId: { in: userIds } },
+    select: { userId: true },
+  });
+  const existingSet = new Set(existing.map((row) => row.userId));
+  const toCreate = userIds.filter((userId) => !existingSet.has(userId));
+
+  if (toCreate.length > 0) {
+    await prisma.lotteryEntry.createMany({
+      data: toCreate.map((userId) => ({
+        lotteryId,
+        userId,
+        source: LotteryEntrySource.AUTO_CHECKIN,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  const entry_count = await prisma.lotteryEntry.count({ where: { lotteryId } });
+  await prisma.lottery.update({
+    where: { id: lotteryId },
+    data: { entryCount: entry_count },
+  });
+
+  return { synced: toCreate.length, entry_count };
+}
+
+export async function countOrganizerEligibleUsers(
+  eventId: string,
+  criteria: OrganizerLotteryEligibility,
+  options?: {
+    lotteryId?: string;
+    targetEntryCount?: number | null;
+    syncEntries?: boolean;
+  },
+): Promise<EligibleCountResult> {
+  const { participantIds, totalParticipants } =
+    await resolveOrganizerEligibleParticipants(eventId, criteria);
+
+  if (options?.lotteryId && options.syncEntries !== false) {
+    await syncOrganizerLotteryEntriesFromEligibility(eventId, options.lotteryId);
+  }
+
   let enteredCount: number | null = null;
   if (options?.lotteryId) {
     enteredCount = await prisma.lotteryEntry.count({
@@ -485,8 +586,8 @@ export async function countOrganizerEligibleUsers(
     });
   }
 
-  const eligibleCount = eligibleIds.size;
-  const total = participants.length;
+  const eligibleCount = participantIds.size;
+  const total = totalParticipants;
   const target =
     options?.targetEntryCount ??
     (options?.lotteryId

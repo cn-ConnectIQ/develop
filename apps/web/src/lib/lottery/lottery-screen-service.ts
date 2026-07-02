@@ -7,7 +7,10 @@ import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { fisherYatesShuffle } from "@/lib/interaction/lottery-rewards";
 import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
-import { loadOrganizerLotteryMeta } from "@/lib/lottery/organizer-lottery-service";
+import {
+  loadOrganizerLotteryMeta,
+  syncOrganizerLotteryEntriesFromEligibility,
+} from "@/lib/lottery/organizer-lottery-service";
 import {
   broadcastLotteryScreenMessage,
   type LotteryScreenRollingEntry,
@@ -60,6 +63,8 @@ export async function startLotteryScreen(eventId: string, lotteryId: string) {
     throw new ApiError("抽奖未开放，无法启动大屏", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
+
   const entries = await prisma.lotteryEntry.findMany({
     where: { lotteryId },
     include: {
@@ -74,7 +79,11 @@ export async function startLotteryScreen(eventId: string, lotteryId: string) {
   });
 
   if (entries.length === 0) {
-    throw new ApiError("暂无报名参与者", ErrorCode.VALIDATION_ERROR, 400);
+    throw new ApiError(
+      "暂无符合门槛的参与者，请确认参会者已签到且手机号/邮箱与小程序账号一致",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
   }
 
   if (isLotteryOpenForEntry(lottery.status)) {
@@ -120,6 +129,8 @@ export async function revealNextLotteryScreenWinner(
   eventId: string,
   lotteryId: string,
 ) {
+  await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
+
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
 
   if (
@@ -278,6 +289,8 @@ export async function endLotteryScreen(eventId: string, lotteryId: string) {
 }
 
 export async function getLotteryScreenState(eventId: string, lotteryId: string) {
+  await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
+
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
   const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
 
@@ -296,6 +309,7 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
   });
 
   const winnerQuota = lottery.prizeItems.reduce((sum, p) => sum + p.quantity, 0);
+  const entryCount = await prisma.lotteryEntry.count({ where: { lotteryId } });
 
   return {
     lottery: {
@@ -303,7 +317,7 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
       title: lottery.title,
       status: lottery.status,
       draw_at: lottery.drawAt?.toISOString() ?? null,
-      entry_count: lottery._count.entries,
+      entry_count: entryCount,
       animation: meta.screen_animation,
     },
     winner_quota: winnerQuota,

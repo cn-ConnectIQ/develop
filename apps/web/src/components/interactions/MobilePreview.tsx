@@ -3,6 +3,10 @@
 import { CheckCircle, Circle, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { InteractionPollItem } from "@/lib/interaction-manager";
+import {
+  parseRatingConfigFromOptions,
+  ratingScoreRange,
+} from "@/lib/rating-poll-config";
 
 type MobilePreviewProps = {
   poll: InteractionPollItem | null;
@@ -51,14 +55,7 @@ function PreviewContent({ poll }: { poll: InteractionPollItem }) {
         </div>
       )}
       {poll.type === "RATING" && (
-        <div className="flex justify-center gap-1 py-4">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <Star
-              key={n}
-              className={cn("size-6", n <= 3 ? "fill-brand-gold text-brand-gold" : "text-gray-300")}
-            />
-          ))}
-        </div>
+        <RatingPreview poll={poll} />
       )}
       {poll.type === "WORD_CLOUD" && (
         <p className="text-sm text-text-muted">输入关键词参与词云…</p>
@@ -71,6 +68,33 @@ function PreviewContent({ poll }: { poll: InteractionPollItem }) {
       {poll.type === "ANNOUNCEMENT" && (
         <p className="text-sm">{poll.options[0]?.text ?? "公告内容"}</p>
       )}
+    </div>
+  );
+}
+
+function RatingPreview({ poll }: { poll: InteractionPollItem }) {
+  const config = parseRatingConfigFromOptions(poll.options);
+  const scores = ratingScoreRange(config);
+
+  return (
+    <div className="py-2">
+      <div className="flex justify-center gap-1 py-3">
+        {scores.map((n) => (
+          <Star
+            key={n}
+            className={cn(
+              "size-6",
+              n <= Math.ceil(scores.length / 2)
+                ? "fill-brand-gold text-brand-gold"
+                : "text-gray-300",
+            )}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-text-muted">
+        <span>{config.lowLabel || "非常不满意"}</span>
+        <span>{config.highLabel || "非常满意"}</span>
+      </div>
     </div>
   );
 }

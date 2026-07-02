@@ -1,6 +1,7 @@
 import { ConnectionStatus, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import { buildUserEventConnectionWhere } from "@/lib/event-connection-scope";
 import { findParticipantForUser } from "@/lib/interaction/participant-user";
 import { scoreIntentMatch } from "@/lib/mobile-intent-match";
 
@@ -12,7 +13,7 @@ export type ApiMySummaryAiFollowup = {
 };
 
 export type ApiEventMySummary = {
-  event: { name: string };
+  event: { name: string; status: string };
   connections: number;
   wechatExchanged: number;
   stampsAndInteractions: number;
@@ -25,29 +26,21 @@ export async function getEventMySummary(
 ): Promise<ApiEventMySummary> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, status: true },
   });
   if (!event) {
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
+  const connectionWhere = await buildUserEventConnectionWhere(eventId, userId);
+  const wechatWhere = await buildUserEventConnectionWhere(eventId, userId, {
+    wechatExchanged: true,
+  });
+
   const [connections, wechatExchanged, participant, myIntent, peerIntents] =
     await Promise.all([
-      prisma.businessConnection.count({
-        where: {
-          eventId,
-          status: ConnectionStatus.ACTIVE,
-          OR: [{ userAId: userId }, { userBId: userId }],
-        },
-      }),
-      prisma.businessConnection.count({
-        where: {
-          eventId,
-          status: ConnectionStatus.ACTIVE,
-          wechatExchanged: true,
-          OR: [{ userAId: userId }, { userBId: userId }],
-        },
-      }),
+      prisma.businessConnection.count({ where: connectionWhere }),
+      prisma.businessConnection.count({ where: wechatWhere }),
       findParticipantForUser(eventId, userId),
       prisma.userEventIntent.findUnique({
         where: { userId_eventId: { userId, eventId } },
@@ -92,11 +85,7 @@ export async function getEventMySummary(
   const connectedUserIds = new Set<string>();
   if (connections > 0) {
     const rows = await prisma.businessConnection.findMany({
-      where: {
-        eventId,
-        status: ConnectionStatus.ACTIVE,
-        OR: [{ userAId: userId }, { userBId: userId }],
-      },
+      where: connectionWhere,
       select: { userAId: true, userBId: true, wechatExchanged: true },
     });
     for (const row of rows) {
@@ -124,7 +113,7 @@ export async function getEventMySummary(
     .map(({ score: _score, ...row }) => row);
 
   return {
-    event: { name: event.name },
+    event: { name: event.name, status: event.status },
     connections,
     wechatExchanged,
     stampsAndInteractions,

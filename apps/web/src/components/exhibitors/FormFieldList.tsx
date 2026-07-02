@@ -173,6 +173,13 @@ function SortableFieldRow({
   );
 }
 
+function parseOptionsText(text: string): string[] {
+  return text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function FieldEditSheet({
   field,
   open,
@@ -185,9 +192,13 @@ function FieldEditSheet({
   onSave: (field: LeadFormField) => void;
 }) {
   const [draft, setDraft] = useState<LeadFormField | null>(field);
+  const [optionsText, setOptionsText] = useState("");
 
   useEffect(() => {
-    if (field) setDraft(field);
+    if (field) {
+      setDraft(field);
+      setOptionsText((field.options ?? []).join("\n"));
+    }
   }, [field]);
 
   if (!draft) return null;
@@ -214,16 +225,21 @@ function FieldEditSheet({
             <Label className="text-xs">字段类型</Label>
             <Select
               value={draft.type}
-              onValueChange={(v) =>
+              onValueChange={(v) => {
+                const nextType = v as FormFieldType;
+                const nextOptions =
+                  nextType === "select" || nextType === "multiselect"
+                    ? (draft.options ?? ["选项1"])
+                    : undefined;
                 setDraft({
                   ...draft,
-                  type: v as FormFieldType,
-                  options:
-                    v === "select" || v === "multiselect"
-                      ? draft.options ?? ["选项1"]
-                      : undefined,
-                })
-              }
+                  type: nextType,
+                  options: nextOptions,
+                });
+                if (nextType === "select" || nextType === "multiselect") {
+                  setOptionsText((nextOptions ?? []).join("\n"));
+                }
+              }}
             >
               <SelectTrigger className="mt-1">
                 <SelectValue />
@@ -242,16 +258,8 @@ function FieldEditSheet({
               <Label className="text-xs">选项（每行一个）</Label>
               <Textarea
                 className="mt-1 min-h-24"
-                value={(draft.options ?? []).join("\n")}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    options: e.target.value
-                      .split("\n")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
+                value={optionsText}
+                onChange={(e) => setOptionsText(e.target.value)}
               />
             </div>
           )}
@@ -285,7 +293,10 @@ function FieldEditSheet({
           <Button
             className="w-full bg-brand-blue hover:bg-brand-blue/90"
             onClick={() => {
-              onSave(draft);
+              onSave({
+                ...draft,
+                options: hasOptions ? parseOptionsText(optionsText) : undefined,
+              });
               onOpenChange(false);
             }}
           >

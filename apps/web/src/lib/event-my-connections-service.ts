@@ -1,10 +1,10 @@
 import {
-  ConnectionStatus,
   ExchangeStatus,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import { buildUserEventConnectionWhere } from "@/lib/event-connection-scope";
 
 export type ApiEventConnectionPeer = {
   id: string;
@@ -48,27 +48,8 @@ export async function listEventMyConnections(
 
   const defaultLocation = event.location ?? event.name;
 
-  const eventBooths = await prisma.exhibitorBooth.findMany({
-    where: { eventId },
-    select: { id: true },
-  });
-  const eventBoothIds = eventBooths.map((booth) => booth.id);
-
   const rows = await prisma.businessConnection.findMany({
-    where: {
-      status: ConnectionStatus.ACTIVE,
-      AND: [
-        { OR: [{ userAId: viewerId }, { userBId: viewerId }] },
-        {
-          OR: [
-            { eventId },
-            ...(eventBoothIds.length > 0
-              ? [{ eventId: null, boothId: { in: eventBoothIds } }]
-              : []),
-          ],
-        },
-      ],
-    },
+    where: await buildUserEventConnectionWhere(eventId, viewerId),
     orderBy: { createdAt: "desc" },
     include: {
       userA: {

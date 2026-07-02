@@ -1,6 +1,6 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
+import { ImeSafeInput } from "@/components/ui/ime-safe-input";
 import {
   Select,
   SelectContent,
@@ -37,12 +37,20 @@ export function RatingEditor({
       highLabel: string;
     }>,
   ) {
-    onChange?.({
+    const next = {
       minScore: patch.minScore ?? minScore,
       maxScore: patch.maxScore ?? maxScore,
       lowLabel: patch.lowLabel ?? lowLabel,
       highLabel: patch.highLabel ?? highLabel,
-    });
+    };
+    if (next.minScore > next.maxScore) {
+      if (patch.minScore != null) {
+        next.maxScore = next.minScore;
+      } else {
+        next.minScore = next.maxScore;
+      }
+    }
+    onChange?.(next);
   }
 
   return (
@@ -81,17 +89,19 @@ export function RatingEditor({
         </Select>
       </div>
       <div className="mt-3 flex gap-3">
-        <Input
+        <ImeSafeInput
           value={lowLabel}
-          onChange={(e) => emit({ lowLabel: e.target.value })}
+          debounceMs={600}
+          onValueCommit={(text) => emit({ lowLabel: text })}
           placeholder="非常不满意"
-          className="h-9 w-28 rounded-lg px-3 text-sm"
+          className="h-9 w-36 rounded-lg border border-border-light bg-white px-3 text-sm shadow-none focus-visible:ring-1"
         />
-        <Input
+        <ImeSafeInput
           value={highLabel}
-          onChange={(e) => emit({ highLabel: e.target.value })}
+          debounceMs={600}
+          onValueCommit={(text) => emit({ highLabel: text })}
           placeholder="非常满意"
-          className="h-9 w-28 rounded-lg px-3 text-sm"
+          className="h-9 w-36 rounded-lg border border-border-light bg-white px-3 text-sm shadow-none focus-visible:ring-1"
         />
       </div>
     </div>
