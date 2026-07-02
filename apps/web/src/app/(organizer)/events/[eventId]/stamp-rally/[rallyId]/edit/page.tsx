@@ -1,8 +1,23 @@
+import dynamic from "next/dynamic";
 import { EventType, prisma } from "@connectiq/database";
 import { notFound, redirect } from "next/navigation";
 import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
-import { StampRallyConfigurator } from "@/components/stamp/StampRallyConfigurator";
+
+const StampRallyConfigurator = dynamic(
+  () =>
+    import("@/components/stamp/StampRallyConfigurator").then(
+      (mod) => mod.StampRallyConfigurator,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[320px] items-center justify-center">
+        <p className="text-sm text-text-muted">配置页加载中…</p>
+      </div>
+    ),
+  },
+);
 
 export default async function EditStampRallyPage({
   params,
@@ -14,18 +29,13 @@ export default async function EditStampRallyPage({
   const access = await requireEventAccessCheck(eventId);
   if ("error" in access) notFound();
 
-  const [event, rally] = await Promise.all([
-    prisma.event.findUnique({
-      where: { id: eventId },
-      select: { id: true, name: true, type: true, activityType: true },
-    }),
-    prisma.stampRally.findFirst({
-      where: { id: rallyId, eventId },
-      select: { id: true },
-    }),
-  ]);
+  const rally = await prisma.stampRally.findFirst({
+    where: { id: rallyId, eventId },
+    select: { id: true },
+  });
+  if (!rally) notFound();
 
-  if (!event || !rally) notFound();
+  const event = access.event;
 
   const isConferenceOrExpo =
     event.type === EventType.CONFERENCE ||

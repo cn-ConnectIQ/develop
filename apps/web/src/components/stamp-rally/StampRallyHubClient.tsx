@@ -38,9 +38,15 @@ export function StampRallyHubClient({
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  const { data: rallies = [], isLoading } = useQuery({
+  const {
+    data: rallies = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["stamp-rallies", eventId],
     queryFn: () => fetchRallies(eventId),
+    retry: 1,
   });
 
   function refresh() {
@@ -98,7 +104,24 @@ export function StampRallyHubClient({
           <p className="py-12 text-center text-sm text-text-muted">加载中…</p>
         )}
 
-        {!isLoading && rallies.length === 0 && (
+        {isError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-8 text-center">
+            <p className="text-sm text-destructive">集章路线加载失败</p>
+            <p className="mt-1 text-xs text-text-muted">
+              请检查数据库连接或 schema 是否已同步
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => void refetch()}
+            >
+              重试
+            </Button>
+          </div>
+        )}
+
+        {!isLoading && !isError && rallies.length === 0 && (
           <div className="rounded-xl border border-border-light bg-white py-16 text-center">
             <Trophy className="mx-auto size-10 text-brand-gold/60" />
             <p className="mt-3 text-text-muted">暂无集章路线</p>
@@ -200,7 +223,7 @@ export function StampRallyHubClient({
           })}
         </div>
 
-        {!isLoading && rallies.length > 0 && (
+        {!isLoading && !isError && rallies.length > 0 && (
           <div className="mt-10 border-t border-border-light pt-8">
             <StampMonitorPanel eventId={eventId} />
           </div>

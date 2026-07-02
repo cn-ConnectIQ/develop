@@ -208,15 +208,21 @@ export async function listStampRallies(eventId: string) {
     include: rallyInclude,
   });
 
-  const distinctUsers = await prisma.stampRecord.findMany({
-    where: { rally: { eventId } },
-    select: { rallyId: true, userId: true },
-    distinct: ["rallyId", "userId"],
-  });
-
   const participantMap = new Map<string, number>();
-  for (const row of distinctUsers) {
-    participantMap.set(row.rallyId, (participantMap.get(row.rallyId) ?? 0) + 1);
+  try {
+    const distinctUsers = await prisma.stampRecord.findMany({
+      where: { rally: { eventId } },
+      select: { rallyId: true, userId: true },
+      distinct: ["rallyId", "userId"],
+    });
+    for (const row of distinctUsers) {
+      participantMap.set(
+        row.rallyId,
+        (participantMap.get(row.rallyId) ?? 0) + 1,
+      );
+    }
+  } catch (error) {
+    console.warn("[listStampRallies] participant count fallback:", error);
   }
 
   return Promise.all(
@@ -224,7 +230,8 @@ export async function listStampRallies(eventId: string) {
       const meta = await loadStampRallyMeta(eventId, row.id);
       return {
         ...mapRallyRow(row, meta),
-        participant_count: participantMap.get(row.id) ?? 0,
+        participant_count:
+          participantMap.get(row.id) ?? row._count.records ?? 0,
       };
     }),
   );
