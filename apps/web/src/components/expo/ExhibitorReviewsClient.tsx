@@ -110,7 +110,12 @@ export function ExhibitorReviewsClient({
               {
                 key: "status",
                 header: "状态",
-                cell: (row) => row.status,
+                cell: (row) =>
+                  row.status === "PENDING" ? (
+                    <span className="admin-badge-soft-amber">待审核</span>
+                  ) : (
+                    row.status
+                  ),
               },
               {
                 key: "actions",

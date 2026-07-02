@@ -1,5 +1,7 @@
 import {
+  InviteStatus,
   LotteryStatus,
+  OrgStaffRole,
   StampRallyStatus,
   prisma,
 } from "@connectiq/database";
@@ -14,12 +16,41 @@ import {
 export async function assertOrgEvent(orgId: string, eventId: string) {
   const event = await prisma.event.findFirst({
     where: { id: eventId, orgId },
-    select: { id: true, name: true, activityType: true },
+    select: { id: true, name: true, activityType: true, orgId: true },
   });
   if (!event) {
     throw new ApiError("活动不存在或无权访问", ErrorCode.NOT_FOUND, 404);
   }
   return event;
+}
+
+/** 待审核：展商已申请、尚未分配现场操作员且展位仍为可预订状态 */
+const pendingExhibitorReviewWhere = (eventId: string, hostOrgId: string) => ({
+  eventId,
+  status: "AVAILABLE" as const,
+  operatorUserId: null,
+  NOT: { companyOrgId: hostOrgId },
+});
+
+async function resolveBoothOperatorUserId(
+  companyOrgId: string,
+): Promise<string | null> {
+  const org = await prisma.organization.findUnique({
+    where: { id: companyOrgId },
+    select: { ownerId: true },
+  });
+  if (org?.ownerId) return org.ownerId;
+
+  const staff = await prisma.orgStaff.findFirst({
+    where: {
+      orgId: companyOrgId,
+      status: InviteStatus.ACCEPTED,
+      role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+    },
+    select: { userId: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return staff?.userId ?? null;
 }
 
 export async function sendMobileEventBroadcast(
@@ -39,11 +70,12 @@ export async function sendMobileEventBroadcast(
 export async function listPendingExhibitorReviews(eventId: string, orgId: string) {
   await assertOrgEvent(orgId, eventId);
   const rows = await prisma.exhibitorBooth.findMany({
-    where: { eventId, operatorUserId: null },
+    where: pendingExhibitorReviewWhere(eventId, orgId),
     select: {
       id: true,
       code: true,
       name: true,
+      status: true,
       companyOrg: { select: { name: true } },
     },
     orderBy: { code: "asc" },
@@ -67,14 +99,14 @@ export async function reviewExhibitorBooth(
   await assertOrgEvent(orgId, eventId);
   const booth = await prisma.exhibitorBooth.findFirst({
     where: { id: boothId, eventId },
-    include: { companyOrg: { select: { ownerId: true } } },
+    select: { id: true, companyOrgId: true },
   });
   if (!booth) {
     throw new ApiError("展位不存在", ErrorCode.NOT_FOUND, 404);
   }
 
   if (action === "approve") {
-    const operatorUserId = booth.companyOrg.ownerId;
+    const operatorUserId = await resolveBoothOperatorUserId(booth.companyOrgId);
     await prisma.exhibitorBooth.update({
       where: { id: boothId },
       data: {
@@ -87,7 +119,11 @@ export async function reviewExhibitorBooth(
 
   await prisma.exhibitorBooth.update({
     where: { id: boothId },
-    data: { status: "AVAILABLE" },
+    data: {
+      status: "AVAILABLE",
+      companyOrgId: orgId,
+      operatorUserId: null,
+    },
   });
   return { id: boothId, status: "REJECTED" as const };
 }

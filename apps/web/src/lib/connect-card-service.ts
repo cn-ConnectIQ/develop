@@ -442,6 +442,19 @@ async function fetchConnectCardCore(
   return result;
 }
 
+async function resolveEventIdForConnection(
+  eventId?: string,
+  boothId?: string,
+): Promise<string | undefined> {
+  if (eventId) return eventId;
+  if (!boothId) return undefined;
+  const booth = await prisma.exhibitorBooth.findUnique({
+    where: { id: boothId },
+    select: { eventId: true },
+  });
+  return booth?.eventId ?? undefined;
+}
+
 async function upsertScanConnection(
   viewerId: string,
   targetUserId: string,
@@ -464,6 +477,8 @@ async function upsertScanConnection(
     },
   });
 
+  const resolvedEventId = await resolveEventIdForConnection(eventId, data.boothId);
+
   const [userA, userB, event] = await Promise.all([
     prisma.user.findUnique({
       where: { id: viewerId },
@@ -473,8 +488,11 @@ async function upsertScanConnection(
       where: { id: targetUserId },
       include: { profile: { select: { company: true } } },
     }),
-    eventId
-      ? prisma.event.findUnique({ where: { id: eventId }, select: { id: true, name: true } })
+    resolvedEventId
+      ? prisma.event.findUnique({
+          where: { id: resolvedEventId },
+          select: { id: true, name: true },
+        })
       : null,
   ]);
 
@@ -692,8 +710,9 @@ export async function performWechatExchange(input: {
   fromAiMatch?: boolean;
   aiMatchScore?: number;
 }): Promise<ExchangeResult> {
-  const { viewerId, targetUserId, eventId, boothId } = input;
+  const { viewerId, targetUserId, boothId } = input;
   const method = input.method ?? ExchangeMethod.FACE_TO_FACE;
+  const resolvedEventId = await resolveEventIdForConnection(input.eventId, boothId);
 
   const target = await prisma.user.findUnique({
     where: { id: targetUserId },
@@ -717,7 +736,7 @@ export async function performWechatExchange(input: {
     );
   }
 
-  const connection = await upsertScanConnection(viewerId, targetUserId, eventId, {
+  const connection = await upsertScanConnection(viewerId, targetUserId, resolvedEventId, {
     wechatExchanged: true,
     exchangeMethod: method,
     fromAiMatch: input.fromAiMatch,
@@ -730,7 +749,7 @@ export async function performWechatExchange(input: {
       fromUserId: viewerId,
       toUserId: targetUserId,
       status: ExchangeStatus.PENDING,
-      ...(eventId ? { eventId } : {}),
+      ...(resolvedEventId ? { eventId: resolvedEventId } : {}),
     },
     data: {
       status: ExchangeStatus.ACCEPTED,
@@ -738,20 +757,25 @@ export async function performWechatExchange(input: {
     },
   });
 
-  await recordExchangeSignals({ viewerId, targetUserId, eventId, boothId });
+  await recordExchangeSignals({
+    viewerId,
+    targetUserId,
+    eventId: resolvedEventId,
+    boothId,
+  });
 
-  if (eventId) {
+  if (resolvedEventId) {
     trackMatchFeedback({
       viewerId,
       targetId: targetUserId,
-      eventId,
+      eventId: resolvedEventId,
       signal: MatchFeedbackSignal.EXCHANGED,
       matchScore: input.aiMatchScore ?? undefined,
     });
     trackMatchFeedback({
       viewerId: targetUserId,
       targetId: viewerId,
-      eventId,
+      eventId: resolvedEventId,
       signal: MatchFeedbackSignal.EXCHANGED,
       matchScore: input.aiMatchScore ?? undefined,
     });
@@ -761,7 +785,7 @@ export async function performWechatExchange(input: {
     await recordPositiveAiMatchFeedback({
       userId: viewerId,
       targetUserId,
-      eventId,
+      eventId: resolvedEventId,
       aiMatchScore: input.aiMatchScore,
       connectionId: connection.id,
     });
@@ -801,7 +825,8 @@ export async function createWechatExchangeRequest(input: {
   request_id: string;
   requestId: string;
 }> {
-  const { viewerId, targetUserId, eventId, boothId, message } = input;
+  const { viewerId, targetUserId, boothId, message } = input;
+  const resolvedEventId = await resolveEventIdForConnection(input.eventId, boothId);
 
   const [targetCard, fromUser, event] = await Promise.all([
     prisma.contactCard.findUnique({ where: { userId: targetUserId } }),
@@ -809,8 +834,8 @@ export async function createWechatExchangeRequest(input: {
       where: { id: viewerId },
       select: { name: true, profile: { select: { company: true } } },
     }),
-    eventId
-      ? prisma.event.findUnique({ where: { id: eventId }, select: { name: true } })
+    resolvedEventId
+      ? prisma.event.findUnique({ where: { id: resolvedEventId }, select: { name: true } })
       : null,
   ]);
 
@@ -824,7 +849,7 @@ export async function createWechatExchangeRequest(input: {
     where: {
       fromUserId: viewerId,
       toUserId: targetUserId,
-      eventId: eventId ?? null,
+      eventId: resolvedEventId ?? null,
     },
   });
 
@@ -838,13 +863,14 @@ export async function createWechatExchangeRequest(input: {
           expiresAt,
           respondedAt: null,
           boothId,
+          eventId: resolvedEventId,
         },
       })
     : await prisma.exchangeRequest.create({
         data: {
           fromUserId: viewerId,
           toUserId: targetUserId,
-          eventId,
+          eventId: resolvedEventId,
           boothId,
           message,
           fromAiMatch: input.fromAiMatch ?? false,

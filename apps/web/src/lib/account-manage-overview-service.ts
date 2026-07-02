@@ -97,7 +97,12 @@ export async function getEventManageOverview(orgId: string, eventId: string) {
       getBoothRankings(eventId),
       prisma.exhibitorBooth.count({ where: { eventId } }),
       prisma.exhibitorBooth.findMany({
-        where: { eventId, operatorUserId: null },
+        where: {
+          eventId,
+          status: "AVAILABLE",
+          operatorUserId: null,
+          NOT: { companyOrgId: orgId },
+        },
         select: {
           id: true,
           code: true,

@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { CheckSquare, Circle, GripVertical, Plus } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { ImeSafeInput } from "@/components/ui/ime-safe-input";
 import {
   useInteractionAutoSave,
   patchPoll,
@@ -62,9 +62,29 @@ export function PollOptionsEditor({
     },
   });
 
-  const persist = useCallback(
-    (next: OptionRow[]) => {
-      setOptions(next);
+  const removeOption = useCallback(
+    (optionId: string) => {
+      setOptions((prev) => {
+        const next = prev.filter((o) => o.id !== optionId);
+        onChange?.(next);
+        scheduleSave(
+          next.map((o) => ({
+            id: o.id.startsWith("new-") ? undefined : o.id,
+            text: o.text,
+          })),
+        );
+        return next;
+      });
+    },
+    [onChange, scheduleSave],
+  );
+
+  const addOption = useCallback(() => {
+    setOptions((prev) => {
+      const next = [
+        ...prev,
+        { id: `new-${Date.now()}`, text: `选项 ${prev.length + 1}` },
+      ];
       onChange?.(next);
       scheduleSave(
         next.map((o) => ({
@@ -72,6 +92,25 @@ export function PollOptionsEditor({
           text: o.text,
         })),
       );
+      return next;
+    });
+  }, [onChange, scheduleSave]);
+
+  const updateOptionText = useCallback(
+    (optionId: string, text: string) => {
+      setOptions((prev) => {
+        const next = prev.map((o) =>
+          o.id === optionId ? { ...o, text } : o,
+        );
+        onChange?.(next);
+        scheduleSave(
+          next.map((o) => ({
+            id: o.id.startsWith("new-") ? undefined : o.id,
+            text: o.text,
+          })),
+        );
+        return next;
+      });
     },
     [onChange, scheduleSave],
   );
@@ -86,9 +125,19 @@ export function PollOptionsEditor({
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = options.findIndex((o) => o.id === active.id);
-    const newIndex = options.findIndex((o) => o.id === over.id);
-    persist(arrayMove(options, oldIndex, newIndex));
+    setOptions((prev) => {
+      const oldIndex = prev.findIndex((o) => o.id === active.id);
+      const newIndex = prev.findIndex((o) => o.id === over.id);
+      const next = arrayMove(prev, oldIndex, newIndex);
+      onChange?.(next);
+      scheduleSave(
+        next.map((o) => ({
+          id: o.id.startsWith("new-") ? undefined : o.id,
+          text: o.text,
+        })),
+      );
+      return next;
+    });
   }
 
   const ChoiceIcon = type === "MULTI_CHOICE" ? CheckSquare : Circle;
@@ -110,16 +159,8 @@ export function PollOptionsEditor({
                 key={option.id}
                 option={option}
                 ChoiceIcon={ChoiceIcon}
-                onChange={(text) =>
-                  persist(
-                    options.map((o) =>
-                      o.id === option.id ? { ...o, text } : o,
-                    ),
-                  )
-                }
-                onRemove={() =>
-                  persist(options.filter((o) => o.id !== option.id))
-                }
+                onCommit={(text) => updateOptionText(option.id, text)}
+                onRemove={() => removeOption(option.id)}
               />
             ))}
           </div>
@@ -128,12 +169,7 @@ export function PollOptionsEditor({
 
       <button
         type="button"
-        onClick={() =>
-          persist([
-            ...options,
-            { id: `new-${Date.now()}`, text: `选项 ${options.length + 1}` },
-          ])
-        }
+        onClick={addOption}
         className="mt-2 flex cursor-pointer items-center gap-1 text-sm text-brand-blue hover:underline"
       >
         <Plus className="size-3.5" />
@@ -152,12 +188,12 @@ export function PollOptionsEditor({
 function SortableOptionRow({
   option,
   ChoiceIcon,
-  onChange,
+  onCommit,
   onRemove,
 }: {
   option: OptionRow;
   ChoiceIcon: typeof Circle;
-  onChange: (text: string) => void;
+  onCommit: (text: string) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -180,9 +216,10 @@ function SortableOptionRow({
         {...listeners}
       />
       <ChoiceIcon className="size-3.5 shrink-0 text-text-muted" />
-      <Input
+      <ImeSafeInput
         value={option.text}
-        onChange={(e) => onChange(e.target.value)}
+        debounceMs={800}
+        onValueCommit={onCommit}
         placeholder="输入选项"
         className="h-9 flex-1 border-0 bg-transparent text-[15px] shadow-none outline-none placeholder:text-text-muted focus-visible:ring-0"
       />

@@ -1,4 +1,4 @@
-import { SignalType, prisma } from "@connectiq/database";
+import { BoothStatus, SignalType, prisma } from "@connectiq/database";
 
 export type BoothRankingItem = {
   booth_id: string;
@@ -27,16 +27,20 @@ export async function getBoothRankings(eventId: string): Promise<{
   const [event, booths, leads, scans] = await Promise.all([
     prisma.event.findUnique({
       where: { id: eventId },
-      select: { name: true },
+      select: { name: true, orgId: true },
     }),
     prisma.exhibitorBooth.findMany({
-      where: { eventId },
+      where: {
+        eventId,
+        status: { in: [BoothStatus.BOOKED, BoothStatus.OCCUPIED] },
+      },
       select: {
         id: true,
         code: true,
         companyOrgId: true,
         companyOrg: { select: { name: true } },
       },
+      orderBy: { code: "asc" },
     }),
     prisma.lead.findMany({
       where: { booth: { eventId } },
@@ -55,6 +59,10 @@ export async function getBoothRankings(eventId: string): Promise<{
   if (!event) {
     return { event_name: "", rankings: [] };
   }
+
+  const rankedBooths = booths.filter(
+    (booth) => booth.companyOrgId !== event.orgId,
+  );
 
   type BoothAgg = {
     leadTotal: number;
@@ -81,7 +89,7 @@ export async function getBoothRankings(eventId: string): Promise<{
     return row;
   };
 
-  for (const booth of booths) {
+  for (const booth of rankedBooths) {
     ensure(booth.id);
   }
 
@@ -100,7 +108,7 @@ export async function getBoothRankings(eventId: string): Promise<{
     if (scan.occurredAt >= since30m) row.scanRecent += 1;
   }
 
-  const ranked = booths
+  const ranked = rankedBooths
     .map((booth) => {
       const stats = agg.get(booth.id)!;
       const todayVisitors = Math.max(stats.leadToday, stats.scanToday);
@@ -121,7 +129,10 @@ export async function getBoothRankings(eventId: string): Promise<{
       if (b.today_visitors !== a.today_visitors) {
         return b.today_visitors - a.today_visitors;
       }
-      return b.total_visitors - a.total_visitors;
+      if (b.total_visitors !== a.total_visitors) {
+        return b.total_visitors - a.total_visitors;
+      }
+      return a.booth_number.localeCompare(b.booth_number, "zh-CN");
     })
     .map((item, index) => ({ ...item, rank: index + 1 }));
 

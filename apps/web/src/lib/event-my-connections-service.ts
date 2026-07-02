@@ -48,11 +48,26 @@ export async function listEventMyConnections(
 
   const defaultLocation = event.location ?? event.name;
 
+  const eventBooths = await prisma.exhibitorBooth.findMany({
+    where: { eventId },
+    select: { id: true },
+  });
+  const eventBoothIds = eventBooths.map((booth) => booth.id);
+
   const rows = await prisma.businessConnection.findMany({
     where: {
-      eventId,
       status: ConnectionStatus.ACTIVE,
-      OR: [{ userAId: viewerId }, { userBId: viewerId }],
+      AND: [
+        { OR: [{ userAId: viewerId }, { userBId: viewerId }] },
+        {
+          OR: [
+            { eventId },
+            ...(eventBoothIds.length > 0
+              ? [{ eventId: null, boothId: { in: eventBoothIds } }]
+              : []),
+          ],
+        },
+      ],
     },
     orderBy: { createdAt: "desc" },
     include: {

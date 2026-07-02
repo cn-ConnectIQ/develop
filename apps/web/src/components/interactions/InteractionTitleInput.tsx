@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ImeSafeInput } from "@/components/ui/ime-safe-input";
 import {
   useInteractionAutoSave,
   patchPoll,
@@ -28,11 +28,7 @@ export function InteractionTitleInput({
   onSaved,
   className,
 }: InteractionTitleInputProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const lastSaved = useRef(value);
-  const isFocusedRef = useRef(false);
   const resourceId = pollId ?? lotteryId ?? "";
-  const prevResourceId = useRef(resourceId);
 
   const { scheduleSave, saveState } = useInteractionAutoSave<{ title: string }>({
     debounceMs: 600,
@@ -45,54 +41,19 @@ export function InteractionTitleInput({
       } else if (lotteryId) {
         await patchLottery(eventId, lotteryId, { title: trimmed });
       }
-      lastSaved.current = trimmed;
       onSaved?.(trimmed);
     },
   });
 
-  useEffect(() => {
-    if (prevResourceId.current !== resourceId) {
-      prevResourceId.current = resourceId;
-      isFocusedRef.current = false;
-      if (ref.current) {
-        ref.current.textContent = value;
-        lastSaved.current = value;
-      }
-      return;
-    }
-
-    if (
-      !isFocusedRef.current &&
-      ref.current &&
-      ref.current.textContent !== value
-    ) {
-      ref.current.textContent = value;
-      lastSaved.current = value;
-    }
-  }, [value, resourceId]);
-
   return (
     <div className={cn("flex items-start gap-3", className)}>
-      <div
-        ref={ref}
-        contentEditable
-        suppressContentEditableWarning
-        data-placeholder={placeholder}
-        className="interaction-title-input min-h-[40px] flex-1 text-[22px] font-semibold leading-tight outline-none empty:before:pointer-events-none empty:before:text-text-tertiary empty:before:content-[attr(data-placeholder)]"
-        onFocus={() => {
-          isFocusedRef.current = true;
-        }}
-        onBlur={() => {
-          isFocusedRef.current = false;
-          const title = ref.current?.textContent ?? "";
-          lastSaved.current = title;
-        }}
-        onInput={(e) => {
-          const title = e.currentTarget.textContent ?? "";
-          if (title !== lastSaved.current) {
-            scheduleSave({ title });
-          }
-        }}
+      <ImeSafeInput
+        key={resourceId}
+        value={value}
+        debounceMs={600}
+        placeholder={placeholder}
+        onValueCommit={(title) => scheduleSave({ title })}
+        className="h-auto min-h-[40px] flex-1 border-0 bg-transparent px-0 text-[22px] font-semibold leading-tight shadow-none outline-none placeholder:text-text-tertiary focus-visible:ring-0"
       />
       <div className="shrink-0 pt-1">
         {saveState === "saving" && (
