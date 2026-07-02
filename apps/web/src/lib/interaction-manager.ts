@@ -71,7 +71,9 @@ export function isLotteryClosed(status: string): boolean {
 }
 
 export function getInteractionResponseCount(item: InteractionItem): number {
-  if (item.kind === "poll") return item._count.responses;
+  if (item.kind === "poll") {
+    return item._count?.responses ?? 0;
+  }
   return item.entryCount ?? item._count?.entries ?? 0;
 }
 

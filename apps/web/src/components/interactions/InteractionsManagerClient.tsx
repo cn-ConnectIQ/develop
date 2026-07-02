@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { InteractionSidebar } from "@/components/interactions/InteractionSidebar";
 import { InteractionWorkspace } from "@/components/interactions/InteractionWorkspace";
 import type { InteractionCreateType } from "@/components/interactions/InteractionTypePopover";
@@ -32,12 +33,24 @@ async function fetchInteractions(eventId: string) {
     fetch(`/api/events/${eventId}/polls`),
     fetch(`/api/events/${eventId}/lotteries`),
   ]);
-  if (!pollsRes.ok) throw new Error("加载投票失败");
+  if (!pollsRes.ok) {
+    const json = await pollsRes.json().catch(() => null);
+    throw new Error(json?.error ?? "加载投票失败");
+  }
   const pollsJson = await pollsRes.json();
   const pollsData = pollsJson.data as
     | { polls: PollListItem[]; sessions: SessionOption[] }
     | PollListItem[];
-  const polls = Array.isArray(pollsData) ? pollsData : pollsData.polls;
+  const rawPolls = Array.isArray(pollsData) ? pollsData : pollsData.polls;
+  const polls = rawPolls.map((poll) => ({
+    ...poll,
+    _count: {
+      responses:
+        poll._count?.responses ??
+        (poll as { participant_count?: number }).participant_count ??
+        0,
+    },
+  }));
   const sessions = Array.isArray(pollsData) ? [] : pollsData.sessions;
 
   let lotteries: LotteryListItem[] = [];
@@ -64,7 +77,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
     }
   }, [lotteryFromUrl]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["interactions", eventId],
     queryFn: () => fetchInteractions(eventId),
   });
@@ -251,6 +264,22 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
     return (
       <div className="flex h-[calc(100vh-56px)] items-center justify-center text-sm text-text-muted">
         加载中…
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-[calc(100vh-56px)] flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm font-medium text-[var(--admin-ink)]">
+          互动列表加载失败
+        </p>
+        <p className="max-w-md text-sm text-text-muted">
+          {error instanceof Error ? error.message : "请稍后重试"}
+        </p>
+        <Button variant="outline" onClick={() => void refetch()}>
+          重试
+        </Button>
       </div>
     );
   }

@@ -86,6 +86,7 @@ export function serializePollForMobile(
     createdAt: poll.createdAt.toISOString(),
     updatedAt: poll.updatedAt.toISOString(),
     participant_count: participantCount,
+    _count: { responses: participantCount },
     options: poll.options ?? [],
     bigscreen_url: buildPollBigscreenUrl(eventId, poll.id),
     realtime_url: `/api/events/${eventId}/polls/${poll.id}/realtime-results`,

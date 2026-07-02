@@ -69,7 +69,7 @@ export function RealtimeConsole({
     return () => clearInterval(timer);
   }, [data?.closesAt, poll.closesAt]);
 
-  const total = data?.total ?? poll._count.responses;
+  const total = data?.total ?? poll._count?.responses ?? 0;
 
   async function toggleShowResults(checked: boolean) {
     setShowResults(checked);
