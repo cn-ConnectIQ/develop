@@ -26,7 +26,7 @@ const tabs: Array<{ id: TabFilter; label: string }> = [
 export function EventsPageClient() {
   const [tab, setTab] = useState<TabFilter>("all");
   const [editEvent, setEditEvent] = useState<EventListItem | null>(null);
-  const { data, isLoading } = useEvents();
+  const { data, isLoading, isError, refetch } = useEvents();
 
   const events = data?.data.events ?? [];
   const stats = data?.data.stats ?? {
@@ -94,7 +94,25 @@ export function EventsPageClient() {
             <EventCardSkeleton key={i} />
           ))}
 
-        {!isLoading && filtered.length === 0 && (
+        {!isLoading && isError && (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 py-16 text-center">
+            <p className="text-sm font-medium text-destructive">
+              活动列表加载失败
+            </p>
+            <p className="mt-1 max-w-md text-sm text-text-muted">
+              可能是数据库连接异常或 Preview 环境未配置 DATABASE_URL。请稍后重试，或联系管理员检查部署环境。
+            </p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => void refetch()}
+            >
+              重试
+            </Button>
+          </div>
+        )}
+
+        {!isLoading && !isError && filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-xl border border-border-light bg-white py-16 text-center">
             <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-brand-blue-light">
               <CalendarDays className="size-6 text-brand-blue" />
