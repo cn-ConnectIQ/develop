@@ -10,7 +10,6 @@ import {
   ClipboardList,
   Eye,
   FileDown,
-  FileUp,
   Gift,
   Handshake,
   LayoutDashboard,
@@ -30,7 +29,6 @@ import {
   Tag,
   Ticket,
   Trophy,
-  UserCheck,
   Users,
   UserCog,
 } from "lucide-react";
@@ -78,12 +76,6 @@ function injectExpoOrganizerItems(
         label: "展会配置",
         href: `/events/${eventId}/expo-settings`,
         icon: Settings,
-        isNew: true,
-      },
-      {
-        label: "展商审核",
-        href: `/events/${eventId}/exhibitor-reviews`,
-        icon: UserCheck,
         isNew: true,
       },
       {
@@ -313,11 +305,6 @@ function getEventNavigationGroups(
                 icon: Users,
               },
               {
-                label: "数据导入",
-                href: `/events/${eventId}/data-import`,
-                icon: FileUp,
-              },
-              {
                 label: "AI 展位路线",
                 href: `/events/${eventId}/booth-route`,
                 icon: MapPin,
@@ -442,12 +429,6 @@ function getEventNavigationGroups(
                 label: "签到看板",
                 href: `/events/${eventId}/checkin`,
                 icon: ScanLine,
-              },
-              {
-                label: "签到大屏",
-                href: `/events/${eventId}/checkin/bigscreen`,
-                icon: Monitor,
-                external: true,
               },
               {
                 label: "互动大屏",

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ExhibitorReviewsPanel } from "@/components/expo/ExhibitorReviewsPanel";
 import {
   Select,
   SelectContent,
@@ -197,9 +198,9 @@ export function ExpoBoothsPageClient({
   return (
     <AdminPage>
       <AdminHeader
-        title="展位管理"
+        title="展商列表"
         description={eventName}
-        breadcrumb={["展会", "展位"]}
+        breadcrumb={["展商管理", "展商列表"]}
         actions={
           <div className="flex gap-2">
             <Link
@@ -222,6 +223,15 @@ export function ExpoBoothsPageClient({
       />
 
       <AdminContent>
+        <ExhibitorReviewsPanel
+          eventId={eventId}
+          onChanged={() =>
+            void queryClient.invalidateQueries({
+              queryKey: ["expo-booths", eventId],
+            })
+          }
+        />
+
         <SectionCard
           title={`全部展位（${booths.length}）`}
           description="管理展位编号、展商分配与入驻状态"

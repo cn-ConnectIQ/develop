@@ -256,9 +256,9 @@ function ExpoPanel({ data, eventId }: { data: ManageOverviewExpo; eventId: strin
               </li>
             ))}
           </ul>
-          <Link href={`/events/${eventId}/exhibitor-reviews`} className="mt-3 inline-block">
+          <Link href={`/events/${eventId}/exhibitors/booths#reviews`} className="mt-3 inline-block">
             <Button variant="outline" size="sm">
-              前往展商审核
+              前往展商列表审核
             </Button>
           </Link>
         </SectionCard>
@@ -285,7 +285,7 @@ function ExpoPanel({ data, eventId }: { data: ManageOverviewExpo; eventId: strin
       <SectionCard title="快捷操作">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ActionTile
-            href={`/events/${eventId}/exhibitor-reviews`}
+            href={`/events/${eventId}/exhibitors/booths#reviews`}
             icon={UserCheck}
             title="展商审核"
             desc="审核入驻申请与展位分配"

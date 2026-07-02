@@ -60,7 +60,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   feedback: "用户反馈汇总",
   expos: "展会",
   exhibitor: "参展商",
-  booths: "展位",
+  booths: "展商列表",
   leads: "线索",
   tags: "意向标签",
 };
