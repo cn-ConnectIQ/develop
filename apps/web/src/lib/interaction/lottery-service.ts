@@ -1,4 +1,4 @@
-import { LotteryStatus, prisma, type Lottery } from "@connectiq/database";
+import { InviteStatus, LotteryStatus, OrgStaffRole, prisma, type Lottery } from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
 import { ApiError, type AuthSession } from "@/lib/api-auth";
 import {
@@ -98,6 +98,17 @@ export async function assertExhibitorCanCreateLottery(
       OR: [
         { companyOrgId: session.user.activeOrgId ?? "" },
         { operatorUserId: session.user.id },
+        {
+          companyOrg: {
+            staff: {
+              some: {
+                userId: session.user.id,
+                status: InviteStatus.ACCEPTED,
+                role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+              },
+            },
+          },
+        },
       ],
     },
     select: { id: true },

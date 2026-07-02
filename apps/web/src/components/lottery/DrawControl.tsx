@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { LotteryDrawType } from "@connectiq/database";
+import { LotteryDrawType } from "@/lib/lottery/lottery-enums";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {

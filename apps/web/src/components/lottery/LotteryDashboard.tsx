@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LotteryDrawType, LotteryStatus } from "@connectiq/database";
+import { LotteryDrawType, LotteryStatus } from "@/lib/lottery/lottery-enums";
 import { Download, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import {

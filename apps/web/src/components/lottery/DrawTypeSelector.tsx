@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock, Hand, Zap } from "lucide-react";
-import { LotteryDrawType } from "@connectiq/database";
+import { LotteryDrawType } from "@/lib/lottery/lottery-enums";
 import { cn } from "@/lib/utils";
 
 export type DrawTypeSelectorProps = {

@@ -1,4 +1,7 @@
-import { LotteryDrawType } from "@connectiq/database";
+import {
+  LOTTERY_DRAW_TYPE_VALUES,
+  LotteryDrawType,
+} from "@/lib/lottery/lottery-enums";
 import { z } from "zod";
 
 const prizeItemSchema = z.object({
@@ -32,7 +35,7 @@ export const createBoothLotterySchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   prizes: z.array(prizeItemSchema).min(1),
-  draw_type: z.nativeEnum(LotteryDrawType).default(LotteryDrawType.INSTANT),
+  draw_type: z.enum(LOTTERY_DRAW_TYPE_VALUES).default(LotteryDrawType.INSTANT),
   draw_at: z.string().datetime().optional().nullable(),
   require_lead_capture: z.boolean().default(true),
   lead_form_config: z

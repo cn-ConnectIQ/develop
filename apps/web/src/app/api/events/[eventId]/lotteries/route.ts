@@ -6,6 +6,7 @@ import {
   createSuccessResponse,
   requireEventAccess,
   withErrorHandler,
+  type AuthSession,
 } from "@/lib/api-auth";
 import {
   assertExhibitorCanCreateLottery,
@@ -15,6 +16,7 @@ import {
 import { createLotterySchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import { requireMobileEventAccess } from "@/lib/mobile-user-id";
+import { requireBoothAccessForRequest } from "@/lib/mobile-exhibitor-service";
 import { createOrganizerLotterySchema } from "@/lib/lottery/organizer-lottery-config";
 import {
   listOrganizerGrandLotteries,
@@ -46,27 +48,37 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const auth = request.headers.get("authorization");
-  let createdById: string;
-  let webSession: Awaited<ReturnType<typeof requireEventAccess>>["session"] | null =
-    null;
-
-  if (auth?.startsWith("Bearer ")) {
-    const { userId } = await requireMobileEventAccess(request, eventId);
-    createdById = userId;
-  } else {
-    const { session } = await requireEventAccess(eventId);
-    webSession = session;
-    const disabled = await guardEventFeature(eventId, "lottery");
-    if (disabled) return disabled;
-    await requireLotteryManageAccess(session, eventId);
-    createdById = session.user.id;
-  }
-
   const disabled = await guardEventFeature(eventId, "lottery");
   if (disabled) return disabled;
 
   const body = await request.json();
+
+  const auth = request.headers.get("authorization");
+  let createdById: string;
+  let webSession: Awaited<ReturnType<typeof requireEventAccess>>["session"] | null =
+    null;
+  let mobileExhibitorSession: AuthSession | null = null;
+
+  if (auth?.startsWith("Bearer ")) {
+    const boothId =
+      typeof body?.booth_id === "string" ? body.booth_id.trim() : "";
+    if (boothId) {
+      const { session } = await requireBoothAccessForRequest(request, boothId);
+      mobileExhibitorSession = session;
+      createdById = session.user.id;
+    } else {
+      const { userId } = await requireMobileEventAccess(request, eventId);
+      createdById = userId;
+    }
+  } else {
+    const { session } = await requireEventAccess(eventId);
+    webSession = session;
+    createdById = session.user.id;
+  }
+
+  if (webSession) {
+    await requireLotteryManageAccess(webSession, eventId);
+  }
 
   const isOrganizerGrand =
     body?.owner_type === "ORGANIZER" ||
@@ -105,6 +117,12 @@ export const POST = withErrorHandler(async (request, context) => {
   if (webSession) {
     await assertExhibitorCanCreateLottery(
       webSession,
+      eventId,
+      parsed.data.booth_id,
+    );
+  } else if (mobileExhibitorSession) {
+    await assertExhibitorCanCreateLottery(
+      mobileExhibitorSession,
       eventId,
       parsed.data.booth_id,
     );

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LotteryDrawType } from "@connectiq/database";
+import { LotteryDrawType } from "@/lib/lottery/lottery-enums";
 import { ArrowLeft, ArrowRight, Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {

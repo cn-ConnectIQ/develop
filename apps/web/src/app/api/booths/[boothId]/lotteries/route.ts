@@ -2,7 +2,6 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireBoothAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
@@ -11,13 +10,15 @@ import {
 } from "@/lib/lottery/booth-lottery-service";
 import { createBoothLotterySchema } from "@/lib/lottery/booth-lottery-schemas";
 
-export const GET = withErrorHandler(async (_request, context) => {
+import { requireBoothAccessForRequest } from "@/lib/mobile-exhibitor-service";
+
+export const GET = withErrorHandler(async (request, context) => {
   const boothId = context?.params?.boothId;
   if (!boothId) {
     return createErrorResponse("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireBoothAccess(boothId);
+  await requireBoothAccessForRequest(request, boothId);
   const lotteries = await listBoothLotteries(boothId);
 
   return createSuccessResponse(lotteries, { total: lotteries.length });
@@ -29,7 +30,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少展位 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { session } = await requireBoothAccess(boothId);
+  const { session } = await requireBoothAccessForRequest(request, boothId);
   const body = await request.json().catch(() => ({}));
   const parsed = createBoothLotterySchema.safeParse(body);
 
