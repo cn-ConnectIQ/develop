@@ -13,15 +13,28 @@ import {
   listStampRallies,
 } from "@/lib/stamp-rally-service";
 
+const boothStampSchema = z.object({
+  booth_id: z.string().min(1),
+  name: z.string().min(1).max(100),
+  icon: z.string().max(500).optional().nullable(),
+  weight: z.number().int().min(1).max(3),
+  required: z.boolean(),
+});
+
 const createSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(2000).optional().nullable(),
+  cover_image: z.string().optional().nullable(),
   prize: z.string().min(1).max(500),
   prize_image_url: z.string().optional().nullable(),
+  prize_desc: z.string().max(2000).optional().nullable(),
+  prize_quantity: z.number().int().positive().optional().nullable(),
   required_count: z.number().int().min(1),
   booth_ids: z.array(z.string().min(1)).min(1),
+  booth_stamps: z.array(boothStampSchema).optional(),
   starts_at: z.string().datetime().optional().nullable(),
   ends_at: z.string().datetime().optional().nullable(),
+  always_open: z.boolean().optional(),
   status: z.nativeEnum(StampRallyStatus).optional(),
 });
 
@@ -63,12 +76,17 @@ export const POST = withErrorHandler(async (request, context) => {
   const rally = await createStampRally(eventId, session.user.id, {
     name: parsed.data.name,
     description: parsed.data.description,
+    cover_image: parsed.data.cover_image,
     prize: parsed.data.prize,
     prize_image_url: parsed.data.prize_image_url,
+    prize_desc: parsed.data.prize_desc,
+    prize_quantity: parsed.data.prize_quantity,
     required_count: parsed.data.required_count,
     booth_ids: parsed.data.booth_ids,
+    booth_stamps: parsed.data.booth_stamps,
     starts_at: parsed.data.starts_at,
     ends_at: parsed.data.ends_at,
+    always_open: parsed.data.always_open,
     status: parsed.data.status,
   });
 

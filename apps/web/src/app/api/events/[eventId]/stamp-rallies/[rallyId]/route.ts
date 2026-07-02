@@ -12,15 +12,28 @@ import {
   updateStampRally,
 } from "@/lib/stamp-rally-service";
 
+const boothStampSchema = z.object({
+  booth_id: z.string().min(1),
+  name: z.string().min(1).max(100),
+  icon: z.string().max(500).optional().nullable(),
+  weight: z.number().int().min(1).max(3),
+  required: z.boolean(),
+});
+
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
+  cover_image: z.string().optional().nullable(),
   prize: z.string().min(1).max(500).optional(),
   prize_image_url: z.string().optional().nullable(),
+  prize_desc: z.string().max(2000).optional().nullable(),
+  prize_quantity: z.number().int().positive().optional().nullable(),
   required_count: z.number().int().min(1).optional(),
   booth_ids: z.array(z.string().min(1)).min(1).optional(),
+  booth_stamps: z.array(boothStampSchema).optional(),
   starts_at: z.string().datetime().optional().nullable(),
   ends_at: z.string().datetime().optional().nullable(),
+  always_open: z.boolean().optional(),
   status: z.nativeEnum(StampRallyStatus).optional(),
 });
 

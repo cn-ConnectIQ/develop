@@ -15,8 +15,11 @@ export {
   InteractionChannelType,
   LeadStatus,
   LotteryEntrySource,
+  LotteryOwnerType,
+  LotteryDrawType,
   LotteryStatus,
   LotteryType,
+  PrizeType,
   ParticipantInviteStatus,
   ParticipantRole,
   PointsReason,
@@ -51,6 +54,8 @@ export {
   ExchangeStatus,
   SignalType,
   StampRallyStatus,
+  StampOwnerType,
+  StampCollectMethod,
 } from "@prisma/client";
 /** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
 export { UserRole as PrismaUserRole } from "@prisma/client";
@@ -60,10 +65,17 @@ export type {
   IntentTag,
   Lead,
   Lottery,
+  LotteryEntry,
+  LotteryPrize,
+  LotteryWinner,
   Organization,
   Participant,
   Prisma,
   User,
+  Stamp,
+  StampRally,
+  UserStamp,
+  UserStampProgress,
 } from "@prisma/client";
 /** @deprecated 使用 ExhibitorBooth */
 export type { ExhibitorBooth as Booth } from "@prisma/client";

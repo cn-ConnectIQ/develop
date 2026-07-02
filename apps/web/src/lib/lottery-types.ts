@@ -115,6 +115,11 @@ export const LOTTERY_STATUS_LABELS: Record<
     label: "就绪",
     className: "bg-brand-blue-light text-brand-blue",
   },
+  ACTIVE: {
+    label: "● 进行中",
+    className: "bg-brand-green-light text-brand-green",
+    pulse: true,
+  },
   OPEN: {
     label: "● 报名中",
     className: "bg-brand-green-light text-brand-green",

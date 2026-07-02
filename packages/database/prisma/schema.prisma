@@ -275,6 +275,16 @@ enum StampRallyStatus {
   ENDED
 }
 
+enum StampOwnerType {
+  ORGANIZER
+  EXHIBITOR
+}
+
+enum StampCollectMethod {
+  SCAN
+  NFC
+}
+
 enum InviteCampaignStatus {
   DRAFT
   SENDING
@@ -313,12 +323,33 @@ enum LotteryType {
   ACTIVITY_BASED
 }
 
+/// 抽奖归属：主办方全场 / 展商展位
+enum LotteryOwnerType {
+  ORGANIZER
+  EXHIBITOR
+}
+
+/// 开奖方式
+enum LotteryDrawType {
+  INSTANT
+  SCHEDULED
+  MANUAL
+}
+
 enum LotteryStatus {
   DRAFT
+  ACTIVE
+  DRAWING
+  ENDED
   READY
   OPEN
-  DRAWING
   FINISHED
+}
+
+enum PrizeType {
+  PHYSICAL
+  DIGITAL
+  EXPERIENCE
 }
 
 enum LotteryEntrySource {
@@ -446,7 +477,8 @@ model User {
   inviteRecords              InviteRecord[]
   createdLotteries           Lottery[]            @relation("LotteryCreator")
   lotteryEntries             LotteryEntry[]
-  lotteryWins                LotteryWinner[]
+  lotteryWins                LotteryWinner[] @relation("LotteryWinnerUser")
+  lotteryWinVerifications    LotteryWinner[] @relation("LotteryWinnerVerifier")
   createdInteractionSessions InteractionSession[] @relation("InteractionSessionCreator")
   referralsIntroduced        BusinessReferral[]   @relation("ReferralIntroducer")
   referralsReceived          BusinessReferral[]   @relation("ReferralRecipient")
@@ -458,6 +490,8 @@ model User {
   createdStampRallies        StampRally[]         @relation("StampRallyCreator")
   stampRecords               StampRecord[]
   stampRallyWins             StampRallyWinner[]
+  userStamps                 UserStamp[]
+  userStampProgresses        UserStampProgress[]
   contactCard                ContactCard?
   sentExchangeRequests       ExchangeRequest[]    @relation("ExchangeFrom")
   receivedExchangeRequests   ExchangeRequest[]    @relation("ExchangeTo")
@@ -895,6 +929,8 @@ model ExhibitorBooth {
   lotteries           Lottery[]
   interactionSessions InteractionSession[] @relation("BoothInteraction")
   stampRecords        StampRecord[]
+  stamps              Stamp[]
+  exhibitorStampRallies StampRally[]       @relation("ExhibitorStampRally")
   connections         BusinessConnection[] @relation("BoothConnection")
 
   @@unique([eventId, code])
@@ -990,8 +1026,9 @@ model Lead {
 
   booth       ExhibitorBooth  @relation(fields: [boothId], references: [id], onDelete: Cascade)
   participant Participant     @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  intentTags  LeadIntentTag[]
-  crmSyncJobs CrmSyncJob[]
+  intentTags      LeadIntentTag[]
+  crmSyncJobs     CrmSyncJob[]
+  lotteryEntries  LotteryEntry[]
 
   @@map("leads")
 }
@@ -1263,47 +1300,86 @@ model PollResponse {
 }
 
 model Lottery {
-  id             String        @id @default(cuid())
-  eventId        String        @map("event_id")
-  createdById    String        @map("created_by")
-  boothId        String?       @map("booth_id")
-  title          String
-  description    String?
-  type           LotteryType   @default(RANDOM)
-  status         LotteryStatus @default(DRAFT)
-  prizes         Json          @default("[]")
-  requireCheckin Boolean       @default(false) @map("require_checkin")
-  requirePollId  String?       @map("require_poll_id")
-  eligibleRoles  String[]      @default([]) @map("eligible_roles")
-  quizPollId     String?       @map("quiz_poll_id")
-  winnerCount    Int           @default(1) @map("winner_count")
-  allowReenter   Boolean       @default(false) @map("allow_reenter")
-  entryCount     Int           @default(0) @map("entry_count")
-  drawnAt        DateTime?     @map("drawn_at")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  id          String @id @default(cuid())
+  eventId     String @map("event_id")
+  createdById String @map("created_by")
+
+  ownerType LotteryOwnerType @default(ORGANIZER) @map("owner_type")
+  boothId   String?          @map("booth_id")
+
+  title       String
+  description String?
+  coverImage  String? @map("cover_image")
+
+  drawType LotteryDrawType @default(INSTANT) @map("draw_type")
+  drawAt   DateTime?       @map("draw_at")
+  status   LotteryStatus   @default(DRAFT)
+
+  requireLeadCapture Boolean @default(true) @map("require_lead_capture")
+  leadFormConfig     Json    @default("[]") @map("lead_form_config")
+  maxEntriesPerUser  Int     @default(1) @map("max_entries_per_user")
+
+  /// @deprecated 旧版 JSON 奖品，新数据请用 LotteryPrize 表
+  type           LotteryType @default(RANDOM)
+  prizes         Json        @default("[]")
+  requireCheckin Boolean     @default(false) @map("require_checkin")
+  requirePollId  String?     @map("require_poll_id")
+  eligibleRoles  String[]    @default([]) @map("eligible_roles")
+  quizPollId     String?     @map("quiz_poll_id")
+  winnerCount    Int         @default(1) @map("winner_count")
+  allowReenter   Boolean     @default(false) @map("allow_reenter")
+  entryCount     Int         @default(0) @map("entry_count")
+  drawnAt        DateTime?   @map("drawn_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   event       Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   creator     User            @relation("LotteryCreator", fields: [createdById], references: [id])
   booth       ExhibitorBooth? @relation(fields: [boothId], references: [id], onDelete: SetNull)
   requirePoll Poll?           @relation("LotteryRequirePoll", fields: [requirePollId], references: [id], onDelete: SetNull)
   quizPoll    Poll?           @relation("LotteryQuizPoll", fields: [quizPollId], references: [id], onDelete: SetNull)
+  prizeItems  LotteryPrize[]
   entries     LotteryEntry[]
   winners     LotteryWinner[]
 
   @@index([eventId, status])
+  @@index([boothId])
   @@map("lotteries")
 }
 
-model LotteryEntry {
-  id        String             @id @default(cuid())
-  lotteryId String             @map("lottery_id")
-  userId    String             @map("user_id")
-  source    LotteryEntrySource @default(MANUAL)
-  enteredAt DateTime           @default(now()) @map("entered_at")
+model LotteryPrize {
+  id        String @id @default(cuid())
+  lotteryId String @map("lottery_id")
 
-  lottery Lottery @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  imageUrl  String?   @map("image_url")
+  quantity  Int
+  remaining Int
+  prizeType PrizeType @map("prize_type")
+  sortOrder Int       @default(0) @map("sort_order")
+
+  lottery Lottery         @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
+  winners LotteryWinner[]
+
+  @@index([lotteryId])
+  @@map("lottery_prizes")
+}
+
+model LotteryEntry {
+  id        String @id @default(cuid())
+  lotteryId String @map("lottery_id")
+  userId    String @map("user_id")
+
+  leadData  Json     @default("{}") @map("lead_data")
+  leadId    String?  @map("lead_id")
+  source    LotteryEntrySource @default(MANUAL)
+  enteredAt DateTime @default(now()) @map("entered_at")
+
+  lottery Lottery        @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead    Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  winner  LotteryWinner?
 
   @@unique([lotteryId, userId])
   @@index([lotteryId])
@@ -1311,18 +1387,33 @@ model LotteryEntry {
 }
 
 model LotteryWinner {
-  id        String   @id @default(cuid())
-  lotteryId String   @map("lottery_id")
-  userId    String   @map("user_id")
-  prizeRank Int      @map("prize_rank")
-  prizeName String   @map("prize_name")
-  drawnAt   DateTime @default(now()) @map("drawn_at")
-  notified  Boolean  @default(false)
+  id        String @id @default(cuid())
+  lotteryId String @map("lottery_id")
+  prizeId   String? @map("prize_id")
+  entryId   String? @unique @map("entry_id")
 
-  lottery Lottery @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verificationCode String?   @unique @map("verification_code")
+  verified         Boolean   @default(false)
+  verifiedAt       DateTime? @map("verified_at")
+  verifiedBy       String?   @map("verified_by")
+
+  wonAt DateTime @default(now()) @map("won_at")
+
+  /// 旧版字段（迁移期保留）
+  userId    String  @map("user_id")
+  prizeRank Int     @default(1) @map("prize_rank")
+  prizeName String  @default("") @map("prize_name")
+  drawnAt   DateTime @default(now()) @map("drawn_at")
+  notified  Boolean @default(false)
+
+  lottery  Lottery       @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
+  prize    LotteryPrize? @relation(fields: [prizeId], references: [id], onDelete: SetNull)
+  entry    LotteryEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  verifier User?         @relation("LotteryWinnerVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  user     User          @relation("LotteryWinnerUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([lotteryId])
+  @@index([prizeId])
   @@map("lottery_winners")
 }
 
@@ -1914,12 +2005,16 @@ model StampRally {
   id            String           @id @default(cuid())
   eventId       String           @map("event_id")
   createdById   String           @map("created_by")
+  ownerType     StampOwnerType   @default(ORGANIZER) @map("owner_type")
+  boothId       String?          @map("booth_id")
   name          String
   description   String?
+  coverImage    String?          @map("cover_image")
   prize         String
   prizeImageUrl String?          @map("prize_image_url")
+  prizeDesc     String?          @map("prize_desc")
   requiredCount Int              @map("required_count")
-  totalBooths   Int              @map("total_booths")
+  totalBooths   Int              @default(0) @map("total_booths")
   boothIds      String[]         @default([]) @map("booth_ids")
   startsAt      DateTime?        @map("starts_at")
   endsAt        DateTime?        @map("ends_at")
@@ -1927,13 +2022,77 @@ model StampRally {
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
-  event   Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  creator User               @relation("StampRallyCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  records StampRecord[]
-  winners StampRallyWinner[]
+  event          Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  creator        User                @relation("StampRallyCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  booth          ExhibitorBooth?     @relation("ExhibitorStampRally", fields: [boothId], references: [id], onDelete: SetNull)
+  records        StampRecord[]
+  winners        StampRallyWinner[]
+  stamps         Stamp[]
+  userProgresses UserStampProgress[]
 
   @@index([eventId, status])
+  @@index([boothId])
   @@map("stamp_rallies")
+}
+
+model Stamp {
+  id             String               @id @default(cuid())
+  rallyId        String               @map("rally_id")
+  name           String
+  boothId        String?              @map("booth_id")
+  icon           String?
+  weight         Int                  @default(1)
+  scanCode       String               @unique @default(cuid()) @map("scan_code")
+  nfcTagId       String?              @unique @map("nfc_tag_id")
+  collectMethods StampCollectMethod[] @default([SCAN]) @map("collect_methods")
+  sortOrder      Int                  @default(0) @map("sort_order")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  rally      StampRally      @relation(fields: [rallyId], references: [id], onDelete: Cascade)
+  booth      ExhibitorBooth? @relation(fields: [boothId], references: [id], onDelete: SetNull)
+  userStamps UserStamp[]
+
+  @@index([rallyId])
+  @@index([boothId])
+  @@map("stamps")
+}
+
+model UserStamp {
+  id            String             @id @default(cuid())
+  userId        String             @map("user_id")
+  stampId       String             @map("stamp_id")
+  collectMethod StampCollectMethod @default(SCAN) @map("collect_method")
+  collectedAt   DateTime           @default(now()) @map("collected_at")
+  verifiedBy    String?            @map("verified_by")
+
+  stamp Stamp @relation(fields: [stampId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stampId])
+  @@index([userId])
+  @@map("user_stamps")
+}
+
+model UserStampProgress {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  rallyId        String    @map("rally_id")
+  collectedCount Int       @default(0) @map("collected_count")
+  isCompleted    Boolean   @default(false) @map("is_completed")
+  completedAt    DateTime? @map("completed_at")
+  redeemed       Boolean   @default(false)
+  redeemedAt     DateTime? @map("redeemed_at")
+  redemptionCode String?   @unique @map("redemption_code")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  rally StampRally @relation(fields: [rallyId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rallyId])
+  @@index([rallyId])
+  @@map("user_stamp_progresses")
 }
 
 model StampRecord {

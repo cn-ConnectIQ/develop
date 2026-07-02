@@ -1,4 +1,4 @@
-import { LotteryStatus, prisma } from "@connectiq/database";
+import { LotteryStatus, prisma, type Prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
@@ -18,6 +18,10 @@ import { patchLotterySchema } from "@/lib/interaction/schemas";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
 import { resolveOptionalMobileUserId } from "@/lib/mobile-user-id";
+import {
+  normalizeLeadFormConfig,
+  serializeLeadFormConfig,
+} from "@/lib/lead-form/normalize";
 
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -65,6 +69,12 @@ export const PATCH = withErrorHandler(async (request, context) => {
     assertStatusTransition(lottery.status, parsed.data.status);
   }
 
+  const leadFormConfig = parsed.data.lead_form_config
+    ? (serializeLeadFormConfig(
+        normalizeLeadFormConfig(parsed.data.lead_form_config),
+      ) as Prisma.InputJsonValue)
+    : undefined;
+
   const updated = await prisma.lottery.update({
     where: { id: lotteryId },
     data: {
@@ -79,6 +89,10 @@ export const PATCH = withErrorHandler(async (request, context) => {
       quizPollId: parsed.data.quiz_poll_id,
       winnerCount: parsed.data.winner_count,
       allowReenter: parsed.data.allow_reenter,
+      ...(parsed.data.require_lead_capture !== undefined
+        ? { requireLeadCapture: parsed.data.require_lead_capture }
+        : {}),
+      ...(leadFormConfig ? { leadFormConfig } : {}),
       drawnAt:
         parsed.data.status === LotteryStatus.FINISHED ? new Date() : undefined,
     },

@@ -1,11 +1,18 @@
 import {
   FeedItemType,
   LotteryStatus,
+  StampOwnerType,
   StampRallyStatus,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import type { BoothStampConfig } from "@/lib/stamp/stamp-rally-config";
+import {
+  loadStampRallyMeta,
+  saveStampRallyMeta,
+  syncRallyStampRecords,
+} from "@/lib/stamp/stamp-rally-organizer-service";
 
 /** EventSetting：集章完成后衔接的抽奖 ID */
 export const STAMP_RALLY_LOTTERY_SETTING_KEY = "stamp_rally_lottery_id";
@@ -82,13 +89,18 @@ export type ApiStampRally = {
   id: string;
   name: string;
   description: string | null;
+  cover_image: string | null;
   prize: string;
   prize_image_url: string | null;
+  prize_desc: string | null;
+  prize_quantity: number | null;
   required_count: number;
   total_booths: number;
   booth_ids: string[];
+  booth_stamps: import("@/lib/stamp/stamp-rally-config").BoothStampConfig[];
   starts_at: string | null;
   ends_at: string | null;
+  always_open: boolean;
   status: StampRallyStatus;
   participant_count: number;
   completed_count: number;
@@ -108,8 +120,10 @@ function mapRallyRow(
     id: string;
     name: string;
     description: string | null;
+    coverImage: string | null;
     prize: string;
     prizeImageUrl: string | null;
+    prizeDesc: string | null;
     requiredCount: number;
     totalBooths: number;
     boothIds: string[];
@@ -119,19 +133,25 @@ function mapRallyRow(
     createdAt: Date;
     _count: { records: number; winners: number };
   },
+  meta?: { booth_stamps: BoothStampConfig[]; prize_quantity?: number | null },
 ): ApiStampRally {
   const participantGroups = row._count.records;
   return {
     id: row.id,
     name: row.name,
     description: row.description,
+    cover_image: row.coverImage,
     prize: row.prize,
     prize_image_url: row.prizeImageUrl,
+    prize_desc: row.prizeDesc,
+    prize_quantity: meta?.prize_quantity ?? null,
     required_count: row.requiredCount,
     total_booths: row.totalBooths,
     booth_ids: row.boothIds,
+    booth_stamps: meta?.booth_stamps ?? [],
     starts_at: row.startsAt?.toISOString() ?? null,
     ends_at: row.endsAt?.toISOString() ?? null,
+    always_open: !row.startsAt && !row.endsAt,
     status: row.status,
     participant_count: participantGroups,
     completed_count: row._count.winners,
@@ -199,10 +219,15 @@ export async function listStampRallies(eventId: string) {
     participantMap.set(row.rallyId, (participantMap.get(row.rallyId) ?? 0) + 1);
   }
 
-  return rows.map((row) => ({
-    ...mapRallyRow(row),
-    participant_count: participantMap.get(row.id) ?? 0,
-  }));
+  return Promise.all(
+    rows.map(async (row) => {
+      const meta = await loadStampRallyMeta(eventId, row.id);
+      return {
+        ...mapRallyRow(row, meta),
+        participant_count: participantMap.get(row.id) ?? 0,
+      };
+    }),
+  );
 }
 
 export async function createStampRally(
@@ -211,44 +236,82 @@ export async function createStampRally(
   input: {
     name: string;
     description?: string | null;
+    cover_image?: string | null;
     prize: string;
     prize_image_url?: string | null;
+    prize_desc?: string | null;
+    prize_quantity?: number | null;
     required_count: number;
     booth_ids: string[];
+    booth_stamps?: BoothStampConfig[];
     starts_at?: string | null;
     ends_at?: string | null;
+    always_open?: boolean;
     status?: StampRallyStatus;
   },
 ) {
   await validateBoothIds(eventId, input.booth_ids);
 
-  if (input.required_count < 1 || input.required_count > input.booth_ids.length) {
+  if (input.required_count < 1 || input.required_count > input.booth_ids.length * 3) {
     throw new ApiError(
-      "所需章数必须在 1 到参与展位数之间",
+      "目标章数设置不合理",
       ErrorCode.VALIDATION_ERROR,
       400,
     );
   }
 
+  const startsAt =
+    input.always_open === true
+      ? null
+      : input.starts_at
+        ? new Date(input.starts_at)
+        : null;
+  const endsAt =
+    input.always_open === true
+      ? null
+      : input.ends_at
+        ? new Date(input.ends_at)
+        : null;
+
   const row = await prisma.stampRally.create({
     data: {
       eventId,
       createdById,
+      ownerType: StampOwnerType.ORGANIZER,
       name: input.name.trim(),
       description: input.description?.trim() || null,
+      coverImage: input.cover_image ?? null,
       prize: input.prize.trim(),
       prizeImageUrl: input.prize_image_url ?? null,
+      prizeDesc: input.prize_desc?.trim() || null,
       requiredCount: input.required_count,
       totalBooths: input.booth_ids.length,
       boothIds: input.booth_ids,
-      startsAt: input.starts_at ? new Date(input.starts_at) : null,
-      endsAt: input.ends_at ? new Date(input.ends_at) : null,
+      startsAt,
+      endsAt,
       status: input.status ?? StampRallyStatus.DRAFT,
     },
     include: rallyInclude,
   });
 
-  return mapRallyRow({ ...row, _count: { records: 0, winners: 0 } });
+  const boothStamps =
+    input.booth_stamps ??
+    input.booth_ids.map((id) => ({
+      booth_id: id,
+      name: id.slice(-4),
+      icon: "⭐",
+      weight: 1,
+      required: true,
+    }));
+
+  await saveStampRallyMeta(eventId, row.id, {
+    prize_quantity: input.prize_quantity ?? null,
+    booth_stamps: boothStamps,
+  });
+  await syncRallyStampRecords(row.id, boothStamps);
+
+  const meta = await loadStampRallyMeta(eventId, row.id);
+  return mapRallyRow({ ...row, _count: { records: 0, winners: 0 } }, meta);
 }
 
 export async function getStampRally(eventId: string, rallyId: string) {
@@ -264,8 +327,10 @@ export async function getStampRally(eventId: string, rallyId: string) {
     distinct: ["userId"],
   });
 
+  const meta = await loadStampRallyMeta(eventId, rallyId);
+
   return {
-    ...mapRallyRow(row),
+    ...mapRallyRow(row, meta),
     participant_count: distinctCount.length,
   };
 }
@@ -276,12 +341,17 @@ export async function updateStampRally(
   input: Partial<{
     name: string;
     description: string | null;
+    cover_image: string | null;
     prize: string;
     prize_image_url: string | null;
+    prize_desc: string | null;
+    prize_quantity: number | null;
     required_count: number;
     booth_ids: string[];
+    booth_stamps: BoothStampConfig[];
     starts_at: string | null;
     ends_at: string | null;
+    always_open: boolean;
     status: StampRallyStatus;
   }>,
 ) {
@@ -298,40 +368,61 @@ export async function updateStampRally(
   }
 
   const requiredCount = input.required_count ?? existing.requiredCount;
-  if (requiredCount < 1 || requiredCount > boothIds.length) {
-    throw new ApiError(
-      "所需章数必须在 1 到参与展位数之间",
-      ErrorCode.VALIDATION_ERROR,
-      400,
-    );
+  if (requiredCount < 1) {
+    throw new ApiError("目标章数至少为 1", ErrorCode.VALIDATION_ERROR, 400);
   }
+
+  const startsAt =
+    input.always_open === true
+      ? null
+      : input.starts_at !== undefined
+        ? input.starts_at
+          ? new Date(input.starts_at)
+          : null
+        : undefined;
+  const endsAt =
+    input.always_open === true
+      ? null
+      : input.ends_at !== undefined
+        ? input.ends_at
+          ? new Date(input.ends_at)
+          : null
+        : undefined;
 
   const row = await prisma.stampRally.update({
     where: { id: rallyId },
     data: {
       name: input.name?.trim(),
       description: input.description?.trim() ?? undefined,
+      coverImage: input.cover_image,
       prize: input.prize?.trim(),
       prizeImageUrl: input.prize_image_url,
+      prizeDesc: input.prize_desc?.trim() ?? undefined,
       requiredCount,
       totalBooths: boothIds.length,
       boothIds,
-      startsAt:
-        input.starts_at !== undefined
-          ? input.starts_at
-            ? new Date(input.starts_at)
-            : null
-          : undefined,
-      endsAt:
-        input.ends_at !== undefined
-          ? input.ends_at
-            ? new Date(input.ends_at)
-            : null
-          : undefined,
+      startsAt,
+      endsAt,
       status: input.status,
     },
     include: rallyInclude,
   });
+
+  if (input.booth_stamps || input.booth_ids || input.prize_quantity !== undefined) {
+    const prevMeta = await loadStampRallyMeta(eventId, rallyId);
+    const boothStamps =
+      input.booth_stamps ??
+      prevMeta.booth_stamps.filter((s) => boothIds.includes(s.booth_id));
+
+    await saveStampRallyMeta(eventId, rallyId, {
+      prize_quantity:
+        input.prize_quantity !== undefined
+          ? input.prize_quantity
+          : prevMeta.prize_quantity,
+      booth_stamps: boothStamps,
+    });
+    await syncRallyStampRecords(rallyId, boothStamps);
+  }
 
   const distinctCount = await prisma.stampRecord.findMany({
     where: { rallyId },
@@ -339,8 +430,10 @@ export async function updateStampRally(
     distinct: ["userId"],
   });
 
+  const meta = await loadStampRallyMeta(eventId, rallyId);
+
   return {
-    ...mapRallyRow(row),
+    ...mapRallyRow(row, meta),
     participant_count: distinctCount.length,
   };
 }

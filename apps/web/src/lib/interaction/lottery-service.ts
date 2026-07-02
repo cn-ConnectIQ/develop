@@ -17,6 +17,7 @@ import {
   fisherYatesShuffle,
   sendLotteryWinNotification,
 } from "@/lib/interaction/lottery-rewards";
+import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
 
 const MANAGE_ROLES = [
   UserRole.PLATFORM_ADMIN,
@@ -167,7 +168,7 @@ export async function enterLottery(
 ) {
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
 
-  if (lottery.status !== LotteryStatus.OPEN) {
+  if (!isLotteryOpenForEntry(lottery.status)) {
     throw new ApiError("抽奖未开放参与", ErrorCode.VALIDATION_ERROR, 400);
   }
 
@@ -263,7 +264,7 @@ export async function buildEnterLotteryMobileResponse(
 
   const pendingDraw =
     !winner &&
-    (lottery.status === LotteryStatus.OPEN ||
+    (isLotteryOpenForEntry(lottery.status) ||
       lottery.status === LotteryStatus.DRAWING);
 
   return {
@@ -399,7 +400,7 @@ export async function drawBoothInstantLottery(
     where: {
       boothId,
       eventId: booth.eventId,
-      status: LotteryStatus.OPEN,
+      status: { in: [LotteryStatus.OPEN, LotteryStatus.ACTIVE] },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -516,7 +517,7 @@ export async function drawLotteryWinners(
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
 
   if (
-    lottery.status !== LotteryStatus.OPEN &&
+    !isLotteryOpenForEntry(lottery.status) &&
     lottery.status !== LotteryStatus.DRAWING
   ) {
     throw new ApiError("当前状态无法抽奖", ErrorCode.VALIDATION_ERROR, 400);
@@ -558,7 +559,7 @@ export async function drawLotteryWinners(
   const selected = shuffled.slice(0, Math.min(count, shuffled.length));
 
   const winners = await prisma.$transaction(async (tx) => {
-    if (lottery.status === LotteryStatus.OPEN) {
+    if (isLotteryOpenForEntry(lottery.status)) {
       await tx.lottery.update({
         where: { id: lotteryId },
         data: { status: LotteryStatus.DRAWING },

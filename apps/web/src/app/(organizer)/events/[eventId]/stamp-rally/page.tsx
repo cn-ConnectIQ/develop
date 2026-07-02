@@ -1,7 +1,8 @@
-import { prisma } from "@connectiq/database";
-import { notFound } from "next/navigation";
+import { EventType, prisma } from "@connectiq/database";
+import { notFound, redirect } from "next/navigation";
+import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
-import { StampRallyPageClient } from "@/components/stamp-rally/StampRallyPageClient";
+import { StampRallyConfigurator } from "@/components/stamp/StampRallyConfigurator";
 
 export default async function OrganizerStampRallyPage({
   params,
@@ -10,21 +11,34 @@ export default async function OrganizerStampRallyPage({
 }) {
   const { eventId } = await params;
 
+  const access = await requireEventAccessCheck(eventId);
+  if ("error" in access) notFound();
+
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, type: true, activityType: true },
   });
 
   if (!event) notFound();
+
+  const isConferenceOrExpo =
+    event.type === EventType.CONFERENCE ||
+    event.type === EventType.EXPO ||
+    event.activityType === "CONFERENCE" ||
+    event.activityType === "EXPO";
+
+  if (!isConferenceOrExpo) {
+    redirect(`/events/${eventId}`);
+  }
 
   return (
     <FeatureFlagGate
       eventId={eventId}
       flag="stampRally"
       title="集章打卡配置"
-      description="AI-04 集章打卡路线"
+      description="配置全场集章打卡路线"
     >
-      <StampRallyPageClient eventId={eventId} eventName={event.name} />
+      <StampRallyConfigurator eventId={eventId} eventName={event.name} />
     </FeatureFlagGate>
   );
 }

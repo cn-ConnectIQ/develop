@@ -22,3 +22,12 @@ export {
   subscribeLotteryResult,
   type LotteryWinnerPayload,
 } from "../realtime";
+
+export {
+  broadcastLotteryScreenMessage,
+  lotteryScreenChannelName,
+  LOTTERY_SCREEN_BROADCAST_EVENT,
+  subscribeLotteryScreen,
+  type LotteryScreenBroadcast,
+  type LotteryScreenMessage,
+} from "./lottery-screen";

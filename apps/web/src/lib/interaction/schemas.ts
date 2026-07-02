@@ -1,6 +1,30 @@
 import { LotteryStatus, LotteryType } from "@connectiq/database";
 import { z } from "zod";
 
+const leadFormFieldSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum([
+    "text",
+    "phone",
+    "email",
+    "select",
+    "multiselect",
+    "textarea",
+  ]),
+  label: z.string().min(1),
+  placeholder: z.string().optional(),
+  required: z.boolean(),
+  options: z.array(z.string()).optional(),
+  prefill_from: z
+    .enum(["user.name", "user.phone", "user.company", "user.title"])
+    .optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+const leadFormConfigSchema = z.object({
+  fields: z.array(leadFormFieldSchema),
+});
+
 export const lotteryPrizeSchema = z.object({
   rank: z.number().int().positive(),
   name: z.string().min(1),
@@ -21,6 +45,8 @@ export const createLotterySchema = z.object({
   winner_count: z.number().int().positive().optional(),
   allow_reenter: z.boolean().optional(),
   booth_id: z.string().cuid().optional().nullable(),
+  require_lead_capture: z.boolean().optional(),
+  lead_form_config: z.union([leadFormConfigSchema, z.array(leadFormFieldSchema)]).optional(),
 });
 
 export const patchLotterySchema = z.object({
@@ -36,6 +62,8 @@ export const patchLotterySchema = z.object({
   quiz_poll_id: z.string().cuid().optional().nullable(),
   winner_count: z.number().int().positive().optional(),
   allow_reenter: z.boolean().optional(),
+  require_lead_capture: z.boolean().optional(),
+  lead_form_config: z.union([leadFormConfigSchema, z.array(leadFormFieldSchema)]).optional(),
 });
 
 export const drawLotterySchema = z.object({
