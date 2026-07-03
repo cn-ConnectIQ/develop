@@ -1,5 +1,3 @@
-import { ParticipantRole } from "@connectiq/database";
-
 /** 系统预置身份标签（主办方可选用，也可自定义；不影响权限） */
 export const PRESET_PARTICIPANT_TAGS = [
   "VIP",
@@ -79,11 +77,11 @@ export function participantHasTag(tags: string[], tag: string): boolean {
 
 export function resolveDisplayTags(
   tags: string[],
-  legacyRole?: ParticipantRole,
+  legacyRole?: string,
 ): string[] {
   let resolved = [...tags];
   if (
-    legacyRole === ParticipantRole.SPEAKER &&
+    legacyRole === "SPEAKER" &&
     !participantHasTag(resolved, "Speaker")
   ) {
     resolved = mergeParticipantTags(resolved, ["Speaker"]);

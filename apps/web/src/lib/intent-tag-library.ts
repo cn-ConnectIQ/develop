@@ -4,22 +4,18 @@ import {
   parseIntentConfig,
 } from "@/lib/matchmaking-config";
 import { slugifyIntentTagLabel } from "@/lib/intent-tag-service";
+import {
+  DEFAULT_ROLE_TAG_OPTIONS,
+  normalizeIntentTagLabels,
+  type IntentTagLibrary,
+} from "@/lib/intent-tag-library-shared";
 
-export const DEFAULT_ROLE_TAG_OPTIONS = [
-  "采购方",
-  "供应方",
-  "投资方",
-  "被投方",
-  "合作方",
-] as const;
-
-export type IntentTagLibrary = {
-  tags: Awaited<ReturnType<typeof listRawEventIntentTags>>;
-  supply: string[];
-  demand: string[];
-  roles: string[];
-  topics: string[];
-};
+export {
+  DEFAULT_ROLE_TAG_OPTIONS,
+  normalizeIntentTagLabels,
+  type IntentTagLibrary,
+  type IntentTagRecord,
+} from "@/lib/intent-tag-library-shared";
 
 async function listRawEventIntentTags(eventId: string) {
   return prisma.intentTag.findMany({
@@ -33,21 +29,6 @@ function labelsForPool(
   pool: IntentTagPool,
 ): string[] {
   return tags.filter((t) => t.pool === pool).map((t) => t.label);
-}
-
-export function normalizeIntentTagLabels(raw: string[] | undefined | null): string[] {
-  if (!raw?.length) return [];
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const item of raw) {
-    const label = item.trim();
-    if (!label) continue;
-    const key = label.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(label);
-  }
-  return result;
 }
 
 export async function getEventIntentTagLibrary(
@@ -68,7 +49,17 @@ export async function getEventIntentTagLibrary(
       : [...DEFAULT_ROLE_TAG_OPTIONS];
 
   return {
-    tags,
+    tags: tags.map((tag) => ({
+      id: tag.id,
+      eventId: tag.eventId,
+      label: tag.label,
+      slug: tag.slug,
+      category: tag.category,
+      pool: tag.pool,
+      color: tag.color,
+      sortOrder: tag.sortOrder,
+      createdAt: tag.createdAt.toISOString(),
+    })),
     supply: labelsForPool(tags, IntentTagPool.SUPPLY),
     demand: labelsForPool(tags, IntentTagPool.DEMAND),
     topics: labelsForPool(tags, IntentTagPool.TOPIC),

@@ -18,7 +18,7 @@ import {
 import {
   DEFAULT_ROLE_TAG_OPTIONS,
   type IntentTagLibrary,
-} from "@/lib/intent-tag-library";
+} from "@/lib/intent-tag-library-shared";
 import {
   INDUSTRY_INTENT_PRESETS,
   mergeTagLists,

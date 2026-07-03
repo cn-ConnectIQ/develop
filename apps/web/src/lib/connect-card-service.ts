@@ -424,7 +424,7 @@ async function fetchConnectCardCore(
     eventId,
   ).catch((error) => {
     console.warn("[connect-card] connection status skipped:", error);
-    return { status: "NONE" as const };
+    return { status: "NONE" as const, pendingDirection: undefined, pendingRequestId: undefined };
   });
 
   const canExchange = card.allow_exchange !== false;
