@@ -17,12 +17,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PrizeListEditor } from "@/components/lottery/PrizeListEditor";
+import {
+  TierPrizeListEditor,
+  type TierPrizeDraft,
+} from "@/components/lottery/TierPrizeListEditor";
 import { ScreenAnimationPicker } from "@/components/lottery/ScreenAnimationPicker";
-import type { BoothLotteryPrizeDraft } from "@/lib/lottery/booth-lottery-schemas";
 import type {
   OrganizerLotteryDto,
   OrganizerLotteryEligibility,
+  PrizeDrawOrder,
   ScreenAnimationType,
 } from "@/lib/lottery/organizer-lottery-config";
 import {
@@ -32,11 +35,10 @@ import {
 import type { EligibleCountResult } from "@/lib/lottery/organizer-lottery-service";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_PRIZES: BoothLotteryPrizeDraft[] = [
-  { name: "参与奖", quantity: 10, prize_type: "PHYSICAL" },
-  { name: "三等奖", quantity: 3, prize_type: "PHYSICAL" },
-  { name: "二等奖", quantity: 2, prize_type: "PHYSICAL" },
-  { name: "一等奖", quantity: 1, prize_type: "PHYSICAL" },
+const DEFAULT_TIER_PRIZES: TierPrizeDraft[] = [
+  { tier: 1, name: "iPhone 15 Pro", quantity: 1, prize_type: "PHYSICAL" },
+  { tier: 2, name: "蓝牙耳机", quantity: 5, prize_type: "PHYSICAL" },
+  { tier: 3, name: "定制礼品", quantity: 20, prize_type: "PHYSICAL" },
 ];
 
 async function fetchGrandLottery(eventId: string) {
@@ -94,7 +96,8 @@ export function OrganizerLotteryConfigurator({
   const [title, setTitle] = useState("闭幕全场大抽奖");
   const [description, setDescription] = useState("");
   const [drawAt, setDrawAt] = useState("");
-  const [prizes, setPrizes] = useState<BoothLotteryPrizeDraft[]>(DEFAULT_PRIZES);
+  const [prizes, setPrizes] = useState<TierPrizeDraft[]>(DEFAULT_TIER_PRIZES);
+  const [prizeDrawOrder, setPrizeDrawOrder] = useState<PrizeDrawOrder>("ASC");
   const [eligibility, setEligibility] = useState<OrganizerLotteryEligibility>(
     defaultOrganizerEligibility(),
   );
@@ -121,14 +124,16 @@ export function OrganizerLotteryConfigurator({
     setDrawAt(existing.draw_at ? existing.draw_at.slice(0, 16) : "");
     setPrizes(
       existing.prizes.map((p) => ({
+        tier: p.tier ?? p.sort_order + 1,
         name: p.name,
         quantity: p.quantity,
         image_url: p.image_url,
-        prize_type: p.prize_type as BoothLotteryPrizeDraft["prize_type"],
+        prize_type: p.prize_type as TierPrizeDraft["prize_type"],
       })),
     );
     setEligibility(normalizeOrganizerEligibility(existing.meta.eligibility));
     setScreenAnimation(existing.meta.screen_animation);
+    setPrizeDrawOrder(existing.meta.prize_draw_order ?? "ASC");
     setTargetEntryCount(existing.meta.target_entry_count ?? "");
   }, [existing]);
 
@@ -177,6 +182,7 @@ export function OrganizerLotteryConfigurator({
         draw_at: drawAt ? new Date(drawAt).toISOString() : null,
         eligibility: normalizeOrganizerEligibility(eligibility),
         screen_animation: screenAnimation,
+        prize_draw_order: prizeDrawOrder,
         target_entry_count:
           targetEntryCount === "" ? null : Number(targetEntryCount),
         publish,
@@ -288,11 +294,65 @@ export function OrganizerLotteryConfigurator({
               </SectionCard>
 
               <SectionCard
-                title="奖品设置"
-                description="按从小奖到大奖排列，开奖时由低到高揭晓"
+                title="奖品等级"
+                description="按等级分组配置，数字越小等级越高（1=一等奖）"
               >
                 <div className="p-5">
-                  <PrizeListEditor prizes={prizes} onChange={setPrizes} />
+                  <TierPrizeListEditor prizes={prizes} onChange={setPrizes} />
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="开奖顺序"
+                description="控制大屏开奖时的揭晓节奏"
+              >
+                <div className="space-y-3 p-5">
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3",
+                      prizeDrawOrder === "ASC"
+                        ? "border-brand-blue bg-brand-blue-light/20"
+                        : "border-border-light",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="prize_draw_order"
+                      className="mt-1"
+                      checked={prizeDrawOrder === "ASC"}
+                      onChange={() => setPrizeDrawOrder("ASC")}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">
+                        从低等级到高等级依次开奖
+                      </p>
+                      <p className="text-xs text-text-muted">
+                        先开三等奖，最后压轴一等奖，制造悬念（推荐）
+                      </p>
+                    </div>
+                  </label>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3",
+                      prizeDrawOrder === "ALL_AT_ONCE"
+                        ? "border-brand-blue bg-brand-blue-light/20"
+                        : "border-border-light",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="prize_draw_order"
+                      className="mt-1"
+                      checked={prizeDrawOrder === "ALL_AT_ONCE"}
+                      onChange={() => setPrizeDrawOrder("ALL_AT_ONCE")}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">一次性全部开奖</p>
+                      <p className="text-xs text-text-muted">
+                        不分等级步骤，按顺序连续揭晓所有中奖者
+                      </p>
+                    </div>
+                  </label>
                 </div>
               </SectionCard>
 
@@ -411,16 +471,19 @@ export function OrganizerLotteryConfigurator({
 
               <SectionCard
                 title="开奖仪式"
-                description="大屏动画风格 · 开奖顺序：从小奖到大奖"
+                description="大屏动画风格"
               >
                 <div className="space-y-4 p-5">
                   <ScreenAnimationPicker
                     value={screenAnimation}
                     onChange={setScreenAnimation}
                   />
-                  <p className="text-xs text-text-muted">
-                    奖品将按上方列表顺序从参与奖到一等奖依次揭晓，制造递进期待感。
-                  </p>
+                  {prizeDrawOrder === "ASC" && (
+                    <p className="text-xs text-text-muted">
+                      分级模式下，控制台将按等级分步操作：「开始 X 等奖抽奖」→
+                      揭晓 → 下一等级。
+                    </p>
+                  )}
                 </div>
               </SectionCard>
 

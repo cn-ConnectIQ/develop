@@ -1,3 +1,6 @@
+export { AnimationTypePicker } from "./AnimationTypePicker";
+export { ProbabilityConfigList, isProbabilityConfigValid } from "./ProbabilityConfigList";
+export { ProbabilityLotterySetupStepper } from "./ProbabilityLotterySetupStepper";
 export { LotterySetupStepper } from "./LotterySetupStepper";
 export type { LotterySetupStepperProps } from "./LotterySetupStepper";
 export { PrizeListEditor } from "./PrizeListEditor";

@@ -348,6 +348,30 @@ enum LotteryType {
   ACTIVITY_BASED
 }
 
+/// 抽奖玩法分类（与旧 LotteryType 并存，新数据优先读此字段）
+enum LotteryCategory {
+  POOL_DRAW // 类型① 奖池大抽奖（多等级，PC 端仪式化开奖）
+  AUTO_PROBABILITY // 类型② 行为触发概率抽奖（转盘/九宫格等，即时出奖）
+  INSTANT_CLAIM // 类型③ 直接领取（原 fill_get_gift，必得）
+}
+
+/// 类型② 前端动画形态
+enum AnimationType {
+  WHEEL // 转盘
+  GRID // 九宫格
+  SLOT // 老虎机
+  SPOTLIGHT // 名单扫光
+  PACHINKO // 弹球
+  GIFT_RAIN // 红包雨
+}
+
+/// 类型② 触发抽奖的用户动作
+enum TriggerAction {
+  FILL_FORM // 填表单
+  SURVEY // 填问卷
+  SCAN_ONLY // 仅扫码即触发（无需额外动作）
+}
+
 /// 抽奖归属：主办方全场 / 展商展位
 enum LotteryOwnerType {
   ORGANIZER
@@ -504,6 +528,7 @@ model User {
   lotteryEntries             LotteryEntry[]
   lotteryWins                LotteryWinner[] @relation("LotteryWinnerUser")
   lotteryWinVerifications    LotteryWinner[] @relation("LotteryWinnerVerifier")
+  userRedemptionCodes        UserRedemptionCode[]
   createdInteractionSessions InteractionSession[] @relation("InteractionSessionCreator")
   referralsIntroduced        BusinessReferral[]   @relation("ReferralIntroducer")
   referralsReceived          BusinessReferral[]   @relation("ReferralRecipient")
@@ -856,6 +881,7 @@ model Event {
   matchBriefs         MatchBrief[]
   matchFeedbacks      MatchFeedback[]
   matchWeightTuning   MatchWeightTuning?
+  userRedemptionCodes UserRedemptionCode[]
 
   @@map("events")
 }
@@ -1345,6 +1371,10 @@ model Lottery {
   drawAt   DateTime?       @map("draw_at")
   status   LotteryStatus   @default(DRAFT)
 
+  lotteryCategory LotteryCategory @default(AUTO_PROBABILITY) @map("lottery_category")
+  animationType   AnimationType?  @map("animation_type")
+  triggerAction   TriggerAction?  @map("trigger_action")
+
   requireLeadCapture Boolean @default(true) @map("require_lead_capture")
   leadFormConfig     Json    @default("[]") @map("lead_form_config")
   maxEntriesPerUser  Int     @default(1) @map("max_entries_per_user")
@@ -1389,6 +1419,11 @@ model LotteryPrize {
   prizeType PrizeType @map("prize_type")
   sortOrder Int       @default(0) @map("sort_order")
 
+  /// 奖品等级（类型①）：1=一等奖，数字越小等级越高
+  tier Int?
+  /// 中奖概率（类型②）：0.05 = 5%；类型③固定为 1
+  probability Float?
+
   lottery Lottery         @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
   winners LotteryWinner[]
 
@@ -1416,12 +1451,32 @@ model LotteryEntry {
   @@map("lottery_entries")
 }
 
+/// 用户在某活动下的统一核销码（一人一场活动一个码，小程序展示同一 QR）
+model UserRedemptionCode {
+  id        String   @id @default(cuid())
+  eventId   String   @map("event_id")
+  userId    String   @map("user_id")
+  code      String   @unique @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event   Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  winners LotteryWinner[]
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@map("user_redemption_codes")
+}
+
 model LotteryWinner {
   id        String @id @default(cuid())
   lotteryId String @map("lottery_id")
   prizeId   String? @map("prize_id")
   entryId   String? @unique @map("entry_id")
 
+  redemptionCodeId String? @map("redemption_code_id")
+
+  /// @deprecated 请使用 UserRedemptionCode.code（统一核销码）
   verificationCode String?   @unique @map("verification_code")
   verified         Boolean   @default(false)
   verifiedAt       DateTime? @map("verified_at")
@@ -1436,14 +1491,16 @@ model LotteryWinner {
   drawnAt   DateTime @default(now()) @map("drawn_at")
   notified  Boolean @default(false)
 
-  lottery  Lottery       @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
-  prize    LotteryPrize? @relation(fields: [prizeId], references: [id], onDelete: SetNull)
-  entry    LotteryEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
-  verifier User?         @relation("LotteryWinnerVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
-  user     User          @relation("LotteryWinnerUser", fields: [userId], references: [id], onDelete: Cascade)
+  lottery        Lottery              @relation(fields: [lotteryId], references: [id], onDelete: Cascade)
+  prize          LotteryPrize?        @relation(fields: [prizeId], references: [id], onDelete: SetNull)
+  entry          LotteryEntry?        @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  redemptionCode UserRedemptionCode? @relation(fields: [redemptionCodeId], references: [id], onDelete: SetNull)
+  verifier       User?                @relation("LotteryWinnerVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  user           User                 @relation("LotteryWinnerUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([lotteryId])
   @@index([prizeId])
+  @@index([redemptionCodeId])
   @@map("lottery_winners")
 }
 

@@ -1,6 +1,7 @@
 import type { Prisma } from "@connectiq/database";
 import {
   ConnectionStatus,
+  LotteryCategory,
   LotteryDrawType,
   LotteryEntrySource,
   LotteryOwnerType,
@@ -73,6 +74,10 @@ export async function loadOrganizerLotteryMeta(
     "REVEAL_ONE_BY_ONE",
   ] as const;
 
+  const drawOrderRaw = obj.prize_draw_order;
+  const prize_draw_order: OrganizerLotteryMeta["prize_draw_order"] =
+    drawOrderRaw === "ALL_AT_ONCE" ? "ALL_AT_ONCE" : "ASC";
+
   return {
     eligibility,
     screen_animation: validAnimations.includes(
@@ -80,15 +85,17 @@ export async function loadOrganizerLotteryMeta(
     )
       ? (animation as OrganizerLotteryMeta["screen_animation"])
       : "SLOT_MACHINE",
-    prize_draw_order: "ASC",
+    prize_draw_order,
     target_entry_count:
       typeof obj.target_entry_count === "number"
         ? obj.target_entry_count
         : null,
+    active_draw_tier:
+      typeof obj.active_draw_tier === "number" ? obj.active_draw_tier : null,
   };
 }
 
-async function saveOrganizerLotteryMeta(
+export async function saveOrganizerLotteryMeta(
   eventId: string,
   lotteryId: string,
   meta: OrganizerLotteryMeta,
@@ -102,6 +109,15 @@ async function saveOrganizerLotteryMeta(
     },
     update: { value: meta as Prisma.InputJsonValue },
   });
+}
+
+export async function patchOrganizerLotteryDrawMeta(
+  eventId: string,
+  lotteryId: string,
+  patch: Partial<Pick<OrganizerLotteryMeta, "active_draw_tier">>,
+) {
+  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  await saveOrganizerLotteryMeta(eventId, lotteryId, { ...meta, ...patch });
 }
 
 async function buildParticipantUserMap(eventId: string) {
@@ -168,6 +184,7 @@ async function mapLotteryDto(
       quantity: number;
       prizeType: PrizeType;
       sortOrder: number;
+      tier: number | null;
     }>;
     _count: { winners: number };
   },
@@ -188,6 +205,7 @@ async function mapLotteryDto(
       name: p.name,
       image_url: p.imageUrl,
       quantity: p.quantity,
+      tier: p.tier ?? p.sortOrder + 1,
       prize_type: p.prizeType,
       sort_order: p.sortOrder,
     })),
@@ -244,14 +262,19 @@ export async function upsertOrganizerGrandLottery(
   const meta: OrganizerLotteryMeta = {
     eligibility,
     screen_animation: input.screen_animation ?? "SLOT_MACHINE",
-    prize_draw_order: "ASC",
+    prize_draw_order: input.prize_draw_order ?? "ASC",
     target_entry_count: input.target_entry_count ?? null,
+    active_draw_tier: null,
   };
 
-  const prizeTotal = input.prizes.reduce((sum, p) => sum + p.quantity, 0);
+  const sortedPrizes = [...input.prizes].sort(
+    (a, b) => (a.tier ?? 99) - (b.tier ?? 99),
+  );
+
+  const prizeTotal = sortedPrizes.reduce((sum, p) => sum + p.quantity, 0);
   const status = input.publish ? LotteryStatus.OPEN : LotteryStatus.DRAFT;
-  const legacyPrizes = input.prizes.map((prize, index) => ({
-    rank: index + 1,
+  const legacyPrizes = sortedPrizes.map((prize) => ({
+    rank: prize.tier ?? 1,
     name: prize.name,
     prize: prize.name,
     count: prize.quantity,
@@ -281,6 +304,7 @@ export async function upsertOrganizerGrandLottery(
           description: input.description?.trim() || null,
           coverImage: input.cover_image ?? null,
           requireCheckin: eligibility.require_checkin,
+          lotteryCategory: LotteryCategory.POOL_DRAW,
           type: LotteryType.ACTIVITY_BASED,
           prizes: legacyPrizes,
           winnerCount: Math.max(prizeTotal, 1),
@@ -292,7 +316,8 @@ export async function upsertOrganizerGrandLottery(
       });
 
       await tx.lotteryPrize.deleteMany({ where: { lotteryId } });
-      for (const [index, prize] of input.prizes.entries()) {
+      for (const [index, prize] of sortedPrizes.entries()) {
+        const tier = prize.tier ?? index + 1;
         await tx.lotteryPrize.create({
           data: {
             lotteryId: lotteryId!,
@@ -302,6 +327,7 @@ export async function upsertOrganizerGrandLottery(
             remaining: prize.quantity,
             prizeType: mapPrizeType(prize.prize_type),
             sortOrder: index,
+            tier,
           },
         });
       }
@@ -316,6 +342,7 @@ export async function upsertOrganizerGrandLottery(
         title: input.title.trim(),
         description: input.description?.trim() || null,
         coverImage: input.cover_image ?? null,
+        lotteryCategory: LotteryCategory.POOL_DRAW,
         type: LotteryType.ACTIVITY_BASED,
         prizes: legacyPrizes,
         requireCheckin: eligibility.require_checkin,
@@ -325,13 +352,14 @@ export async function upsertOrganizerGrandLottery(
         status,
         requireLeadCapture: false,
         prizeItems: {
-          create: input.prizes.map((prize, index) => ({
+          create: sortedPrizes.map((prize, index) => ({
             name: prize.name.trim(),
             imageUrl: prize.image_url ?? null,
             quantity: prize.quantity,
             remaining: prize.quantity,
             prizeType: mapPrizeType(prize.prize_type),
             sortOrder: index,
+            tier: prize.tier ?? index + 1,
           })),
         },
       },

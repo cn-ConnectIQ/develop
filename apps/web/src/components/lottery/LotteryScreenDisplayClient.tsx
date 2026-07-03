@@ -165,6 +165,7 @@ export function LotteryScreenDisplayClient({
     useState<LotteryScreenWinnerPayload | null>(null);
   const [winners, setWinners] = useState<LotteryScreenWinnerPayload[]>([]);
   const [progress, setProgress] = useState({ revealed: 0, quota: 0 });
+  const [tierLabel, setTierLabel] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = subscribeLotteryScreen(eventId, (msg: LotteryScreenBroadcast) => {
@@ -182,6 +183,12 @@ export function LotteryScreenDisplayClient({
         setEntryCount(msg.data.entry_count);
         setRollingEntries(msg.data.rolling_entries);
         setCurrentWinner(null);
+        setTierLabel(null);
+        setPhase("animating");
+      }
+
+      if (msg.type === "TIER_START") {
+        setTierLabel(msg.data.tier_label);
         setPhase("animating");
       }
 
@@ -234,6 +241,11 @@ export function LotteryScreenDisplayClient({
         {phase === "animating" && (
           <div className="relative w-full max-w-4xl">
             {animation === "RED_ENVELOPE" && <RedEnvelopeRain active />}
+            {tierLabel && (
+              <p className="mb-4 text-center text-3xl font-bold text-brand-gold">
+                {tierLabel} 抽奖进行中
+              </p>
+            )}
             <p className="mb-8 text-center text-sm uppercase tracking-widest text-brand-gold">
               {animationLabel(animation)}
             </p>

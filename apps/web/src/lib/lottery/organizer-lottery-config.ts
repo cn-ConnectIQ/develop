@@ -58,11 +58,16 @@ export type OrganizerLotteryEligibility = {
   min_connections: number | null;
 };
 
+/** ASC = 从低等级到高等级依次开奖（先三等奖，压轴一等奖）；ALL_AT_ONCE = 不分级逐步控制 */
+export type PrizeDrawOrder = "ASC" | "ALL_AT_ONCE";
+
 export type OrganizerLotteryMeta = {
   eligibility: OrganizerLotteryEligibility;
   screen_animation: ScreenAnimationType;
-  prize_draw_order: "ASC";
+  prize_draw_order: PrizeDrawOrder;
   target_entry_count: number | null;
+  /** 大屏分级开奖时当前进行中的等级（tier 数字） */
+  active_draw_tier: number | null;
 };
 
 export const defaultOrganizerEligibility = (): OrganizerLotteryEligibility => ({
@@ -103,7 +108,24 @@ export const defaultOrganizerMeta = (): OrganizerLotteryMeta => ({
   screen_animation: "SLOT_MACHINE",
   prize_draw_order: "ASC",
   target_entry_count: null,
+  active_draw_tier: null,
 });
+
+export function tierMedal(tier: number): string {
+  if (tier === 1) return "🥇";
+  if (tier === 2) return "🥈";
+  if (tier === 3) return "🥉";
+  return "🎁";
+}
+
+export function tierLabel(tier: number): string {
+  const labels: Record<number, string> = {
+    1: "一等奖",
+    2: "二等奖",
+    3: "三等奖",
+  };
+  return labels[tier] ?? `${tier}等奖`;
+}
 
 export const organizerEligibilitySchema = z.object({
   require_checkin: z.boolean().optional(),
@@ -124,6 +146,7 @@ export const createOrganizerLotterySchema = z.object({
         name: z.string().min(1).max(100),
         image_url: z.string().optional().nullable(),
         quantity: z.number().int().positive().max(10000),
+        tier: z.number().int().positive().max(99).optional(),
         prize_type: z
           .enum(["PHYSICAL", "DIGITAL", "EXPERIENCE"])
           .default("PHYSICAL"),
@@ -135,6 +158,7 @@ export const createOrganizerLotterySchema = z.object({
   screen_animation: z
     .enum(["SLOT_MACHINE", "WHEEL", "RED_ENVELOPE", "REVEAL_ONE_BY_ONE"])
     .optional(),
+  prize_draw_order: z.enum(["ASC", "ALL_AT_ONCE"]).optional(),
   target_entry_count: z.number().int().positive().optional().nullable(),
   publish: z.boolean().optional(),
 });
@@ -157,6 +181,7 @@ export type OrganizerLotteryDto = {
     name: string;
     image_url: string | null;
     quantity: number;
+    tier: number;
     prize_type: string;
     sort_order: number;
   }>;

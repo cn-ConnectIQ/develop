@@ -20,8 +20,12 @@ import {
 } from "@/components/admin/admin-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SCREEN_ANIMATION_OPTIONS } from "@/lib/lottery/organizer-lottery-config";
-import type { OrganizerLotteryDto } from "@/lib/lottery/organizer-lottery-config";
+import { SCREEN_ANIMATION_OPTIONS, tierMedal } from "@/lib/lottery/organizer-lottery-config";
+import type {
+  OrganizerLotteryDto,
+  PrizeDrawOrder,
+} from "@/lib/lottery/organizer-lottery-config";
+import type { LotteryTierState } from "@/lib/lottery/lottery-screen-service";
 import { cn } from "@/lib/utils";
 
 type ScreenState = {
@@ -32,9 +36,12 @@ type ScreenState = {
     draw_at: string | null;
     entry_count: number;
     animation: string;
+    prize_draw_order: PrizeDrawOrder;
   };
   winner_quota: number;
   revealed_count: number;
+  active_tier: number | null;
+  tiers: LotteryTierState[];
   winners: Array<{
     id: string;
     name: string;
@@ -109,6 +116,7 @@ export function LotteryScreenConsole({
 
   const [animating, setAnimating] = useState(false);
   const [revealing, setRevealing] = useState(false);
+  const [tierAction, setTierAction] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
 
   const { data: grandLottery, isLoading: lotteryLoading } = useQuery({
@@ -192,6 +200,65 @@ export function LotteryScreenConsole({
       setRevealing(false);
     }
   }
+
+  async function startTierDraw(tier: number) {
+    if (!lotteryId) return;
+    setTierAction(tier);
+    try {
+      const res = await fetch(
+        `/api/events/${eventId}/lotteries/${lotteryId}/draw-tier`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier, action: "start" }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "启动失败");
+      setStarted(true);
+      toast.success(`已开始 ${json.data.tier_label} 抽奖`);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "启动失败");
+    } finally {
+      setTierAction(null);
+    }
+  }
+
+  async function revealTierWinner(tier: number) {
+    if (!lotteryId) return;
+    setTierAction(tier);
+    try {
+      const res = await fetch(
+        `/api/events/${eventId}/lotteries/${lotteryId}/draw-tier`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier, action: "reveal" }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "揭晓失败");
+      toast.success(
+        `恭喜 ${json.data.winner.name} 获得 ${json.data.winner.prize_name}`,
+      );
+      if (json.data.tier_complete) {
+        toast.info(`${json.data.tier_label} 已全部揭晓`);
+      }
+      if (json.data.finished) {
+        toast.info("全部奖品已揭晓");
+      }
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "揭晓失败");
+    } finally {
+      setTierAction(null);
+    }
+  }
+
+  const isTierMode = state?.lottery.prize_draw_order === "ASC";
+  const nextTier = state?.tiers.find((t) => t.is_next);
+  const activeTierState = state?.tiers.find((t) => t.is_active);
 
   async function endCeremony() {
     if (!lotteryId) return;
@@ -321,7 +388,7 @@ export function LotteryScreenConsole({
                       </div>
                     )}
 
-                    {!started && state?.lottery.status !== "DRAWING" && (
+                    {!isTierMode && !started && state?.lottery.status !== "DRAWING" && (
                       <Button
                         className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
                         disabled={animating || state?.lottery.status !== "OPEN"}
@@ -336,7 +403,96 @@ export function LotteryScreenConsole({
                       </Button>
                     )}
 
-                    {(started || state?.lottery.status === "DRAWING") &&
+                    {isTierMode && state?.lottery.status !== "FINISHED" && (
+                      <div className="space-y-3">
+                        {!started && state?.lottery.status !== "DRAWING" && (
+                          <Button
+                            className="h-12 w-full bg-brand-blue text-white hover:bg-brand-blue/90"
+                            disabled={animating || state?.lottery.status !== "OPEN"}
+                            onClick={() => void startAnimation()}
+                          >
+                            {animating ? (
+                              <Loader2 className="mr-2 size-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="mr-2 size-4" />
+                            )}
+                            初始化大屏（同步参与名单）
+                          </Button>
+                        )}
+
+                        {state?.tiers && state.tiers.length > 0 && (
+                          <div className="space-y-2 rounded-xl border border-border-light p-3">
+                            {state.tiers.map((tier) => (
+                              <div
+                                key={tier.tier}
+                                className={cn(
+                                  "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
+                                  tier.complete && "bg-brand-green-light/40 text-brand-green",
+                                  tier.is_active && "bg-brand-gold/15 ring-1 ring-brand-gold/40",
+                                  tier.is_next && !tier.complete && "bg-brand-blue-light/30",
+                                )}
+                              >
+                                <span>
+                                  {tierMedal(tier.tier)} {tier.label}
+                                  <span className="ml-2 text-xs text-text-muted">
+                                    {tier.prize_name} × {tier.quantity}
+                                  </span>
+                                </span>
+                                <span className="text-xs text-text-muted">
+                                  {tier.drawn_count}/{tier.quantity}
+                                  {tier.complete && " · 已完成"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {nextTier && state?.active_tier == null && (
+                          <Button
+                            className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
+                            disabled={tierAction != null}
+                            onClick={() => void startTierDraw(nextTier.tier)}
+                          >
+                            {tierAction === nextTier.tier ? (
+                              <Loader2 className="mr-2 size-5 animate-spin" />
+                            ) : (
+                              <Sparkles className="mr-2 size-5" />
+                            )}
+                            开始{nextTier.label}抽奖
+                          </Button>
+                        )}
+
+                        {activeTierState && !activeTierState.complete && (
+                          <Button
+                            className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
+                            disabled={tierAction != null}
+                            onClick={() => void revealTierWinner(activeTierState.tier)}
+                          >
+                            {tierAction === activeTierState.tier ? (
+                              <Loader2 className="mr-2 size-5 animate-spin" />
+                            ) : (
+                              <Trophy className="mr-2 size-5" />
+                            )}
+                            揭晓{activeTierState.label}中奖者
+                            {activeTierState.quantity > 1 &&
+                              ` (${activeTierState.drawn_count + 1}/${activeTierState.quantity})`}
+                          </Button>
+                        )}
+
+                        {(started || state?.lottery.status === "DRAWING") && (
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => void endCeremony()}
+                          >
+                            结束仪式
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {!isTierMode &&
+                      (started || state?.lottery.status === "DRAWING") &&
                       state?.lottery.status !== "FINISHED" && (
                         <div className="space-y-3">
                           <Button

@@ -1,4 +1,4 @@
-import { LotteryDrawType, LotteryStatus, prisma } from "@connectiq/database";
+import { LotteryCategory, LotteryDrawType, LotteryStatus, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import {
@@ -223,7 +223,11 @@ export async function submitLeadFormForLottery(userId: string, input: LeadFormSu
 
   const drawType = mapDrawType(lottery.drawType);
 
-  if (drawType === "INSTANT" && boothId) {
+  if (
+    drawType === "INSTANT" &&
+    boothId &&
+    lottery.lotteryCategory !== LotteryCategory.AUTO_PROBABILITY
+  ) {
     const instant = await drawBoothInstantLottery(boothId, userId, lead);
     return {
       lottery_id: instant.lottery_id ?? lottery.id,

@@ -15,6 +15,7 @@ import {
   type LotteryWinnerPayload,
 } from "@/lib/realtime";
 import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
+import { attachToRedemptionCode } from "@/lib/lottery/redemption";
 import type { LotteryPrizeConfig } from "@/lib/interaction/schemas";
 
 export type LotteryDashboardEntry = {
@@ -62,15 +63,6 @@ export type LotteryDashboardData = {
   recent_entries: LotteryDashboardEntry[];
   winners: LotteryDashboardWinner[];
 };
-
-function generateVerificationCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
 
 function resolveAvatarSeed(name: string): string {
   return encodeURIComponent(name.slice(0, 1) || "?");
@@ -369,16 +361,6 @@ export async function executeLotteryDraw(lotteryId: string) {
       );
 
       for (const entry of picked) {
-        let verificationCode = generateVerificationCode();
-        for (let attempt = 0; attempt < 5; attempt++) {
-          const exists = await tx.lotteryWinner.findUnique({
-            where: { verificationCode },
-            select: { id: true },
-          });
-          if (!exists) break;
-          verificationCode = generateVerificationCode();
-        }
-
         const winner = await tx.lotteryWinner.create({
           data: {
             lotteryId,
@@ -387,9 +369,15 @@ export async function executeLotteryDraw(lotteryId: string) {
             prizeId: prize.id,
             prizeRank: prize.rank,
             prizeName: prize.name,
-            verificationCode,
           },
         });
+
+        await attachToRedemptionCode(
+          entry.userId,
+          lottery.eventId,
+          winner.id,
+          tx,
+        );
 
         createdWinners.push({
           id: winner.id,

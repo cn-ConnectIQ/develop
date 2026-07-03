@@ -1,5 +1,7 @@
 import {
   EventStatus,
+  LotteryCategory,
+  LotteryOwnerType,
   LotteryStatus,
   PollStatus,
   PollType,
@@ -275,6 +277,28 @@ async function loadActiveLottery(
   const enabled = await isEventFeatureEnabled(eventId, "lottery");
   if (!enabled) return null;
 
+  const poolLottery = await prisma.lottery.findFirst({
+    where: {
+      eventId,
+      ownerType: LotteryOwnerType.ORGANIZER,
+      boothId: null,
+      lotteryCategory: LotteryCategory.POOL_DRAW,
+      status: { in: [LotteryStatus.OPEN, LotteryStatus.DRAWING] },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, title: true },
+  });
+
+  if (poolLottery) {
+    return {
+      id: poolLottery.id,
+      type: "LOTTERY",
+      title: poolLottery.title,
+      isLive: true,
+      label: "闭幕大抽奖",
+    };
+  }
+
   const lottery = await prisma.lottery.findFirst({
     where: {
       eventId,
@@ -292,6 +316,7 @@ async function loadActiveLottery(
     title: lottery.title,
     isLive: true,
     label: lottery.boothId ? "展位打卡抽奖" : "现场抽奖",
+    boothId: lottery.boothId ?? undefined,
   };
 }
 

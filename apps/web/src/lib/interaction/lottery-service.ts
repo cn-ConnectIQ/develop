@@ -1,4 +1,11 @@
-import { InviteStatus, LotteryStatus, OrgStaffRole, prisma, type Lottery } from "@connectiq/database";
+import {
+  InviteStatus,
+  LotteryCategory,
+  LotteryStatus,
+  OrgStaffRole,
+  prisma,
+  type Lottery,
+} from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
 import { ApiError, type AuthSession } from "@/lib/api-auth";
 import {
@@ -18,6 +25,7 @@ import {
   sendLotteryWinNotification,
 } from "@/lib/interaction/lottery-rewards";
 import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
+import { attachToRedemptionCode } from "@/lib/lottery/redemption";
 
 const MANAGE_ROLES = [
   UserRole.PLATFORM_ADMIN,
@@ -393,6 +401,150 @@ async function captureBoothLotteryLead(
   }
 }
 
+/** 类型③ 填表必得：有库存则发放，并挂载统一核销码 */
+export async function claimInstantLotteryGift(
+  lotteryId: string,
+  userId: string,
+  lead?: BoothLotteryLeadInput,
+) {
+  const lottery = await prisma.lottery.findUnique({
+    where: { id: lotteryId },
+    include: {
+      booth: { select: { id: true, name: true, code: true } },
+      prizeItems: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!lottery) {
+    throw new ApiError("抽奖不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  if (lottery.lotteryCategory !== LotteryCategory.INSTANT_CLAIM) {
+    throw new ApiError("该抽奖不是直接领取类型", ErrorCode.VALIDATION_ERROR, 400);
+  }
+  if (!isLotteryOpenForEntry(lottery.status)) {
+    throw new ApiError("抽奖未开放", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const eventId = lottery.eventId;
+  const booth = lottery.booth;
+  const pickupNote = booth
+    ? `请至 ${booth.name}（${booth.code}）服务台领取奖品`
+    : "请在活动结束前到服务台领取";
+
+  if (booth) {
+    await captureBoothLotteryLead(eventId, booth.id, userId, lead);
+  }
+
+  const existingWinner = await prisma.lotteryWinner.findFirst({
+    where: { lotteryId, userId },
+    orderBy: { wonAt: "desc" },
+  });
+  if (existingWinner) {
+    const redemption = existingWinner.redemptionCodeId
+      ? await prisma.userRedemptionCode.findUniqueOrThrow({
+          where: { id: existingWinner.redemptionCodeId },
+        })
+      : await attachToRedemptionCode(userId, eventId, existingWinner.id);
+
+    return {
+      lottery_id: lotteryId,
+      won: true,
+      prize_tier: existingWinner.prizeRank,
+      prize_name: existingWinner.prizeName,
+      redemption_code: redemption.code,
+      pickup_note: pickupNote,
+    };
+  }
+
+  try {
+    await enterLottery(eventId, lotteryId, userId);
+  } catch (err) {
+    if (!(err instanceof ApiError && err.message === "您已参与过该抽奖")) {
+      throw err;
+    }
+  }
+
+  const availablePrizeItem = lottery.prizeItems.find((item) => item.remaining > 0);
+  let prizeRank: number;
+  let prizeName: string;
+  let prizeId: string | null = null;
+
+  if (lottery.prizeItems.length > 0) {
+    if (!availablePrizeItem) {
+      return {
+        lottery_id: lotteryId,
+        won: false,
+        prize_tier: null,
+        prize_name: null,
+        redemption_code: null,
+        pickup_note: "奖品已发完，感谢参与",
+      };
+    }
+    prizeId = availablePrizeItem.id;
+    prizeName = availablePrizeItem.name;
+    prizeRank =
+      lottery.prizeItems.findIndex((item) => item.id === availablePrizeItem.id) + 1;
+  } else {
+    const prizes = Array.isArray(lottery.prizes)
+      ? (lottery.prizes as LotteryPrizeConfig[])
+      : [];
+    const winnerCounts = await prisma.lotteryWinner.groupBy({
+      by: ["prizeRank"],
+      where: { lotteryId },
+      _count: { id: true },
+    });
+    const countMap = new Map(winnerCounts.map((row) => [row.prizeRank, row._count.id]));
+    const available = prizes.filter(
+      (prize) => (countMap.get(prize.rank) ?? 0) < (prize.count ?? 1),
+    );
+    if (available.length === 0) {
+      return {
+        lottery_id: lotteryId,
+        won: false,
+        prize_tier: null,
+        prize_name: null,
+        redemption_code: null,
+        pickup_note: "奖品已发完，感谢参与",
+      };
+    }
+    const picked = available[0]!;
+    prizeRank = picked.rank;
+    prizeName = picked.prize ?? picked.name;
+  }
+
+  const redemption = await prisma.$transaction(async (tx) => {
+    if (prizeId) {
+      const updated = await tx.lotteryPrize.updateMany({
+        where: { id: prizeId, remaining: { gt: 0 } },
+        data: { remaining: { decrement: 1 } },
+      });
+      if (updated.count === 0) {
+        throw new ApiError("奖品已发完", ErrorCode.VALIDATION_ERROR, 409);
+      }
+    }
+
+    const winner = await tx.lotteryWinner.create({
+      data: {
+        lotteryId,
+        userId,
+        prizeId,
+        prizeRank,
+        prizeName,
+      },
+    });
+
+    return attachToRedemptionCode(userId, eventId, winner.id, tx);
+  });
+
+  return {
+    lottery_id: lotteryId,
+    won: true,
+    prize_tier: prizeRank,
+    prize_name: prizeName,
+    redemption_code: redemption.code,
+    pickup_note: pickupNote,
+  };
+}
+
 /** 展位即时抽奖（小程序 POST /api/booths/:boothId/lottery） */
 export async function drawBoothInstantLottery(
   boothId: string,
@@ -501,7 +653,7 @@ export async function drawBoothInstantLottery(
   }
 
   const prizeName = picked.prize ?? picked.name;
-  await prisma.lotteryWinner.create({
+  const winner = await prisma.lotteryWinner.create({
     data: {
       lotteryId: lottery.id,
       userId,
@@ -509,6 +661,7 @@ export async function drawBoothInstantLottery(
       prizeName,
     },
   });
+  await attachToRedemptionCode(userId, booth.eventId, winner.id);
 
   return {
     lottery_id: lottery.id,
@@ -578,16 +731,18 @@ export async function drawLotteryWinners(
     }
 
     const rows = await Promise.all(
-      selected.map((entry) =>
-        tx.lotteryWinner.create({
+      selected.map(async (entry) => {
+        const row = await tx.lotteryWinner.create({
           data: {
             lotteryId,
             userId: entry.userId,
             prizeRank,
             prizeName,
           },
-        }),
-      ),
+        });
+        await attachToRedemptionCode(entry.userId, eventId, row.id, tx);
+        return row;
+      }),
     );
 
     await tx.lottery.update({

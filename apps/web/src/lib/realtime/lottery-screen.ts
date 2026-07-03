@@ -7,6 +7,7 @@ export const LOTTERY_SCREEN_BROADCAST_EVENT = "lottery-screen";
 
 export type LotteryScreenEventType =
   | "START_ANIMATION"
+  | "TIER_START"
   | "REVEAL_WINNER"
   | "END";
 
@@ -43,6 +44,15 @@ export type LotteryScreenRevealData = {
   winner_quota: number;
 };
 
+export type LotteryScreenTierStartData = {
+  lottery_id: string;
+  tier: number;
+  tier_label: string;
+  prize_name: string;
+  quantity: number;
+  drawn_count: number;
+};
+
 export type LotteryScreenEndData = {
   lottery_id: string;
   total_winners: number;
@@ -50,6 +60,7 @@ export type LotteryScreenEndData = {
 
 export type LotteryScreenMessage =
   | { type: "START_ANIMATION"; data: LotteryScreenStartData }
+  | { type: "TIER_START"; data: LotteryScreenTierStartData }
   | { type: "REVEAL_WINNER"; data: LotteryScreenRevealData }
   | { type: "END"; data: LotteryScreenEndData };
 

@@ -19,6 +19,9 @@ export type MyLotteryEntryRow = {
   draw_at: string | null;
   verification_code: string | null;
   verified: boolean;
+  verified_at: string | null;
+  won_at: string | null;
+  lottery_category: string | null;
   pickup_note: string | null;
 };
 
@@ -52,9 +55,15 @@ function resolvePrizeName(
   return lotteryTitle;
 }
 
-export async function listMyLotteryEntries(userId: string): Promise<MyLotteryEntryRow[]> {
+export async function listMyLotteryEntries(
+  userId: string,
+  eventId?: string,
+): Promise<MyLotteryEntryRow[]> {
   const entries = await prisma.lotteryEntry.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...(eventId ? { lottery: { eventId } } : {}),
+    },
     orderBy: { enteredAt: "desc" },
     include: {
       winner: true,
@@ -123,6 +132,9 @@ export async function listMyLotteryEntries(userId: string): Promise<MyLotteryEnt
       draw_at: drawAt?.toISOString() ?? null,
       verification_code: winner?.verificationCode ?? null,
       verified: winner?.verified ?? false,
+      verified_at: winner?.verifiedAt?.toISOString() ?? null,
+      won_at: winner?.wonAt?.toISOString() ?? null,
+      lottery_category: lottery.lotteryCategory ?? null,
       pickup_note: pickupNote,
     };
   });
