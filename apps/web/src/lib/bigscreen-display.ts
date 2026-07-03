@@ -1,3 +1,27 @@
+export type PollResultVisual = "race_bar" | "word_cloud" | "distribution";
+
+export const POLL_RESULT_VISUAL_OPTIONS: Array<{
+  value: PollResultVisual;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "race_bar",
+    label: "竞速条形图",
+    description: "选项条形图实时竞速，适合现场氛围",
+  },
+  {
+    value: "word_cloud",
+    label: "词云",
+    description: "关键词聚合成云，适合开放式反馈",
+  },
+  {
+    value: "distribution",
+    label: "分布图",
+    description: "饼图/占比分布，适合结果复盘",
+  },
+];
+
 export type BigscreenDisplayConfig = {
   showResults: boolean;
   lockVotes: boolean;
@@ -5,6 +29,7 @@ export type BigscreenDisplayConfig = {
   hiddenResponseIds: string[];
   pinnedResponseIds: string[];
   answeredResponseIds: string[];
+  resultVisual?: PollResultVisual;
   responseMeta?: Record<
     string,
     { hostNote?: string; publicReply?: string; tags?: string[] }
@@ -18,6 +43,7 @@ export const DEFAULT_DISPLAY_CONFIG: BigscreenDisplayConfig = {
   hiddenResponseIds: [],
   pinnedResponseIds: [],
   answeredResponseIds: [],
+  resultVisual: "race_bar",
   responseMeta: {},
 };
 
@@ -37,6 +63,12 @@ export function parseDisplayConfig(value: unknown): BigscreenDisplayConfig {
     answeredResponseIds: Array.isArray(v.answeredResponseIds)
       ? v.answeredResponseIds
       : [],
+    resultVisual:
+      v.resultVisual === "word_cloud" ||
+      v.resultVisual === "distribution" ||
+      v.resultVisual === "race_bar"
+        ? v.resultVisual
+        : "race_bar",
     responseMeta:
       v.responseMeta && typeof v.responseMeta === "object"
         ? (v.responseMeta as BigscreenDisplayConfig["responseMeta"])

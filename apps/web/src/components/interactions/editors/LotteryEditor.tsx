@@ -184,7 +184,7 @@ export function LotteryEditor({ lottery, eventId, onChange }: LotteryEditorProps
   }
 
   return (
-    <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
+    <div className="min-w-0 flex-1 overflow-y-auto px-8 py-8 lg:max-w-2xl">
       <InteractionTitleInput
         eventId={eventId}
         lotteryId={lottery.id}

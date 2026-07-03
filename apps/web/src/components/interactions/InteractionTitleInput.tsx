@@ -53,7 +53,7 @@ export function InteractionTitleInput({
         debounceMs={600}
         placeholder={placeholder}
         onValueCommit={(title) => scheduleSave({ title })}
-        className="h-auto min-h-[40px] flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-[22px] font-semibold leading-tight shadow-none outline-none transition-colors placeholder:text-text-tertiary hover:border-border-light focus-visible:border-border-light focus-visible:ring-0"
+        className="h-auto min-h-[52px] flex-1 rounded-none border-0 border-b border-transparent bg-transparent px-0 py-2 text-3xl font-semibold leading-tight shadow-none outline-none transition-colors placeholder:text-text-tertiary/60 hover:border-border-light focus-visible:border-border-light focus-visible:ring-0"
       />
       <div className="shrink-0 pt-1">
         {saveState === "saving" && (

@@ -1,4 +1,4 @@
-import { prisma, PollStatus } from "@connectiq/database";
+import { prisma, PollStatus, PollType } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -13,6 +13,7 @@ import { serializePollForMobile } from "@/lib/poll-mobile-api";
 
 const patchSchema = z.object({
   status: z.nativeEnum(PollStatus).optional(),
+  type: z.nativeEnum(PollType).optional(),
   title: z.string().min(1).max(200).optional(),
   showResults: z.boolean().optional(),
   extendMinutes: z.number().optional(),
@@ -108,6 +109,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     where: { id: pollId },
     data: {
       status: parsed.data.status,
+      type: parsed.data.type,
       title: parsed.data.title,
       showResults: parsed.data.showResults,
       closesAt,

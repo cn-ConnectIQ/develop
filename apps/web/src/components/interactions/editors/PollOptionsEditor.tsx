@@ -18,7 +18,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CheckSquare, Circle, GripVertical, Plus } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
+import { creationStyles } from "@/components/admin/content-creation-layout";
 import { ImeSafeInput } from "@/components/ui/ime-safe-input";
 import {
   useInteractionAutoSave,
@@ -83,7 +84,7 @@ export function PollOptionsEditor({
     setOptions((prev) => {
       const next = [
         ...prev,
-        { id: `new-${Date.now()}`, text: `选项 ${prev.length + 1}` },
+        { id: `new-${Date.now()}`, text: "" },
       ];
       onChange?.(next);
       scheduleSave(
@@ -140,10 +141,10 @@ export function PollOptionsEditor({
     });
   }
 
-  const ChoiceIcon = type === "MULTI_CHOICE" ? CheckSquare : Circle;
+  void type;
 
   return (
-    <div className="mt-4">
+    <div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -154,11 +155,11 @@ export function PollOptionsEditor({
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-2">
-            {options.map((option) => (
+            {options.map((option, index) => (
               <SortableOptionRow
                 key={option.id}
+                index={index}
                 option={option}
-                ChoiceIcon={ChoiceIcon}
                 onCommit={(text) => updateOptionText(option.id, text)}
                 onRemove={() => removeOption(option.id)}
               />
@@ -170,29 +171,22 @@ export function PollOptionsEditor({
       <button
         type="button"
         onClick={addOption}
-        className="mt-2 flex cursor-pointer items-center gap-1 text-sm text-brand-blue hover:underline"
+        className="mt-4 text-base text-brand-blue hover:underline"
       >
-        <Plus className="size-3.5" />
-        添加选项
-      </button>
-      <button
-        type="button"
-        className="ml-4 mt-2 text-sm text-text-muted hover:text-brand-blue"
-      >
-        添加&quot;其他&quot;选项
+        + 添加选项
       </button>
     </div>
   );
 }
 
 function SortableOptionRow({
+  index,
   option,
-  ChoiceIcon,
   onCommit,
   onRemove,
 }: {
+  index: number;
   option: OptionRow;
-  ChoiceIcon: typeof Circle;
   onCommit: (text: string) => void;
   onRemove: () => void;
 }) {
@@ -208,25 +202,28 @@ function SortableOptionRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="group flex h-11 items-center gap-2"
+      className="group flex min-h-14 items-center gap-3 border-b border-border-light/80 py-2"
     >
       <GripVertical
-        className="size-3.5 cursor-grab text-text-muted/30 group-hover:text-text-muted"
+        className="size-4 shrink-0 cursor-grab text-text-muted/25 group-hover:text-text-muted"
         {...attributes}
         {...listeners}
       />
-      <ChoiceIcon className="size-3.5 shrink-0 text-text-muted" />
+      <span className="w-7 shrink-0 text-lg font-medium tabular-nums text-text-muted">
+        {index + 1}.
+      </span>
       <ImeSafeInput
         value={option.text}
         debounceMs={800}
         onValueCommit={onCommit}
-        placeholder="输入选项"
-        className="h-9 flex-1 border-0 bg-transparent text-[15px] shadow-none outline-none placeholder:text-text-muted focus-visible:ring-0"
+        placeholder="输入选项内容"
+        className={creationStyles.optionInput}
       />
       <button
         type="button"
         onClick={onRemove}
-        className="hidden text-sm text-text-muted hover:text-brand-red group-hover:block"
+        className="hidden shrink-0 px-2 text-lg text-text-muted hover:text-brand-red group-hover:block"
+        aria-label="删除选项"
       >
         ×
       </button>

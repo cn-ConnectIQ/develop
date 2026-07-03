@@ -1,9 +1,12 @@
 import {
   InviteStatus,
+  LotteryCategory,
   OrgStaffRole,
   prisma,
+  ScanActionType,
+  ScanResult,
   type Prisma,
-  type UserRedemptionCode,
+  type UserEventCode,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import {
@@ -12,6 +15,10 @@ import {
   requireAuth,
   requireEventAccessCheck,
 } from "@/lib/api-auth";
+import {
+  formatEventCodeForScan,
+  parseEventCodeFromScan,
+} from "@/lib/event-code";
 import {
   requireMobileEventAccess,
   resolveMobileUserId,
@@ -33,33 +40,60 @@ function resolveAvatarUrl(name: string): string {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name.slice(0, 1) || "?")}`;
 }
 
-/** 查找或创建用户在某活动下的统一核销码（一人一场活动一个码） */
-export async function upsertUserRedemptionCode(
+function resolveVerifyActionType(
+  lotteryCategory: LotteryCategory,
+): ScanActionType {
+  return lotteryCategory === LotteryCategory.INSTANT_CLAIM
+    ? ScanActionType.GIFT_VERIFY
+    : ScanActionType.LOTTERY_VERIFY;
+}
+
+async function logCodeScan(
+  params: {
+    codeId: string;
+    actionType: ScanActionType;
+    actionRef: string | null;
+    result: ScanResult;
+    operatorId: string;
+  },
+  db: DbClient = prisma,
+) {
+  await db.codeScanLog.create({ data: params });
+}
+
+/** 查找或创建用户在某活动下的一码通（一人一场活动一个码） */
+export async function upsertUserEventCode(
   userId: string,
   eventId: string,
   db: DbClient = prisma,
-): Promise<UserRedemptionCode> {
-  return db.userRedemptionCode.upsert({
+): Promise<UserEventCode> {
+  return db.userEventCode.upsert({
     where: { eventId_userId: { eventId, userId } },
     create: { eventId, userId },
     update: {},
   });
 }
 
-/** 中奖记录挂载到统一核销码（开奖/领取流程内部调用） */
-export async function attachToRedemptionCode(
+/** @deprecated 使用 upsertUserEventCode */
+export const upsertUserRedemptionCode = upsertUserEventCode;
+
+/** 中奖记录挂载到一码通（开奖/领取流程内部调用） */
+export async function attachToEventCode(
   userId: string,
   eventId: string,
   lotteryWinnerId: string,
   db: DbClient = prisma,
-): Promise<UserRedemptionCode> {
-  const code = await upsertUserRedemptionCode(userId, eventId, db);
+): Promise<UserEventCode> {
+  const code = await upsertUserEventCode(userId, eventId, db);
   await db.lotteryWinner.update({
     where: { id: lotteryWinnerId },
-    data: { redemptionCodeId: code.id },
+    data: { eventCodeId: code.id },
   });
   return code;
 }
+
+/** @deprecated 使用 attachToEventCode */
+export const attachToRedemptionCode = attachToEventCode;
 
 export type MyRedemptionCodeResult = {
   code: string;
@@ -67,7 +101,7 @@ export type MyRedemptionCodeResult = {
   unclaimedCount: number;
 };
 
-/** 获取/创建当前用户的统一核销码 */
+/** 获取/创建当前用户的一码通（返回 CIQ: 前缀格式供扫码） */
 export async function getMyRedemptionCode(
   userId: string,
   eventId: string,
@@ -80,7 +114,7 @@ export async function getMyRedemptionCode(
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const redemption = await upsertUserRedemptionCode(userId, eventId);
+  const eventCode = await upsertUserEventCode(userId, eventId);
 
   const unclaimedCount = await prisma.lotteryWinner.count({
     where: {
@@ -91,7 +125,7 @@ export async function getMyRedemptionCode(
   });
 
   return {
-    code: redemption.code,
+    code: formatEventCodeForScan(eventCode.code),
     hasUnclaimedPrizes: unclaimedCount > 0,
     unclaimedCount,
   };
@@ -208,12 +242,12 @@ export async function requireRedemptionPageAccess(
 export async function lookupRedemptionCode(
   rawCode: string,
 ): Promise<RedemptionLookupResult> {
-  const code = rawCode.trim();
+  const code = parseEventCodeFromScan(rawCode);
   if (!code) {
     throw new ApiError("核销码无效", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const redemption = await prisma.userRedemptionCode.findUnique({
+  const eventCode = await prisma.userEventCode.findUnique({
     where: { code },
     include: {
       user: {
@@ -225,14 +259,14 @@ export async function lookupRedemptionCode(
     },
   });
 
-  if (!redemption) {
+  if (!eventCode) {
     throw new ApiError("核销码无效", ErrorCode.NOT_FOUND, 404);
   }
 
   const winners = await prisma.lotteryWinner.findMany({
     where: {
-      userId: redemption.userId,
-      lottery: { eventId: redemption.eventId },
+      userId: eventCode.userId,
+      lottery: { eventId: eventCode.eventId },
     },
     include: {
       prize: { select: { name: true, imageUrl: true } },
@@ -242,11 +276,11 @@ export async function lookupRedemptionCode(
   });
 
   return {
-    eventId: redemption.eventId,
+    eventId: eventCode.eventId,
     user: {
-      name: redemption.user.name,
-      company: redemption.user.profile?.company ?? null,
-      avatar: resolveAvatarUrl(redemption.user.name),
+      name: eventCode.user.name,
+      company: eventCode.user.profile?.company ?? null,
+      avatar: resolveAvatarUrl(eventCode.user.name),
     },
     prizes: winners.map((winner) => ({
       winnerId: winner.id,
@@ -267,24 +301,24 @@ export async function verifyRedemptionWinner(
   winnerId: string,
   verifierUserId: string,
 ) {
-  const code = rawCode.trim();
+  const code = parseEventCodeFromScan(rawCode);
   if (!code) {
     throw new ApiError("核销码无效", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const redemption = await prisma.userRedemptionCode.findUnique({
+  const eventCode = await prisma.userEventCode.findUnique({
     where: { code },
     select: { id: true, eventId: true, userId: true },
   });
-  if (!redemption) {
+  if (!eventCode) {
     throw new ApiError("核销码无效", ErrorCode.NOT_FOUND, 404);
   }
 
   const winner = await prisma.lotteryWinner.findFirst({
     where: {
       id: winnerId,
-      userId: redemption.userId,
-      lottery: { eventId: redemption.eventId },
+      userId: eventCode.userId,
+      lottery: { eventId: eventCode.eventId },
     },
     include: {
       prize: { select: { name: true, imageUrl: true } },
@@ -292,11 +326,29 @@ export async function verifyRedemptionWinner(
     },
   });
 
+  const actionType = winner
+    ? resolveVerifyActionType(winner.lottery.lotteryCategory)
+    : ScanActionType.LOTTERY_VERIFY;
+
   if (!winner) {
+    await logCodeScan({
+      codeId: eventCode.id,
+      actionType,
+      actionRef: winnerId,
+      result: ScanResult.INVALID,
+      operatorId: verifierUserId,
+    });
     throw new ApiError("中奖记录不存在", ErrorCode.NOT_FOUND, 404);
   }
 
   if (winner.verified) {
+    await logCodeScan({
+      codeId: eventCode.id,
+      actionType: resolveVerifyActionType(winner.lottery.lotteryCategory),
+      actionRef: winnerId,
+      result: ScanResult.DUPLICATE,
+      operatorId: verifierUserId,
+    });
     throw new ApiError(
       `该奖品已于 ${formatVerifiedTime(winner.verifiedAt)} 核销`,
       ErrorCode.VALIDATION_ERROR,
@@ -304,18 +356,33 @@ export async function verifyRedemptionWinner(
     );
   }
 
-  const updated = await prisma.lotteryWinner.update({
-    where: { id: winner.id },
-    data: {
-      verified: true,
-      verifiedAt: new Date(),
-      verifiedBy: verifierUserId,
-      redemptionCodeId: redemption.id,
-    },
-    include: {
-      prize: { select: { name: true, imageUrl: true } },
-      lottery: { select: { title: true, lotteryCategory: true } },
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.lotteryWinner.update({
+      where: { id: winner.id },
+      data: {
+        verified: true,
+        verifiedAt: new Date(),
+        verifiedBy: verifierUserId,
+        eventCodeId: eventCode.id,
+      },
+      include: {
+        prize: { select: { name: true, imageUrl: true } },
+        lottery: { select: { title: true, lotteryCategory: true } },
+      },
+    });
+
+    await logCodeScan(
+      {
+        codeId: eventCode.id,
+        actionType: resolveVerifyActionType(row.lottery.lotteryCategory),
+        actionRef: winnerId,
+        result: ScanResult.SUCCESS,
+        operatorId: verifierUserId,
+      },
+      tx,
+    );
+
+    return row;
   });
 
   return {

@@ -3,25 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
   AdminHeader,
   AdminPage,
-  SectionCard,
 } from "@/components/admin/admin-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CreationSection, creationStyles } from "@/components/admin/content-creation-layout";
+import { MobileDevicePreview } from "@/components/admin/mobile-device-preview";
+import { InteractionEditLayout } from "@/components/interactions/InteractionEditLayout";
 import { Textarea } from "@/components/ui/textarea";
 import { AnimationTypePicker } from "@/components/lottery/AnimationTypePicker";
+import { LotteryCreationFooter } from "@/components/lottery/LotteryCreationFooter";
 import {
   isProbabilityConfigValid,
   ProbabilityConfigList,
@@ -38,8 +32,6 @@ import {
   type TriggerActionValue,
 } from "@/lib/lottery/probability-lottery-config";
 import { cn } from "@/lib/utils";
-
-const STEPS = ["触发方式", "选择动效", "奖品与概率", "预览与发布"] as const;
 
 const DEFAULT_PRIZES: ProbabilityPrizeDraft[] = [
   { name: "iPhone 壳", quantity: 10, probability_percent: 15, prize_type: "PHYSICAL" },
@@ -64,7 +56,6 @@ export function ProbabilityLotterySetupStepper({
   companyName,
 }: ProbabilityLotterySetupStepperProps) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
   const [title, setTitle] = useState(`${boothCode} 概率抽奖`);
   const [description, setDescription] = useState("");
   const [triggerAction, setTriggerAction] = useState<TriggerActionValue>(
@@ -77,6 +68,7 @@ export function ProbabilityLotterySetupStepper({
     AnimationType.WHEEL,
   );
   const [prizes, setPrizes] = useState<ProbabilityPrizeDraft[]>(DEFAULT_PRIZES);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
@@ -92,35 +84,28 @@ export function ProbabilityLotterySetupStepper({
       .finally(() => setPollsLoading(false));
   }, [eventId, triggerAction]);
 
-  function validateStep(index: number): boolean {
-    if (index === 0) {
-      if (!title.trim()) {
-        toast.error("请填写抽奖名称");
-        return false;
-      }
-      if (triggerAction === TriggerAction.SURVEY && !pollId) {
-        toast.error("请选择关联问卷");
-        return false;
-      }
+  function validateAll(): boolean {
+    if (!title.trim()) {
+      toast.error("请填写抽奖名称");
+      return false;
     }
-    if (index === 2) {
-      if (!isProbabilityConfigValid(prizes)) {
-        toast.error("请检查奖品与概率配置（总和不可超过 100%）");
-        return false;
-      }
+    if (triggerAction === TriggerAction.SURVEY && !pollId) {
+      toast.error("请选择关联问卷");
+      return false;
+    }
+    if (!isProbabilityConfigValid(prizes)) {
+      toast.error("请检查奖品与概率配置（总和不可超过 100%）");
+      return false;
     }
     return true;
   }
 
-  function goNext() {
-    if (!validateStep(step)) return;
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
-  }
+  async function submit(publish: boolean) {
+    if (!validateAll()) return;
 
-  async function handlePublish() {
-    if (!validateStep(0) || !validateStep(2)) return;
+    if (publish) setPublishing(true);
+    else setSavingDraft(true);
 
-    setPublishing(true);
     try {
       const payload = buildProbabilityLotteryPayload({
         title,
@@ -129,7 +114,7 @@ export function ProbabilityLotterySetupStepper({
         require_poll_id: pollId || null,
         animation_type: animationType,
         prizes,
-        publish: true,
+        publish,
       });
 
       const res = await fetch(`/api/booths/${boothId}/lotteries/probability`, {
@@ -138,9 +123,9 @@ export function ProbabilityLotterySetupStepper({
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "发布失败");
+      if (!res.ok) throw new Error(json.error ?? "保存失败");
 
-      toast.success("概率抽奖已发布");
+      toast.success(publish ? "概率抽奖已发布" : "已保存草稿");
       const lotteryId = json.data?.lottery?.id as string | undefined;
       if (lotteryId) {
         router.push(
@@ -148,9 +133,10 @@ export function ProbabilityLotterySetupStepper({
         );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "发布失败");
+      toast.error(err instanceof Error ? err.message : "保存失败");
     } finally {
       setPublishing(false);
+      setSavingDraft(false);
     }
   }
 
@@ -158,232 +144,195 @@ export function ProbabilityLotterySetupStepper({
     (o) => o.value === animationType,
   );
   const thanksPercent = remainingProbabilityPercent(prizes);
+  const triggerLabel = TRIGGER_ACTION_OPTIONS.find(
+    (t) => t.value === triggerAction,
+  )?.title;
 
   return (
     <AdminPage>
       <AdminHeader
         title="创建概率抽奖"
-        description={`${companyName} · ${boothCode} · 类型② 行为触发`}
+        description={`${companyName} · ${boothCode} · 行为触发`}
         breadcrumb={["活动", boothName, "概率抽奖"]}
         actions={
           <Link
             href={`/events/${eventId}/booths/${boothId}/lottery/new`}
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
+            className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
           >
-            <ArrowLeft className="size-4" />
             其他类型
           </Link>
         }
       />
 
-      <AdminContent>
-        <div className="mb-8 flex items-center gap-2">
-          {STEPS.map((label, index) => (
-            <div key={label} className="flex flex-1 items-center gap-2">
-              <div
-                className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                  index < step
-                    ? "bg-brand-green text-white"
-                    : index === step
-                      ? "bg-brand-blue text-white"
-                      : "bg-gray-100 text-text-muted",
-                )}
-              >
-                {index < step ? <Check className="size-4" /> : index + 1}
-              </div>
-              <span
-                className={cn(
-                  "hidden text-xs font-medium sm:inline",
-                  index === step ? "text-text-primary" : "text-text-muted",
-                )}
-              >
-                {label}
-              </span>
-              {index < STEPS.length - 1 && (
-                <div className="mx-1 h-px flex-1 bg-border-light" />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {step === 0 && (
-          <SectionCard title="Step 1 · 触发方式" description="用户完成什么动作后自动抽奖">
-            <div className="space-y-4 p-5">
-              <div className="space-y-2">
-                <Label>抽奖名称</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>说明（选填）</Label>
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div className="space-y-3">
-                {TRIGGER_ACTION_OPTIONS.map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3",
-                      triggerAction === opt.value
-                        ? "border-brand-green bg-brand-green-light/20"
-                        : "border-border-light",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="trigger"
-                      className="mt-1"
-                      checked={triggerAction === opt.value}
-                      onChange={() => setTriggerAction(opt.value)}
-                    />
-                    <div>
-                      <p className="text-sm font-medium">{opt.title}</p>
-                      <p className="text-xs text-text-muted">{opt.description}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              {triggerAction === TriggerAction.FILL_FORM && (
-                <div className="rounded-lg border border-dashed border-border-light px-4 py-3 text-sm">
-                  <p className="text-text-muted">
-                    将使用展位 SYS-01 留资字段引擎。可在移动端表单配置中管理字段。
-                  </p>
-                  <Link
-                    href={`/events/${eventId}/exhibitors/booths`}
-                    className="mt-2 inline-flex items-center gap-1 text-brand-blue hover:underline"
-                  >
-                    管理留资字段
-                    <ExternalLink className="size-3" />
-                  </Link>
-                </div>
-              )}
-
-              {triggerAction === TriggerAction.SURVEY && (
-                <div className="space-y-2">
-                  <Label>关联问卷</Label>
-                  {pollsLoading ? (
-                    <p className="text-sm text-text-muted">加载问卷…</p>
-                  ) : polls.length === 0 ? (
-                    <p className="text-sm text-text-muted">
-                      暂无可用问卷，请先在活动中创建 Poll
-                    </p>
-                  ) : (
-                    <select
-                      className="h-10 w-full rounded-lg border border-border-light px-3 text-sm"
-                      value={pollId}
-                      onChange={(e) => setPollId(e.target.value)}
-                    >
-                      <option value="">请选择问卷</option>
-                      {polls.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.title} ({p.status})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-            </div>
-          </SectionCard>
-        )}
-
-        {step === 1 && (
-          <SectionCard title="Step 2 · 选择动效" description="小程序端展示的抽奖动画">
-            <div className="p-5">
-              <AnimationTypePicker
-                value={animationType}
-                onChange={setAnimationType}
+      <AdminContent className="p-0">
+        <InteractionEditLayout
+          editor={
+            <>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="概率抽奖名称"
+                className={creationStyles.titleInput}
               />
-            </div>
-          </SectionCard>
-        )}
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="说明（选填）"
+                className={cn(creationStyles.descriptionInput, "mt-2")}
+                rows={2}
+              />
 
-        {step === 2 && (
-          <SectionCard
-            title="Step 3 · 奖品与概率"
-            description="拖动滑块分配概率，剩余部分为谢谢参与"
-          >
-            <div className="p-5">
-              <ProbabilityConfigList prizes={prizes} onChange={setPrizes} />
-            </div>
-          </SectionCard>
-        )}
-
-        {step === 3 && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Step 4 · 手机预览" description="发布前效果示意">
-              <div className="flex justify-center p-6">
-                <div className="w-[280px] rounded-[2rem] border-8 border-gray-800 bg-[#0a0a12] p-4 shadow-xl">
-                  <div className="mb-4 text-center">
-                    <p className="text-xs text-white/40">{title}</p>
-                    <p className="mt-1 text-lg font-bold text-white">
-                      {animationMeta?.emoji} {animationMeta?.title}
-                    </p>
-                  </div>
-                  <div className="flex min-h-[160px] flex-col items-center justify-center rounded-xl bg-white/5 p-4">
-                    <span className="text-4xl">{animationMeta?.emoji}</span>
-                    <p className="mt-3 text-center text-sm text-white/70">
-                      {prizes[0]?.name ?? "奖品"} 等 {prizes.length} 个奖项
-                    </p>
-                    <p className="mt-1 text-xs text-brand-gold">
-                      中奖率约 {(100 - thanksPercent).toFixed(0)}%
-                    </p>
-                  </div>
-                  <p className="mt-4 text-center text-[10px] text-white/30">
-                    {TRIGGER_ACTION_OPTIONS.find((t) => t.value === triggerAction)
-                      ?.title}
-                  </p>
+              <CreationSection
+                hint="触发方式"
+                description="用户完成什么动作后自动抽奖"
+              >
+                <div className="space-y-3">
+                  {TRIGGER_ACTION_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={cn(
+                        creationStyles.choiceCard,
+                        triggerAction === opt.value
+                          ? creationStyles.choiceCardActive
+                          : creationStyles.choiceCardIdle,
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="trigger"
+                        className="mt-1.5 size-4"
+                        checked={triggerAction === opt.value}
+                        onChange={() => setTriggerAction(opt.value)}
+                      />
+                      <div>
+                        <p className="text-base font-medium">{opt.title}</p>
+                        <p className="mt-0.5 text-sm text-text-muted">
+                          {opt.description}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
-              </div>
-            </SectionCard>
 
-            <SectionCard title="发布确认">
-              <div className="space-y-3 p-5 text-sm">
-                <p>
-                  <span className="text-text-muted">动效：</span>
-                  {animationMeta?.title}
-                </p>
-                <p>
-                  <span className="text-text-muted">奖品数：</span>
-                  {prizes.length} 个，谢谢参与 {thanksPercent.toFixed(1)}%
-                </p>
-                <Button
-                  className="mt-4 w-full bg-brand-green text-white hover:bg-brand-green/90"
-                  disabled={publishing}
-                  onClick={() => void handlePublish()}
-                >
-                  {publishing ? (
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                  ) : null}
-                  发布（status=ACTIVE）
-                </Button>
-              </div>
-            </SectionCard>
-          </div>
-        )}
+                {triggerAction === TriggerAction.FILL_FORM ? (
+                  <div className="mt-4 rounded-xl border border-dashed border-border-light px-5 py-4 text-sm text-text-muted">
+                    将使用展位留资字段引擎。
+                    <Link
+                      href={`/events/${eventId}/exhibitors/booths`}
+                      className="ml-1 inline-flex items-center gap-1 text-brand-blue hover:underline"
+                    >
+                      管理留资字段
+                      <ExternalLink className="size-3" />
+                    </Link>
+                  </div>
+                ) : null}
 
-        <div className="mt-8 flex justify-between">
-          <Button
-            variant="outline"
-            disabled={step === 0}
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-          >
-            <ArrowLeft className="mr-2 size-4" />
-            上一步
-          </Button>
-          {step < STEPS.length - 1 ? (
-            <Button onClick={goNext}>
-              下一步
-              <ArrowRight className="ml-2 size-4" />
-            </Button>
-          ) : null}
-        </div>
+                {triggerAction === TriggerAction.SURVEY ? (
+                  <div className="mt-4 space-y-2">
+                    <p className={creationStyles.sectionHint}>关联问卷</p>
+                    {pollsLoading ? (
+                      <p className="text-sm text-text-muted">加载问卷…</p>
+                    ) : polls.length === 0 ? (
+                      <p className="text-sm text-text-muted">
+                        暂无可用问卷，请先在活动中创建 Poll
+                      </p>
+                    ) : (
+                      <select
+                        className="h-12 w-full rounded-xl border border-border-light px-4 text-base"
+                        value={pollId}
+                        onChange={(e) => setPollId(e.target.value)}
+                      >
+                        <option value="">请选择问卷</option>
+                        {polls.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title} ({p.status})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                ) : null}
+              </CreationSection>
+
+              <CreationSection hint="抽奖动效" description="小程序端展示的动画">
+                <AnimationTypePicker
+                  value={animationType}
+                  onChange={setAnimationType}
+                />
+              </CreationSection>
+
+              <CreationSection
+                hint="奖品与概率"
+                description="拖动滑块分配概率，剩余部分为谢谢参与"
+              >
+                <ProbabilityConfigList prizes={prizes} onChange={setPrizes} />
+              </CreationSection>
+            </>
+          }
+          preview={
+            <MobileDevicePreview width={280} dark>
+              <div className="text-center">
+                <p className="text-xs text-white/40">{companyName}</p>
+                <p className="mt-2 text-lg font-bold">{title || "概率抽奖"}</p>
+                <p className="mt-1 text-sm text-white/60">
+                  {animationMeta?.emoji} {animationMeta?.title}
+                </p>
+              </div>
+
+              <ul className="mt-5 space-y-2">
+                {prizes.map((prize, index) => (
+                  <li
+                    key={`${prize.name}-${index}`}
+                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                  >
+                    {prize.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={prize.image_url}
+                        alt=""
+                        className="size-10 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-white/10 text-lg">
+                        🎁
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white">
+                        {prize.name || "奖品"}
+                      </p>
+                      <p className="text-xs text-white/45">
+                        × {prize.quantity} · {prize.probability_percent.toFixed(1)}%
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-5 flex min-h-[100px] flex-col items-center justify-center rounded-xl bg-white/5 p-4">
+                <span className="text-5xl">{animationMeta?.emoji}</span>
+                <p className="mt-2 text-xs text-brand-gold">
+                  中奖率约 {(100 - thanksPercent).toFixed(0)}%
+                </p>
+              </div>
+              {triggerLabel ? (
+                <p className="mt-4 text-center text-[11px] text-white/35">
+                  触发：{triggerLabel}
+                </p>
+              ) : null}
+            </MobileDevicePreview>
+          }
+          footer={
+            <LotteryCreationFooter
+              saving={publishing}
+              savingDraft={savingDraft}
+              onSaveDraft={() => void submit(false)}
+              onPublish={() => void submit(true)}
+              publishLabel="发布"
+            />
+          }
+        />
       </AdminContent>
     </AdminPage>
   );

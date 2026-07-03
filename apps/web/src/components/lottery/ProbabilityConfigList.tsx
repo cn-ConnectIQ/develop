@@ -1,9 +1,10 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CreationNumberStepper } from "@/components/admin/creation-number-stepper";
+import { PrizeImageDropzone } from "@/components/admin/prize-image-dropzone";
+import { creationStyles } from "@/components/admin/content-creation-layout";
+import { ProbabilitySliderField } from "@/components/lottery/ProbabilitySliderField";
 import type { ProbabilityPrizeDraft } from "@/lib/lottery/probability-lottery-config";
 import {
   remainingProbabilityPercent,
@@ -41,10 +42,10 @@ export function ProbabilityConfigList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div
         className={cn(
-          "rounded-lg px-4 py-3 text-sm",
+          "rounded-xl px-5 py-4 text-base",
           overLimit
             ? "border border-red-200 bg-red-50 text-red-700"
             : "border border-brand-green/30 bg-brand-green-light/20 text-brand-green",
@@ -62,87 +63,82 @@ export function ProbabilityConfigList({
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {prizes.map((prize, index) => (
           <div
             key={index}
-            className="rounded-xl border border-border-light bg-white p-4"
+            className="space-y-5 border-t border-border-light py-8 first:border-t-0 first:pt-0"
           >
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div className="grid flex-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <Label className="text-xs">奖品名称</Label>
-                  <Input
-                    className="mt-1 h-9"
-                    value={prize.name}
-                    onChange={(e) =>
-                      updatePrize(index, { name: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">数量</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    className="mt-1 h-9"
-                    value={prize.quantity}
-                    onChange={(e) =>
-                      updatePrize(index, {
-                        quantity: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </div>
-              </div>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-sm font-medium text-text-muted">
+                奖品 {index + 1}
+              </span>
               {prizes.length > 1 && (
                 <button
                   type="button"
-                  className="mt-5 text-text-tertiary hover:text-brand-red"
+                  className="text-text-tertiary hover:text-brand-red"
                   onClick={() => onChange(prizes.filter((_, i) => i !== index))}
+                  aria-label="删除奖品"
                 >
                   <Trash2 className="size-4" />
                 </button>
               )}
             </div>
 
-            <div>
-              <div className="mb-1 flex items-center justify-between">
-                <Label className="text-xs">中奖概率</Label>
-                <span className="text-sm font-semibold tabular-nums">
-                  {prize.probability_percent.toFixed(1)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.5}
-                value={prize.probability_percent}
-                onChange={(e) =>
-                  updatePrize(index, {
-                    probability_percent: Number(e.target.value),
-                  })
-                }
-                className="h-2 w-full cursor-pointer accent-brand-green"
+            <div className="grid gap-6 lg:grid-cols-[minmax(140px,200px)_1fr]">
+              <PrizeImageDropzone
+                compact
+                imageUrl={prize.image_url}
+                alt={prize.name}
+                onUpload={(url) => updatePrize(index, { image_url: url })}
               />
+
+              <div className="space-y-5">
+                <input
+                  type="text"
+                  value={prize.name}
+                  onChange={(e) =>
+                    updatePrize(index, { name: e.target.value })
+                  }
+                  placeholder="奖品名称"
+                  className={cn(
+                    creationStyles.titleInput,
+                    "min-h-[44px] text-2xl",
+                  )}
+                />
+
+                <div className="space-y-1.5">
+                  <p className="text-xs text-text-muted">库存数量</p>
+                  <CreationNumberStepper
+                    value={prize.quantity}
+                    min={1}
+                    onChange={(quantity) => updatePrize(index, { quantity })}
+                  />
+                </div>
+
+                <ProbabilitySliderField
+                  value={prize.probability_percent}
+                  onChange={(probability_percent) =>
+                    updatePrize(index, { probability_percent })
+                  }
+                />
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      <Button
+      <button
         type="button"
-        variant="outline"
-        className="w-full border-dashed"
-        onClick={addPrize}
         disabled={overLimit}
+        onClick={addPrize}
+        className="inline-flex items-center gap-1.5 text-base text-brand-blue hover:underline disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Plus className="mr-2 size-4" />
+        <Plus className="size-4" />
         添加奖品
-      </Button>
+      </button>
 
-      <p className="text-xs text-text-muted">
+      <p className="text-sm text-text-muted">
         「谢谢参与」由系统自动占用剩余概率，无需单独配置奖品。
       </p>
     </div>

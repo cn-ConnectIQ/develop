@@ -18,16 +18,20 @@ type InteractionSettingsProps = {
   sessions?: SessionOption[];
   showResults?: boolean;
   isLottery?: boolean;
+  multiChoice?: boolean;
   qrUrl?: string | null;
   onShowResultsChange?: (value: boolean) => void;
+  onMultiChoiceChange?: (value: boolean) => void;
 };
 
 export function InteractionSettings({
   sessions = [],
   showResults = true,
   isLottery = false,
+  multiChoice = false,
   qrUrl,
   onShowResultsChange,
+  onMultiChoiceChange,
 }: InteractionSettingsProps) {
   const [open, setOpen] = useState(false);
   const [triggerMode, setTriggerMode] = useState("manual");
@@ -42,14 +46,27 @@ export function InteractionSettings({
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1 text-sm text-text-muted"
       >
-        设置
+        更多设置
         <ChevronDown
           className={cn("size-4 transition-transform", open && "rotate-180")}
         />
       </button>
 
       {open && (
-        <div className="mt-2 space-y-4 rounded-xl border border-border-light bg-white p-4">
+        <div className="mt-3 space-y-4 rounded-xl border border-border-light bg-content-bg/30 p-5">
+          {onMultiChoiceChange != null && (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">允许多选</p>
+                <p className="text-xs text-text-muted">参会者可选择多个选项</p>
+              </div>
+              <Switch
+                checked={multiChoice}
+                onCheckedChange={onMultiChoiceChange}
+              />
+            </div>
+          )}
+
           <fieldset className="space-y-3">
             <legend className="text-sm font-medium">触发时机</legend>
             <label className="flex cursor-pointer items-start gap-2">

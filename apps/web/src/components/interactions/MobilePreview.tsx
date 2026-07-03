@@ -1,73 +1,160 @@
 "use client";
 
 import { CheckCircle, Circle, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { MobileDevicePreview } from "@/components/admin/mobile-device-preview";
 import type { InteractionPollItem } from "@/lib/interaction-manager";
+import type { PollResultVisual } from "@/lib/bigscreen-display";
 import {
   parseRatingConfigFromOptions,
   ratingScoreRange,
 } from "@/lib/rating-poll-config";
+import { cn } from "@/lib/utils";
 
 type MobilePreviewProps = {
   poll: InteractionPollItem | null;
+  resultVisual?: PollResultVisual;
+  compact?: boolean;
 };
 
-export function MobilePreview({ poll }: MobilePreviewProps) {
+export function MobilePreview({
+  poll,
+  resultVisual = "race_bar",
+  compact,
+}: MobilePreviewProps) {
   return (
-    <div className="hidden w-72 shrink-0 border-l border-border-light px-4 py-5 lg:block">
-      <p className="mb-3 text-[10px] uppercase tracking-widest text-text-muted">
-        参会者看到的效果
-      </p>
-      <div className="mx-auto w-[200px]">
-        <div className="aspect-[9/19.5] overflow-hidden rounded-3xl border-4 border-gray-800 bg-white">
-          <div className="origin-top scale-[0.53] p-4" style={{ width: 377 }}>
-            {!poll ? (
-              <p className="text-center text-sm text-text-muted">预览区域</p>
-            ) : (
-              <PreviewContent poll={poll} />
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    <MobileDevicePreview label="" width={compact ? 260 : 280}>
+      {!poll ? (
+        <p className="py-12 text-center text-sm text-text-muted">预览区域</p>
+      ) : (
+        <PreviewContent poll={poll} resultVisual={resultVisual} />
+      )}
+    </MobileDevicePreview>
   );
 }
 
-function PreviewContent({ poll }: { poll: InteractionPollItem }) {
+function PreviewContent({
+  poll,
+  resultVisual,
+}: {
+  poll: InteractionPollItem;
+  resultVisual: PollResultVisual;
+}) {
+  const isChoice =
+    poll.type === "SINGLE_CHOICE" || poll.type === "MULTI_CHOICE";
+
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold leading-snug">{poll.title}</h2>
-      {(poll.type === "SINGLE_CHOICE" || poll.type === "MULTI_CHOICE") && (
-        <div className="space-y-2">
+    <div className="space-y-5">
+      <h2 className="text-xl font-semibold leading-snug">{poll.title || "问题标题"}</h2>
+
+      {isChoice && (
+        <div className="space-y-2.5">
           {poll.options.map((opt) => (
             <div
               key={opt.id}
-              className="flex items-center gap-2 rounded-lg border border-border-light px-3 py-2.5 text-sm"
+              className="flex items-center gap-2.5 rounded-xl border border-border-light px-4 py-3.5 text-base"
             >
               {poll.type === "MULTI_CHOICE" ? (
-                <CheckCircle className="size-4 text-text-muted" />
+                <CheckCircle className="size-5 shrink-0 text-text-muted" />
               ) : (
-                <Circle className="size-4 text-text-muted" />
+                <Circle className="size-5 shrink-0 text-text-muted" />
               )}
-              {opt.text}
+              <span>{opt.text || "选项"}</span>
             </div>
           ))}
         </div>
       )}
-      {poll.type === "RATING" && (
-        <RatingPreview poll={poll} />
-      )}
+
+      {poll.type === "RATING" && <RatingPreview poll={poll} />}
       {poll.type === "WORD_CLOUD" && (
-        <p className="text-sm text-text-muted">输入关键词参与词云…</p>
+        <p className="text-sm text-text-muted">输入词语参与词云</p>
       )}
       {poll.type === "QNA" && (
-        <div className="rounded-lg border border-border-light px-3 py-2 text-sm text-text-muted">
+        <div className="rounded-xl border border-border-light px-4 py-3 text-sm text-text-muted">
           在此输入您的问题…
         </div>
       )}
-      {poll.type === "ANNOUNCEMENT" && (
-        <p className="text-sm">{poll.options[0]?.text ?? "公告内容"}</p>
+
+      {isChoice && poll.options.length > 0 && (
+        <ResultVisualHint visual={resultVisual} options={poll.options} />
       )}
+    </div>
+  );
+}
+
+function ResultVisualHint({
+  visual,
+  options,
+}: {
+  visual: PollResultVisual;
+  options: Array<{ id: string; text: string }>;
+}) {
+  const sample = options.slice(0, 3).map((o, i) => ({
+    text: o.text || `选项 ${i + 1}`,
+    pct: [42, 28, 18][i] ?? 12,
+  }));
+
+  if (visual === "word_cloud") {
+    return (
+      <div className="mt-4 border-t border-border-light/80 pt-4">
+        <p className="mb-2 text-[10px] uppercase tracking-wider text-text-muted">
+          结果呈现 · 词云
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {sample.map((s) => (
+            <span
+              key={s.text}
+              className="rounded-full bg-brand-purple-light px-2 py-0.5 text-xs text-brand-purple"
+            >
+              {s.text}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (visual === "distribution") {
+    return (
+      <div className="mt-4 border-t border-border-light/80 pt-4">
+        <p className="mb-2 text-[10px] uppercase tracking-wider text-text-muted">
+          结果呈现 · 分布图
+        </p>
+        <div className="flex justify-center gap-1">
+          {sample.map((s, i) => (
+            <div
+              key={s.text}
+              className={cn(
+                "rounded-full",
+                i === 0 ? "size-14 bg-brand-blue/80" : i === 1 ? "size-10 bg-brand-blue/50" : "size-7 bg-brand-blue/30",
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 border-t border-border-light/80 pt-4">
+      <p className="mb-2 text-[10px] uppercase tracking-wider text-text-muted">
+        结果呈现 · 竞速条形图
+      </p>
+      <div className="space-y-2">
+        {sample.map((s) => (
+          <div key={s.text}>
+            <div className="mb-0.5 flex justify-between text-xs">
+              <span className="truncate">{s.text}</span>
+              <span className="text-text-muted">{s.pct}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full bg-brand-blue transition-all"
+                style={{ width: `${s.pct}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -75,26 +162,15 @@ function PreviewContent({ poll }: { poll: InteractionPollItem }) {
 function RatingPreview({ poll }: { poll: InteractionPollItem }) {
   const config = parseRatingConfigFromOptions(poll.options);
   const scores = ratingScoreRange(config);
-
   return (
-    <div className="py-2">
-      <div className="flex justify-center gap-1 py-3">
-        {scores.map((n) => (
-          <Star
-            key={n}
-            className={cn(
-              "size-6",
-              n <= Math.ceil(scores.length / 2)
-                ? "fill-brand-gold text-brand-gold"
-                : "text-gray-300",
-            )}
-          />
-        ))}
-      </div>
-      <div className="flex justify-between text-xs text-text-muted">
-        <span>{config.lowLabel || "非常不满意"}</span>
-        <span>{config.highLabel || "非常满意"}</span>
-      </div>
+    <div className="flex justify-center gap-2 py-2">
+      {scores.map((n) => (
+        <Star
+          key={n}
+          className="size-8 text-brand-gold/80"
+          fill="currentColor"
+        />
+      ))}
     </div>
   );
 }

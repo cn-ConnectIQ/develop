@@ -61,6 +61,10 @@ export function parseScanContent(content: string): ScanParseResult {
     return { content: trimmed, type: "BADGE", userId: trimmed };
   }
 
+  if (/^CIQ:/i.test(trimmed)) {
+    return { content: trimmed, type: "CHECKIN", badgeQr: trimmed };
+  }
+
   return { content: trimmed, type: "CHECKIN", badgeQr: trimmed };
 }
 

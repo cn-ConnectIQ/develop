@@ -3,44 +3,32 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  BarChart2,
-  Copy,
-  ExternalLink,
-  Loader2,
-  Monitor,
-  MoreHorizontal,
-  QrCode,
-  Trash2,
-} from "lucide-react";
+import { BarChart2, ExternalLink, Monitor } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { QnaManager } from "@/components/interactions/QnaManager";
 import { InteractionTitleInput } from "@/components/interactions/InteractionTitleInput";
 import { InteractionSettings } from "@/components/interactions/InteractionSettings";
+import { InteractionEditLayout } from "@/components/interactions/InteractionEditLayout";
 import { MobilePreview } from "@/components/interactions/MobilePreview";
+import {
+  PollCreatorTypeTabs,
+  pollTypeToTab,
+  tabToPollType,
+  type PollCreatorTab,
+} from "@/components/interactions/PollCreatorTypeTabs";
+import { PollResultVisualPicker } from "@/components/interactions/PollResultVisualPicker";
+import {
+  ContentCreationPreviewPanel,
+  CreationSection,
+} from "@/components/admin/content-creation-layout";
+import { MobileDevicePreview } from "@/components/admin/mobile-device-preview";
 import { RealtimeConsole } from "@/components/interactions/RealtimeConsole";
 import { PollOptionsEditor } from "@/components/interactions/editors/PollOptionsEditor";
 import { WordCloudEditor } from "@/components/interactions/editors/WordCloudEditor";
 import { RatingPollEditor } from "@/components/interactions/editors/RatingPollEditor";
-import { SurveyEditor } from "@/components/interactions/editors/SurveyEditor";
 import { LotteryEditor } from "@/components/interactions/editors/LotteryEditor";
 import { LotteryDrawPanel } from "@/components/interactions/LotteryDrawPanel";
-import { InteractionQRDisplay } from "@/components/interactions/InteractionQRDisplay";
 import { PushToAttendeesButton } from "@/components/interactions/PushToAttendeesButton";
 import {
   isPollLive,
@@ -48,12 +36,13 @@ import {
   type InteractionPollItem,
   type InteractionLotteryItem,
 } from "@/lib/interaction-manager";
-import { POLL_TYPE_BADGE, POLL_TYPE_LABELS } from "@/lib/interactions";
 import type { SessionOption } from "@/lib/interactions";
 import { patchPoll } from "@/hooks/useInteractionAutoSave";
+import {
+  DEFAULT_DISPLAY_CONFIG,
+  type PollResultVisual,
+} from "@/lib/bigscreen-display";
 import { parsePrizes, type LotteryDetail } from "@/lib/lottery-types";
-import { cn } from "@/lib/utils";
-
 type InteractionWorkspaceProps = {
   eventId: string;
   selection: InteractionItem | null;
@@ -87,7 +76,11 @@ export function InteractionWorkspace({
     );
   }
 
-  if (selection.kind === "poll" && selection.type === "QNA") {
+  if (
+    selection.kind === "poll" &&
+    selection.type === "QNA" &&
+    selection.status !== "DRAFT"
+  ) {
     return (
       <QnaManager
         pollId={selection.id}
@@ -130,7 +123,6 @@ export function InteractionWorkspace({
       poll={selection}
       sessions={sessions}
       onRefresh={onRefresh}
-      onDelete={() => onDelete(selection)}
       onActivate={() => onActivate(selection)}
     />
   );
@@ -141,247 +133,221 @@ function PollEditWorkspace({
   poll,
   sessions,
   onRefresh,
-  onDelete,
   onActivate,
 }: {
   eventId: string;
   poll: InteractionPollItem;
   sessions: SessionOption[];
   onRefresh: () => void;
-  onDelete: () => void;
   onActivate: () => void;
 }) {
-  const [qrOpen, setQrOpen] = useState(false);
-  const [qrData, setQrData] = useState<{
-    sessionCode: string;
-    qrUrl: string;
-  } | null>(null);
-  const [creatingQr, setCreatingQr] = useState(false);
   const [localPoll, setLocalPoll] = useState(poll);
+  const [activeTab, setActiveTab] = useState<PollCreatorTab>(() =>
+    pollTypeToTab(poll.type),
+  );
+  const [multiChoice, setMultiChoice] = useState(poll.type === "MULTI_CHOICE");
+  const [resultVisual, setResultVisual] = useState<PollResultVisual>(
+    DEFAULT_DISPLAY_CONFIG.resultVisual ?? "race_bar",
+  );
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [typeChanging, setTypeChanging] = useState(false);
 
   useEffect(() => {
     setLocalPoll(poll);
-  }, [poll.id]);
+    setActiveTab(pollTypeToTab(poll.type));
+    setMultiChoice(poll.type === "MULTI_CHOICE");
+  }, [poll.id, poll.type, poll.title, poll.options]);
 
-  async function createQrSession() {
-    setCreatingQr(true);
+  useEffect(() => {
+    void fetch(`/api/events/${eventId}/polls/${poll.id}/display`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const visual = json?.data?.resultVisual as PollResultVisual | undefined;
+        if (visual) setResultVisual(visual);
+      })
+      .catch(() => undefined);
+  }, [eventId, poll.id]);
+
+  async function persistResultVisual(visual: PollResultVisual) {
+    setResultVisual(visual);
+    await fetch(`/api/events/${eventId}/polls/${poll.id}/display`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resultVisual: visual }),
+    });
+  }
+
+  async function handleTabChange(tab: PollCreatorTab) {
+    if (tab === activeTab) return;
+    const nextType = tabToPollType(tab, multiChoice);
+    if (nextType === localPoll.type) {
+      setActiveTab(tab);
+      return;
+    }
+    setTypeChanging(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/interaction-sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: poll.title,
-          interactions: [{ type: "poll", id: poll.id }],
-        }),
-      });
-      if (!res.ok) throw new Error("创建扫码会话失败");
-      const json = await res.json();
-      setQrData({
-        sessionCode: json.data.session_code,
-        qrUrl: json.data.qr_url,
-      });
-      setQrOpen(true);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "创建失败");
+      await patchPoll(eventId, poll.id, { type: nextType, status: "DRAFT" });
+      setActiveTab(tab);
+      onRefresh();
+      toast.success("已切换问题类型");
+    } catch {
+      toast.error("切换类型失败");
     } finally {
-      setCreatingQr(false);
+      setTypeChanging(false);
     }
   }
 
-  const badgeClass =
-    POLL_TYPE_BADGE[poll.type] ?? "bg-content-bg text-text-muted";
+  async function toggleMultiChoice(checked: boolean) {
+    setMultiChoice(checked);
+    const nextType = checked ? "MULTI_CHOICE" : "SINGLE_CHOICE";
+    if (localPoll.type === "SINGLE_CHOICE" || localPoll.type === "MULTI_CHOICE") {
+      try {
+        await patchPoll(eventId, poll.id, { type: nextType });
+        setLocalPoll((p) => ({ ...p, type: nextType }));
+        onRefresh();
+      } catch {
+        toast.error("保存失败");
+      }
+    }
+  }
 
-  return (
-    <div className="flex min-w-0 flex-1">
-      <div className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
-        <div className="mb-5 flex items-center gap-2">
-          <span
-            className={cn(
-              "rounded px-2 py-0.5 text-xs font-medium",
-              badgeClass,
-            )}
-          >
-            {POLL_TYPE_LABELS[poll.type] ?? poll.type}
-          </span>
-          <div className="flex-1" />
-          <span className="text-xs text-text-muted">自动保存 ✓</span>
-          <PushToAttendeesButton
-            eventId={eventId}
-            kind="poll"
-            targetId={poll.id}
-          />
-          <Button
-            size="sm"
-            className="h-8 rounded-lg bg-brand-blue px-4 text-xs text-white"
-            onClick={onActivate}
-          >
-            激活
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 rounded-lg"
-            onClick={() =>
-              window.open(`/events/${eventId}/interactions/bigscreen`, "_blank")
-            }
-          >
-            <Monitor className="size-4 text-text-muted" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 rounded-lg"
-            disabled={creatingQr}
-            onClick={() => void createQrSession()}
-          >
-            {creatingQr ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <QrCode className="size-4 text-text-muted" />
-            )}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className="inline-flex size-8 items-center justify-center rounded-lg border border-border-light"
-            >
-              <MoreHorizontal className="size-4 text-text-muted" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={async () => {
-                  const res = await fetch(
-                    `/api/events/${eventId}/polls/${poll.id}/duplicate`,
-                    { method: "POST" },
-                  );
-                  if (!res.ok) {
-                    toast.error("复制失败");
-                    return;
-                  }
-                  toast.success("已复制互动");
-                  onRefresh();
-                }}
-              >
-                <Copy className="mr-2 size-4" />
-                复制
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={async () => {
-                  await patchPoll(eventId, poll.id, { status: "DRAFT" });
-                  onRefresh();
-                }}
-              >
-                移入草稿
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-brand-red"
-                onClick={onDelete}
-              >
-                <Trash2 className="mr-2 size-4" />
-                删除
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+  async function saveDraft() {
+    setSavingDraft(true);
+    try {
+      await patchPoll(eventId, poll.id, { status: "DRAFT" });
+      toast.success("已保存草稿");
+      onRefresh();
+    } catch {
+      toast.error("保存失败");
+    } finally {
+      setSavingDraft(false);
+    }
+  }
 
-        <InteractionTitleInput
-          eventId={eventId}
-          pollId={poll.id}
-          value={localPoll.title}
-          onSaved={(title) => setLocalPoll((p) => ({ ...p, title }))}
-        />
+  const isVoteType =
+    localPoll.type === "SINGLE_CHOICE" || localPoll.type === "MULTI_CHOICE";
 
-        <PollTypeEditor
-          eventId={eventId}
-          poll={localPoll}
-          onOptionsChange={(options) =>
-            setLocalPoll((p) => ({ ...p, options }))
-          }
-        />
+  const editor = (
+    <>
+      <PollCreatorTypeTabs
+        activeTab={activeTab}
+        disabled={typeChanging}
+        onChange={(tab) => void handleTabChange(tab)}
+      />
 
-        <InteractionSettings
-          sessions={sessions}
-          showResults={localPoll.showResults ?? true}
-          qrUrl={qrData?.qrUrl}
-          onShowResultsChange={async (checked) => {
-            await patchPoll(eventId, poll.id, { showResults: checked });
-            setLocalPoll((p) => ({ ...p, showResults: checked }));
-          }}
-        />
-      </div>
+      <InteractionTitleInput
+        eventId={eventId}
+        pollId={poll.id}
+        value={localPoll.title}
+        placeholder="输入您的问题…"
+        className="mb-2"
+        onSaved={(title) => setLocalPoll((p) => ({ ...p, title }))}
+      />
 
-      <MobilePreview poll={localPoll} />
-
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>扫码入口</DialogTitle>
-          </DialogHeader>
-          {qrData && (
-            <InteractionQRDisplay
-              sessionCode={qrData.sessionCode}
-              qrUrl={qrData.qrUrl}
-              interactionTitle={poll.title}
+      {isVoteType && (
+        <>
+          <CreationSection hint="选项设置" className="py-8">
+            <PollOptionsEditor
+              eventId={eventId}
+              pollId={poll.id}
+              type={
+                localPoll.type === "MULTI_CHOICE"
+                  ? "MULTI_CHOICE"
+                  : "SINGLE_CHOICE"
+              }
+              options={localPoll.options}
+              onChange={(options) =>
+                setLocalPoll((p) => ({ ...p, options }))
+              }
             />
-          )}
-        </DialogContent>
-      </Dialog>
+          </CreationSection>
+
+          <CreationSection
+            hint="结果呈现方式"
+            description="大屏与参会者端展示投票结果时的视觉风格"
+            className="py-8"
+          >
+            <PollResultVisualPicker
+              value={resultVisual}
+              onChange={(v) => void persistResultVisual(v)}
+            />
+          </CreationSection>
+        </>
+      )}
+
+      {localPoll.type === "RATING" && (
+        <CreationSection hint="评分设置" className="py-8">
+          <RatingPollEditor
+            eventId={eventId}
+            pollId={poll.id}
+            options={localPoll.options}
+            onChange={(options) =>
+              setLocalPoll((p) => ({ ...p, options }))
+            }
+          />
+        </CreationSection>
+      )}
+
+      {localPoll.type === "WORD_CLOUD" && (
+        <CreationSection hint="词云说明" className="py-8">
+          <WordCloudEditor />
+        </CreationSection>
+      )}
+
+      {localPoll.type === "QNA" && (
+        <CreationSection
+          hint="问答设置"
+          description="参会者可在移动端提交问题；发布后在此审核、置顶与上屏展示。"
+          className="py-8"
+        >
+          <p className="text-sm leading-relaxed text-text-muted">
+            无需预设选项。发布后将进入问答控制台，实时查看并管理参会者提问。
+          </p>
+        </CreationSection>
+      )}
+
+      <InteractionSettings
+        sessions={sessions}
+        showResults={localPoll.showResults ?? true}
+        multiChoice={isVoteType ? multiChoice : undefined}
+        onMultiChoiceChange={isVoteType ? toggleMultiChoice : undefined}
+        onShowResultsChange={async (checked) => {
+          await patchPoll(eventId, poll.id, { showResults: checked });
+          setLocalPoll((p) => ({ ...p, showResults: checked }));
+        }}
+      />
+    </>
+  );
+
+  const footer = (
+    <div className="flex items-center justify-between gap-4">
+      <button
+        type="button"
+        disabled={savingDraft}
+        onClick={() => void saveDraft()}
+        className="text-base text-text-muted hover:text-text-primary disabled:opacity-50"
+      >
+        {savingDraft ? "保存中…" : "保存草稿"}
+      </button>
+      <Button
+        size="lg"
+        className="h-12 min-w-[140px] bg-brand-green text-base font-semibold text-white hover:bg-brand-green/90"
+        onClick={onActivate}
+      >
+        发布
+      </Button>
     </div>
   );
-}
 
-function PollTypeEditor({
-  eventId,
-  poll,
-  onOptionsChange,
-}: {
-  eventId: string;
-  poll: InteractionPollItem;
-  onOptionsChange: (options: Array<{ id: string; text: string }>) => void;
-}) {
-  if (poll.type === "SINGLE_CHOICE" || poll.type === "MULTI_CHOICE") {
-    return (
-      <PollOptionsEditor
-        eventId={eventId}
-        pollId={poll.id}
-        type={poll.type}
-        options={poll.options}
-        onChange={onOptionsChange}
-      />
-    );
-  }
-  if (poll.type === "WORD_CLOUD") {
-    return <WordCloudEditor />;
-  }
-  if (poll.type === "RATING") {
-    return (
-      <RatingPollEditor
-        eventId={eventId}
-        pollId={poll.id}
-        options={poll.options}
-        onChange={onOptionsChange}
-      />
-    );
-  }
-  if (poll.type === "QNA") {
-    return (
-      <Textarea
-        placeholder="问答说明（选填）"
-        className="mt-4 rounded-xl border border-border-light text-sm"
-        rows={3}
-      />
-    );
-  }
-  if (poll.type === "ANNOUNCEMENT") {
-    return (
-      <Textarea
-        defaultValue={poll.options[0]?.text ?? ""}
-        placeholder="公告内容"
-        className="mt-4 rounded-xl border border-border-light text-sm"
-        rows={4}
-      />
-    );
-  }
-  return <SurveyEditor eventId={eventId} pollId={poll.id} />;
+  return (
+    <InteractionEditLayout
+      editor={editor}
+      preview={
+        <MobilePreview poll={localPoll} resultVisual={resultVisual} />
+      }
+      footer={footer}
+    />
+  );
 }
 
 function LotteryWorkspace({
@@ -436,7 +402,7 @@ function LotteryWorkspace({
   return (
     <div className="flex min-w-0 flex-1 overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-border-light px-6 py-3">
+        <div className="flex items-center gap-2 border-b border-border-light px-8 py-3">
           <span className="rounded bg-brand-red-light px-2 py-0.5 text-xs font-medium text-brand-red">
             抽奖
           </span>
@@ -470,7 +436,7 @@ function LotteryWorkspace({
           onChange={onRefresh}
         />
       </div>
-      {(showDrawPanel || lottery.status === "FINISHED") && (
+      {(showDrawPanel || lottery.status === "FINISHED") ? (
         <LotteryDrawPanel
           eventId={eventId}
           lotteryId={lottery.id}
@@ -479,6 +445,25 @@ function LotteryWorkspace({
           prizes={detail.prizes}
           onFinished={onRefresh}
         />
+      ) : (
+        <ContentCreationPreviewPanel label="参会者预览">
+          <MobileDevicePreview label="" width={260}>
+            <div className="space-y-3 text-center">
+              <p className="text-xs text-text-muted">活动抽奖</p>
+              <h2 className="text-xl font-semibold">{detail.title}</h2>
+              <ul className="mt-4 space-y-2 text-left text-sm">
+                {detail.prizes.slice(0, 4).map((p) => (
+                  <li
+                    key={p.rank}
+                    className="rounded-lg border border-border-light px-3 py-2"
+                  >
+                    {p.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </MobileDevicePreview>
+        </ContentCreationPreviewPanel>
       )}
     </div>
   );

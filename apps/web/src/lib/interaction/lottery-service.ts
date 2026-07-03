@@ -25,7 +25,8 @@ import {
   sendLotteryWinNotification,
 } from "@/lib/interaction/lottery-rewards";
 import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
-import { attachToRedemptionCode } from "@/lib/lottery/redemption";
+import { attachToEventCode } from "@/lib/lottery/redemption";
+import { formatEventCodeForScan } from "@/lib/event-code";
 
 const MANAGE_ROLES = [
   UserRole.PLATFORM_ADMIN,
@@ -439,18 +440,18 @@ export async function claimInstantLotteryGift(
     orderBy: { wonAt: "desc" },
   });
   if (existingWinner) {
-    const redemption = existingWinner.redemptionCodeId
-      ? await prisma.userRedemptionCode.findUniqueOrThrow({
-          where: { id: existingWinner.redemptionCodeId },
+    const eventCode = existingWinner.eventCodeId
+      ? await prisma.userEventCode.findUniqueOrThrow({
+          where: { id: existingWinner.eventCodeId },
         })
-      : await attachToRedemptionCode(userId, eventId, existingWinner.id);
+      : await attachToEventCode(userId, eventId, existingWinner.id);
 
     return {
       lottery_id: lotteryId,
       won: true,
       prize_tier: existingWinner.prizeRank,
       prize_name: existingWinner.prizeName,
-      redemption_code: redemption.code,
+      redemption_code: formatEventCodeForScan(eventCode.code),
       pickup_note: pickupNote,
     };
   }
@@ -511,7 +512,7 @@ export async function claimInstantLotteryGift(
     prizeName = picked.prize ?? picked.name;
   }
 
-  const redemption = await prisma.$transaction(async (tx) => {
+  const eventCode = await prisma.$transaction(async (tx) => {
     if (prizeId) {
       const updated = await tx.lotteryPrize.updateMany({
         where: { id: prizeId, remaining: { gt: 0 } },
@@ -532,7 +533,7 @@ export async function claimInstantLotteryGift(
       },
     });
 
-    return attachToRedemptionCode(userId, eventId, winner.id, tx);
+    return attachToEventCode(userId, eventId, winner.id, tx);
   });
 
   return {
@@ -540,7 +541,7 @@ export async function claimInstantLotteryGift(
     won: true,
     prize_tier: prizeRank,
     prize_name: prizeName,
-    redemption_code: redemption.code,
+    redemption_code: formatEventCodeForScan(eventCode.code),
     pickup_note: pickupNote,
   };
 }
@@ -661,7 +662,7 @@ export async function drawBoothInstantLottery(
       prizeName,
     },
   });
-  await attachToRedemptionCode(userId, booth.eventId, winner.id);
+  await attachToEventCode(userId, booth.eventId, winner.id);
 
   return {
     lottery_id: lottery.id,
@@ -740,7 +741,7 @@ export async function drawLotteryWinners(
             prizeName,
           },
         });
-        await attachToRedemptionCode(entry.userId, eventId, row.id, tx);
+        await attachToEventCode(entry.userId, eventId, row.id, tx);
         return row;
       }),
     );

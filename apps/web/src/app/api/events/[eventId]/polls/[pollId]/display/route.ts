@@ -20,6 +20,7 @@ const patchSchema = z.object({
   pinResponseId: z.string().optional(),
   unpinResponseId: z.string().optional(),
   markAnsweredResponseId: z.string().optional(),
+  resultVisual: z.enum(["race_bar", "word_cloud", "distribution"]).optional(),
 });
 
 export const GET = withErrorHandler(async (_request, context) => {
@@ -65,6 +66,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
   const updated = await updatePollDisplayConfig(eventId, pollId, {
     showResults: parsed.data.showResults,
     lockVotes: parsed.data.lockVotes,
+    resultVisual: parsed.data.resultVisual,
     featuredResponseId:
       parsed.data.featuredResponseId !== undefined
         ? parsed.data.featuredResponseId

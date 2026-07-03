@@ -4,19 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
-import { Loader2, MapPin, Trophy, Upload } from "lucide-react";
+import { ArrowLeft, MapPin, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import {
+  CreationSection,
+  creationStyles,
+} from "@/components/admin/content-creation-layout";
+import { CreationNumberStepper } from "@/components/admin/creation-number-stepper";
+import { PrizeImageDropzone } from "@/components/admin/prize-image-dropzone";
+import { InteractionEditLayout } from "@/components/interactions/InteractionEditLayout";
+import { LotteryCreationFooter } from "@/components/lottery/LotteryCreationFooter";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   AdminContent,
   AdminHeader,
   AdminPage,
-  SectionCard,
 } from "@/components/admin/admin-header";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -239,9 +244,8 @@ export function StampRallyConfigurator({
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState<
-    "cover" | "prize" | null
-  >(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const { data: rallies = [], isLoading: ralliesLoading } = useQuery({
     queryKey: ["stamp-rallies", eventId],
@@ -312,28 +316,6 @@ export function StampRallyConfigurator({
     return computeWeightedRequired(stampPoints);
   }, [stampPoints]);
 
-  async function handleUpload(
-    file: File,
-    target: "cover" | "prize",
-  ) {
-    setUploading(target);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "上传失败");
-      const url = json.data?.url ?? json.url;
-      if (target === "cover") setCoverImage(url);
-      else setPrizeImageUrl(url);
-      toast.success("图片上传成功");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "上传失败");
-    } finally {
-      setUploading(null);
-    }
-  }
-
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["stamp-rallies", eventId] });
   }
@@ -393,6 +375,7 @@ export function StampRallyConfigurator({
     };
 
     setSaving(true);
+    if (status === "DRAFT") setSavingDraft(true);
     try {
       const url =
         selectedId === "new"
@@ -422,38 +405,13 @@ export function StampRallyConfigurator({
       toast.error(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSaving(false);
+      setSavingDraft(false);
     }
   }
 
-  function UploadButton({
-    target,
-    label,
-  }: {
-    target: "cover" | "prize";
-    label: string;
-  }) {
-    return (
-      <label className="cursor-pointer">
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void handleUpload(file, target);
-          }}
-        />
-        <span className="inline-flex h-9 items-center gap-2 rounded-lg border border-border-light px-3 text-sm text-brand-blue hover:bg-brand-blue-light">
-          {uploading === target ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Upload className="size-4" />
-          )}
-          {label}
-        </span>
-      </label>
-    );
-  }
+  const showDraftPublish =
+    !editingRally || editingRally.status === "DRAFT";
+  const showActiveSave = editingRally?.status === "ACTIVE";
 
   return (
     <AdminPage>
@@ -472,265 +430,254 @@ export function StampRallyConfigurator({
         }
       />
 
-      <AdminContent>
+      <AdminContent className="p-0">
         {ralliesLoading ? (
           <p className="py-12 text-center text-sm text-text-muted">加载中…</p>
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
-            <div className="space-y-6">
-              {editingRally && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    className={cn(
-                      "font-normal",
-                      STATUS_LABEL[editingRally.status]?.className,
+          <InteractionEditLayout
+            editor={
+              <>
+                {editingRally && (
+                  <div className="mb-6 flex flex-wrap items-center gap-2">
+                    <Badge
+                      className={cn(
+                        "font-normal",
+                        STATUS_LABEL[editingRally.status]?.className,
+                      )}
+                    >
+                      {STATUS_LABEL[editingRally.status]?.label}
+                    </Badge>
+                    {editingRally.status === "ACTIVE" && (
+                      <>
+                        <Link
+                          href={`/events/${eventId}/stamp-rally/${editingRally.id}/progress`}
+                          className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
+                        >
+                          集章进度
+                        </Link>
+                        <Link
+                          href={`/events/${eventId}/stamp-rally/${editingRally.id}/results`}
+                          className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
+                        >
+                          查看结果
+                        </Link>
+                      </>
                     )}
-                  >
-                    {STATUS_LABEL[editingRally.status]?.label}
-                  </Badge>
-                  {editingRally.status === "ACTIVE" && (
-                    <>
-                      <Link
-                        href={`/events/${eventId}/stamp-rally/${editingRally.id}/progress`}
-                        className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
-                      >
-                        集章进度
-                      </Link>
-                      <Link
-                        href={`/events/${eventId}/stamp-rally/${editingRally.id}/results`}
-                        className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
-                      >
-                        查看结果
-                      </Link>
-                    </>
-                  )}
-                </div>
-              )}
-
-              <SectionCard title="基础设置" description="路线名称、封面与兑换奖品">
-                <div className="space-y-4 p-5">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>路线名称</Label>
-                      <Input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="2025 展会集章之旅"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>
-                        目标章数（1 – {maxWeighted || "?"})
-                      </Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={maxWeighted || undefined}
-                        value={requiredCount}
-                        onChange={(e) =>
-                          setRequiredCount(Number(e.target.value))
-                        }
-                      />
-                    </div>
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    <Label>路线描述</Label>
-                    <Textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={2}
-                      placeholder="向参会者介绍集章玩法…"
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="2025 展会集章之旅"
+                  className={creationStyles.titleInput}
+                />
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="向参会者介绍集章玩法…"
+                  className={cn(creationStyles.descriptionInput, "mt-2")}
+                  rows={2}
+                />
+
+                <CreationSection hint="封面图">
+                  <PrizeImageDropzone
+                    imageUrl={coverImage}
+                    label="拖拽上传路线封面"
+                    onUpload={setCoverImage}
+                  />
+                </CreationSection>
+
+                <CreationSection
+                  hint="兑换奖品"
+                  description="集满章数后可兑换的奖励"
+                >
+                  <input
+                    type="text"
+                    value={prize}
+                    onChange={(e) => setPrize(e.target.value)}
+                    placeholder="AirPods Pro"
+                    className={cn(
+                      creationStyles.titleInput,
+                      "min-h-[44px] text-2xl",
+                    )}
+                  />
+                  <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(140px,200px)_1fr]">
+                    <PrizeImageDropzone
+                      imageUrl={prizeImageUrl}
+                      label="拖拽上传奖品图"
+                      onUpload={setPrizeImageUrl}
                     />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>封面图</Label>
-                    <div className="flex items-center gap-3">
-                      {coverImage && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={coverImage}
-                          alt=""
-                          className="size-16 rounded-lg border object-cover"
-                        />
-                      )}
-                      <UploadButton target="cover" label="上传封面" />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>兑换奖品名称</Label>
-                      <Input
-                        value={prize}
-                        onChange={(e) => setPrize(e.target.value)}
-                        placeholder="AirPods Pro"
+                    <div className="space-y-5">
+                      <Textarea
+                        value={prizeDesc}
+                        onChange={(e) => setPrizeDesc(e.target.value)}
+                        rows={3}
+                        placeholder="兑换规则、领取地点等"
+                        className="min-h-[80px] resize-none rounded-xl border border-border-light px-4 py-3 text-base"
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>奖品数量</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={prizeQuantity}
-                        onChange={(e) =>
-                          setPrizeQuantity(
-                            e.target.value === ""
-                              ? ""
-                              : Number(e.target.value),
-                          )
-                        }
-                        placeholder="不限留空"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>奖品描述</Label>
-                    <Textarea
-                      value={prizeDesc}
-                      onChange={(e) => setPrizeDesc(e.target.value)}
-                      rows={2}
-                      placeholder="兑换规则、领取地点等"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>奖品图片</Label>
-                    <div className="flex items-center gap-3">
-                      {prizeImageUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={prizeImageUrl}
-                          alt=""
-                          className="size-16 rounded-lg border object-cover"
-                        />
-                      )}
-                      <UploadButton target="prize" label="上传奖品图" />
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-text-muted">奖品数量（留空不限）</p>
+                        {prizeQuantity === "" ? (
+                          <button
+                            type="button"
+                            onClick={() => setPrizeQuantity(50)}
+                            className="text-sm text-brand-blue hover:underline"
+                          >
+                            + 设置数量上限
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <CreationNumberStepper
+                              value={Number(prizeQuantity)}
+                              min={1}
+                              onChange={setPrizeQuantity}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setPrizeQuantity("")}
+                              className="text-xs text-text-muted hover:text-text-primary"
+                            >
+                              不限
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </SectionCard>
+                </CreationSection>
 
-              <SectionCard
-                title="打卡点设置"
-                description="可从展位选择，或添加自定义打卡点（赞助商区、分会场、合影台等），两种方式可混用"
-              >
-                <div className="p-5">
+                <CreationSection
+                  hint="目标章数"
+                  description={`含权重后最多 ${maxWeighted || "?"} 章`}
+                >
+                  <CreationNumberStepper
+                    value={requiredCount}
+                    min={1}
+                    max={maxWeighted || undefined}
+                    onChange={setRequiredCount}
+                  />
+                </CreationSection>
+
+                <CreationSection
+                  hint="打卡点"
+                  description="可从展位选择，或添加自定义打卡点，两种方式可混用"
+                >
                   <StampPointTable
                     booths={booths}
                     stamps={stampPoints}
                     onChange={setStampPoints}
                     disabled={isLocked}
                   />
-                </div>
-              </SectionCard>
+                </CreationSection>
 
-              <SectionCard title="上线设置" description="开放时段与发布状态">
-                <div className="space-y-4 p-5">
-                  <div className="flex items-center justify-between rounded-lg border border-border-light px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium">活动期间全程开放</p>
-                      <p className="text-xs text-text-muted">
-                        关闭后可指定开始与结束时间
-                      </p>
-                    </div>
-                    <Switch
-                      checked={alwaysOpen}
-                      onCheckedChange={setAlwaysOpen}
-                      disabled={isLocked}
-                    />
-                  </div>
-
-                  {!alwaysOpen && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>开始时间</Label>
-                        <Input
-                          type="datetime-local"
-                          value={startsAt}
-                          onChange={(e) => setStartsAt(e.target.value)}
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleOpen((v) => !v)}
+                    className="flex items-center gap-1 text-sm text-text-muted"
+                  >
+                    更多设置
+                    <span
+                      className={cn(
+                        "transition-transform",
+                        scheduleOpen && "rotate-180",
+                      )}
+                    >
+                      ▾
+                    </span>
+                  </button>
+                  {scheduleOpen && (
+                    <div className="mt-3 space-y-4 rounded-xl border border-border-light bg-content-bg/30 p-5">
+                      <div className="flex items-center justify-between rounded-lg border border-border-light px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium">活动期间全程开放</p>
+                          <p className="text-xs text-text-muted">
+                            关闭后可指定开始与结束时间
+                          </p>
+                        </div>
+                        <Switch
+                          checked={alwaysOpen}
+                          onCheckedChange={setAlwaysOpen}
                           disabled={isLocked}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>结束时间</Label>
-                        <Input
-                          type="datetime-local"
-                          value={endsAt}
-                          onChange={(e) => setEndsAt(e.target.value)}
-                          disabled={isLocked}
-                        />
-                      </div>
+                      {!alwaysOpen && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-xs text-text-muted">开始时间</p>
+                            <Input
+                              type="datetime-local"
+                              value={startsAt}
+                              onChange={(e) => setStartsAt(e.target.value)}
+                              disabled={isLocked}
+                              className="h-11"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs text-text-muted">结束时间</p>
+                            <Input
+                              type="datetime-local"
+                              value={endsAt}
+                              onChange={(e) => setEndsAt(e.target.value)}
+                              disabled={isLocked}
+                              className="h-11"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {(!editingRally || editingRally.status === "DRAFT") && (
-                      <>
-                        <Button
-                          variant="outline"
-                          disabled={saving}
-                          onClick={() => void submit("DRAFT")}
-                        >
-                          保存草稿
-                        </Button>
-                        <Button
-                          className="bg-brand-blue text-white hover:bg-brand-blue/90"
-                          disabled={saving}
-                          onClick={() => void submit("ACTIVE")}
-                        >
-                          {saving ? "发布中…" : "发布"}
-                        </Button>
-                      </>
-                    )}
-                    {editingRally?.status === "ACTIVE" && (
-                      <Button
-                        variant="outline"
-                        disabled={saving}
-                        onClick={() => void submit("ACTIVE")}
-                      >
-                        保存变更
-                      </Button>
-                    )}
-                  </div>
                 </div>
-              </SectionCard>
 
-              {editingRally?.status === "ACTIVE" && (
-                <StampRallyStats
-                  eventId={eventId}
-                  rallyId={editingRally.id}
-                  rallyName={editingRally.name}
-                  isActive
+                {editingRally?.status === "ACTIVE" && (
+                  <CreationSection hint="实时统计">
+                    <StampRallyStats
+                      eventId={eventId}
+                      rallyId={editingRally.id}
+                      rallyName={editingRally.name}
+                      isActive
+                    />
+                  </CreationSection>
+                )}
+              </>
+            }
+            preview={
+              <StampPassportPreview
+                name={name}
+                coverImage={coverImage}
+                description={description}
+                prize={prize}
+                prizeImageUrl={prizeImageUrl}
+                requiredCount={requiredCount}
+                stamps={stampPoints}
+              />
+            }
+            footer={
+              showDraftPublish ? (
+                <LotteryCreationFooter
+                  saving={saving && !savingDraft}
+                  savingDraft={savingDraft}
+                  onSaveDraft={() => void submit("DRAFT")}
+                  onPublish={() => void submit("ACTIVE")}
+                  publishLabel="发布"
                 />
-              )}
-            </div>
-
-            <div className="xl:sticky xl:top-4 xl:self-start">
-              <SectionCard
-                title="参会者预览"
-                description="实时预览集章地图效果"
-              >
-                <div className="p-5">
-                  <StampPassportPreview
-                    name={name}
-                    coverImage={coverImage}
-                    description={description}
-                    prize={prize}
-                    prizeImageUrl={prizeImageUrl}
-                    requiredCount={requiredCount}
-                    stamps={stampPoints}
-                  />
-                </div>
-              </SectionCard>
-            </div>
-          </div>
+              ) : showActiveSave ? (
+                <LotteryCreationFooter
+                  hideDraft
+                  saving={saving}
+                  onSaveDraft={() => undefined}
+                  onPublish={() => void submit("ACTIVE")}
+                  publishLabel="保存变更"
+                />
+              ) : undefined
+            }
+          />
         )}
 
         {!ralliesLoading && rallies.length === 0 && selectedId === "new" && (
-          <p className="mt-4 text-center text-sm text-text-muted">
+          <p className="px-8 py-4 text-center text-sm text-text-muted">
             配置完成后点击「发布」，status 将设为 ACTIVE
           </p>
         )}
