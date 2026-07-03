@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
@@ -28,13 +28,8 @@ import {
   getTagLabel,
   participantHasTag,
 } from "@/lib/participant-tags";
-import {
-  CreateCampaignSheet,
-  useEventDateLabel,
-} from "@/components/invites/CreateCampaignSheet";
 import { AddParticipantSheet } from "@/components/participants/AddParticipantSheet";
 import { ParticipantTable } from "@/components/participants/ParticipantTable";
-import { useCurrentEvent } from "@/contexts/event-context";
 import type { ParticipantListItem } from "@/lib/participants";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
@@ -103,7 +98,7 @@ async function fetchParticipants(
 }
 
 export function ParticipantsPageClient({ eventId }: { eventId: string }) {
-  const { currentEvent } = useCurrentEvent();
+  const router = useRouter();
   const { data: featureFlags } = useEventFeatureFlags(eventId);
   const showInviteSystem = isFeatureFlagEnabled(featureFlags, "inviteSystem");
   const searchParams = useSearchParams();
@@ -113,8 +108,6 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>(initialStatus);
   const [addOpen, setAddOpen] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [bulkInviteIds, setBulkInviteIds] = useState<string[] | undefined>();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [tagFilters, setTagFilters] = useState<string[]>([]);
@@ -198,24 +191,20 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
     }
   }, [showInviteSystem, status]);
 
-  const eventName = currentEvent?.name ?? "活动";
-  const eventDate = useEventDateLabel(currentEvent?.startDate);
-
-  function openInviteSheet(participantIds?: string[]) {
-    setBulkInviteIds(participantIds);
-    setInviteOpen(true);
-  }
-
-  function handleInviteOpenChange(open: boolean) {
-    setInviteOpen(open);
-    if (!open) setBulkInviteIds(undefined);
+  function openInvitePage(participantIds?: string[]) {
+    const base = `/events/${eventId}/participants/invite`;
+    if (participantIds?.length) {
+      router.push(`${base}?ids=${participantIds.join(",")}`);
+      return;
+    }
+    router.push(base);
   }
 
   return (
     <AdminPageBody>
       <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-[var(--admin-ink)]">名单管理</h1>
+          <h1 className="text-xl font-bold text-[var(--admin-ink)]">参与人员管理</h1>
           {showInviteSystem && (
             <Link
               href={`/events/${eventId}/invite`}
@@ -243,7 +232,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           {showInviteSystem && (
             <Button
               className="bg-brand-purple text-white hover:bg-brand-purple/90"
-              onClick={() => openInviteSheet()}
+              onClick={() => openInvitePage()}
             >
               <Bot className="mr-1 size-4" />
               邀请加入 ConnectIQ
@@ -420,7 +409,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         onCheckIn={handleCheckIn}
         onRemove={handleRemove}
         onRefresh={() => void refetch()}
-        onBulkInvite={showInviteSystem ? (ids) => openInviteSheet(ids) : undefined}
+        onBulkInvite={showInviteSystem ? (ids) => openInvitePage(ids) : undefined}
       />
 
       <AddParticipantSheet
@@ -429,25 +418,6 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         onOpenChange={setAddOpen}
         onSuccess={() => void refetch()}
       />
-
-      {showInviteSystem && (
-        <CreateCampaignSheet
-          eventId={eventId}
-          open={inviteOpen}
-          onOpenChange={handleInviteOpenChange}
-          eventName={eventName}
-          eventDate={eventDate}
-          organizerName="主办方"
-          stats={{
-            total: stats.total,
-            notInvited: stats.notInvited,
-            activated: stats.activated,
-          }}
-          ticketTypes={meta?.ticketTypes ?? []}
-          initialParticipantIds={bulkInviteIds}
-          onSuccess={() => void refetch()}
-        />
-      )}
     </AdminPageBody>
   );
 }

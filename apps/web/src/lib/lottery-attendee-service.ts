@@ -116,6 +116,11 @@ export async function getLotteryAttendeeDetail(lotteryId: string, userId?: strin
     pickup_note: lottery.booth
       ? `请至 ${lottery.booth.name}（${lottery.booth.code}）服务台领取`
       : "请在活动结束前到主持台领取",
+    lottery_category: lottery.lotteryCategory,
+    animation_type: lottery.animationType,
+    trigger_action: lottery.triggerAction,
+    require_poll_id: lottery.requirePollId,
+    allow_reenter: lottery.allowReenter,
   };
 }
 

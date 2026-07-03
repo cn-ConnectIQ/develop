@@ -188,7 +188,7 @@ export async function getEventDashboardData(eventId: string) {
     alerts.push({
       id: "ticket-config",
       message: "票种配置待完善",
-      href: "tickets",
+      href: "settings?tab=tickets",
     });
   }
 

@@ -20,8 +20,10 @@ export default function OrganizerError({
         页面加载失败
       </h1>
       <p className="max-w-md text-sm text-text-muted">
-        登录成功，但活动列表暂时无法加载。常见原因是 Preview 环境未配置数据库或 schema
-        未同步。请稍后重试，或联系管理员检查 Vercel 环境变量与数据库迁移。
+        页面渲染时发生异常。常见原因是 Preview 环境数据库 schema 未与最新代码同步（部署后需执行
+        {" "}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs">pnpm db:push</code>
+        ），或数据库连接配置有误。请稍后重试，或联系管理员检查环境变量与数据库迁移。
       </p>
       {error.digest && (
         <p className="text-xs text-text-tertiary">错误 ID: {error.digest}</p>

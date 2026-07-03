@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -61,9 +62,11 @@ async function fetchFormConfig(eventId: string, boothId: string) {
 export function FormConfigPageClient({
   eventId,
   boothId: initialBoothId,
+  lockBoothSelection = false,
 }: {
   eventId: string;
   boothId: string;
+  lockBoothSelection?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [selectedBoothId, setSelectedBoothId] = useState(initialBoothId);
@@ -178,48 +181,64 @@ export function FormConfigPageClient({
   return (
     <AdminContent>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">采集表单配置</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <Popover open={selectorOpen} onOpenChange={setSelectorOpen}>
-            <PopoverTrigger className="inline-flex h-9 min-w-[200px] items-center justify-between rounded-lg border border-border-light bg-white px-3 text-sm">
-              <span className="truncate">{selectorLabel}</span>
-              <ChevronDown className="ml-2 size-4 shrink-0 text-text-muted" />
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedBoothId(ALL_BOOTHS);
-                  setSelectorOpen(false);
-                }}
-                className={cn(
-                  "w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100",
-                  applyToAll && "bg-brand-blue-light text-brand-blue",
-                )}
+        <div>
+          <h1 className="text-xl font-bold">采集表单配置</h1>
+          {lockBoothSelection && (
+            <p className="mt-1 text-sm text-text-muted">
+              {selectorLabel}
+              {" · "}
+              <Link
+                href={`/events/${eventId}/exhibitors/booths`}
+                className="text-brand-blue hover:underline"
               >
-                为所有展商配置
-              </button>
-              {data?.booths.map((booth) => (
+                返回展商列表
+              </Link>
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {!lockBoothSelection && (
+            <Popover open={selectorOpen} onOpenChange={setSelectorOpen}>
+              <PopoverTrigger className="inline-flex h-9 min-w-[200px] items-center justify-between rounded-lg border border-border-light bg-white px-3 text-sm">
+                <span className="truncate">{selectorLabel}</span>
+                <ChevronDown className="ml-2 size-4 shrink-0 text-text-muted" />
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 p-1">
                 <button
-                  key={booth.id}
                   type="button"
                   onClick={() => {
-                    setSelectedBoothId(booth.id);
+                    setSelectedBoothId(ALL_BOOTHS);
                     setSelectorOpen(false);
                   }}
                   className={cn(
                     "w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100",
-                    selectedBoothId === booth.id &&
-                      !applyToAll &&
-                      "bg-brand-blue-light text-brand-blue",
+                    applyToAll && "bg-brand-blue-light text-brand-blue",
                   )}
                 >
-                  <span className="font-mono text-brand-blue">{booth.code}</span>
-                  <span className="ml-2 text-text-muted">{booth.exhibitor.name}</span>
+                  为所有展商配置
                 </button>
-              ))}
-            </PopoverContent>
-          </Popover>
+                {data?.booths.map((booth) => (
+                  <button
+                    key={booth.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBoothId(booth.id);
+                      setSelectorOpen(false);
+                    }}
+                    className={cn(
+                      "w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-100",
+                      selectedBoothId === booth.id &&
+                        !applyToAll &&
+                        "bg-brand-blue-light text-brand-blue",
+                    )}
+                  >
+                    <span className="font-mono text-brand-blue">{booth.code}</span>
+                    <span className="ml-2 text-text-muted">{booth.exhibitor.name}</span>
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+          )}
 
           <Button
             variant="outline"

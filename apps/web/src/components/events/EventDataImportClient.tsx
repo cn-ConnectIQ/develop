@@ -112,7 +112,7 @@ export function EventDataImportClient({ eventId }: { eventId: string }) {
       <div className="mb-6">
         <div className="mb-1 flex flex-wrap items-center gap-2 text-[12px] text-text-tertiary">
           <Link href={`/events/${eventId}/participants`} className="hover:text-brand-blue">
-            名单管理
+            参与人员管理
           </Link>
           <span>/</span>
           <span>数据导入</span>

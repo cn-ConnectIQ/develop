@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Download, Plus } from "lucide-react";
 import { InviteRecordStatus } from "@/lib/invite/enums";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -29,10 +29,6 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CampaignCard } from "@/components/invites/CampaignCard";
-import {
-  CreateCampaignSheet,
-  useEventDateLabel,
-} from "@/components/invites/CreateCampaignSheet";
 import { InviteFunnel } from "@/components/invites/InviteFunnel";
 import { ParticipantTagEditPopover } from "@/components/participants/ParticipantTagEditPopover";
 import {
@@ -41,7 +37,6 @@ import {
   useInviteRecords,
   useRetryInviteCampaign,
 } from "@/hooks/useInviteCampaigns";
-import { useCurrentEvent } from "@/contexts/event-context";
 import { cn } from "@/lib/utils";
 
 const RECORD_TABS = [
@@ -90,35 +85,18 @@ export function InviteCampaignsPageClient({
   embedded?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const { currentEvent } = useCurrentEvent();
   const [pageTab, setPageTab] = useState<"campaigns" | "records">(
     embedded ? "records" : "campaigns",
   );
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
     null,
   );
   const [recordFilter, setRecordFilter] = useState("all");
 
+  const inviteCreateHref = `/events/${eventId}/participants/invite`;
+
   const { data: campaigns, isLoading, refetch } = useInviteCampaigns(eventId);
   const retryMutation = useRetryInviteCampaign(eventId);
-
-  const { data: participantMeta } = useQuery({
-    queryKey: ["participants-meta", eventId],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/events/${eventId}/participants?limit=1`,
-      );
-      if (!res.ok) throw new Error("加载失败");
-      const json = await res.json();
-      return json.meta as {
-        total: number;
-        notInvited: number;
-        activated: number;
-        ticketTypes: Array<{ id: string; name: string }>;
-      };
-    },
-  });
 
   const { data: recordsData, isLoading: recordsLoading, refetch: refetchRecords } = useInviteRecords(
     eventId,
@@ -133,9 +111,6 @@ export function InviteCampaignsPageClient({
   }, [campaigns, selectedCampaignId]);
 
   const funnel = aggregateFunnelStats(campaigns ?? []);
-
-  const eventName = currentEvent?.name ?? "活动";
-  const eventDate = useEventDateLabel(currentEvent?.startDate);
 
   async function handleRetry(campaignId: string) {
     try {
@@ -208,16 +183,19 @@ export function InviteCampaignsPageClient({
               href={`/events/${eventId}/participants`}
               className="mt-1 inline-block text-xs text-brand-blue hover:underline"
             >
-              ← 返回名单管理
+              ← 返回参与人员管理
             </Link>
           </div>
-          <Button
-            className="bg-brand-purple text-white hover:bg-brand-purple/90"
-            onClick={() => setSheetOpen(true)}
+          <Link
+            href={inviteCreateHref}
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "bg-brand-purple text-white hover:bg-brand-purple/90",
+            )}
           >
             <Plus className="mr-1 size-4" />
             创建邀请活动
-          </Button>
+          </Link>
         </div>
       )}
 
@@ -242,14 +220,16 @@ export function InviteCampaignsPageClient({
           >
             重试失败记录
           </Button>
-          <Button
-            className="bg-brand-purple text-white hover:bg-brand-purple/90"
-            size="sm"
-            onClick={() => setSheetOpen(true)}
+          <Link
+            href={inviteCreateHref}
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "bg-brand-purple text-white hover:bg-brand-purple/90",
+            )}
           >
             <Plus className="mr-1 size-3.5" />
             创建邀请活动
-          </Button>
+          </Link>
         </div>
       )}
 
@@ -279,12 +259,15 @@ export function InviteCampaignsPageClient({
           ) : campaigns?.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border-light bg-white p-12 text-center">
               <p className="text-sm text-text-muted">暂无邀请活动</p>
-              <Button
-                className="mt-4 bg-brand-purple text-white hover:bg-brand-purple/90"
-                onClick={() => setSheetOpen(true)}
+              <Link
+                href={inviteCreateHref}
+                className={cn(
+                  buttonVariants({ variant: "default" }),
+                  "mt-4 bg-brand-purple text-white hover:bg-brand-purple/90",
+                )}
               >
                 创建第一个邀请活动
-              </Button>
+              </Link>
             </div>
           ) : (
             campaigns?.map((c) => (
@@ -469,22 +452,6 @@ export function InviteCampaignsPageClient({
           )}
         </TabsContent>
       </Tabs>
-
-      <CreateCampaignSheet
-        eventId={eventId}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        eventName={eventName}
-        eventDate={eventDate}
-        organizerName="主办方"
-        stats={{
-          total: participantMeta?.total ?? 0,
-          notInvited: participantMeta?.notInvited ?? 0,
-          activated: participantMeta?.activated ?? 0,
-        }}
-        ticketTypes={participantMeta?.ticketTypes ?? []}
-        onSuccess={() => void refetch()}
-      />
     </>
   );
 

@@ -244,9 +244,9 @@ export async function listAdminEventLeads(
 
   return leads.map((lead) => ({
     id: lead.id,
-    name: lead.participant.name,
-    company: lead.participant.company,
-    title: lead.participant.jobTitle,
+    name: lead.participant?.name ?? "未知访客",
+    company: lead.participant?.company ?? null,
+    title: lead.participant?.jobTitle ?? null,
     intent_level: lead.intentGrade ?? "C",
     booth_code: lead.booth.code,
     booth_company: lead.booth.companyOrg.name,

@@ -30,7 +30,6 @@ import {
   Sparkles,
   Store,
   Tag,
-  Ticket,
   Trophy,
   Users,
 } from "lucide-react";
@@ -192,11 +191,6 @@ function getEventNavigationGroups(
                 isNew: true,
               },
               {
-                label: "票务配置",
-                href: `/events/${eventId}/tickets`,
-                icon: Ticket,
-              },
-              {
                 label: "活动设置",
                 href: `/events/${eventId}/settings`,
                 icon: Settings,
@@ -207,7 +201,7 @@ function getEventNavigationGroups(
             label: "参会者管理",
             items: [
               {
-                label: "名单管理",
+                label: "参与人员管理",
                 href: `/events/${eventId}/participants`,
                 icon: Users,
               },
@@ -293,12 +287,6 @@ function getEventNavigationGroups(
                 href: `/events/${eventId}/intent-tags`,
                 icon: Tag,
                 menuKey: "intent-tags",
-              },
-              {
-                label: "采集表单",
-                href: `/events/${eventId}/exhibitors/form-config`,
-                icon: Store,
-                menuKey: "lead-form",
               },
               {
                 label: "MarketUP 同步",

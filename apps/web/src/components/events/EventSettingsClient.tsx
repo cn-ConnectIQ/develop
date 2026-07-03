@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -13,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventGeneralSettingsForm } from "@/components/events/EventGeneralSettingsForm";
+import {
+  EventTicketsPanel,
+  type EventTicketTypeRow,
+} from "@/components/events/EventTicketsPanel";
 import {
   EVENT_FEATURE_FLAG_GROUPS,
   type EventFeatureFlagKey,
@@ -33,10 +38,23 @@ async function fetchFeatureFlags(eventId: string): Promise<FeatureFlagsResponse>
 export function EventSettingsClient({
   eventId,
   eventName,
+  ticketTypes,
 }: {
   eventId: string;
   eventName: string;
+  ticketTypes: EventTicketTypeRow[];
 }) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab =
+    tabParam === "tickets" || tabParam === "features" ? tabParam : "general";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (tabParam === "tickets" || tabParam === "features") {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["event-feature-flags", eventId],
@@ -95,13 +113,19 @@ export function EventSettingsClient({
         }
       />
       <AdminContent>
-        <Tabs defaultValue="general" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6 flex h-auto flex-wrap gap-1 bg-transparent p-0">
             <TabsTrigger
               value="general"
               className="rounded-md border border-transparent px-4 py-2 data-[state=active]:border-border data-[state=active]:bg-white data-[state=active]:shadow-sm"
             >
               基本信息
+            </TabsTrigger>
+            <TabsTrigger
+              value="tickets"
+              className="rounded-md border border-transparent px-4 py-2 data-[state=active]:border-border data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              票务配置
             </TabsTrigger>
             <TabsTrigger
               value="features"
@@ -113,6 +137,10 @@ export function EventSettingsClient({
 
           <TabsContent value="general">
             <EventGeneralSettingsForm eventId={eventId} />
+          </TabsContent>
+
+          <TabsContent value="tickets">
+            <EventTicketsPanel ticketTypes={ticketTypes} />
           </TabsContent>
 
           <TabsContent value="features">

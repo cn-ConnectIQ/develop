@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import {
 import { DataTable } from "@/components/admin/data-table";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/components/admin/status-badge";
+import { useCurrentEvent } from "@/contexts/event-context";
 
 export type AdminLeadRow = {
   id: string;
@@ -28,8 +30,15 @@ export type AdminLeadRow = {
 
 async function fetchLeads(eventId: string): Promise<AdminLeadRow[]> {
   const res = await fetch(`/api/account/events/${eventId}/admin-leads?limit=100`);
-  if (!res.ok) throw new Error("加载失败");
-  return (await res.json()).data as AdminLeadRow[];
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof json.error === "string"
+        ? json.error
+        : "加载失败，请确认数据库 schema 已同步后重试",
+    );
+  }
+  return json.data as AdminLeadRow[];
 }
 
 async function exportLeads(eventId: string) {
@@ -56,12 +65,24 @@ const CRM_LABEL: Record<AdminLeadRow["crm_status"], string> = {
 
 export function AdminLeadsClient({
   eventId,
-  eventName,
 }: {
   eventId: string;
-  eventName: string;
+  eventName?: string;
 }) {
+  const router = useRouter();
+  const { currentEvent } = useCurrentEvent();
+  const eventName = currentEvent?.name ?? "活动";
   const [exporting, setExporting] = useState(false);
+
+  const isExpo =
+    currentEvent?.type === "EXPO" || currentEvent?.activityType === "EXPO";
+
+  useEffect(() => {
+    if (!currentEvent || currentEvent.id !== eventId) return;
+    if (!isExpo) {
+      router.replace(`/events/${eventId}`);
+    }
+  }, [currentEvent, eventId, isExpo, router]);
 
   const { data: leads = [], isLoading, isError } = useQuery({
     queryKey: ["admin-leads", eventId],

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { format, differenceInMinutes } from "date-fns";
 import {
   ArrowRight,
@@ -19,7 +18,7 @@ import { toast } from "sonner";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,16 +30,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  CreateCampaignSheet,
-  useEventDateLabel,
-} from "@/components/invites/CreateCampaignSheet";
-import {
   useInviteCampaignProgress,
   useInviteRecords,
   useRetryInviteCampaign,
   type InviteCampaignProgress,
 } from "@/hooks/useInviteCampaigns";
-import { useCurrentEvent } from "@/contexts/event-context";
 import { cn } from "@/lib/utils";
 
 const CHANNEL_LABEL: Record<InviteChannel, string> = {
@@ -122,9 +116,7 @@ export function CampaignDetailClient({
   eventId,
   campaignId,
 }: CampaignDetailClientProps) {
-  const { currentEvent } = useCurrentEvent();
   const [recordTab, setRecordTab] = useState<string>("all");
-  const [cloneSheetOpen, setCloneSheetOpen] = useState(false);
 
   const { data: progress, isLoading } = useInviteCampaignProgress(
     eventId,
@@ -140,26 +132,6 @@ export function CampaignDetailClient({
   );
 
   const retryMutation = useRetryInviteCampaign(eventId);
-
-  const { data: participantMeta } = useQuery({
-    queryKey: ["participants-meta", eventId],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/events/${eventId}/participants?limit=1`,
-      );
-      if (!res.ok) throw new Error("加载失败");
-      const json = await res.json();
-      return json.meta as {
-        total: number;
-        notInvited: number;
-        activated: number;
-        ticketTypes: Array<{ id: string; name: string }>;
-      };
-    },
-  });
-
-  const eventName = currentEvent?.name ?? "活动";
-  const eventDate = useEventDateLabel(currentEvent?.startDate);
 
   async function handleRetryAll() {
     try {
@@ -351,40 +323,17 @@ export function CampaignDetailClient({
           </Button>
         )}
         {isComplete && progress.failed_count === 0 && (
-          <Button
-            className="bg-brand-purple text-white hover:bg-brand-purple/90"
-            onClick={() => setCloneSheetOpen(true)}
+          <Link
+            href={`/events/${eventId}/participants/invite?cloneCampaignId=${campaignId}`}
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "bg-brand-purple text-white hover:bg-brand-purple/90",
+            )}
           >
             创建新一轮邀请
-          </Button>
+          </Link>
         )}
       </div>
-
-      <CreateCampaignSheet
-        eventId={eventId}
-        open={cloneSheetOpen}
-        onOpenChange={setCloneSheetOpen}
-        eventName={eventName}
-        eventDate={eventDate}
-        organizerName="主办方"
-        stats={{
-          total: participantMeta?.total ?? 0,
-          notInvited: participantMeta?.notInvited ?? 0,
-          activated: participantMeta?.activated ?? 0,
-        }}
-        ticketTypes={participantMeta?.ticketTypes ?? []}
-        cloneFrom={{
-          name: progress.name,
-          channel: progress.channel,
-          customMessage: progress.custom_message ?? "",
-          subject: progress.subject,
-          templateId: progress.template_id,
-          targetFilter: progress.target_filter,
-        }}
-        onSuccess={() => {
-          toast.success("新一轮邀请活动已创建");
-        }}
-      />
     </AdminPageBody>
   );
 }

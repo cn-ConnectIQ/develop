@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Map, Pencil, Plus, Trash2 } from "lucide-react";
+import { Map, ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
@@ -11,7 +11,7 @@ import {
   AdminPage,
   SectionCard,
 } from "@/components/admin/admin-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 type BoothRow = {
   id: string;
@@ -253,12 +254,6 @@ export function ExpoBoothsPageClient({
                 ))}
               </SelectContent>
             </Select>
-            <Link
-              href={`/events/${eventId}/exhibitors/form-config`}
-              className="text-sm text-brand-blue hover:underline"
-            >
-              采集表单配置 →
-            </Link>
           </div>
 
           {isLoading ? (
@@ -319,10 +314,21 @@ export function ExpoBoothsPageClient({
                       </td>
                       <td className="p-3">
                         <div className="flex justify-end gap-1">
+                          <Link
+                            href={`/events/${eventId}/exhibitors/form-config?boothId=${booth.id}`}
+                            title="采集表单配置"
+                            className={cn(
+                              buttonVariants({ variant: "ghost", size: "icon" }),
+                              "size-8",
+                            )}
+                          >
+                            <ClipboardList className="size-3.5" />
+                          </Link>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="size-8"
+                            title="编辑展位"
                             onClick={() => openEdit(booth)}
                           >
                             <Pencil className="size-3.5" />
@@ -331,6 +337,7 @@ export function ExpoBoothsPageClient({
                             variant="ghost"
                             size="icon"
                             className="size-8 text-brand-red hover:text-brand-red"
+                            title="删除展位"
                             onClick={() => {
                               if (
                                 confirm(

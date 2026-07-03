@@ -422,7 +422,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                       window.location.href = `/events/${event.id}/participants`;
                     }}
                   >
-                    名单管理
+                    参与人员管理
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

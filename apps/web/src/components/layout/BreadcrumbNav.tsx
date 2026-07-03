@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 const SEGMENT_LABELS: Record<string, string> = {
   overview: "平台概览",
   events: "活动列表",
-  participants: "名单管理",
+  participants: "参与人员管理",
+  invite: "发起邀请",
   tickets: "票务配置",
   checkin: "签到看板",
   bigscreen: "大屏",

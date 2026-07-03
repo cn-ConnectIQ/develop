@@ -424,7 +424,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
                 <QuickActionCard
                   href={`/events/${eventId}/participants`}
                   icon={ScanLine}
-                  title="名单管理"
+                  title="参与人员管理"
                   subtitle="查看邀请与激活状态"
                   borderClassName="cursor-pointer"
                 />
