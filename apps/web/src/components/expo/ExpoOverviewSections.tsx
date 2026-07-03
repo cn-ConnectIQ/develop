@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
+import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 
 type ExpoSettingsPayload = {
   settings: Record<string, Record<string, unknown>>;
@@ -338,7 +339,7 @@ export function ExpoOverviewSections({ expoId }: { expoId: string }) {
         </SectionCard>
       )}
 
-      {featureFlags?.aiBoothRoute && (
+      {isFeatureFlagEnabled(featureFlags, "aiBoothRoute") && (
         <SectionCard
           id="booth-route"
           title="AI 展位路线"
@@ -430,7 +431,7 @@ export function ExpoOverviewSections({ expoId }: { expoId: string }) {
           ...(featureFlags?.boothRanking
             ? [{ href: `/events/${expoId}/booth-ranking`, icon: BarChart3, label: "展位人气榜" }]
             : []),
-          ...(featureFlags?.aiBoothRoute
+          ...(isFeatureFlagEnabled(featureFlags, "aiBoothRoute")
             ? [{ href: `/events/${expoId}/booth-route`, icon: Bot, label: "AI 展位路线" }]
             : []),
           ...(featureFlags?.highValueBuyerPush

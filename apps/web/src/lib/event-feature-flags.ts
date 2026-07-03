@@ -1,3 +1,6 @@
+/** 产品级开关：false = 全局隐藏 AI 展位路线入口并禁用 API（暂未上线） */
+export const AI_BOOTH_ROUTE_SHIPPED = false;
+
 export const EVENT_FEATURE_FLAG_KEYS = [
   "speedNetworking",
   "lottery",
@@ -108,10 +111,15 @@ export const EVENT_FEATURE_FLAG_GROUPS: EventFeatureFlagGroup[] = [
   },
 ];
 
+function applyProductFeatureGates(flags: EventFeatureFlags): EventFeatureFlags {
+  if (AI_BOOTH_ROUTE_SHIPPED) return flags;
+  return { ...flags, aiBoothRoute: false };
+}
+
 export function parseEventFeatureFlags(raw: unknown): EventFeatureFlags {
   const flags = { ...DEFAULT_EVENT_FEATURE_FLAGS };
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return flags;
+    return applyProductFeatureGates(flags);
   }
   for (const key of EVENT_FEATURE_FLAG_KEYS) {
     const value = (raw as Record<string, unknown>)[key];
@@ -119,23 +127,33 @@ export function parseEventFeatureFlags(raw: unknown): EventFeatureFlags {
       flags[key] = value;
     }
   }
-  return flags;
+  return applyProductFeatureGates(flags);
 }
 
 export function mergeEventFeatureFlags(
   current: unknown,
   patch: Partial<EventFeatureFlags>,
 ): EventFeatureFlags {
-  return { ...parseEventFeatureFlags(current), ...patch };
+  return applyProductFeatureGates({ ...parseEventFeatureFlags(current), ...patch });
 }
 
 export function toApiFeatureFlags(flags: EventFeatureFlags): EventFeatureFlags {
-  return { ...flags };
+  return applyProductFeatureGates({ ...flags });
+}
+
+export function getEventFeatureFlagGroups(): EventFeatureFlagGroup[] {
+  return EVENT_FEATURE_FLAG_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => AI_BOOTH_ROUTE_SHIPPED || item.key !== "aiBoothRoute",
+    ),
+  })).filter((group) => group.items.length > 0);
 }
 
 export function isFeatureFlagEnabled(
   flags: EventFeatureFlags | null | undefined,
   key: EventFeatureFlagKey,
 ): boolean {
+  if (key === "aiBoothRoute" && !AI_BOOTH_ROUTE_SHIPPED) return false;
   return Boolean(flags?.[key]);
 }

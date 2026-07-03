@@ -19,7 +19,7 @@ import {
   type EventTicketTypeRow,
 } from "@/components/events/EventTicketsPanel";
 import {
-  EVENT_FEATURE_FLAG_GROUPS,
+  getEventFeatureFlagGroups,
   type EventFeatureFlagKey,
   type EventFeatureFlags,
 } from "@/lib/event-feature-flags";
@@ -162,7 +162,7 @@ export function EventSettingsClient({
               <p className="py-12 text-center text-sm text-text-muted">加载中...</p>
             ) : (
               <div className="space-y-6">
-                {EVENT_FEATURE_FLAG_GROUPS.map((group) => (
+                {getEventFeatureFlagGroups().map((group) => (
                   <SectionCard key={group.id} title={group.label}>
                     <div className="divide-y divide-border">
                       {group.items.map((item) => (
