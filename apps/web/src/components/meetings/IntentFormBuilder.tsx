@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { SectionCard } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { EventIntentConfig } from "@/lib/matchmaking-config";
 
@@ -16,17 +15,24 @@ type IntentTagRow = {
   pool: string;
 };
 
-const POOL_LABELS: Record<string, string> = {
-  SUPPLY: "我能提供",
-  DEMAND: "我在寻找",
-  TOPIC: "关注话题",
-  GENERAL: "通用",
+type TagPool = "SUPPLY" | "DEMAND" | "TOPIC";
+
+const KEY_TO_POOL: Record<"supply" | "demand" | "topics", TagPool> = {
+  supply: "SUPPLY",
+  demand: "DEMAND",
+  topics: "TOPIC",
 };
 
-const PRESET_TAGS: Record<string, string[]> = {
+const PRESET_TAGS: Record<TagPool, string[]> = {
   SUPPLY: ["ERP 方案", "SaaS 产品", "云计算", "AI 落地", "MarTech"],
   DEMAND: ["ERP 方案", "CRM 系统", "营销自动化", "数据治理", "AI 落地"],
   TOPIC: ["AI 落地", "出海增长", "PLG", "智能制造", "数字化"],
+};
+
+const PRESET_PACK_LABELS: Record<TagPool, string> = {
+  SUPPLY: "导入科技供给包",
+  DEMAND: "导入科技需求包",
+  TOPIC: "导入话题预设",
 };
 
 type IntentFormBuilderProps = {
@@ -53,9 +59,12 @@ export function IntentFormBuilder({
   dirty,
 }: IntentFormBuilderProps) {
   const [localConfig, setLocalConfig] = useState<EventIntentConfig | null>(config);
-  const [newTagLabel, setNewTagLabel] = useState("");
-  const [newTagPool, setNewTagPool] = useState<"SUPPLY" | "DEMAND" | "TOPIC">("SUPPLY");
   const [newRole, setNewRole] = useState("");
+  const [newTagDrafts, setNewTagDrafts] = useState<Record<TagPool, string>>({
+    SUPPLY: "",
+    DEMAND: "",
+    TOPIC: "",
+  });
 
   useEffect(() => {
     if (config) setLocalConfig(config);
@@ -71,7 +80,7 @@ export function IntentFormBuilder({
     [localConfig, onConfigChange],
   );
 
-  const addTag = async (label: string, pool: "SUPPLY" | "DEMAND" | "TOPIC") => {
+  const addTag = async (label: string, pool: TagPool) => {
     const res = await fetch(`/api/events/${eventId}/intent-tags`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,7 +106,18 @@ export function IntentFormBuilder({
     onTagsChange(tags.filter((t) => t.id !== tagId));
   };
 
-  const applyPresetPack = async (pool: "SUPPLY" | "DEMAND" | "TOPIC") => {
+  const submitNewTag = async (pool: TagPool) => {
+    const label = newTagDrafts[pool].trim();
+    if (!label) return;
+    if (tags.some((t) => t.pool === pool && t.label.toLowerCase() === label.toLowerCase())) {
+      setNewTagDrafts((prev) => ({ ...prev, [pool]: "" }));
+      return;
+    }
+    await addTag(label, pool);
+    setNewTagDrafts((prev) => ({ ...prev, [pool]: "" }));
+  };
+
+  const applyPresetPack = async (pool: TagPool) => {
     const presets = PRESET_TAGS[pool] ?? [];
     for (const label of presets) {
       if (tags.some((t) => t.label === label && t.pool === pool)) continue;
@@ -137,12 +157,15 @@ export function IntentFormBuilder({
           ] as const
         ).map(([key, title, desc]) => {
           const field = localConfig[key];
+          const pool = key !== "role" ? KEY_TO_POOL[key] : null;
+          const poolTags = pool ? tags.filter((t) => t.pool === pool) : [];
+
           return (
             <div
               key={key}
               className="flex items-start justify-between gap-4 rounded-lg border border-border p-4"
             >
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-text">{title}</p>
                 <p className="mt-1 text-sm text-text-muted">{desc}</p>
                 {key === "role" && "options" in field && field.enabled && (
@@ -171,10 +194,23 @@ export function IntentFormBuilder({
                     ))}
                     <div className="flex items-center gap-1">
                       <Input
-                        className="h-7 w-24 text-xs"
+                        className="h-7 w-28 text-xs"
                         placeholder="新角色"
                         value={newRole}
                         onChange={(e) => setNewRole(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (!newRole.trim()) return;
+                            patchConfig({
+                              role: {
+                                ...localConfig.role,
+                                options: [...field.options, newRole.trim()],
+                              },
+                            });
+                            setNewRole("");
+                          }
+                        }}
                       />
                       <Button
                         type="button"
@@ -197,10 +233,66 @@ export function IntentFormBuilder({
                     </div>
                   </div>
                 )}
-                {key !== "role" && "allow_custom" in field && field.enabled && (
-                  <p className="mt-2 text-xs text-text-tertiary">
-                    {field.allow_custom ? "允许自定义标签" : "仅可选预设标签"}
-                  </p>
+                {pool && "allow_custom" in field && field.enabled && (
+                  <>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {poolTags.map((tag) => (
+                        <span
+                          key={tag.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs"
+                        >
+                          {tag.label}
+                          <button
+                            type="button"
+                            className="text-text-tertiary hover:text-destructive"
+                            onClick={() => void removeTag(tag.id)}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      {poolTags.length === 0 && (
+                        <span className="text-xs text-text-muted">暂无标签，请添加或导入预设</span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Input
+                          className="h-7 w-28 text-xs"
+                          placeholder="新标签"
+                          value={newTagDrafts[pool]}
+                          onChange={(e) =>
+                            setNewTagDrafts((prev) => ({ ...prev, [pool]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void submitNewTag(pool);
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => void submitNewTag(pool)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-7 text-xs"
+                      onClick={() => void applyPresetPack(pool)}
+                    >
+                      {PRESET_PACK_LABELS[pool]}
+                    </Button>
+                    <p className="mt-2 text-xs text-text-tertiary">
+                      {field.allow_custom ? "允许参会者自定义标签" : "仅可选上方预设标签"}
+                    </p>
+                  </>
                 )}
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -240,97 +332,6 @@ export function IntentFormBuilder({
             </div>
           );
         })}
-      </div>
-
-      <div className="mt-8 border-t border-border pt-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h4 className="font-medium text-text">活动意图标签库</h4>
-            <p className="text-sm text-text-muted">
-              科技展会用 AI/SaaS，医疗展可换另一套 — 参会者多选这些标签填写意图
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void applyPresetPack("SUPPLY")}
-            >
-              导入科技供给包
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void applyPresetPack("DEMAND")}
-            >
-              导入科技需求包
-            </Button>
-          </div>
-        </div>
-
-        {(["SUPPLY", "DEMAND", "TOPIC"] as const).map((pool) => {
-          const poolTags = tags.filter((t) => t.pool === pool);
-          return (
-            <div key={pool} className="mb-4">
-              <Label className="text-xs text-text-muted">{POOL_LABELS[pool]}</Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {poolTags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1 text-sm"
-                  >
-                    {tag.label}
-                    <button
-                      type="button"
-                      className="text-text-tertiary hover:text-destructive"
-                      onClick={() => void removeTag(tag.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-                {poolTags.length === 0 && (
-                  <span className="text-xs text-text-muted">暂无标签</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs">新增标签</Label>
-            <Input
-              placeholder="如 AI 落地"
-              value={newTagLabel}
-              onChange={(e) => setNewTagLabel(e.target.value)}
-              className="w-40"
-            />
-          </div>
-          <select
-            className="h-9 rounded-md border border-border bg-white px-2 text-sm"
-            value={newTagPool}
-            onChange={(e) =>
-              setNewTagPool(e.target.value as "SUPPLY" | "DEMAND" | "TOPIC")
-            }
-          >
-            <option value="SUPPLY">我能提供</option>
-            <option value="DEMAND">我在寻找</option>
-            <option value="TOPIC">关注话题</option>
-          </select>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              if (!newTagLabel.trim()) return;
-              void addTag(newTagLabel.trim(), newTagPool).then(() => setNewTagLabel(""));
-            }}
-          >
-            添加
-          </Button>
-        </div>
       </div>
 
       <div className="mt-6 rounded-lg bg-muted/30 p-4 text-sm text-text-muted">

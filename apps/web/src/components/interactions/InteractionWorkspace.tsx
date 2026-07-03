@@ -32,6 +32,7 @@ import { LotteryDrawPanel } from "@/components/interactions/LotteryDrawPanel";
 import { PushToAttendeesButton } from "@/components/interactions/PushToAttendeesButton";
 import {
   isPollLive,
+  normalizePollOptionsForType,
   type InteractionItem,
   type InteractionPollItem,
   type InteractionLotteryItem,
@@ -186,8 +187,24 @@ function PollEditWorkspace({
     }
     setTypeChanging(true);
     try {
-      await patchPoll(eventId, poll.id, { type: nextType, status: "DRAFT" });
+      const nextOptions = normalizePollOptionsForType(
+        nextType,
+        localPoll.options,
+      );
+      await patchPoll(eventId, poll.id, {
+        type: nextType,
+        status: "DRAFT",
+        options: nextOptions,
+      });
       setActiveTab(tab);
+      setLocalPoll((p) => ({
+        ...p,
+        type: nextType,
+        options: nextOptions.map((o, i) => ({
+          id: o.id ?? `opt-${i}`,
+          text: o.text,
+        })),
+      }));
       onRefresh();
       toast.success("已切换问题类型");
     } catch {
@@ -248,6 +265,7 @@ function PollEditWorkspace({
         <>
           <CreationSection hint="选项设置" className="py-8">
             <PollOptionsEditor
+              key={`${poll.id}-${localPoll.type}`}
               eventId={eventId}
               pollId={poll.id}
               type={
@@ -278,6 +296,7 @@ function PollEditWorkspace({
       {localPoll.type === "RATING" && (
         <CreationSection hint="评分设置" className="py-8">
           <RatingPollEditor
+            key={`${poll.id}-rating`}
             eventId={eventId}
             pollId={poll.id}
             options={localPoll.options}

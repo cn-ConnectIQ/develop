@@ -2,7 +2,10 @@ import type { PollStatus } from "@connectiq/database";
 import type { PollListItem, SessionOption } from "@/lib/interactions";
 import {
   DEFAULT_RATING_POLL_CONFIG,
+  buildRatingPollOptions,
   encodeRatingConfigOption,
+  isRatingConfigOption,
+  parseRatingConfigFromOptions,
 } from "@/lib/rating-poll-config";
 
 export type LotteryListItem = {
@@ -137,6 +140,32 @@ export function getDefaultPollOptions(type: string): string[] {
       return [encodeRatingConfigOption(DEFAULT_RATING_POLL_CONFIG)];
     default:
       return [];
+  }
+}
+
+/** 切换 Poll 类型时规范化 options，避免评分内部配置项泄露到投票选项 */
+export function normalizePollOptionsForType(
+  nextType: string,
+  existing: Array<{ id: string; text: string }>,
+): Array<{ id?: string; text: string }> {
+  switch (nextType) {
+    case "SINGLE_CHOICE":
+    case "MULTI_CHOICE": {
+      const voteOptions = existing.filter((o) => !isRatingConfigOption(o.text));
+      if (voteOptions.length >= 2) {
+        return voteOptions.map(({ id, text }) => ({ id, text }));
+      }
+      return getDefaultPollOptions(nextType).map((text) => ({ text }));
+    }
+    case "RATING": {
+      const config = parseRatingConfigFromOptions(existing);
+      return buildRatingPollOptions(existing, config);
+    }
+    case "QNA":
+    case "WORD_CLOUD":
+      return [];
+    default:
+      return existing.map(({ id, text }) => ({ id, text }));
   }
 }
 

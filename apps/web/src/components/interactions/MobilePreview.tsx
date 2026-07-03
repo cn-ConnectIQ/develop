@@ -5,6 +5,7 @@ import { MobileDevicePreview } from "@/components/admin/mobile-device-preview";
 import type { InteractionPollItem } from "@/lib/interaction-manager";
 import type { PollResultVisual } from "@/lib/bigscreen-display";
 import {
+  isRatingConfigOption,
   parseRatingConfigFromOptions,
   ratingScoreRange,
 } from "@/lib/rating-poll-config";
@@ -41,6 +42,9 @@ function PreviewContent({
 }) {
   const isChoice =
     poll.type === "SINGLE_CHOICE" || poll.type === "MULTI_CHOICE";
+  const choiceOptions = isChoice
+    ? poll.options.filter((o) => !isRatingConfigOption(o.text))
+    : poll.options;
 
   return (
     <div className="space-y-5">
@@ -48,7 +52,7 @@ function PreviewContent({
 
       {isChoice && (
         <div className="space-y-2.5">
-          {poll.options.map((opt) => (
+          {choiceOptions.map((opt) => (
             <div
               key={opt.id}
               className="flex items-center gap-2.5 rounded-xl border border-border-light px-4 py-3.5 text-base"
@@ -74,8 +78,8 @@ function PreviewContent({
         </div>
       )}
 
-      {isChoice && poll.options.length > 0 && (
-        <ResultVisualHint visual={resultVisual} options={poll.options} />
+      {isChoice && choiceOptions.length > 0 && (
+        <ResultVisualHint visual={resultVisual} options={choiceOptions} />
       )}
     </div>
   );
