@@ -14,7 +14,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   overview: "平台概览",
   events: "活动列表",
   participants: "参与人员管理",
-  invite: "发起邀请",
+  invite: "邀请管理",
   tickets: "票务配置",
   checkin: "签到看板",
   bigscreen: "大屏",
@@ -47,7 +47,6 @@ const SEGMENT_LABELS: Record<string, string> = {
   settings: "活动设置",
   "org-profile": "信誉展示页",
   "invite-campaigns": "邀请管理",
-  invite: "邀请管理",
   users: "用户管理",
   connections: "连接数据分析",
   points: "积分管理",
@@ -105,9 +104,12 @@ export function BreadcrumbNav() {
   if (isEventScopedRoute(pathname)) {
     const eventName = currentEvent?.name ?? "当前活动";
     const pageSeg = segments[segments.length - 1];
+    const parentSeg = segments[segments.length - 2];
     const pageLabel = isOpaqueIdSegment(pageSeg)
       ? "活动工作台"
-      : (SEGMENT_LABELS[pageSeg] ?? pageSeg);
+      : pageSeg === "invite" && parentSeg === "participants"
+        ? "发起邀请"
+        : (SEGMENT_LABELS[pageSeg] ?? pageSeg);
 
     return (
       <nav
