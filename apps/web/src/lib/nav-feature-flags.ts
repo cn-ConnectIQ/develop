@@ -24,6 +24,7 @@ const NAV_FLAG_RULES: NavFlagRule[] = [
   { pathIncludes: "/high-value-buyer-push", flag: "highValueBuyerPush" },
   { pathIncludes: "/lottery", flag: "lottery" },
   { pathIncludes: "/invite-campaigns", flag: "inviteSystem" },
+  { pathIncludes: "/invite", flag: "inviteSystem" },
   { hashIncludes: "matching-preview", flag: "aiReferral" },
   { hashIncludes: "buyer-push", flag: "highValueBuyerPush" },
   { labelIncludes: "AI 展位路线", flag: "aiBoothRoute" },

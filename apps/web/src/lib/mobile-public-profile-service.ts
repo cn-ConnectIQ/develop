@@ -13,6 +13,7 @@ import {
   computeMatchScore,
 } from "@/lib/connect-card-service";
 import { parseIntentTags } from "@/lib/user-me-service";
+import { resolveHonorTagsForViewer } from "@/lib/participant-honor-tags-visibility";
 
 export type ApiAiScoreDimensions = {
   industry_fit?: number;
@@ -33,6 +34,10 @@ export type ApiMobilePublicProfile = {
   ai_scores?: ApiAiScoreDimensions;
   business_score?: number;
   connection_status?: "NONE" | "PENDING" | "ACTIVE" | "REJECTED";
+  pending_direction?: "sent" | "received";
+  pending_request_id?: string;
+  /** 身份标签（VIP/Speaker 等，按活动配置与查看者权限返回） */
+  honor_tags?: string[];
 };
 
 export type MobilePublicProfileOptions = {
@@ -104,7 +109,11 @@ async function resolveConnectionStatus(
   viewerId: string,
   targetUserId: string,
   eventId?: string | null,
-): Promise<ApiMobilePublicProfile["connection_status"]> {
+): Promise<{
+  status: NonNullable<ApiMobilePublicProfile["connection_status"]>;
+  pendingDirection?: "sent" | "received";
+  pendingRequestId?: string;
+}> {
   const active = await prisma.businessConnection.findFirst({
     where: {
       status: ConnectionStatus.ACTIVE,
@@ -114,9 +123,9 @@ async function resolveConnectionStatus(
       ],
     },
   });
-  if (active) return "ACTIVE";
+  if (active) return { status: "ACTIVE" };
 
-  const pending = await prisma.exchangeRequest.findFirst({
+  const outgoingPending = await prisma.exchangeRequest.findFirst({
     where: {
       fromUserId: viewerId,
       toUserId: targetUserId,
@@ -124,9 +133,31 @@ async function resolveConnectionStatus(
       ...(eventId ? { eventId } : {}),
     },
   });
-  if (pending) return "PENDING";
+  if (outgoingPending) {
+    return {
+      status: "PENDING",
+      pendingDirection: "sent",
+      pendingRequestId: outgoingPending.id,
+    };
+  }
 
-  return "NONE";
+  const incomingPending = await prisma.exchangeRequest.findFirst({
+    where: {
+      fromUserId: targetUserId,
+      toUserId: viewerId,
+      status: ExchangeStatus.PENDING,
+      ...(eventId ? { eventId } : {}),
+    },
+  });
+  if (incomingPending) {
+    return {
+      status: "PENDING",
+      pendingDirection: "received",
+      pendingRequestId: incomingPending.id,
+    };
+  }
+
+  return { status: "NONE" };
 }
 
 /** 参会者公开名片（无需登录；带 viewer + eventId 时返回 AI3 个性化评估） */
@@ -184,14 +215,20 @@ export async function getMobilePublicProfile(
         sharedIntents: [],
       });
     }
+    if (eventId) {
+      const honorTags = await resolveHonorTagsForViewer(viewerId, userId, eventId);
+      if (honorTags?.length) {
+        base.honor_tags = honorTags;
+      }
+    }
     return base;
   }
 
-  base.connection_status = await resolveConnectionStatus(
-    viewerId,
-    userId,
-    eventId,
-  );
+  const connection = await resolveConnectionStatus(viewerId, userId, eventId)
+
+  base.connection_status = connection.status;
+  base.pending_direction = connection.pendingDirection;
+  base.pending_request_id = connection.pendingRequestId;
 
   let sharedIntents = buildSharedIntents([], tags);
   let matchScore = computeMatchScore(sharedIntents) ?? business_score;
@@ -233,6 +270,13 @@ export async function getMobilePublicProfile(
   base.ai_scores = mapAiScores(dimensions, matchScore);
   if (matchScore > 0) {
     base.business_score = Math.max(business_score, matchScore);
+  }
+
+  if (eventId) {
+    const honorTags = await resolveHonorTagsForViewer(viewerId, userId, eventId);
+    if (honorTags?.length) {
+      base.honor_tags = honorTags;
+    }
   }
 
   return base;

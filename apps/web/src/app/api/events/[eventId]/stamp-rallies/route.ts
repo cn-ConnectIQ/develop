@@ -8,35 +8,41 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
+  deriveBoothIdsFromInput,
+  stampPointSchema,
+} from "@/lib/stamp/stamp-rally-schemas";
+import {
   createStampRally,
   listEventBoothsForRally,
   listStampRallies,
 } from "@/lib/stamp-rally-service";
 
-const boothStampSchema = z.object({
-  booth_id: z.string().min(1),
-  name: z.string().min(1).max(100),
-  icon: z.string().max(500).optional().nullable(),
-  weight: z.number().int().min(1).max(3),
-  required: z.boolean(),
-});
-
-const createSchema = z.object({
-  name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional().nullable(),
-  cover_image: z.string().optional().nullable(),
-  prize: z.string().min(1).max(500),
-  prize_image_url: z.string().optional().nullable(),
-  prize_desc: z.string().max(2000).optional().nullable(),
-  prize_quantity: z.number().int().positive().optional().nullable(),
-  required_count: z.number().int().min(1),
-  booth_ids: z.array(z.string().min(1)).min(1),
-  booth_stamps: z.array(boothStampSchema).optional(),
-  starts_at: z.string().datetime().optional().nullable(),
-  ends_at: z.string().datetime().optional().nullable(),
-  always_open: z.boolean().optional(),
-  status: z.nativeEnum(StampRallyStatus).optional(),
-});
+const createSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    description: z.string().max(2000).optional().nullable(),
+    cover_image: z.string().optional().nullable(),
+    prize: z.string().min(1).max(500),
+    prize_image_url: z.string().optional().nullable(),
+    prize_desc: z.string().max(2000).optional().nullable(),
+    prize_quantity: z.number().int().positive().optional().nullable(),
+    required_count: z.number().int().min(1),
+    booth_ids: z.array(z.string().min(1)).optional(),
+    booth_stamps: z.array(stampPointSchema).min(1).optional(),
+    starts_at: z.string().datetime().optional().nullable(),
+    ends_at: z.string().datetime().optional().nullable(),
+    always_open: z.boolean().optional(),
+    status: z.nativeEnum(StampRallyStatus).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.booth_stamps?.length && !data.booth_ids?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "请至少添加一个打卡点",
+        path: ["booth_stamps"],
+      });
+    }
+  });
 
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -73,6 +79,9 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
+  const boothStamps = parsed.data.booth_stamps;
+  const boothIds = deriveBoothIdsFromInput(boothStamps ?? [], parsed.data.booth_ids);
+
   const rally = await createStampRally(eventId, session.user.id, {
     name: parsed.data.name,
     description: parsed.data.description,
@@ -82,8 +91,8 @@ export const POST = withErrorHandler(async (request, context) => {
     prize_desc: parsed.data.prize_desc,
     prize_quantity: parsed.data.prize_quantity,
     required_count: parsed.data.required_count,
-    booth_ids: parsed.data.booth_ids,
-    booth_stamps: parsed.data.booth_stamps,
+    booth_ids: boothIds,
+    booth_stamps: boothStamps,
     starts_at: parsed.data.starts_at,
     ends_at: parsed.data.ends_at,
     always_open: parsed.data.always_open,

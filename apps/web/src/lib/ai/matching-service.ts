@@ -4,9 +4,14 @@ import {
   ConnectionStatus,
   FeedItemType,
   SignalType,
+  SystemRole,
   prisma,
 } from "@connectiq/database";
 import { parseIntentTags } from "@/lib/user-me-service";
+import {
+  getTagRecommendationWeight,
+  isStaffTagged,
+} from "@/lib/participant-tags";
 import {
   formatMatchReasons,
   type MatchReasonItem,
@@ -23,6 +28,7 @@ type UserCandidate = {
   supplyTags: Set<string>;
   demandTags: Set<string>;
   signalBoostTags: Set<string>;
+  honorWeight: number;
 };
 
 function normalizeTag(tag: string) {
@@ -97,13 +103,30 @@ async function enrichSignalsWithInference(signalIds: string[]) {
 async function loadEventCandidates(eventId: string): Promise<UserCandidate[]> {
   const participants = await prisma.participant.findMany({
     where: { eventId, checkIns: { some: { eventId } } },
-    select: { email: true, phone: true },
+    select: { email: true, phone: true, tags: true, systemRole: true },
   });
 
-  const emails = [...new Set(participants.map((p) => p.email).filter(Boolean) as string[])];
-  const phones = [...new Set(participants.map((p) => p.phone).filter(Boolean) as string[])];
+  const eligibleParticipants = participants.filter(
+    (p) => p.systemRole !== SystemRole.STAFF && !isStaffTagged(p.tags),
+  );
+
+  const emails = [
+    ...new Set(eligibleParticipants.map((p) => p.email).filter(Boolean) as string[]),
+  ];
+  const phones = [
+    ...new Set(eligibleParticipants.map((p) => p.phone).filter(Boolean) as string[]),
+  ];
 
   if (emails.length === 0 && phones.length === 0) return [];
+
+  const honorByEmail = new Map<string, number>();
+  const honorByPhone = new Map<string, number>();
+  for (const p of eligibleParticipants) {
+    const weight = getTagRecommendationWeight(p.tags);
+    if (weight === 0) continue;
+    if (p.email) honorByEmail.set(p.email.toLowerCase(), weight);
+    if (p.phone) honorByPhone.set(p.phone, weight);
+  }
 
   const users = await prisma.user.findMany({
     where: {
@@ -115,6 +138,8 @@ async function loadEventCandidates(eventId: string): Promise<UserCandidate[]> {
     select: {
       id: true,
       name: true,
+      email: true,
+      phone: true,
       profile: { select: { company: true, intentTags: true } },
     },
   });
@@ -153,6 +178,10 @@ async function loadEventCandidates(eventId: string): Promise<UserCandidate[]> {
       supplyTags,
       demandTags,
       signalBoostTags: signalTagsByUser.get(user.id) ?? new Set(),
+      honorWeight:
+        honorByEmail.get(user.email?.toLowerCase() ?? "") ??
+        honorByPhone.get(user.phone ?? "") ??
+        0,
     };
   });
 }
@@ -217,6 +246,8 @@ function scorePair(a: UserCandidate, b: UserCandidate): {
       label: "跨公司参会，存在商务合作空间",
     });
   }
+
+  score += Math.max(a.honorWeight, b.honorWeight);
 
   score = Math.min(100, score);
   return {

@@ -1,5 +1,9 @@
 import { UserRole } from "@connectiq/types";
 import type { EventFeatureFlags } from "@/lib/event-feature-flags";
+import {
+  filterItemsByActivityType,
+  resolveEventActivityKind,
+} from "@/config/event-menu-config";
 import { filterNavByFeatureFlags } from "@/lib/nav-feature-flags";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -8,7 +12,6 @@ import {
   Bot,
   CalendarDays,
   ClipboardList,
-  Eye,
   FileDown,
   Gift,
   Handshake,
@@ -30,7 +33,6 @@ import {
   Ticket,
   Trophy,
   Users,
-  UserCog,
 } from "lucide-react";
 
 export type NavItem = {
@@ -41,6 +43,8 @@ export type NavItem = {
   badgeVariant?: "default" | "danger";
   isNew?: boolean;
   external?: boolean;
+  /** FIX-02 菜单映射 key，用于按 activityType 过滤 */
+  menuKey?: string;
 };
 
 export type NavGroup = {
@@ -48,113 +52,34 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-const EXPO_ONLY_SUFFIXES = ["/exhibitors/map", "/exhibitors/form-config"];
-const MEETING_SETUP_SUFFIX = "/meetings/setup";
-const MATCHMAKING_SUFFIX = "/matchmaking";
-const MEETINGS_PREFIX = "/meetings/";
-
-function isExpoEvent(
-  eventType?: string | null,
+function filterNavByActivityType(
+  groups: NavGroup[],
   activityType?: string | null,
-): boolean {
-  return activityType === "EXPO" || eventType === "EXPO";
+  eventType?: string | null,
+): NavGroup[] {
+  const activityKind = resolveEventActivityKind(activityType, eventType);
+  return groups
+    .map((group) => ({
+      ...group,
+      items: filterItemsByActivityType(group.items, activityKind),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
-/** 统一账号 EXPO 活动：注入展会专属侧栏入口 */
-function injectExpoOrganizerItems(
-  groups: NavGroup[],
+/** 区域二 — 当前活动上下文导航（A0 子分组） */
+export function getEventNavigation(
+  role: UserRole,
   eventId: string,
   eventType?: string | null,
+  _eventName?: string | null,
+  featureFlags?: EventFeatureFlags | null,
   activityType?: string | null,
 ): NavGroup[] {
-  if (!isExpoEvent(eventType, activityType)) return groups;
-
-  return groups.map((group) => {
-    if (group.label === "展商管理") {
-    const extra: NavItem[] = [
-      {
-        label: "展会配置",
-        href: `/events/${eventId}/expo-settings`,
-        icon: Settings,
-        isNew: true,
-      },
-      {
-        label: "展商列表",
-        href: `/events/${eventId}/exhibitors/booths`,
-        icon: Store,
-      },
-      {
-        label: "全场线索",
-        href: `/events/${eventId}/admin-leads`,
-        icon: ClipboardList,
-        isNew: true,
-      },
-      {
-        label: "意向标签",
-        href: `/events/${eventId}/intent-tags`,
-        icon: Tag,
-      },
-    ];
-    const existingHrefs = new Set(group.items.map((item) => item.href));
-    const merged = [
-      ...extra.filter((item) => !existingHrefs.has(item.href)),
-      ...group.items,
-    ];
-    return { ...group, items: merged };
-    }
-
-    if (group.label === "现场执行") {
-      const scanItem: NavItem = {
-        label: "扫码核验",
-        href: `/events/${eventId}/scan`,
-        icon: ScanLine,
-        isNew: true,
-      };
-      if (group.items.some((item) => item.href === scanItem.href)) return group;
-      return { ...group, items: [scanItem, ...group.items] };
-    }
-
-    return group;
-  });
-}
-
-function filterExpoItems(
-  groups: NavGroup[],
-  eventType?: string | null,
-  activityType?: string | null,
-): NavGroup[] {
-  const isConferenceContext =
-    activityType === "CONFERENCE" ||
-    (!activityType && eventType === "CONFERENCE");
-  if (!isConferenceContext) return groups;
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter(
-        (item) =>
-          !EXPO_ONLY_SUFFIXES.some((suffix) => item.href.includes(suffix)),
-      ),
-    }))
-    .filter((group) => group.items.length > 0);
-}
-
-/** 参展（EXHIBITION）活动不展示会面桌调度配置 */
-function filterExhibitionItems(
-  groups: NavGroup[],
-  activityType?: string | null,
-): NavGroup[] {
-  if (activityType !== "EXHIBITION") return groups;
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter(
-        (item) =>
-          !item.href.includes(MEETING_SETUP_SUFFIX) &&
-          !item.href.includes(MATCHMAKING_SUFFIX) &&
-          !item.href.includes(MEETINGS_PREFIX),
-      ),
-    }))
-    .filter((group) => group.items.length > 0);
+  const groups = getEventNavigationGroups(role, eventId, eventType, activityType);
+  return filterNavByFeatureFlags(
+    filterNavByActivityType(groups, activityType, eventType),
+    featureFlags,
+  );
 }
 
 export function shortenEventName(name: string, max = 10) {
@@ -236,22 +161,6 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
   return [];
 }
 
-/** 区域二 — 当前活动上下文导航（A0 子分组） */
-export function getEventNavigation(
-  role: UserRole,
-  eventId: string,
-  eventType?: string | null,
-  _eventName?: string | null,
-  featureFlags?: EventFeatureFlags | null,
-  activityType?: string | null,
-): NavGroup[] {
-  const groups = getEventNavigationGroups(role, eventId, eventType, activityType);
-  return filterNavByFeatureFlags(
-    injectExpoOrganizerItems(groups, eventId, eventType, activityType),
-    featureFlags,
-  );
-}
-
 function getEventNavigationGroups(
   role: UserRole,
   eventId: string,
@@ -261,9 +170,7 @@ function getEventNavigationGroups(
   switch (role) {
     case UserRole.PLATFORM_ADMIN:
     case UserRole.ORGANIZER:
-      return filterExhibitionItems(
-        filterExpoItems(
-        [
+      return [
           {
             label: "活动设置",
             items: [
@@ -321,29 +228,34 @@ function getEventNavigationGroups(
                 href: `/events/${eventId}/matchmaking`,
                 icon: Route,
                 isNew: true,
+                menuKey: "premeet",
               },
               {
                 label: "意图采集结果",
                 href: `/events/${eventId}/matchmaking/responses`,
                 icon: ClipboardList,
                 isNew: true,
+                menuKey: "intent-results",
               },
               {
                 label: "邀请管理",
-                href: `/events/${eventId}/invite-campaigns`,
+                href: `/events/${eventId}/invite`,
                 icon: Send,
+                menuKey: "invite",
               },
               {
                 label: "会面配置",
                 href: `/events/${eventId}/meetings/setup`,
                 icon: CalendarDays,
                 isNew: true,
+                menuKey: "meeting-config",
               },
               {
                 label: "会面调度",
                 href: `/events/${eventId}/meetings/schedule`,
                 icon: LayoutGrid,
                 isNew: true,
+                menuKey: "meeting-schedule",
               },
             ],
           },
@@ -351,47 +263,79 @@ function getEventNavigationGroups(
             label: "展商管理",
             items: [
               {
+                label: "展会配置",
+                href: `/events/${eventId}/expo-settings`,
+                icon: Settings,
+                isNew: true,
+                menuKey: "expo-config",
+              },
+              {
+                label: "展商列表",
+                href: `/events/${eventId}/exhibitors/booths`,
+                icon: Store,
+                menuKey: "exhibitor-list",
+              },
+              {
+                label: "全场线索",
+                href: `/events/${eventId}/admin-leads`,
+                icon: ClipboardList,
+                isNew: true,
+                menuKey: "all-leads",
+              },
+              {
                 label: "展位地图",
                 href: `/events/${eventId}/exhibitors/map`,
                 icon: Map,
+                menuKey: "booth-map",
               },
-            {
-              label: "采集表单",
-              href: `/events/${eventId}/exhibitors/form-config`,
-              icon: Store,
-            },
-            {
-              label: "MarketUP 同步",
-              href: `/events/${eventId}/marketup-sync`,
-              icon: Sparkles,
-              isNew: true,
-            },
-            {
-              label: "高价值买家推送",
-              href: `/events/${eventId}/high-value-buyer-push`,
-              icon: Bell,
-              isNew: true,
-            },
-          ],
-        },
-        {
-          label: "互动管理",
+              {
+                label: "意向标签",
+                href: `/events/${eventId}/intent-tags`,
+                icon: Tag,
+                menuKey: "intent-tags",
+              },
+              {
+                label: "采集表单",
+                href: `/events/${eventId}/exhibitors/form-config`,
+                icon: Store,
+                menuKey: "lead-form",
+              },
+              {
+                label: "MarketUP 同步",
+                href: `/events/${eventId}/marketup-sync`,
+                icon: Sparkles,
+                isNew: true,
+                menuKey: "marketup-sync",
+              },
+              {
+                label: "高价值买家推送",
+                href: `/events/${eventId}/high-value-buyer-push`,
+                icon: Bell,
+                isNew: true,
+              },
+            ],
+          },
+          {
+            label: "互动管理",
             items: [
               {
                 label: "互动管理",
                 href: `/events/${eventId}/interactions`,
                 icon: MessageSquare,
+                menuKey: "interaction",
               },
               {
                 label: "现场抽奖",
                 href: `/events/${eventId}/lottery`,
                 icon: Gift,
+                menuKey: "lottery",
               },
               {
                 label: "集章打卡",
                 href: `/events/${eventId}/stamp-rally`,
                 icon: Trophy,
                 isNew: true,
+                menuKey: "stamp-rally",
               },
               {
                 label: "展位人气榜",
@@ -470,25 +414,13 @@ function getEventNavigationGroups(
               },
             ],
           },
-        ].filter((group) => group.items.length > 0),
-        eventType,
-        activityType,
-      ),
-        activityType,
-      );
+        ].filter((group) => group.items.length > 0);
 
     case UserRole.EXPO_ORGANIZER:
-      return filterExhibitionItems(
-        filterExpoItems(
-          getEventNavigationGroups(
-            UserRole.ORGANIZER,
-            eventId,
-            eventType ?? "EXPO",
-            activityType ?? "EXPO",
-          ),
-          eventType ?? "EXPO",
-          activityType ?? "EXPO",
-        ),
+      return getEventNavigationGroups(
+        UserRole.ORGANIZER,
+        eventId,
+        eventType ?? "EXPO",
         activityType ?? "EXPO",
       );
 

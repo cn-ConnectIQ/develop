@@ -8,17 +8,13 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
+  deriveBoothIdsFromInput,
+  stampPointSchema,
+} from "@/lib/stamp/stamp-rally-schemas";
+import {
   getStampRally,
   updateStampRally,
 } from "@/lib/stamp-rally-service";
-
-const boothStampSchema = z.object({
-  booth_id: z.string().min(1),
-  name: z.string().min(1).max(100),
-  icon: z.string().max(500).optional().nullable(),
-  weight: z.number().int().min(1).max(3),
-  required: z.boolean(),
-});
 
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -29,8 +25,8 @@ const patchSchema = z.object({
   prize_desc: z.string().max(2000).optional().nullable(),
   prize_quantity: z.number().int().positive().optional().nullable(),
   required_count: z.number().int().min(1).optional(),
-  booth_ids: z.array(z.string().min(1)).min(1).optional(),
-  booth_stamps: z.array(boothStampSchema).optional(),
+  booth_ids: z.array(z.string().min(1)).optional(),
+  booth_stamps: z.array(stampPointSchema).min(1).optional(),
   starts_at: z.string().datetime().optional().nullable(),
   ends_at: z.string().datetime().optional().nullable(),
   always_open: z.boolean().optional(),
@@ -71,6 +67,16 @@ export const PATCH = withErrorHandler(async (request, context) => {
     );
   }
 
-  const rally = await updateStampRally(eventId, rallyId, parsed.data);
+  const boothStamps = parsed.data.booth_stamps;
+  const boothIds =
+    boothStamps || parsed.data.booth_ids
+      ? deriveBoothIdsFromInput(boothStamps ?? [], parsed.data.booth_ids)
+      : undefined;
+
+  const rally = await updateStampRally(eventId, rallyId, {
+    ...parsed.data,
+    booth_ids: boothIds,
+    booth_stamps: boothStamps,
+  });
   return createSuccessResponse(rally);
 });

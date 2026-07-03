@@ -27,6 +27,8 @@ export type RecallCandidate = {
   supplyTags: string[];
   demandTags: string[];
   topics: string[];
+  /** 主办方标记的身份标签（VIP / Speaker 等），用于精排权重加成 */
+  honorTags: string[];
   dimensions: MatchDimensionHit[];
   /** 召回阶段预排序：命中维度数 / 语义相似度加权 */
   recallScore: number;
@@ -61,6 +63,7 @@ export type PeerIntentProfile = {
   supplyTags: string[];
   demandTags: string[];
   topics: string[];
+  honorTags: string[];
   checkedIn: boolean;
   hasSignals: boolean;
 };

@@ -8,11 +8,17 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { maybeTriggerReferralScanOnCheckin } from "@/lib/ai/referral-scanner";
+import {
+  mergeParticipantTags,
+  normalizeParticipantTags,
+} from "@/lib/participant-tags";
 
 const batchSchema = z.object({
-  action: z.enum(["check_in", "update_ticket", "delete"]),
+  action: z.enum(["check_in", "update_ticket", "update_tags", "delete"]),
   participantIds: z.array(z.string()).min(1),
   ticketTypeId: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+  addTags: z.array(z.string()).optional(),
 });
 
 export const POST = withErrorHandler(async (request, context) => {
@@ -28,7 +34,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数错误", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { action, participantIds, ticketTypeId } = parsed.data;
+  const { action, participantIds, ticketTypeId, tags, addTags } = parsed.data;
   let affected = 0;
 
   if (action === "delete") {
@@ -36,6 +42,29 @@ export const POST = withErrorHandler(async (request, context) => {
       where: { eventId, id: { in: participantIds } },
     });
     return createSuccessResponse({ affected: result.count });
+  }
+
+  if (action === "update_tags") {
+    const normalizedSet = tags ? normalizeParticipantTags(tags) : null;
+    const normalizedAdd = addTags ? normalizeParticipantTags(addTags) : [];
+
+    const participants = await prisma.participant.findMany({
+      where: { eventId, id: { in: participantIds } },
+      select: { id: true, tags: true },
+    });
+
+    for (const p of participants) {
+      const nextTags = normalizedSet
+        ? normalizedSet
+        : mergeParticipantTags(p.tags, normalizedAdd);
+      await prisma.participant.update({
+        where: { id: p.id },
+        data: { tags: nextTags },
+      });
+      affected++;
+    }
+
+    return createSuccessResponse({ affected });
   }
 
   const participants = await prisma.participant.findMany({

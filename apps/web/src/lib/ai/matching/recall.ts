@@ -1,6 +1,7 @@
 import {
   ConnectionStatus,
   ExchangeStatus,
+  SystemRole,
   prisma,
 } from "@connectiq/database";
 import {
@@ -161,6 +162,73 @@ async function loadExcludedUserIds(userId: string, eventId: string) {
   return excluded;
 }
 
+/** 现场工作人员（system_role=STAFF）不参与任何人的推荐候选池 */
+async function loadStaffExcludedUserIds(eventId: string): Promise<Set<string>> {
+  const staffParticipants = await prisma.participant.findMany({
+    where: { eventId, systemRole: SystemRole.STAFF },
+    select: { email: true, phone: true },
+  });
+
+  if (staffParticipants.length === 0) return new Set();
+
+  const emails = [
+    ...new Set(staffParticipants.map((p) => p.email).filter(Boolean) as string[]),
+  ];
+  const phones = [
+    ...new Set(staffParticipants.map((p) => p.phone).filter(Boolean) as string[]),
+  ];
+
+  if (emails.length === 0 && phones.length === 0) return new Set();
+
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [
+        ...(emails.length ? [{ email: { in: emails } }] : []),
+        ...(phones.length ? [{ phone: { in: phones } }] : []),
+      ],
+    },
+    select: { id: true },
+  });
+
+  return new Set(users.map((u) => u.id));
+}
+
+type ParticipantLink = {
+  participantId: string;
+  systemRole: SystemRole;
+  honorTags: string[];
+};
+
+function linkParticipantsToUsers(
+  participants: Array<{
+    id: string;
+    email: string | null;
+    phone: string | null;
+    systemRole: SystemRole;
+    tags: string[];
+  }>,
+  users: Array<{ id: string; email: string | null; phone: string | null }>,
+): Map<string, ParticipantLink> {
+  const byUserId = new Map<string, ParticipantLink>();
+
+  for (const p of participants) {
+    for (const u of users) {
+      const matched =
+        (p.email && u.email && p.email === u.email) ||
+        (p.phone && u.phone && p.phone === u.phone);
+      if (!matched) continue;
+
+      byUserId.set(u.id, {
+        participantId: p.id,
+        systemRole: p.systemRole,
+        honorTags: p.tags,
+      });
+    }
+  }
+
+  return byUserId;
+}
+
 async function loadViewerProfile(
   userId: string,
   eventId: string,
@@ -230,7 +298,13 @@ async function loadPeerProfiles(
   const [participants, checkIns, signalCounts] = await Promise.all([
     prisma.participant.findMany({
       where: { eventId },
-      select: { id: true, email: true, phone: true },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        systemRole: true,
+        tags: true,
+      },
     }),
     prisma.checkIn.findMany({
       where: { eventId },
@@ -253,20 +327,16 @@ async function loadPeerProfiles(
     signalCounts.map((s) => [s.userId, s._count._all > 0]),
   );
 
-  const participantByUserId = new Map<string, string>();
-  for (const p of participants) {
-    for (const u of users) {
-      if (
-        (p.email && u.email && p.email === u.email) ||
-        (p.phone && u.phone && p.phone === u.phone)
-      ) {
-        participantByUserId.set(u.id, p.id);
-      }
-    }
-  }
+  const participantByUserId = linkParticipantsToUsers(participants, users);
 
-  return intents.map((intent) => {
-    const participantId = participantByUserId.get(intent.userId);
+  return intents
+    .filter((intent) => {
+      const link = participantByUserId.get(intent.userId);
+      return link?.systemRole !== SystemRole.STAFF;
+    })
+    .map((intent) => {
+    const link = participantByUserId.get(intent.userId);
+    const participantId = link?.participantId;
     const checkedIn = participantId
       ? checkedInParticipantIds.has(participantId)
       : false;
@@ -281,6 +351,7 @@ async function loadPeerProfiles(
       supplyTags: intent.supplyTags,
       demandTags: intent.demandTags,
       topics: intent.topics,
+      honorTags: link?.honorTags ?? [],
       checkedIn,
       hasSignals: signalByUser.get(intent.userId) ?? false,
     };
@@ -341,6 +412,7 @@ function peerToRecallCandidate(
     supplyTags: peer.supplyTags,
     demandTags: peer.demandTags,
     topics: peer.topics,
+    honorTags: peer.honorTags,
     dimensions,
     recallScore,
     semanticSimilarity,
@@ -365,6 +437,9 @@ export async function vectorRecall(
   if (!viewerEmbedding) return [];
 
   const excluded = await loadExcludedUserIds(userId, eventId);
+  for (const staffUserId of await loadStaffExcludedUserIds(eventId)) {
+    excluded.add(staffUserId);
+  }
   const hits = await querySimilarIntentEmbeddings(
     userId,
     eventId,
@@ -445,6 +520,9 @@ export async function recallCandidates(
   if (!viewer) return [];
 
   const excluded = await loadExcludedUserIds(userId, eventId);
+  for (const staffUserId of await loadStaffExcludedUserIds(eventId)) {
+    excluded.add(staffUserId);
+  }
   const peers = await loadPeerProfiles(eventId, excluded);
 
   const ruleCandidates: RecallCandidate[] = [];
@@ -492,4 +570,4 @@ export async function recallCandidates(
   return result;
 }
 
-export { buildDimensionHits, loadViewerProfile, loadExcludedUserIds };
+export { buildDimensionHits, loadViewerProfile, loadExcludedUserIds, loadPeerProfiles, loadStaffExcludedUserIds };

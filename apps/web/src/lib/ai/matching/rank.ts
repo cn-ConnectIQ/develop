@@ -45,6 +45,26 @@ const DIMENSION_REASON_TYPE: Record<
   semantic_similarity: "semantic",
 };
 
+/** 身份标签对精排得分的加成（自定义标签默认 0） */
+const TAG_WEIGHT_BONUS: Record<string, number> = {
+  VIP: 2,
+  Speaker: 1,
+  Sponsor: 1,
+  Investor: 1,
+  Media: 0,
+};
+
+function computeTagWeightBonus(honorTags: string[]): number {
+  let bonus = 0;
+  for (const tag of honorTags) {
+    const key = Object.keys(TAG_WEIGHT_BONUS).find(
+      (preset) => preset.toLowerCase() === tag.trim().toLowerCase(),
+    );
+    if (key) bonus += TAG_WEIGHT_BONUS[key] ?? 0;
+  }
+  return bonus;
+}
+
 function scoreCandidate(
   candidate: RecallCandidate,
   weights: MatchingWeights,
@@ -70,6 +90,15 @@ function scoreCandidate(
     const weightKey = DIMENSION_WEIGHT_KEY[dimension];
     if (!weightKey) continue;
     score += weights[weightKey] * count;
+  }
+
+  const tagBonus = computeTagWeightBonus(candidate.honorTags);
+  if (tagBonus > 0) {
+    score += tagBonus;
+    matchReasons.push({
+      type: "signal",
+      label: `身份标签加权 +${tagBonus}`,
+    });
   }
 
   score = Math.min(100, Math.round(score));

@@ -14,9 +14,20 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
+import {
+  PRESET_PARTICIPANT_TAGS,
+  getTagLabel,
+  participantHasTag,
+} from "@/lib/participant-tags";
 import {
   CreateCampaignSheet,
   useEventDateLabel,
@@ -63,6 +74,7 @@ async function fetchParticipants(
   eventId: string,
   search: string,
   status: StatusFilter,
+  tagFilters: string[],
 ) {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
@@ -70,7 +82,9 @@ async function fetchParticipants(
     params.set("status", status);
   }
   if (status === "vip" || status === "speaker") {
-    params.set("role", status);
+    params.set("tag", status === "vip" ? "VIP" : "Speaker");
+  } else if (tagFilters.length > 0) {
+    params.set("tags", tagFilters.join(","));
   }
   if (status === "not_invited") {
     params.set("invite_status", "not_invited");
@@ -103,6 +117,8 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   const [bulkInviteIds, setBulkInviteIds] = useState<string[] | undefined>();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
 
   useEffect(() => {
     const fromUrl = searchParams.get("status") as StatusFilter | null;
@@ -115,8 +131,9 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
   }, [search]);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["participants", eventId, debouncedSearch, status],
-    queryFn: () => fetchParticipants(eventId, debouncedSearch, status),
+    queryKey: ["participants", eventId, debouncedSearch, status, tagFilters],
+    queryFn: () =>
+      fetchParticipants(eventId, debouncedSearch, status, tagFilters),
   });
 
   const handleCheckIn = useCallback(
@@ -201,10 +218,10 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           <h1 className="text-xl font-bold text-[var(--admin-ink)]">名单管理</h1>
           {showInviteSystem && (
             <Link
-              href={`/events/${eventId}/invite-campaigns`}
+              href={`/events/${eventId}/invite`}
               className="mt-1 inline-block text-xs text-brand-blue hover:underline"
             >
-              查看邀请记录 →
+              邀请管理 →
             </Link>
           )}
         </div>
@@ -297,6 +314,66 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <Popover open={tagFilterOpen} onOpenChange={setTagFilterOpen}>
+            <PopoverTrigger
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "h-8",
+                tagFilters.length > 0 && "border-brand-blue text-brand-blue",
+              )}
+            >
+              <Filter className="mr-1 size-3.5" />
+              身份标签
+              {tagFilters.length > 0 ? `（${tagFilters.length}）` : ""}
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56">
+              <p className="mb-2 text-xs font-medium text-text-muted">
+                筛选身份标签（满足任一即可）
+              </p>
+              <div className="space-y-2">
+                {PRESET_PARTICIPANT_TAGS.map((tag) => (
+                  <label
+                    key={tag}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={tagFilters.some((t) =>
+                        participantHasTag([t], tag),
+                      )}
+                      onCheckedChange={(checked) => {
+                        setTagFilters((prev) => {
+                          if (checked) {
+                            return prev.some((t) =>
+                              participantHasTag([t], tag),
+                            )
+                              ? prev
+                              : [...prev, tag];
+                          }
+                          return prev.filter(
+                            (t) => !participantHasTag([t], tag),
+                          );
+                        });
+                        if (status === "vip" || status === "speaker") {
+                          setStatus("all");
+                        }
+                      }}
+                    />
+                    {getTagLabel(tag)}
+                  </label>
+                ))}
+              </div>
+              {tagFilters.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-3 h-7 w-full text-xs"
+                  onClick={() => setTagFilters([])}
+                >
+                  清除标签筛选
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
           <Button
             variant="outline"
             size="sm"
@@ -304,7 +381,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
             onClick={() => setShowAdvanced((v) => !v)}
           >
             <Filter className="mr-1 size-3.5" />
-            筛选 ▾
+            更多 ▾
           </Button>
           {showAdvanced && (
             <select

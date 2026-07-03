@@ -15,6 +15,7 @@ import { getOrGenerateMatchBrief } from "@/lib/ai/match-brief-service";
 import type { MatchDimensionHit } from "@/lib/ai/matching/types";
 import { parseIntentTags, type ApiProfileIntentTag } from "@/lib/user-me-service";
 import { recordSignal } from "@/lib/signals";
+import { resolveHonorTagsForViewer } from "@/lib/participant-honor-tags-visibility";
 import { MatchFeedbackSignal, trackMatchFeedback } from "@/lib/ai/matching/match-feedback-service";
 
 const CONNECT_CARD_PROFILE_SELECT = {
@@ -50,6 +51,8 @@ export type ApiConnectCard = {
   briefCached?: boolean;
   sharedIntents: SharedIntentItem[];
   connectionStatus: "NONE" | "PENDING" | "ACTIVE";
+  pendingDirection?: "sent" | "received";
+  pendingRequestId?: string;
   canExchange: boolean;
   hasWechatQr: boolean;
   autoAcceptAtEvent: boolean;
@@ -57,6 +60,8 @@ export type ApiConnectCard = {
   peerPhone?: string;
   peerEmail?: string;
   peerWechatId?: string;
+  /** 身份标签（VIP/Speaker 等，按活动配置与查看者权限返回） */
+  honorTags?: string[];
 };
 
 export type ExchangeCardInfo = {
@@ -196,7 +201,11 @@ async function resolveConnectionStatus(
   viewerId: string,
   targetUserId: string,
   eventId?: string,
-): Promise<"NONE" | "PENDING" | "ACTIVE"> {
+): Promise<{
+  status: "NONE" | "PENDING" | "ACTIVE";
+  pendingDirection?: "sent" | "received";
+  pendingRequestId?: string;
+}> {
   const active = await prisma.businessConnection.findFirst({
     where: {
       status: ConnectionStatus.ACTIVE,
@@ -207,9 +216,9 @@ async function resolveConnectionStatus(
       ],
     },
   });
-  if (active) return "ACTIVE";
+  if (active) return { status: "ACTIVE" };
 
-  const pending = await prisma.exchangeRequest.findFirst({
+  const outgoingPending = await prisma.exchangeRequest.findFirst({
     where: {
       fromUserId: viewerId,
       toUserId: targetUserId,
@@ -217,9 +226,31 @@ async function resolveConnectionStatus(
       ...(eventId ? { eventId } : {}),
     },
   });
-  if (pending) return "PENDING";
+  if (outgoingPending) {
+    return {
+      status: "PENDING",
+      pendingDirection: "sent",
+      pendingRequestId: outgoingPending.id,
+    };
+  }
 
-  return "NONE";
+  const incomingPending = await prisma.exchangeRequest.findFirst({
+    where: {
+      fromUserId: targetUserId,
+      toUserId: viewerId,
+      status: ExchangeStatus.PENDING,
+      ...(eventId ? { eventId } : {}),
+    },
+  });
+  if (incomingPending) {
+    return {
+      status: "PENDING",
+      pendingDirection: "received",
+      pendingRequestId: incomingPending.id,
+    };
+  }
+
+  return { status: "NONE" };
 }
 
 export async function fetchConnectCard(
@@ -387,13 +418,13 @@ async function fetchConnectCardCore(
     }
   }
 
-  const connectionStatus = await resolveConnectionStatus(
+  const connection = await resolveConnectionStatus(
     viewerId,
     targetUserId,
     eventId,
   ).catch((error) => {
     console.warn("[connect-card] connection status skipped:", error);
-    return "NONE" as const;
+    return { status: "NONE" as const };
   });
 
   const canExchange = card.allow_exchange !== false;
@@ -415,17 +446,30 @@ async function fetchConnectCardCore(
     matchDimensions,
     briefCached,
     sharedIntents,
-    connectionStatus,
+    connectionStatus: connection.status,
+    pendingDirection: connection.pendingDirection,
+    pendingRequestId: connection.pendingRequestId,
     canExchange,
     hasWechatQr,
     autoAcceptAtEvent: card.auto_accept_at_event === true,
   };
 
-  if (connectionStatus === "ACTIVE" && card.wechat_qr_url) {
+  if (connection.status === "ACTIVE" && card.wechat_qr_url) {
     result.peerWechatQrUrl = card.wechat_qr_url;
     if (card.show_phone && target.phone) result.peerPhone = target.phone;
     if (card.show_email && card.email) result.peerEmail = card.email;
     if (card.wechat_id) result.peerWechatId = card.wechat_id;
+  }
+
+  if (eventId) {
+    const honorTags = await resolveHonorTagsForViewer(
+      viewerId,
+      targetUserId,
+      eventId,
+    );
+    if (honorTags?.length) {
+      result.honorTags = honorTags;
+    }
   }
 
   if (eventId) {

@@ -275,6 +275,7 @@ export type SuccessMeta = {
   checkedIn?: number;
   pending?: number;
   vip?: number;
+  speaker?: number;
   activated?: number;
   invited?: number;
   notInvited?: number;

@@ -13,7 +13,10 @@ export type ParticipantListItem = {
   phone: string | null;
   company: string | null;
   jobTitle: string | null;
-  role: ParticipantRole;
+  role: import("@connectiq/database").ParticipantRole;
+  systemRole: import("@connectiq/database").SystemRole;
+  source: import("@connectiq/database").ParticipantSource;
+  tags: string[];
   badgeQr: string | null;
   createdAt: string;
   ticketType: string | null;
@@ -41,6 +44,7 @@ export type ImportRow = {
   email?: string;
   company?: string;
   jobTitle?: string;
+  tags?: string[];
 };
 
 export const IMPORT_HEADER_ALIASES: Record<ImportSystemFieldKey, string[]> = {
@@ -51,9 +55,17 @@ export const IMPORT_HEADER_ALIASES: Record<ImportSystemFieldKey, string[]> = {
   jobTitle: ["职位", "jobTitle", "title", "Title", "职务", "岗位"],
 };
 
+export const IMPORT_TAG_HEADER_ALIASES = [
+  "标签",
+  "tags",
+  "Tags",
+  "身份标签",
+  "身份",
+];
+
 export function guessFieldMapping(
   fileHeaders: string[],
-): Record<ImportSystemFieldKey, string | null> {
+): Record<ImportSystemFieldKey, string | null> & { tags: string | null } {
   const mapping = {} as Record<ImportSystemFieldKey, string | null>;
   for (const field of IMPORT_SYSTEM_FIELDS) {
     const alias = IMPORT_HEADER_ALIASES[field.key].find((h) =>
@@ -61,12 +73,19 @@ export function guessFieldMapping(
     );
     mapping[field.key] = alias ?? null;
   }
-  return mapping;
+  const tagsAlias = IMPORT_TAG_HEADER_ALIASES.find((h) =>
+    fileHeaders.includes(h),
+  );
+  return { ...mapping, tags: tagsAlias ?? null };
 }
+
+import { parseTagsFromCell } from "@/lib/participant-tags";
 
 export function mapRowsWithFields(
   rawRows: Record<string, string>[],
-  mapping: Record<ImportSystemFieldKey, string | null>,
+  mapping: Record<ImportSystemFieldKey, string | null> & {
+    tags?: string | null;
+  },
 ): ImportRow[] {
   return rawRows
     .map((row) => ({
@@ -75,10 +94,11 @@ export function mapRowsWithFields(
       email: mapping.email ? row[mapping.email]?.trim() : undefined,
       company: mapping.company ? row[mapping.company]?.trim() : undefined,
       jobTitle: mapping.jobTitle ? row[mapping.jobTitle]?.trim() : undefined,
+      tags: mapping.tags ? parseTagsFromCell(row[mapping.tags]) : undefined,
     }))
     .filter((r) => r.name);
 }
 
 export function buildImportTemplateCsv(): string {
-  return "姓名,手机,邮箱,公司,职位\n张三,13900000001,zhang@example.com,未来科技,产品总监\n";
+  return "姓名,手机,邮箱,公司,职位,标签\n张三,13900000001,zhang@example.com,未来科技,产品总监,VIP\n";
 }

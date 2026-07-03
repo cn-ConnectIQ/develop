@@ -2,13 +2,17 @@ import { IntentCategory, IntentTagPool, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 
-function slugify(label: string) {
+export function slugifyIntentTagLabel(label: string) {
   return label
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9\u4e00-\u9fff-]/g, "")
     .slice(0, 48) || `tag-${Date.now().toString(36)}`;
+}
+
+function slugify(label: string) {
+  return slugifyIntentTagLabel(label);
 }
 
 export async function listPlatformIntentTags() {

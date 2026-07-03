@@ -5,14 +5,21 @@ import {
   createErrorResponse,
   createSuccessResponse,
   requireEventAccess,
+  requireEventAccessCheck,
   withErrorHandler,
+  ApiError,
 } from "@/lib/api-auth";
 import {
   copyPlatformTagsToEvent,
   createIntentTag,
-  listEventIntentTags,
   syncEventIntentTags,
 } from "@/lib/intent-tag-service";
+import {
+  getEventIntentTagLibrary,
+  saveEventIntentTagLibrary,
+} from "@/lib/intent-tag-library";
+import { resolveMobileUserId } from "@/lib/mobile-user-id";
+import { prisma } from "@connectiq/database";
 
 const createSchema = z.object({
   label: z.string().min(1).max(80),
@@ -26,6 +33,13 @@ const createSchema = z.object({
 const copySchema = z.object({
   action: z.literal("copy_platform"),
   tagIds: z.array(z.string()).optional(),
+});
+
+const bulkSaveSchema = z.object({
+  supply: z.array(z.string().max(80)).max(100),
+  demand: z.array(z.string().max(80)).max(100),
+  roles: z.array(z.string().max(80)).max(30),
+  topics: z.array(z.string().max(80)).max(100),
 });
 
 const patchSchema = z.object({
@@ -44,14 +58,34 @@ const patchSchema = z.object({
   delete_ids: z.array(z.string()).optional(),
 });
 
-export const GET = withErrorHandler(async (_request, context) => {
+async function assertIntentTagLibraryReadAccess(
+  request: Request,
+  eventId: string,
+) {
+  const organizer = await requireEventAccessCheck(eventId);
+  if (!("error" in organizer)) return;
+
+  await resolveMobileUserId(request);
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true },
+  });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+}
+
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
-  await requireEventAccess(eventId);
-  const tags = await listEventIntentTags(eventId);
-  return createSuccessResponse({ tags });
+
+  await assertIntentTagLibraryReadAccess(request, eventId);
+
+  const library = await getEventIntentTagLibrary(eventId);
+  return createSuccessResponse(library);
 });
 
 export const POST = withErrorHandler(async (request, context) => {
@@ -62,6 +96,13 @@ export const POST = withErrorHandler(async (request, context) => {
   await requireEventAccess(eventId);
 
   const body = await request.json();
+
+  const bulkParsed = bulkSaveSchema.safeParse(body);
+  if (bulkParsed.success) {
+    const library = await saveEventIntentTagLibrary(eventId, bulkParsed.data);
+    return createSuccessResponse(library);
+  }
+
   const copyParsed = copySchema.safeParse(body);
   if (copyParsed.success) {
     const result = await copyPlatformTagsToEvent(
@@ -104,7 +145,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("无有效更新", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const tags = await syncEventIntentTags(eventId, {
+  await syncEventIntentTags(eventId, {
     upsert: (parsed.data.upsert ?? []).map((t) => ({
       id: t.id,
       label: t.label,
@@ -115,5 +156,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     })),
     delete_ids: parsed.data.delete_ids,
   });
-  return createSuccessResponse({ tags });
+
+  const library = await getEventIntentTagLibrary(eventId);
+  return createSuccessResponse(library);
 });

@@ -3,9 +3,11 @@ import { ROLE_COMPLEMENT_PAIRS } from "@/lib/ai/matching/config";
 import {
   buildDimensionHits,
   loadExcludedUserIds,
+  loadPeerProfiles,
+  loadStaffExcludedUserIds,
   loadViewerProfile,
 } from "@/lib/ai/matching/recall";
-import type { PeerIntentProfile, RecallCandidate } from "@/lib/ai/matching/types";
+import type { RecallCandidate } from "@/lib/ai/matching/types";
 import {
   REALTIME_PRESENCE_WINDOW_MS,
   extractRealtimeTopics,
@@ -99,50 +101,6 @@ function boothSearchText(booth: BoothRow): string {
   ]
     .join(" ")
     .toLowerCase();
-}
-
-async function loadPeerProfilesForEvent(
-  eventId: string,
-  excluded: Set<string>,
-): Promise<PeerIntentProfile[]> {
-  const intents = await prisma.userEventIntent.findMany({
-    where: { eventId, userId: { notIn: [...excluded] } },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          profile: { select: { company: true, industry: true } },
-        },
-      },
-    },
-  });
-
-  if (intents.length === 0) return [];
-
-  const userIds = intents.map((i) => i.userId);
-  const signalCounts = await prisma.boothVisitSignal.groupBy({
-    by: ["userId"],
-    where: { eventId, userId: { in: userIds } },
-    _count: { _all: true },
-  });
-  const signalByUser = new Map(
-    signalCounts.map((s) => [s.userId, s._count._all > 0]),
-  );
-
-  return intents.map((intent) => ({
-    userId: intent.userId,
-    name: intent.user.name,
-    company: intent.user.profile?.company ?? null,
-    role: intent.role,
-    industry: intent.industry ?? intent.user.profile?.industry ?? null,
-    region: intent.region,
-    supplyTags: intent.supplyTags,
-    demandTags: intent.demandTags,
-    topics: intent.topics,
-    checkedIn: true,
-    hasSignals: signalByUser.get(intent.userId) ?? false,
-  }));
 }
 
 async function countTargetCustomersAtBooth(
@@ -461,7 +419,7 @@ async function findPeopleRecommendations(
     topics: [...new Set(augmentedTopics)],
   };
 
-  const peers = await loadPeerProfilesForEvent(eventId, excluded);
+  const peers = await loadPeerProfiles(eventId, excluded);
   const sharedInterest = await findPeopleWithSharedRealtimeInterest(
     eventId,
     viewerId,
@@ -489,6 +447,7 @@ async function findPeopleRecommendations(
       supplyTags: peer.supplyTags,
       demandTags: peer.demandTags,
       topics: peer.topics,
+      honorTags: peer.honorTags,
       dimensions,
       recallScore: dimensions.length + (shared ? 2 : 0),
     });
@@ -566,7 +525,7 @@ export async function getRealtimeRecommendations(
   const peopleLimit = options?.peopleLimit ?? DEFAULT_REALTIME_PEOPLE_LIMIT;
   const boothLimit = options?.boothLimit ?? DEFAULT_REALTIME_BOOTH_LIMIT;
 
-  const [viewerIntent, excluded, realtimeTopics] = await Promise.all([
+  const [viewerIntent, excludedBase, realtimeTopics] = await Promise.all([
     prisma.userEventIntent.findUnique({
       where: { userId_eventId: { userId: viewerId, eventId } },
       select: {
@@ -579,6 +538,11 @@ export async function getRealtimeRecommendations(
     loadExcludedUserIds(viewerId, eventId),
     extractRealtimeTopics(viewerId, eventId),
   ]);
+
+  const excluded = new Set(excludedBase);
+  for (const staffUserId of await loadStaffExcludedUserIds(eventId)) {
+    excluded.add(staffUserId);
+  }
 
   const topics = mergeStaticIntentTopics(realtimeTopics, [
     ...(viewerIntent?.demandTags ?? []),

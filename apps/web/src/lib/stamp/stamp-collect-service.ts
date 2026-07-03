@@ -123,7 +123,11 @@ async function buildStampSlots(
     return stampRows.map((row) => {
       const boothId = row.boothId ?? "";
       const booth = row.booth ?? booths.find((b) => b.id === boothId);
-      const cfg = meta.booth_stamps.find((s) => s.booth_id === boothId);
+      const cfg = meta.booth_stamps.find((s) =>
+        s.booth_id && row.boothId
+          ? s.booth_id === row.boothId
+          : s.custom_name === row.customName && s.point_type === row.pointType,
+      );
       const stamped =
         userStampByStampId.has(row.id) ||
         (boothId ? recordMap.has(boothId) || userStampMap.has(boothId) : false);
@@ -134,8 +138,13 @@ async function buildStampSlots(
       return {
         stamp_id: row.id,
         booth_id: boothId,
-        booth_number: booth?.code ?? boothId.slice(-4),
-        company_name: booth?.companyOrg.name ?? cfg?.name ?? "展位",
+        booth_number: booth?.code ?? row.location ?? row.customName ?? "—",
+        company_name:
+          booth?.companyOrg.name ??
+          row.customName ??
+          cfg?.custom_name ??
+          cfg?.name ??
+          "打卡点",
         stamp_name: row.name || cfg?.name || booth?.code || "章印",
         icon: row.icon ?? cfg?.icon ?? null,
         stamped,

@@ -1,10 +1,20 @@
-import { StampOwnerType, StampRallyStatus, prisma } from "@connectiq/database";
+import {
+  StampOwnerType,
+  StampPointType,
+  StampRallyStatus,
+  prisma,
+} from "@connectiq/database";
 import type { Prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import type {
-  BoothStampConfig,
+  StampPointConfig,
   StampRallyMeta,
+} from "@/lib/stamp/stamp-rally-config";
+import {
+  displayStampPointLabel,
+  isBoothStampPoint,
+  normalizeStampPoints,
 } from "@/lib/stamp/stamp-rally-config";
 
 export const stampRallyMetaKey = (rallyId: string) =>
@@ -25,8 +35,12 @@ export async function loadStampRallyMeta(
   }
 
   const obj = row.value as Record<string, unknown>;
-  const booth_stamps = Array.isArray(obj.booth_stamps)
-    ? (obj.booth_stamps as BoothStampConfig[])
+  const rawPoints = Array.isArray(obj.stamp_points)
+    ? obj.stamp_points
+    : obj.booth_stamps;
+
+  const booth_stamps = Array.isArray(rawPoints)
+    ? normalizeStampPoints(rawPoints as Partial<StampPointConfig>[])
     : [];
 
   return {
@@ -41,6 +55,12 @@ export async function saveStampRallyMeta(
   rallyId: string,
   meta: StampRallyMeta,
 ) {
+  const payload = {
+    prize_quantity: meta.prize_quantity ?? null,
+    booth_stamps: meta.booth_stamps,
+    stamp_points: meta.booth_stamps,
+  };
+
   await prisma.eventSetting.upsert({
     where: {
       eventId_key: { eventId, key: stampRallyMetaKey(rallyId) },
@@ -48,56 +68,105 @@ export async function saveStampRallyMeta(
     create: {
       eventId,
       key: stampRallyMetaKey(rallyId),
-      value: meta as Prisma.InputJsonValue,
+      value: payload as Prisma.InputJsonValue,
     },
     update: {
-      value: meta as Prisma.InputJsonValue,
+      value: payload as Prisma.InputJsonValue,
     },
   });
 }
 
-export async function syncRallyStampRecords(
-  rallyId: string,
-  boothStamps: BoothStampConfig[],
+function findExistingStampRow(
+  existing: Array<{
+    id: string;
+    boothId: string | null;
+    pointType: StampPointType;
+    customName: string | null;
+  }>,
+  cfg: StampPointConfig,
 ) {
-  const existing = await prisma.stamp.findMany({
-    where: { rallyId },
-    select: { id: true, boothId: true },
-  });
-
-  const boothIds = boothStamps.map((s) => s.booth_id);
-  const removeIds = existing
-    .filter((s) => s.boothId && !boothIds.includes(s.boothId))
-    .map((s) => s.id);
-
-  if (removeIds.length > 0) {
-    await prisma.stamp.deleteMany({ where: { id: { in: removeIds } } });
+  if (cfg.stamp_id) {
+    const byId = existing.find((s) => s.id === cfg.stamp_id);
+    if (byId) return byId;
   }
 
-  for (const [index, cfg] of boothStamps.entries()) {
-    const found = existing.find((s) => s.boothId === cfg.booth_id);
+  if (isBoothStampPoint(cfg) && cfg.booth_id) {
+    return existing.find((s) => s.boothId === cfg.booth_id);
+  }
+
+  const customName = cfg.custom_name ?? cfg.name;
+  return existing.find(
+    (s) =>
+      !s.boothId &&
+      s.pointType === cfg.point_type &&
+      s.customName === customName,
+  );
+}
+
+export async function syncRallyStampRecords(
+  rallyId: string,
+  stampPoints: StampPointConfig[],
+) {
+  const normalized = normalizeStampPoints(stampPoints);
+  const existing = await prisma.stamp.findMany({
+    where: { rallyId },
+    select: {
+      id: true,
+      boothId: true,
+      pointType: true,
+      customName: true,
+    },
+  });
+
+  const matchedExistingIds = new Set<string>();
+
+  for (const [index, cfg] of normalized.entries()) {
+    const displayName = displayStampPointLabel(cfg);
+    const found = findExistingStampRow(existing, cfg);
+
     if (found) {
+      matchedExistingIds.add(found.id);
       await prisma.stamp.update({
         where: { id: found.id },
         data: {
-          name: cfg.name,
+          name: displayName,
+          pointType: cfg.point_type as StampPointType,
+          boothId: isBoothStampPoint(cfg) ? cfg.booth_id : null,
+          customName: !isBoothStampPoint(cfg)
+            ? cfg.custom_name ?? cfg.name
+            : null,
+          location: cfg.location ?? null,
           icon: cfg.icon ?? null,
           weight: cfg.weight,
           sortOrder: index,
         },
       });
     } else {
-      await prisma.stamp.create({
+      const created = await prisma.stamp.create({
         data: {
           rallyId,
-          boothId: cfg.booth_id,
-          name: cfg.name,
+          name: displayName,
+          pointType: cfg.point_type as StampPointType,
+          boothId: isBoothStampPoint(cfg) ? cfg.booth_id : null,
+          customName: !isBoothStampPoint(cfg)
+            ? cfg.custom_name ?? cfg.name
+            : null,
+          location: cfg.location ?? null,
           icon: cfg.icon ?? null,
           weight: cfg.weight,
           sortOrder: index,
         },
       });
+      matchedExistingIds.add(created.id);
     }
+  }
+
+  const removeIds = existing
+    .filter((s) => !matchedExistingIds.has(s.id))
+    .map((s) => s.id);
+
+  if (removeIds.length > 0) {
+    await prisma.stamp.deleteMany({ where: { id: { in: removeIds } } });
   }
 }
 
@@ -105,10 +174,13 @@ export type StampRallyStats = {
   participant_count: number;
   completed_count: number;
   booth_rankings: Array<{
-    booth_id: string;
+    stamp_id: string | null;
+    point_type: StampPointType;
+    booth_id: string | null;
     booth_code: string;
     company_name: string;
     stamp_name: string;
+    location: string | null;
     icon: string | null;
     collect_count: number;
     weight: number;
@@ -128,7 +200,7 @@ export async function getStampRallyStats(
 
   const meta = await loadStampRallyMeta(eventId, rallyId);
 
-  const [participantGroups, completedCount, boothCounts, booths] =
+  const [participantGroups, completedCount, stampRows, userStampCounts, booths] =
     await Promise.all([
       prisma.stampRecord.findMany({
         where: { rallyId },
@@ -136,10 +208,23 @@ export async function getStampRallyStats(
         distinct: ["userId"],
       }),
       prisma.stampRallyWinner.count({ where: { rallyId } }),
-      prisma.stampRecord.groupBy({
-        by: ["boothId"],
+      prisma.stamp.findMany({
         where: { rallyId },
-        _count: { boothId: true },
+        orderBy: { sortOrder: "asc" },
+        include: {
+          booth: {
+            select: {
+              id: true,
+              code: true,
+              companyOrg: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      prisma.userStamp.groupBy({
+        by: ["stampId"],
+        where: { stamp: { rallyId } },
+        _count: { stampId: true },
       }),
       prisma.exhibitorBooth.findMany({
         where: { eventId, id: { in: rally.boothIds } },
@@ -151,26 +236,70 @@ export async function getStampRallyStats(
       }),
     ]);
 
+  const boothRecordCounts = await prisma.stampRecord.groupBy({
+    by: ["boothId"],
+    where: { rallyId },
+    _count: { boothId: true },
+  });
+
   const boothMap = new Map(booths.map((b) => [b.id, b]));
-  const countMap = new Map(
-    boothCounts.map((row) => [row.boothId, row._count.boothId]),
+  const userStampCountMap = new Map(
+    userStampCounts.map((row) => [row.stampId, row._count.stampId]),
+  );
+  const boothRecordMap = new Map(
+    boothRecordCounts.map((row) => [row.boothId, row._count.boothId]),
   );
 
-  const booth_rankings = rally.boothIds
-    .map((boothId) => {
-      const booth = boothMap.get(boothId);
-      const cfg = meta.booth_stamps.find((s) => s.booth_id === boothId);
-      return {
-        booth_id: boothId,
-        booth_code: booth?.code ?? boothId.slice(-4),
-        company_name: booth?.companyOrg.name ?? "—",
-        stamp_name: cfg?.name ?? booth?.code ?? "展位章",
-        icon: cfg?.icon ?? null,
-        collect_count: countMap.get(boothId) ?? 0,
-        weight: cfg?.weight ?? 1,
-      };
-    })
-    .sort((a, b) => b.collect_count - a.collect_count);
+  const booth_rankings = (stampRows.length > 0
+    ? stampRows.map((row) => {
+        const cfg = meta.booth_stamps.find((s) =>
+          isBoothStampPoint(s) && s.booth_id
+            ? s.booth_id === row.boothId
+            : s.custom_name === row.customName &&
+              s.point_type === row.pointType,
+        );
+        const booth = row.booth ?? (row.boothId ? boothMap.get(row.boothId) : null);
+        const boothCollect = row.boothId
+          ? boothRecordMap.get(row.boothId) ?? 0
+          : 0;
+        const stampCollect = userStampCountMap.get(row.id) ?? 0;
+
+        return {
+          stamp_id: row.id,
+          point_type: row.pointType,
+          booth_id: row.boothId,
+          booth_code: booth?.code ?? (row.location ? "—" : row.customName ?? "—"),
+          company_name:
+            booth?.companyOrg.name ??
+            row.customName ??
+            cfg?.name ??
+            row.name,
+          stamp_name: row.name || cfg?.name || "章印",
+          location: row.location ?? cfg?.location ?? null,
+          icon: row.icon ?? cfg?.icon ?? null,
+          collect_count: Math.max(boothCollect, stampCollect),
+          weight: cfg?.weight ?? row.weight,
+        };
+      })
+    : meta.booth_stamps.map((cfg) => {
+        const booth = cfg.booth_id ? boothMap.get(cfg.booth_id) : null;
+        return {
+          stamp_id: null,
+          point_type: cfg.point_type as StampPointType,
+          booth_id: cfg.booth_id ?? null,
+          booth_code: booth?.code ?? cfg.location ?? "—",
+          company_name:
+            booth?.companyOrg.name ?? cfg.custom_name ?? cfg.name,
+          stamp_name: cfg.name,
+          location: cfg.location ?? null,
+          icon: cfg.icon ?? null,
+          collect_count: cfg.booth_id
+            ? boothRecordMap.get(cfg.booth_id) ?? 0
+            : 0,
+          weight: cfg.weight,
+        };
+      })
+  ).sort((a, b) => b.collect_count - a.collect_count);
 
   return {
     participant_count: participantGroups.length,
@@ -195,13 +324,35 @@ export async function sendStampRallyReminders(
   }
 
   const meta = await loadStampRallyMeta(eventId, rallyId);
-  const weightMap = new Map(
-    meta.booth_stamps.map((s) => [s.booth_id, s.weight]),
+  const stampRows = await prisma.stamp.findMany({
+    where: { rallyId },
+    select: { id: true, boothId: true, weight: true },
+  });
+
+  const weightByBooth = new Map(
+    meta.booth_stamps
+      .filter((s) => isBoothStampPoint(s) && s.booth_id)
+      .map((s) => [s.booth_id!, s.weight]),
+  );
+  const weightByStampId = new Map(
+    stampRows.map((row) => {
+      const cfg = meta.booth_stamps.find((s) =>
+        s.booth_id && row.boothId
+          ? s.booth_id === row.boothId
+          : s.stamp_id === row.id,
+      );
+      return [row.id, cfg?.weight ?? row.weight];
+    }),
   );
 
   const records = await prisma.stampRecord.findMany({
     where: { rallyId },
     select: { userId: true, boothId: true },
+  });
+
+  const userStamps = await prisma.userStamp.findMany({
+    where: { userId: { in: records.map((r) => r.userId) }, stamp: { rallyId } },
+    select: { userId: true, stampId: true },
   });
 
   const winners = await prisma.stampRallyWinner.findMany({
@@ -213,8 +364,13 @@ export async function sendStampRallyReminders(
   const userWeights = new Map<string, number>();
   for (const record of records) {
     if (winnerSet.has(record.userId)) continue;
-    const w = weightMap.get(record.boothId) ?? 1;
+    const w = weightByBooth.get(record.boothId) ?? 1;
     userWeights.set(record.userId, (userWeights.get(record.userId) ?? 0) + w);
+  }
+  for (const row of userStamps) {
+    if (winnerSet.has(row.userId)) continue;
+    const w = weightByStampId.get(row.stampId) ?? 1;
+    userWeights.set(row.userId, (userWeights.get(row.userId) ?? 0) + w);
   }
 
   const allParticipants = await prisma.stampRecord.findMany({
@@ -222,10 +378,16 @@ export async function sendStampRallyReminders(
     select: { userId: true },
     distinct: ["userId"],
   });
+  const customParticipants = await prisma.userStamp.findMany({
+    where: { stamp: { rallyId } },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
 
-  const targetUserIds = allParticipants
-    .map((p) => p.userId)
-    .filter((uid) => !winnerSet.has(uid));
+  const targetUserIds = [...new Set([
+    ...allParticipants.map((p) => p.userId),
+    ...customParticipants.map((p) => p.userId),
+  ])].filter((uid) => !winnerSet.has(uid));
 
   let sent = 0;
   let skipped = 0;

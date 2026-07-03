@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import { InviteRecordStatus } from "@/lib/invite/enums";
 import { toast } from "sonner";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
@@ -34,6 +34,7 @@ import {
   useEventDateLabel,
 } from "@/components/invites/CreateCampaignSheet";
 import { InviteFunnel } from "@/components/invites/InviteFunnel";
+import { ParticipantTagEditPopover } from "@/components/participants/ParticipantTagEditPopover";
 import {
   aggregateFunnelStats,
   useInviteCampaigns,
@@ -81,9 +82,18 @@ function maskDestination(value: string) {
   return value;
 }
 
-export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
+export function InviteCampaignsPageClient({
+  eventId,
+  embedded,
+}: {
+  eventId: string;
+  embedded?: boolean;
+}) {
+  const queryClient = useQueryClient();
   const { currentEvent } = useCurrentEvent();
-  const [pageTab, setPageTab] = useState<"campaigns" | "records">("campaigns");
+  const [pageTab, setPageTab] = useState<"campaigns" | "records">(
+    embedded ? "records" : "campaigns",
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
     null,
@@ -110,7 +120,7 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
     },
   });
 
-  const { data: recordsData, isLoading: recordsLoading } = useInviteRecords(
+  const { data: recordsData, isLoading: recordsLoading, refetch: refetchRecords } = useInviteRecords(
     eventId,
     selectedCampaignId,
     recordFilter,
@@ -137,26 +147,111 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
     }
   }
 
-  return (
-    <AdminPageBody>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-[var(--admin-ink)]">邀请管理</h1>
-          <Link
-            href={`/events/${eventId}/participants`}
-            className="mt-1 inline-block text-xs text-brand-blue hover:underline"
+  async function exportActivatedList() {
+    if (!selectedCampaignId) {
+      toast.error("请先选择邀请活动");
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/events/${eventId}/invite-campaigns/${selectedCampaignId}/records?status=ACTIVATED&page=1&pageSize=5000`,
+      );
+      if (!res.ok) throw new Error("加载失败");
+      const json = await res.json();
+      const records = json.data as Array<{
+        participant: {
+          name: string;
+          phone: string | null;
+          email: string | null;
+          tags?: string[];
+        };
+        sentAt: string | null;
+        activatedAt: string | null;
+      }>;
+      if (records.length === 0) {
+        toast.error("暂无已激活记录");
+        return;
+      }
+      const header = "姓名,手机号,邮箱,标签,激活时间\n";
+      const rows = records
+        .map((r) => {
+          const p = r.participant;
+          const tags = (p.tags ?? []).join(";");
+          const activated = r.activatedAt
+            ? format(new Date(r.activatedAt), "yyyy-MM-dd HH:mm")
+            : "";
+          return `${p.name},${p.phone ?? ""},${p.email ?? ""},${tags},${activated}`;
+        })
+        .join("\n");
+      const blob = new Blob(["\uFEFF" + header + rows], {
+        type: "text/csv;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "已接受名单.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`已导出 ${records.length} 条记录`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "导出失败");
+    }
+  }
+
+  const inner = (
+    <>
+      {!embedded && (
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-[var(--admin-ink)]">邀请管理</h1>
+            <Link
+              href={`/events/${eventId}/participants`}
+              className="mt-1 inline-block text-xs text-brand-blue hover:underline"
+            >
+              ← 返回名单管理
+            </Link>
+          </div>
+          <Button
+            className="bg-brand-purple text-white hover:bg-brand-purple/90"
+            onClick={() => setSheetOpen(true)}
           >
-            ← 返回名单管理
-          </Link>
+            <Plus className="mr-1 size-4" />
+            创建邀请活动
+          </Button>
         </div>
-        <Button
-          className="bg-brand-purple text-white hover:bg-brand-purple/90"
-          onClick={() => setSheetOpen(true)}
-        >
-          <Plus className="mr-1 size-4" />
-          创建邀请活动
-        </Button>
-      </div>
+      )}
+
+      {embedded && (
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedCampaignId}
+            onClick={() => void exportActivatedList()}
+          >
+            <Download className="mr-1 size-3.5" />
+            导出接受名单
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedCampaignId || retryMutation.isPending}
+            onClick={() =>
+              selectedCampaignId && void handleRetry(selectedCampaignId)
+            }
+          >
+            重试失败记录
+          </Button>
+          <Button
+            className="bg-brand-purple text-white hover:bg-brand-purple/90"
+            size="sm"
+            onClick={() => setSheetOpen(true)}
+          >
+            <Plus className="mr-1 size-3.5" />
+            创建邀请活动
+          </Button>
+        </div>
+      )}
 
       <Tabs
         value={pageTab}
@@ -253,6 +348,9 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
                         参会者
                       </TableHead>
                       <TableHead className="h-10 bg-content text-xs font-semibold text-text-muted">
+                        身份标签
+                      </TableHead>
+                      <TableHead className="h-10 bg-content text-xs font-semibold text-text-muted">
                         渠道
                       </TableHead>
                       <TableHead className="h-10 bg-content text-xs font-semibold text-text-muted">
@@ -271,7 +369,7 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
                     {recordsLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <TableRow key={i}>
-                          <TableCell colSpan={6}>
+                          <TableCell colSpan={7}>
                             <Skeleton className="h-12 w-full" />
                           </TableCell>
                         </TableRow>
@@ -279,7 +377,7 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
                     ) : recordsData?.records.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={6}
+                          colSpan={7}
                           className="h-24 text-center text-sm text-text-muted"
                         >
                           暂无发送记录
@@ -314,6 +412,19 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
                                   </p>
                                 </div>
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              <ParticipantTagEditPopover
+                                eventId={eventId}
+                                participantId={record.participant.id}
+                                tags={record.participant.tags ?? []}
+                                onSaved={() => {
+                                  void refetchRecords();
+                                  void queryClient.invalidateQueries({
+                                    queryKey: ["participants", eventId],
+                                  });
+                                }}
+                              />
                             </TableCell>
                             <TableCell>
                               <Badge className={CHANNEL_BADGE[record.channel]}>
@@ -374,6 +485,10 @@ export function InviteCampaignsPageClient({ eventId }: { eventId: string }) {
         ticketTypes={participantMeta?.ticketTypes ?? []}
         onSuccess={() => void refetch()}
       />
-    </AdminPageBody>
+    </>
   );
+
+  if (embedded) return inner;
+
+  return <AdminPageBody>{inner}</AdminPageBody>;
 }

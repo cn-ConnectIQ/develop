@@ -1,4 +1,11 @@
-import { prisma, ParticipantInviteStatus, ParticipantRole, type Prisma } from "@connectiq/database";
+import {
+  ParticipantInviteStatus,
+  ParticipantRole,
+  ParticipantSource,
+  SystemRole,
+  prisma,
+  type Prisma,
+} from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -7,48 +14,22 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { mergeParticipantByPhone } from "@/lib/participant-merge";
+import { serializeParticipantRow } from "@/lib/participant-serialize";
+import {
+  isSpeakerTagged,
+  isVipTagged,
+  normalizeParticipantTags,
+  participantHasTag,
+} from "@/lib/participant-tags";
 import { generateBadgeQr } from "@/lib/participants";
-
-function serializeParticipant(
-  p: Awaited<ReturnType<typeof prisma.participant.findMany>>[number] & {
-    checkIns: { checkedInAt: Date }[];
-    registrations: Array<{
-      ticketTypeId: string | null;
-      ticketType: { id: string; name: string } | null;
-    }>;
-    _count: { leads: number };
-  },
-) {
-  const ticketType = p.registrations[0]?.ticketType?.name ?? null;
-  const ticketTypeId = p.registrations[0]?.ticketTypeId ?? null;
-  const isVip = ticketType?.toUpperCase().includes("VIP") ?? false;
-  const isSpeaker = p.role === ParticipantRole.SPEAKER;
-
-  return {
-    id: p.id,
-    name: p.name,
-    email: p.email,
-    phone: p.phone,
-    company: p.company,
-    jobTitle: p.jobTitle,
-    role: p.role,
-    badgeQr: p.badgeQr,
-    createdAt: p.createdAt.toISOString(),
-    ticketType,
-    ticketTypeId,
-    checkedInAt: p.checkIns[0]?.checkedInAt?.toISOString() ?? null,
-    connectionCount: p._count.leads,
-    isVip,
-    isSpeaker,
-    inviteStatus: p.inviteStatus,
-  };
-}
 
 function buildWhere(
   eventId: string,
   search: string | undefined,
   status: string | null,
-  role: string | null,
+  tag: string | null,
+  tagsFilter: string[] | null,
   inviteStatus: string | null,
 ): Prisma.ParticipantWhereInput {
   const where: Prisma.ParticipantWhereInput = { eventId };
@@ -69,14 +50,10 @@ function buildWhere(
     where.checkIns = { none: { eventId } };
   }
 
-  if (role === "speaker") {
-    where.role = ParticipantRole.SPEAKER;
-  } else if (role === "vip") {
-    where.registrations = {
-      some: {
-        ticketType: { name: { contains: "VIP", mode: "insensitive" } },
-      },
-    };
+  if (tagsFilter?.length) {
+    where.tags = { hasSome: tagsFilter };
+  } else if (tag) {
+    where.tags = { has: tag };
   }
 
   if (inviteStatus === "not_invited") {
@@ -97,12 +74,34 @@ export const GET = withErrorHandler(async (request, context) => {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim() || undefined;
   const status = searchParams.get("status");
-  const role = searchParams.get("role");
+  const tagsParam = searchParams.get("tags");
+  const tagsFilter = tagsParam
+    ? tagsParam
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : null;
+  const tag =
+    tagsFilter?.length
+      ? null
+      : searchParams.get("tag") ??
+        (searchParams.get("role") === "vip"
+          ? "VIP"
+          : searchParams.get("role") === "speaker"
+            ? "Speaker"
+            : null);
   const inviteStatus = searchParams.get("invite_status");
   const cursor = searchParams.get("cursor");
   const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 20), 1), 100);
 
-  const where = buildWhere(eventId, search, status, role, inviteStatus);
+  const where = buildWhere(
+    eventId,
+    search,
+    status,
+    tag,
+    tagsFilter,
+    inviteStatus,
+  );
 
   const participants = await prisma.participant.findMany({
     where,
@@ -123,57 +122,67 @@ export const GET = withErrorHandler(async (request, context) => {
   const hasNext = participants.length > limit;
   const items = hasNext ? participants.slice(0, limit) : participants;
 
-  const [total, checkedIn, vipCount, activated, invited, notInvited, ticketTypes] =
+  const allForStats = await prisma.participant.findMany({
+    where: { eventId },
+    select: { id: true, tags: true, role: true, inviteStatus: true },
+  });
+
+  const vip = allForStats.filter(
+    (p) => isVipTagged(p.tags) || participantHasTag(p.tags, "VIP"),
+  ).length;
+  const speaker = allForStats.filter(
+    (p) => isSpeakerTagged(p.tags) || p.role === ParticipantRole.SPEAKER,
+  ).length;
+
+  const [total, checkedIn, activated, invited, notInvited, ticketTypes] =
     await Promise.all([
-    prisma.participant.count({ where: { eventId } }),
-    prisma.checkIn.count({ where: { eventId } }),
-    prisma.participantRegistration.count({
-      where: {
-        participant: { eventId },
-        ticketType: { name: { contains: "VIP", mode: "insensitive" } },
-      },
-    }),
-    prisma.participant.count({
-      where: { eventId, inviteStatus: ParticipantInviteStatus.ACTIVATED },
-    }),
-    prisma.participant.count({
-      where: {
-        eventId,
-        inviteStatus: {
-          in: [
-            ParticipantInviteStatus.INVITED,
-            ParticipantInviteStatus.CLICKED,
-            ParticipantInviteStatus.ACTIVATED,
-          ],
+      prisma.participant.count({ where: { eventId } }),
+      prisma.checkIn.count({ where: { eventId } }),
+      prisma.participant.count({
+        where: { eventId, inviteStatus: ParticipantInviteStatus.ACTIVATED },
+      }),
+      prisma.participant.count({
+        where: {
+          eventId,
+          inviteStatus: {
+            in: [
+              ParticipantInviteStatus.INVITED,
+              ParticipantInviteStatus.CLICKED,
+              ParticipantInviteStatus.ACTIVATED,
+            ],
+          },
         },
-      },
-    }),
-    prisma.participant.count({
-      where: { eventId, inviteStatus: ParticipantInviteStatus.NOT_INVITED },
-    }),
-    prisma.ticketType.findMany({
-      where: { eventId },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+      }),
+      prisma.participant.count({
+        where: { eventId, inviteStatus: ParticipantInviteStatus.NOT_INVITED },
+      }),
+      prisma.ticketType.findMany({
+        where: { eventId },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
   const activationRate =
     invited > 0 ? Math.round((activated / invited) * 1000) / 10 : 0;
 
-  return createSuccessResponse(items.map(serializeParticipant), {
-    total,
-    cursor: hasNext ? items[items.length - 1]?.id : null,
-    hasNext,
-    checkedIn,
-    pending: total - checkedIn,
-    vip: vipCount,
-    activated,
-    invited,
-    notInvited,
-    activationRate,
-    ticketTypes,
-  });
+  return createSuccessResponse(
+    items.map((p) => serializeParticipantRow(p, eventId)),
+    {
+      total,
+      cursor: hasNext ? items[items.length - 1]?.id : null,
+      hasNext,
+      checkedIn,
+      pending: total - checkedIn,
+      vip,
+      speaker,
+      activated,
+      invited,
+      notInvited,
+      activationRate,
+      ticketTypes,
+    },
+  );
 });
 
 const createSchema = z.object({
@@ -183,6 +192,7 @@ const createSchema = z.object({
   company: z.string().optional(),
   jobTitle: z.string().optional(),
   role: z.nativeEnum(ParticipantRole).optional(),
+  tags: z.array(z.string()).optional(),
   ticketTypeId: z.string().optional(),
 });
 
@@ -204,38 +214,64 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
-  if (parsed.data.phone) {
-    const dup = await prisma.participant.findFirst({
-      where: { eventId, phone: parsed.data.phone },
+  const tags = normalizeParticipantTags(parsed.data.tags);
+
+  let participantId: string;
+  if (parsed.data.phone?.trim()) {
+    const merged = await mergeParticipantByPhone(eventId, {
+      name: parsed.data.name,
+      phone: parsed.data.phone,
+      email: parsed.data.email || null,
+      company: parsed.data.company,
+      jobTitle: parsed.data.jobTitle,
+      tags,
+      source: ParticipantSource.IMPORT,
+      role: parsed.data.role,
     });
-    if (dup) {
-      return createErrorResponse("该手机号已存在", ErrorCode.VALIDATION_ERROR, 409);
+    participantId = merged.participant.id;
+  } else {
+    const created = await prisma.participant.create({
+      data: {
+        eventId,
+        name: parsed.data.name,
+        email: parsed.data.email || null,
+        phone: null,
+        company: parsed.data.company || null,
+        jobTitle: parsed.data.jobTitle || null,
+        role: parsed.data.role ?? ParticipantRole.ATTENDEE,
+        systemRole: SystemRole.PARTICIPANT,
+        tags,
+        source: ParticipantSource.IMPORT,
+        badgeQr: generateBadgeQr(eventId),
+      },
+    });
+    participantId = created.id;
+  }
+
+  if (parsed.data.ticketTypeId) {
+    const existingReg = await prisma.participantRegistration.findFirst({
+      where: { participantId },
+    });
+    if (existingReg) {
+      await prisma.participantRegistration.update({
+        where: { id: existingReg.id },
+        data: { ticketTypeId: parsed.data.ticketTypeId, status: "CONFIRMED" },
+      });
+    } else {
+      await prisma.participantRegistration.create({
+        data: {
+          participantId,
+          ticketTypeId: parsed.data.ticketTypeId,
+          status: "CONFIRMED",
+        },
+      });
     }
   }
 
-  const participant = await prisma.participant.create({
-    data: {
-      eventId,
-      name: parsed.data.name,
-      email: parsed.data.email || null,
-      phone: parsed.data.phone || null,
-      company: parsed.data.company || null,
-      jobTitle: parsed.data.jobTitle || null,
-      role: parsed.data.role ?? ParticipantRole.ATTENDEE,
-      badgeQr: generateBadgeQr(eventId),
-      ...(parsed.data.ticketTypeId
-        ? {
-            registrations: {
-              create: {
-                ticketTypeId: parsed.data.ticketTypeId,
-                status: "CONFIRMED",
-              },
-            },
-          }
-        : {}),
-    },
+  const participant = await prisma.participant.findUniqueOrThrow({
+    where: { id: participantId },
     include: {
-      checkIns: { where: { eventId }, take: 1 },
+      checkIns: { where: { eventId }, take: 1, orderBy: { checkedInAt: "desc" } },
       registrations: {
         take: 1,
         include: { ticketType: { select: { id: true, name: true } } },
@@ -244,5 +280,5 @@ export const POST = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse(serializeParticipant(participant));
+  return createSuccessResponse(serializeParticipantRow(participant, eventId));
 });

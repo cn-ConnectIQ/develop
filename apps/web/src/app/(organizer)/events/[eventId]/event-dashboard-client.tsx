@@ -406,7 +406,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
                   </p>
                 </div>
                 <Link
-                  href={`/events/${eventId}/invite-campaigns`}
+                  href={`/events/${eventId}/invite`}
                   className="inline-flex h-[34px] items-center rounded-lg bg-brand-blue px-3.5 text-[13px] font-medium text-white hover:bg-brand-blue/90"
                 >
                   <Send className="mr-1 size-4" />
@@ -415,7 +415,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
               </div>
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <QuickActionCard
-                  href={`/events/${eventId}/invite-campaigns`}
+                  href={`/events/${eventId}/invite`}
                   icon={Send}
                   title="邀请活动"
                   subtitle="创建与发送邀请"

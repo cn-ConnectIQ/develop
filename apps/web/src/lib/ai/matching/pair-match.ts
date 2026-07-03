@@ -1,4 +1,4 @@
-import { prisma } from "@connectiq/database";
+import { prisma, SystemRole } from "@connectiq/database";
 import {
   buildDimensionHits,
   loadViewerProfile,
@@ -35,8 +35,10 @@ async function loadPeerProfile(
         ...(intent.user.phone ? [{ phone: intent.user.phone }] : []),
       ],
     },
-    select: { id: true },
+    select: { id: true, systemRole: true, tags: true },
   });
+
+  if (participant?.systemRole === SystemRole.STAFF) return null;
 
   const checkedIn = participant
     ? Boolean(
@@ -61,6 +63,7 @@ async function loadPeerProfile(
     supplyTags: intent.supplyTags,
     demandTags: intent.demandTags,
     topics: intent.topics,
+    honorTags: participant?.tags ?? [],
     checkedIn,
     hasSignals: signalCount > 0,
   };
@@ -93,6 +96,7 @@ export async function matchPair(
     supplyTags: peer.supplyTags,
     demandTags: peer.demandTags,
     topics: peer.topics,
+    honorTags: peer.honorTags,
     dimensions,
     recallScore: dimensions.length,
   };

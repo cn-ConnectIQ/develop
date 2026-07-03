@@ -16,6 +16,7 @@ const importSchema = z.object({
       email: z.string().optional(),
       company: z.string().optional(),
       jobTitle: z.string().optional(),
+      tags: z.array(z.string()).optional(),
     }),
   ),
   skipDuplicates: z.boolean().optional(),

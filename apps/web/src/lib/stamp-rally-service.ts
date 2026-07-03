@@ -7,7 +7,13 @@ import {
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
-import type { BoothStampConfig } from "@/lib/stamp/stamp-rally-config";
+import type { StampPointConfig } from "@/lib/stamp/stamp-rally-config";
+import {
+  computeWeightedRequired,
+  extractBoothIdsFromStampPoints,
+  isBoothStampPoint,
+  normalizeStampPoints,
+} from "@/lib/stamp/stamp-rally-config";
 import {
   loadStampRallyMeta,
   saveStampRallyMeta,
@@ -97,7 +103,7 @@ export type ApiStampRally = {
   required_count: number;
   total_booths: number;
   booth_ids: string[];
-  booth_stamps: import("@/lib/stamp/stamp-rally-config").BoothStampConfig[];
+  booth_stamps: import("@/lib/stamp/stamp-rally-config").StampPointConfig[];
   starts_at: string | null;
   ends_at: string | null;
   always_open: boolean;
@@ -133,7 +139,7 @@ function mapRallyRow(
     createdAt: Date;
     _count: { records: number; winners: number };
   },
-  meta?: { booth_stamps: BoothStampConfig[]; prize_quantity?: number | null },
+  meta?: { booth_stamps: StampPointConfig[]; prize_quantity?: number | null },
 ): ApiStampRally {
   const participantGroups = row._count.records;
   return {
@@ -168,10 +174,16 @@ const rallyInclude = {
   },
 } as const;
 
-async function validateBoothIds(eventId: string, boothIds: string[]) {
-  if (boothIds.length === 0) {
-    throw new ApiError("请至少选择一个参与展位", ErrorCode.VALIDATION_ERROR, 400);
+async function validateStampPoints(
+  eventId: string,
+  stampPoints: StampPointConfig[],
+) {
+  if (stampPoints.length === 0) {
+    throw new ApiError("请至少添加一个打卡点", ErrorCode.VALIDATION_ERROR, 400);
   }
+
+  const boothIds = extractBoothIdsFromStampPoints(stampPoints);
+  if (boothIds.length === 0) return;
 
   const booths = await prisma.exhibitorBooth.findMany({
     where: { eventId, id: { in: boothIds } },
@@ -181,6 +193,20 @@ async function validateBoothIds(eventId: string, boothIds: string[]) {
   if (booths.length !== boothIds.length) {
     throw new ApiError("部分展位不属于本活动", ErrorCode.VALIDATION_ERROR, 400);
   }
+}
+
+async function validateBoothIds(eventId: string, boothIds: string[]) {
+  if (boothIds.length === 0) return;
+  await validateStampPoints(
+    eventId,
+    boothIds.map((id) => ({
+      point_type: "BOOTH",
+      booth_id: id,
+      name: id,
+      weight: 1,
+      required: true,
+    })),
+  );
 }
 
 function assertRallySchedule(rally: {
@@ -249,17 +275,35 @@ export async function createStampRally(
     prize_desc?: string | null;
     prize_quantity?: number | null;
     required_count: number;
-    booth_ids: string[];
-    booth_stamps?: BoothStampConfig[];
+    booth_ids?: string[];
+    booth_stamps?: StampPointConfig[];
     starts_at?: string | null;
     ends_at?: string | null;
     always_open?: boolean;
     status?: StampRallyStatus;
   },
 ) {
-  await validateBoothIds(eventId, input.booth_ids);
+  const stampPoints = normalizeStampPoints(
+    input.booth_stamps ??
+      (input.booth_ids ?? []).map((id) => ({
+        point_type: "BOOTH" as const,
+        booth_id: id,
+        name: id.slice(-4),
+        icon: "⭐",
+        weight: 1,
+        required: true,
+      })),
+  );
 
-  if (input.required_count < 1 || input.required_count > input.booth_ids.length * 3) {
+  await validateStampPoints(eventId, stampPoints);
+
+  const boothIds =
+    input.booth_ids && input.booth_ids.length > 0
+      ? input.booth_ids
+      : extractBoothIdsFromStampPoints(stampPoints);
+
+  const maxWeighted = computeWeightedRequired(stampPoints);
+  if (input.required_count < 1 || input.required_count > maxWeighted) {
     throw new ApiError(
       "目标章数设置不合理",
       ErrorCode.VALIDATION_ERROR,
@@ -292,8 +336,8 @@ export async function createStampRally(
       prizeImageUrl: input.prize_image_url ?? null,
       prizeDesc: input.prize_desc?.trim() || null,
       requiredCount: input.required_count,
-      totalBooths: input.booth_ids.length,
-      boothIds: input.booth_ids,
+      totalBooths: boothIds.length,
+      boothIds,
       startsAt,
       endsAt,
       status: input.status ?? StampRallyStatus.DRAFT,
@@ -301,15 +345,7 @@ export async function createStampRally(
     include: rallyInclude,
   });
 
-  const boothStamps =
-    input.booth_stamps ??
-    input.booth_ids.map((id) => ({
-      booth_id: id,
-      name: id.slice(-4),
-      icon: "⭐",
-      weight: 1,
-      required: true,
-    }));
+  const boothStamps = stampPoints;
 
   await saveStampRallyMeta(eventId, row.id, {
     prize_quantity: input.prize_quantity ?? null,
@@ -355,7 +391,7 @@ export async function updateStampRally(
     prize_quantity: number | null;
     required_count: number;
     booth_ids: string[];
-    booth_stamps: BoothStampConfig[];
+    booth_stamps: StampPointConfig[];
     starts_at: string | null;
     ends_at: string | null;
     always_open: boolean;
@@ -369,14 +405,37 @@ export async function updateStampRally(
     throw new ApiError("集章路线不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const boothIds = input.booth_ids ?? existing.boothIds;
-  if (input.booth_ids) {
+  const prevMeta = await loadStampRallyMeta(eventId, rallyId);
+  const stampPoints = input.booth_stamps
+    ? normalizeStampPoints(input.booth_stamps)
+    : prevMeta.booth_stamps;
+
+  const boothIds =
+    input.booth_ids ??
+    (input.booth_stamps
+      ? extractBoothIdsFromStampPoints(stampPoints)
+      : existing.boothIds);
+
+  if (input.booth_stamps) {
+    await validateStampPoints(eventId, stampPoints);
+  } else if (input.booth_ids) {
     await validateBoothIds(eventId, boothIds);
   }
 
   const requiredCount = input.required_count ?? existing.requiredCount;
   if (requiredCount < 1) {
     throw new ApiError("目标章数至少为 1", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  if (input.booth_stamps) {
+    const maxWeighted = computeWeightedRequired(stampPoints);
+    if (requiredCount > maxWeighted) {
+      throw new ApiError(
+        "目标章数不能超过打卡点权重总和",
+        ErrorCode.VALIDATION_ERROR,
+        400,
+      );
+    }
   }
 
   const startsAt =
@@ -416,10 +475,11 @@ export async function updateStampRally(
   });
 
   if (input.booth_stamps || input.booth_ids || input.prize_quantity !== undefined) {
-    const prevMeta = await loadStampRallyMeta(eventId, rallyId);
     const boothStamps =
       input.booth_stamps ??
-      prevMeta.booth_stamps.filter((s) => boothIds.includes(s.booth_id));
+      prevMeta.booth_stamps.filter(
+        (s) => !isBoothStampPoint(s) || !s.booth_id || boothIds.includes(s.booth_id),
+      );
 
     await saveStampRallyMeta(eventId, rallyId, {
       prize_quantity:

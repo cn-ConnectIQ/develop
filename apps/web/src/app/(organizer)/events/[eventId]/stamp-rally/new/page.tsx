@@ -1,5 +1,4 @@
-import { EventType } from "@connectiq/database";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { StampRallyConfigurator } from "@/components/stamp/StampRallyConfigurator";
@@ -15,16 +14,6 @@ export default async function NewStampRallyPage({
   if ("error" in access) notFound();
 
   const event = access.event;
-
-  const isConferenceOrExpo =
-    event.type === EventType.CONFERENCE ||
-    event.type === EventType.EXPO ||
-    event.activityType === "CONFERENCE" ||
-    event.activityType === "EXPO";
-
-  if (!isConferenceOrExpo) {
-    redirect(`/events/${eventId}`);
-  }
 
   return (
     <FeatureFlagGate

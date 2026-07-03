@@ -161,7 +161,8 @@ export function StampRallyHubClient({
                   </div>
                   <p className="mt-1 text-sm text-text-muted">{rally.prize}</p>
                   <p className="mt-0.5 text-xs text-text-tertiary">
-                    目标 {rally.required_count} 章 · 共 {rally.total_booths} 个展位章
+                    目标 {rally.required_count} 章 · 共{" "}
+                    {rally.booth_stamps.length || rally.total_booths} 个打卡点
                   </p>
                 </div>
 

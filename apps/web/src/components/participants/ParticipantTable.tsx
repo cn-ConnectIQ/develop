@@ -13,6 +13,7 @@ import {
   CreditCard,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
   ScanLine,
   Ticket,
   Trash2,
@@ -55,6 +56,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -66,6 +72,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ParticipantListItem } from "@/lib/participants";
+import { ParticipantTagChips } from "@/components/participants/ParticipantTagChips";
+import { TagEditor } from "@/components/participants/TagEditor";
+import { getTagStyle } from "@/lib/participant-tags";
 import { cn } from "@/lib/utils";
 
 export type ParticipantRow = ParticipantListItem;
@@ -126,20 +135,86 @@ export function ParticipantTable({
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [ticketOpen, setTicketOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [tagPopoverId, setTagPopoverId] = useState<string | null>(null);
+  const [savingTags, setSavingTags] = useState(false);
   const [targetIds, setTargetIds] = useState<string[]>([]);
+  const [editTags, setEditTags] = useState<string[]>([]);
   const [notifyTitle, setNotifyTitle] = useState("活动通知");
   const [notifyBody, setNotifyBody] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState<string>("");
 
+  async function saveParticipantTags(participantId: string, tags: string[]) {
+    setSavingTags(true);
+    try {
+      const res = await fetch(
+        `/api/events/${eventId}/participants/${participantId}/tags`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tags }),
+        },
+      );
+      if (!res.ok) {
+        toast.error("保存标签失败");
+        return false;
+      }
+      toast.success("标签已更新");
+      setTagPopoverId(null);
+      onRefresh();
+      return true;
+    } finally {
+      setSavingTags(false);
+    }
+  }
+
+  async function batchAppendTags(participantIds: string[], tags: string[]) {
+    if (tags.length === 0) {
+      toast.error("请至少选择一个标签");
+      return;
+    }
+    setSavingTags(true);
+    try {
+      const res = await fetch(
+        `/api/events/${eventId}/participants/batch-tags`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participantIds, tags }),
+        },
+      );
+      if (!res.ok) {
+        toast.error("批量打标签失败");
+        return;
+      }
+      const json = await res.json();
+      toast.success(`已为 ${json.data.updated} 人追加标签`);
+      setTagsOpen(false);
+      setEditTags([]);
+      setRowSelection({});
+      onRefresh();
+    } finally {
+      setSavingTags(false);
+    }
+  }
+
   async function runBatch(
-    action: "check_in" | "update_ticket" | "delete",
+    action: "check_in" | "update_ticket" | "update_tags" | "delete",
     participantIds: string[],
     ticketTypeId?: string | null,
+    tags?: string[],
+    addTags?: string[],
   ) {
     const res = await fetch(`/api/events/${eventId}/participants/batch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, participantIds, ticketTypeId }),
+      body: JSON.stringify({
+        action,
+        participantIds,
+        ticketTypeId,
+        tags,
+        addTags,
+      }),
     });
     if (!res.ok) {
       toast.error("操作失败");
@@ -219,15 +294,19 @@ export function ParticipantTable({
         header: "参会者",
         cell: ({ row }) => {
           const p = row.original;
+          const avatarStyle = p.tags.length
+            ? getTagStyle(p.tags[0]!)
+            : p.isVip
+              ? getTagStyle("VIP")
+              : undefined;
           return (
             <div className="flex items-center gap-3">
               <Avatar className="size-8">
                 <AvatarFallback
                   className={cn(
                     "text-xs",
-                    p.isVip
-                      ? "bg-brand-amber-light text-brand-amber"
-                      : "bg-brand-blue-light text-brand-blue",
+                    avatarStyle?.avatarClass ??
+                      "bg-brand-blue-light text-brand-blue",
                   )}
                 >
                   {p.name.slice(0, 1)}
@@ -242,6 +321,13 @@ export function ParticipantTable({
             </div>
           );
         },
+      },
+      {
+        id: "tags",
+        header: "身份标签",
+        cell: ({ row }) => (
+          <ParticipantTagChips tags={row.original.tags} max={4} />
+        ),
       },
       {
         accessorKey: "ticketType",
@@ -291,8 +377,55 @@ export function ParticipantTable({
         header: "",
         cell: ({ row }) => {
           const p = row.original;
+          const popoverOpen = tagPopoverId === p.id;
           return (
-            <DropdownMenu>
+            <div className="flex items-center justify-end gap-1">
+              <Popover
+                open={popoverOpen}
+                onOpenChange={(open) => {
+                  if (open) {
+                    setTagPopoverId(p.id);
+                    setEditTags(p.tags);
+                  } else if (tagPopoverId === p.id) {
+                    setTagPopoverId(null);
+                  }
+                }}
+              >
+                <PopoverTrigger
+                  className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-brand-blue hover:bg-brand-blue-light"
+                >
+                  <Pencil className="size-3.5" />
+                  标签
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80">
+                  <p className="mb-3 text-sm font-medium">编辑身份标签</p>
+                  <TagEditor
+                    value={editTags}
+                    onChange={setEditTags}
+                    mode="replace"
+                    disabled={savingTags}
+                  />
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setTagPopoverId(null)}
+                    >
+                      取消
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={savingTags}
+                      onClick={() =>
+                        void saveParticipantTags(p.id, editTags)
+                      }
+                    >
+                      确认
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <DropdownMenu>
               <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg text-text-muted hover:bg-content">
                 <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
@@ -315,6 +448,15 @@ export function ParticipantTable({
                     手动签到
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem
+                  onClick={() => {
+                    setTagPopoverId(p.id);
+                    setEditTags(p.tags);
+                  }}
+                >
+                  <Pencil className="size-4" />
+                  编辑标签
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     setTargetIds([p.id]);
@@ -343,12 +485,13 @@ export function ParticipantTable({
                   移除
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+              </DropdownMenu>
+            </div>
           );
         },
       },
     ],
-    [onCheckIn],
+    [onCheckIn, tagPopoverId, editTags, savingTags, eventId],
   );
 
   const table = useReactTable({
@@ -416,6 +559,20 @@ export function ParticipantTable({
             }}
           >
             批量导出
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const ids = table
+                .getFilteredSelectedRowModel()
+                .rows.map((r) => r.original.id);
+              setTargetIds(ids);
+              setEditTags([]);
+              setTagsOpen(true);
+            }}
+          >
+            批量打标签
           </Button>
           <Button
             size="sm"
@@ -591,6 +748,33 @@ export function ParticipantTable({
               }
             >
               确认
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={tagsOpen} onOpenChange={setTagsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>批量打标签（{targetIds.length} 人）</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-text-muted">
+            所选标签将追加到每位参会者已有标签，不会覆盖原有标签。
+          </p>
+          <TagEditor
+            value={editTags}
+            onChange={setEditTags}
+            mode="append"
+            disabled={savingTags}
+          />
+          <DialogFooter>
+            <Button
+              disabled={savingTags}
+              onClick={() =>
+                void batchAppendTags(targetIds, editTags)
+              }
+            >
+              {savingTags ? "保存中…" : "确认追加"}
             </Button>
           </DialogFooter>
         </DialogContent>

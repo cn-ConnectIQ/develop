@@ -46,6 +46,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   settings: "活动设置",
   "org-profile": "信誉展示页",
   "invite-campaigns": "邀请管理",
+  invite: "邀请管理",
   users: "用户管理",
   connections: "连接数据分析",
   points: "积分管理",

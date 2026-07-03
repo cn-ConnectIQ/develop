@@ -20,11 +20,17 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  BoothStampTable,
+  StampPointTable,
   type BoothOption,
-} from "@/components/stamp/BoothStampTable";
+} from "@/components/stamp/StampPointTable";
 import { StampRallyStats } from "@/components/stamp/StampRallyStats";
-import type { BoothStampConfig } from "@/lib/stamp/stamp-rally-config";
+import type { StampPointConfig } from "@/lib/stamp/stamp-rally-config";
+import {
+  computeWeightedRequired,
+  extractBoothIdsFromStampPoints,
+  isBoothStampPoint,
+  stampPointClientKey,
+} from "@/lib/stamp/stamp-rally-config";
 import type { ApiStampRally } from "@/lib/stamp-rally-service";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +72,7 @@ function StampPassportPreview({
   prize: string;
   prizeImageUrl: string | null;
   requiredCount: number;
-  stamps: BoothStampConfig[];
+  stamps: StampPointConfig[];
 }) {
   const collected = Math.min(2, stamps.length);
 
@@ -136,7 +142,7 @@ function StampPassportPreview({
         <div className="mt-4 grid grid-cols-3 gap-2">
           {stamps.length === 0 ? (
             <p className="col-span-3 py-6 text-center text-xs text-text-muted">
-              添加展位章后在此预览
+              添加打卡点后在此预览
             </p>
           ) : (
             stamps.map((stamp, i) => {
@@ -148,7 +154,7 @@ function StampPassportPreview({
 
               return (
                 <div
-                  key={stamp.booth_id}
+                  key={stampPointClientKey(stamp)}
                   className={cn(
                     "flex flex-col items-center rounded-xl border p-2 text-center transition-colors",
                     stamped
@@ -228,7 +234,7 @@ export function StampRallyConfigurator({
   const [prizeDesc, setPrizeDesc] = useState("");
   const [prizeQuantity, setPrizeQuantity] = useState<number | "">("");
   const [requiredCount, setRequiredCount] = useState(3);
-  const [boothStamps, setBoothStamps] = useState<BoothStampConfig[]>([]);
+  const [stampPoints, setStampPoints] = useState<StampPointConfig[]>([]);
   const [alwaysOpen, setAlwaysOpen] = useState(true);
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
@@ -264,7 +270,7 @@ export function StampRallyConfigurator({
       setPrizeDesc("");
       setPrizeQuantity("");
       setRequiredCount(3);
-      setBoothStamps([]);
+      setStampPoints([]);
       setAlwaysOpen(true);
       setStartsAt("");
       setEndsAt("");
@@ -282,7 +288,7 @@ export function StampRallyConfigurator({
     setPrizeDesc(rally.prize_desc ?? "");
     setPrizeQuantity(rally.prize_quantity ?? "");
     setRequiredCount(rally.required_count);
-    setBoothStamps(rally.booth_stamps);
+    setStampPoints(rally.booth_stamps);
     setAlwaysOpen(rally.always_open);
     setStartsAt(rally.starts_at ? rally.starts_at.slice(0, 16) : "");
     setEndsAt(rally.ends_at ? rally.ends_at.slice(0, 16) : "");
@@ -303,8 +309,8 @@ export function StampRallyConfigurator({
   }, [mode, rallyId, initialRallyId, rallies]);
 
   const maxWeighted = useMemo(() => {
-    return boothStamps.reduce((sum, s) => sum + s.weight, 0);
-  }, [boothStamps]);
+    return computeWeightedRequired(stampPoints);
+  }, [stampPoints]);
 
   async function handleUpload(
     file: File,
@@ -337,8 +343,18 @@ export function StampRallyConfigurator({
       toast.error("请填写路线名称和兑换奖品");
       return;
     }
-    if (boothStamps.length === 0) {
-      toast.error("请至少添加一个展位章");
+    if (stampPoints.length === 0) {
+      toast.error("请至少添加一个打卡点");
+      return;
+    }
+
+    const invalidCustom = stampPoints.find(
+      (p) =>
+        !isBoothStampPoint(p) &&
+        !(p.custom_name?.trim() || p.name?.trim()),
+    );
+    if (invalidCustom) {
+      toast.error("自定义打卡点名称必填");
       return;
     }
     if (requiredCount < 1 || requiredCount > maxWeighted) {
@@ -360,8 +376,8 @@ export function StampRallyConfigurator({
       prize_quantity:
         prizeQuantity === "" ? null : Number(prizeQuantity),
       required_count: requiredCount,
-      booth_ids: boothStamps.map((s) => s.booth_id),
-      booth_stamps: boothStamps,
+      booth_ids: extractBoothIdsFromStampPoints(stampPoints),
+      booth_stamps: stampPoints,
       always_open: alwaysOpen,
       starts_at: alwaysOpen
         ? null
@@ -598,14 +614,14 @@ export function StampRallyConfigurator({
               </SectionCard>
 
               <SectionCard
-                title="展位章设置"
-                description="选择参与展位，配置章名称、图案、权重与是否必须集"
+                title="打卡点设置"
+                description="可从展位选择，或添加自定义打卡点（赞助商区、分会场、合影台等），两种方式可混用"
               >
                 <div className="p-5">
-                  <BoothStampTable
+                  <StampPointTable
                     booths={booths}
-                    stamps={boothStamps}
-                    onChange={setBoothStamps}
+                    stamps={stampPoints}
+                    onChange={setStampPoints}
                     disabled={isLocked}
                   />
                 </div>
@@ -705,7 +721,7 @@ export function StampRallyConfigurator({
                     prize={prize}
                     prizeImageUrl={prizeImageUrl}
                     requiredCount={requiredCount}
-                    stamps={boothStamps}
+                    stamps={stampPoints}
                   />
                 </div>
               </SectionCard>

@@ -188,7 +188,7 @@ export function CampaignDetailClient({
     <AdminPageBody>
       <header className="mb-6">
         <Link
-          href={`/events/${eventId}/invite-campaigns`}
+          href={`/events/${eventId}/invite`}
           className="mb-3 inline-flex items-center text-sm text-brand-blue hover:underline"
         >
           ← 邀请管理

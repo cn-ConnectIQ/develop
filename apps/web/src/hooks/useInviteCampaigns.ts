@@ -49,6 +49,7 @@ export type InviteRecordItem = {
     phone: string | null;
     email: string | null;
     inviteStatus: string;
+    tags?: string[];
   };
 };
 

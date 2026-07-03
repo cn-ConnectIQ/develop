@@ -71,7 +71,7 @@ export const EVENT_FEATURE_FLAG_GROUPS: EventFeatureFlagGroup[] = [
       {
         key: "stampRally",
         label: "集章打卡",
-        description: "参会者扫描展位集章，完成路线后可兑换奖励或参与排行",
+        description: "参会者扫描打卡点集章（展位、赞助商区、分会场等），完成路线后可兑换奖励",
       },
       {
         key: "boothRanking",

@@ -9,13 +9,17 @@ export function resolveEventNavRole(params: {
 }): UserRole {
   const { activityType, eventType, isExhibitorRoute, userType } = params;
 
-  if (isExhibitorRoute || activityType === "EXHIBITION") {
+  if (isExhibitorRoute) {
     return UserRole.EXHIBITOR;
   }
 
-  // 统一账号管理员：侧栏始终走 /events/ 主办方导航，避免误入 legacy /expos/ 路由
+  // 账号管理员在 /events/ 下统一走主办方导航（含 EXHIBITION 参展活动）
   if (userType === "ACCOUNT_ADMIN" || userType === "PLATFORM_ADMIN") {
     return UserRole.ORGANIZER;
+  }
+
+  if (activityType === "EXHIBITION") {
+    return UserRole.EXHIBITOR;
   }
 
   if (activityType === "EXPO" || eventType === "EXPO") {

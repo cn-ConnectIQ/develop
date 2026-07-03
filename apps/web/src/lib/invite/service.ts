@@ -339,6 +339,7 @@ export async function listInviteRecords(
             phone: true,
             email: true,
             inviteStatus: true,
+            tags: true,
           },
         },
       },

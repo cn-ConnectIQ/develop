@@ -1,4 +1,8 @@
-import { prisma, ParticipantRole } from "@connectiq/database";
+import {
+  ParticipantRole,
+  SystemRole,
+  prisma,
+} from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -8,6 +12,11 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { maybeTriggerReferralScanOnCheckin } from "@/lib/ai/referral-scanner";
+import { serializeParticipantRow } from "@/lib/participant-serialize";
+import {
+  mergeParticipantTags,
+  normalizeParticipantTags,
+} from "@/lib/participant-tags";
 
 const patchSchema = z.object({
   name: z.string().optional(),
@@ -16,6 +25,9 @@ const patchSchema = z.object({
   company: z.string().optional(),
   jobTitle: z.string().optional(),
   role: z.nativeEnum(ParticipantRole).optional(),
+  systemRole: z.nativeEnum(SystemRole).optional(),
+  tags: z.array(z.string()).optional(),
+  addTags: z.array(z.string()).optional(),
   ticketTypeId: z.string().nullable().optional(),
   checkIn: z.boolean().optional(),
 });
@@ -51,9 +63,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
       await prisma.checkIn.create({
         data: { eventId, participantId, method: "manual" },
       });
-      void maybeTriggerReferralScanOnCheckin(eventId).catch(() => {
-        // 自动扫描失败不影响签到
-      });
+      void maybeTriggerReferralScanOnCheckin(eventId).catch(() => {});
     }
   }
 
@@ -75,6 +85,13 @@ export const PATCH = withErrorHandler(async (request, context) => {
     }
   }
 
+  let nextTags = participant.tags;
+  if (parsed.data.tags !== undefined) {
+    nextTags = normalizeParticipantTags(parsed.data.tags);
+  } else if (parsed.data.addTags?.length) {
+    nextTags = mergeParticipantTags(participant.tags, parsed.data.addTags);
+  }
+
   const updated = await prisma.participant.update({
     where: { id: participantId },
     data: {
@@ -84,6 +101,8 @@ export const PATCH = withErrorHandler(async (request, context) => {
       company: parsed.data.company,
       jobTitle: parsed.data.jobTitle,
       role: parsed.data.role,
+      systemRole: parsed.data.systemRole,
+      tags: nextTags,
     },
     include: {
       checkIns: { where: { eventId }, take: 1, orderBy: { checkedInAt: "desc" } },
@@ -95,25 +114,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     },
   });
 
-  const ticketType = updated.registrations[0]?.ticketType?.name ?? null;
-
-  return createSuccessResponse({
-    id: updated.id,
-    name: updated.name,
-    email: updated.email,
-    phone: updated.phone,
-    company: updated.company,
-    jobTitle: updated.jobTitle,
-    role: updated.role,
-    badgeQr: updated.badgeQr,
-    createdAt: updated.createdAt.toISOString(),
-    ticketType,
-    ticketTypeId: updated.registrations[0]?.ticketTypeId ?? null,
-    checkedInAt: updated.checkIns[0]?.checkedInAt?.toISOString() ?? null,
-    connectionCount: updated._count.leads,
-    isVip: ticketType?.toUpperCase().includes("VIP") ?? false,
-    isSpeaker: updated.role === ParticipantRole.SPEAKER,
-  });
+  return createSuccessResponse(serializeParticipantRow(updated, eventId));
 });
 
 export const DELETE = withErrorHandler(async (_request, context) => {

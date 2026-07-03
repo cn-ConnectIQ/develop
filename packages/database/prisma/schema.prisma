@@ -44,6 +44,22 @@ enum ParticipantRole {
   SPEAKER
 }
 
+/// 系统角色（权限边界，互斥；与 honor tags 分离）
+enum SystemRole {
+  PARTICIPANT // 普通参会者（默认）
+  ORGANIZER   // 主办方工作人员
+  EXHIBITOR   // 展商代表
+  STAFF       // 现场工作人员（不进 AI 推荐池）
+}
+
+/// 参会者进入活动的来源
+enum ParticipantSource {
+  IMPORT
+  INVITE
+  SCAN
+  SELF_REGISTER
+}
+
 enum BoothStatus {
   AVAILABLE
   BOOKED
@@ -283,6 +299,15 @@ enum StampOwnerType {
 enum StampCollectMethod {
   SCAN
   NFC
+}
+
+/// 集章打卡点类型（展位仅为其中一种）
+enum StampPointType {
+  BOOTH
+  SPONSOR_AREA
+  SESSION
+  PHOTO_WALL
+  CUSTOM
 }
 
 enum InviteCampaignStatus {
@@ -790,6 +815,7 @@ model Event {
   intentConfig         Json      @default("{}") @map("intent_config")
   premeetEnabled       Boolean   @default(false) @map("premeet_enabled")
   premeetOpenAt        DateTime? @map("premeet_open_at")
+  showTagsToParticipants Boolean @default(true) @map("show_tags_to_participants")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
@@ -960,6 +986,9 @@ model Participant {
   jobTitle     String?                 @map("job_title")
   badgeQr      String?                 @unique @map("badge_qr")
   role         ParticipantRole         @default(ATTENDEE) @map("role")
+  systemRole   SystemRole              @default(PARTICIPANT) @map("system_role")
+  tags         String[]                @default([])
+  source       ParticipantSource       @default(SCAN)
   inviteStatus ParticipantInviteStatus @default(NOT_INVITED) @map("invite_status")
   createdAt    DateTime                @default(now()) @map("created_at")
 
@@ -975,6 +1004,7 @@ model Participant {
   snPairsAsB      SnPair[]                  @relation("SnPairParticipantB")
   inviteRecords   InviteRecord[]
 
+  @@index([eventId, phone])
   @@map("participants")
 }
 
@@ -2039,7 +2069,10 @@ model Stamp {
   id             String               @id @default(cuid())
   rallyId        String               @map("rally_id")
   name           String
+  pointType      StampPointType       @default(BOOTH) @map("point_type")
   boothId        String?              @map("booth_id")
+  customName     String?              @map("custom_name")
+  location       String?
   icon           String?
   weight         Int                  @default(1)
   scanCode       String               @unique @default(cuid()) @map("scan_code")
@@ -2055,6 +2088,7 @@ model Stamp {
 
   @@index([rallyId])
   @@index([boothId])
+  @@index([rallyId, pointType])
   @@map("stamps")
 }
 
