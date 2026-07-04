@@ -1,8 +1,48 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
+
+/** 表格上方筛选/分页工具栏 */
+function TableToolbar({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="table-toolbar"
+      className={cn(
+        "mb-4 flex flex-wrap items-center gap-4 rounded-md border border-border bg-surface p-4 shadow-sm",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 表格外壳：白底 + 细边框 + 轻阴影 */
+function TableShell({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="table-shell"
+      className={cn(
+        "overflow-x-auto rounded-md border border-border bg-surface shadow-sm",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -16,27 +56,27 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
         {...props}
       />
     </div>
-  )
+  );
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("[&_tr]:border-b [&_tr]:border-border", className)}
       {...props}
     />
-  )
+  );
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      className={cn("[&_tr:last-child]:border-b-0", className)}
       {...props}
     />
-  )
+  );
 }
 
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
@@ -44,12 +84,12 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
-        className
+        "border-t border-border bg-surface-secondary font-medium [&>tr]:last:border-b-0",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
@@ -57,12 +97,15 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
-        className
+        "min-h-12 border-b border-border bg-surface transition-colors",
+        "hover:bg-surface-secondary",
+        "has-aria-expanded:bg-surface-secondary",
+        "data-[state=selected]:bg-surface-secondary",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
@@ -70,12 +113,13 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
-        className
+        "h-12 bg-surface-secondary px-4 text-left align-middle text-xs font-semibold whitespace-nowrap text-text-tertiary",
+        "[&:has([role=checkbox])]:pr-0 [&:has([role=checkbox])]:pl-3",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
@@ -83,12 +127,13 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        className
+        "px-4 py-3 align-middle whitespace-nowrap text-sm text-text-primary",
+        "[&:has([role=checkbox])]:pr-0 [&:has([role=checkbox])]:pl-3",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableCaption({
@@ -98,10 +143,10 @@ function TableCaption({
   return (
     <caption
       data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
+      className={cn("mt-4 text-sm text-text-secondary", className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -113,4 +158,6 @@ export {
   TableRow,
   TableCell,
   TableCaption,
-}
+  TableShell,
+  TableToolbar,
+};

@@ -8,6 +8,6 @@ AI 功能 → text-brand-purple / bg-brand-purple-light
 VIP/积分 → text-brand-gold
 错误/删除 → text-red-600 / bg-red-50
 
-侧边栏背景：bg-sidebar（#1A1A2E）
+侧边栏背景：bg-surface-secondary（#F5F5F3，浅灰）
 内容区背景：bg-content（#F5F5F3）
 卡片边框：border-border-light（#D3D1C7）

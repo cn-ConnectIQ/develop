@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
@@ -14,6 +14,7 @@ import { CreationSection, creationStyles } from "@/components/admin/content-crea
 import { MobileDevicePreview } from "@/components/admin/mobile-device-preview";
 import { InteractionEditLayout } from "@/components/interactions/InteractionEditLayout";
 import { Textarea } from "@/components/ui/textarea";
+import { buttonVariants } from "@/components/ui/button";
 import { AnimationTypePicker } from "@/components/lottery/AnimationTypePicker";
 import { LotteryCreationFooter } from "@/components/lottery/LotteryCreationFooter";
 import {
@@ -148,18 +149,21 @@ export function ProbabilityLotterySetupStepper({
     (t) => t.value === triggerAction,
   )?.title;
 
+  const listHref = `/events/${eventId}/lottery/participant`;
+
   return (
     <AdminPage>
       <AdminHeader
         title="创建概率抽奖"
-        description={`${companyName} · ${boothCode} · 行为触发`}
-        breadcrumb={["活动", boothName, "概率抽奖"]}
+        description={`${companyName} · ${boothCode} · LOTTERY-V2-04`}
+        breadcrumb={["互动管理", "参与人抽奖", "概率抽奖"]}
         actions={
           <Link
-            href={`/events/${eventId}/booths/${boothId}/lottery/new`}
-            className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
+            href={listHref}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
           >
-            其他类型
+            <ArrowLeft className="mr-1.5 size-4" />
+            返回列表
           </Link>
         }
       />
@@ -216,7 +220,7 @@ export function ProbabilityLotterySetupStepper({
                 </div>
 
                 {triggerAction === TriggerAction.FILL_FORM ? (
-                  <div className="mt-4 rounded-xl border border-dashed border-border-light px-5 py-4 text-sm text-text-muted">
+                  <div className="mt-4 rounded-lg border border-dashed border-border bg-surface-secondary/50 px-5 py-4 text-sm text-text-secondary">
                     将使用展位留资字段引擎。
                     <Link
                       href={`/events/${eventId}/exhibitors/booths`}

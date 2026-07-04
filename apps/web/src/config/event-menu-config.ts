@@ -21,6 +21,8 @@ export const EVENT_MENU_VISIBILITY: Record<string, EventActivityKind[]> = {
   "marketup-sync": ["CONFERENCE", "EXPO", "EXHIBITION"],
   interaction: ["CONFERENCE", "EXPO", "EXHIBITION"],
   lottery: ["CONFERENCE", "EXPO", "EXHIBITION"],
+  "lottery-big-screen": ["CONFERENCE", "EXPO", "EXHIBITION"],
+  "lottery-participant": ["CONFERENCE", "EXPO", "EXHIBITION"],
   "stamp-rally": ["CONFERENCE", "EXPO", "EXHIBITION"],
 };
 
@@ -57,7 +59,7 @@ export function isEventMenuVisible(
 }
 
 export function applyActivityMenuLabel<
-  T extends { menuKey?: string; label: string },
+  T extends { menuKey?: string; label: string; children?: NavSubItemLike[] },
 >(item: T, activityKind: EventActivityKind): T {
   if (item.menuKey === "all-leads" && activityKind === "EXHIBITION") {
     return { ...item, label: "本展位线索" };
@@ -65,13 +67,35 @@ export function applyActivityMenuLabel<
   return item;
 }
 
+type NavSubItemLike = {
+  menuKey?: string;
+  label: string;
+};
+
 export function filterItemsByActivityType<
-  T extends { menuKey?: string; label: string },
+  T extends { menuKey?: string; label: string; children?: NavSubItemLike[] },
 >(items: T[], activityKind: EventActivityKind): T[] {
   return items
-    .filter(
-      (item) =>
-        !item.menuKey || isEventMenuVisible(item.menuKey, activityKind),
-    )
-    .map((item) => applyActivityMenuLabel(item, activityKind));
+    .map((item) => {
+      if (item.children?.length) {
+        const visibleChildren = item.children.filter(
+          (child) =>
+            !child.menuKey || isEventMenuVisible(child.menuKey, activityKind),
+        );
+        if (visibleChildren.length === 0) return null;
+        if (item.menuKey && !isEventMenuVisible(item.menuKey, activityKind)) {
+          return null;
+        }
+        return applyActivityMenuLabel(
+          { ...item, children: visibleChildren },
+          activityKind,
+        );
+      }
+
+      if (item.menuKey && !isEventMenuVisible(item.menuKey, activityKind)) {
+        return null;
+      }
+      return applyActivityMenuLabel(item, activityKind);
+    })
+    .filter((item): item is T => item != null);
 }

@@ -1,136 +1,93 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  parseConnectionsTrend,
+  StatMetricCard,
+  StatMetricValue,
+} from "@/components/dashboard/StatMetricCard";
 import type { DashboardStats } from "@/lib/dashboard-types";
-import { cn } from "@/lib/utils";
 
 type RealtimeStatsProps = {
   stats?: DashboardStats;
   isLoading?: boolean;
 };
 
-function AnimatedNumber({
-  value,
-  className,
-}: {
-  value: number | string;
-  className?: string;
-}) {
-  const prev = useRef(value);
-  const [pulse, setPulse] = useState(false);
-
-  useEffect(() => {
-    if (prev.current !== value) {
-      prev.current = value;
-      setPulse(true);
-      const t = setTimeout(() => setPulse(false), 400);
-      return () => clearTimeout(t);
-    }
-  }, [value]);
-
-  return (
-    <span
-      className={cn(
-        "inline-block tabular-nums transition-transform duration-300",
-        pulse && "scale-110",
-        className,
-      )}
-    >
-      {value}
-    </span>
-  );
-}
-
 export function RealtimeStats({ stats, isLoading }: RealtimeStatsProps) {
   if (isLoading || !stats) {
     return (
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-36 rounded-xl" />
+          <Skeleton key={i} className="h-[132px] rounded-lg" />
         ))}
       </div>
     );
   }
 
+  const connectionsTrend = parseConnectionsTrend(stats.connectionsDelta);
+
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-      {/* 已签到 */}
-      <div className="admin-card admin-card-pad-lg">
-        <p className="text-xs text-text-muted">已签到</p>
-        <div className="mt-2 flex items-baseline gap-0.5">
-          <AnimatedNumber
-            value={stats.checkedIn}
-            className="text-4xl font-bold text-brand-blue"
-          />
-          <span className="text-xl text-text-muted">/{stats.participants}</span>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-brand-blue transition-all duration-500"
-            style={{ width: `${stats.checkInRate}%` }}
-          />
-        </div>
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
-          <span className="size-1.5 rounded-full bg-brand-green" />
-          实时更新
-        </p>
-      </div>
-
-      {/* 商业连接 */}
-      <div className="admin-card admin-card-pad-lg">
-        <p className="text-xs text-text-muted">商业连接</p>
-        <AnimatedNumber
-          value={stats.connections}
-          className="mt-2 block text-3xl font-bold text-brand-purple"
+      <StatMetricCard
+        label="已签到"
+        trend={
+          stats.checkInRate > 0
+            ? { direction: "up", label: `签到率 ${stats.checkInRate}%` }
+            : undefined
+        }
+        footer={`未签到 ${stats.pending} 人`}
+      >
+        <StatMetricValue
+          tone="brand"
+          value={stats.checkedIn}
+          suffix={`/ ${stats.participants}`}
         />
-        <p className="mt-2 text-xs text-brand-green">{stats.connectionsDelta}</p>
-      </div>
+      </StatMetricCard>
 
-      {/* VIP 到场 */}
-      <div className="admin-card admin-card-pad-lg">
-        <p className="text-xs text-text-muted">VIP 到场</p>
-        <div className="mt-2 text-3xl font-bold text-brand-gold tabular-nums">
-          <AnimatedNumber value={stats.vipCheckedIn} />
-          <span className="text-xl text-text-muted">/{stats.vipTotal}</span>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-brand-gold transition-all duration-500"
-            style={{ width: `${stats.vipRate}%` }}
-          />
-        </div>
-      </div>
+      <StatMetricCard label="商业连接" trend={connectionsTrend}>
+        <StatMetricValue tone="primary" value={stats.connections} />
+      </StatMetricCard>
 
-      {/* 展位线索 */}
-      <div className="admin-card admin-card-pad-lg">
-        <p className="text-xs text-text-muted">展位线索</p>
-        <AnimatedNumber
-          value={stats.leads}
-          className="mt-2 block text-3xl font-bold text-brand-green"
+      <StatMetricCard
+        label="VIP 到场"
+        trend={
+          stats.vipRate > 0
+            ? { direction: "up", label: `到场率 ${stats.vipRate}%` }
+            : undefined
+        }
+      >
+        <StatMetricValue
+          tone="primary"
+          value={stats.vipCheckedIn}
+          suffix={stats.vipTotal > 0 ? `/ ${stats.vipTotal}` : undefined}
         />
-        <p className="mt-2 text-xs">
-          <span className="text-brand-green">A级 {stats.leadsGradeA}</span>
-          <span className="text-text-muted"> · </span>
-          <span className="text-brand-blue">B级 {stats.leadsGradeB}</span>
-          <span className="text-text-muted"> · </span>
-          <span className="text-brand-amber">C级 {stats.leadsGradeC}</span>
-        </p>
-      </div>
+      </StatMetricCard>
 
-      {/* 今日会面 */}
-      <div className="admin-card admin-card-pad-lg border-l-[3px] border-l-brand-purple pl-4">
-        <p className="text-xs text-text-muted">今日会面</p>
-        <AnimatedNumber
-          value={stats.meetings.total}
-          className="mt-2 block text-2xl font-bold text-brand-purple"
-        />
-        <div className="mt-2 space-y-0.5 text-xs text-text-muted">
-          <p>已完成 {stats.meetings.completed}</p>
-          <p>进行中 {stats.meetings.inProgress}</p>
-          <p>未出现 {stats.meetings.noShow}</p>
-        </div>
-      </div>
+      <StatMetricCard
+        label="展位线索"
+        footer={
+          <>
+            A 级 {stats.leadsGradeA} · B 级 {stats.leadsGradeB} · C 级{" "}
+            {stats.leadsGradeC}
+          </>
+        }
+      >
+        <StatMetricValue tone="brand" value={stats.leads} />
+      </StatMetricCard>
+
+      <StatMetricCard
+        label="今日会面"
+        footer={
+          <>
+            已完成 {stats.meetings.completed} · 进行中 {stats.meetings.inProgress}
+            {stats.meetings.noShow > 0
+              ? ` · 未出现 ${stats.meetings.noShow}`
+              : ""}
+          </>
+        }
+      >
+        <StatMetricValue tone="primary" value={stats.meetings.total} />
+      </StatMetricCard>
     </div>
   );
 }

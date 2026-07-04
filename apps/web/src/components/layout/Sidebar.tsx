@@ -15,6 +15,7 @@ import {
   getRoleLabel,
   shortenEventName,
   type NavItem,
+  type NavSubItem,
 } from "@/config/navigation";
 import {
   extractEventIdFromPath,
@@ -26,9 +27,7 @@ import {
   isNavItemActive,
 } from "@/lib/nav-context";
 import { resolveEventNavRole, resolvePlatformNavRole } from "@/lib/nav-role";
-import { getRoleTheme } from "@/lib/role-theme";
 import {
-  getOrgLogoGradient,
   getOrgSidebarActiveClass,
 } from "@/lib/org-switcher-utils";
 import { cn } from "@/lib/utils";
@@ -57,6 +56,213 @@ function isNavActive(
   hash: string,
 ) {
   return isNavItemActive(href, pathname, searchParams, hash);
+}
+
+type FlatNavItem = NavItem & { groupKey: string };
+
+function flattenNavItems(
+  items: Array<NavItem & { groupKey?: string }>,
+): FlatNavItem[] {
+  return items.flatMap((item) => {
+    const groupKey = item.groupKey ?? "";
+    if (item.children?.length) {
+      return item.children.map((child) => ({
+        ...item,
+        label: child.label,
+        href: child.href,
+        menuKey: child.menuKey,
+        external: child.external,
+        children: undefined,
+        badge: undefined,
+        isNew: undefined,
+        groupKey,
+      }));
+    }
+    return [{ ...item, groupKey }];
+  });
+}
+
+function SidebarNavSubItem({
+  item,
+  active,
+  activeClass,
+  disabled,
+  disabledTitle = "审核通过后可用",
+}: {
+  item: NavSubItem;
+  active: boolean;
+  activeClass: string;
+  disabled?: boolean;
+  disabledTitle?: string;
+}) {
+  const className = cn(
+    "admin-sb-subitem",
+    active && "active",
+    active && activeClass,
+    disabled && "pointer-events-none cursor-not-allowed opacity-50",
+  );
+
+  if (disabled) {
+    return (
+      <span title={disabledTitle} className={className}>
+        {item.label}
+      </span>
+    );
+  }
+
+  if (item.external) {
+    return (
+      <a
+        href={item.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {item.label}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={item.href} className={className}>
+      {item.label}
+    </Link>
+  );
+}
+
+function SidebarNavParentItem({
+  item,
+  pathname,
+  searchParams,
+  hash,
+  collapsed,
+  activeClass,
+  disabled,
+  disabledTitle = "审核通过后可用",
+}: {
+  item: NavItem;
+  pathname: string;
+  searchParams: { get: (key: string) => string | null } | null;
+  hash: string;
+  collapsed: boolean;
+  activeClass: string;
+  disabled?: boolean;
+  disabledTitle?: string;
+}) {
+  const Icon = item.icon;
+  const children = item.children ?? [];
+  const childActive = children.some((child) =>
+    isNavActive(child.href, pathname, searchParams, hash),
+  );
+  const [open, setOpen] = useState(childActive);
+
+  useEffect(() => {
+    if (childActive) setOpen(true);
+  }, [childActive, pathname]);
+
+  if (collapsed) {
+    const fallback = children[0] ?? item;
+    return (
+      <SidebarNavItem
+        item={{
+          ...item,
+          label: fallback.label,
+          href: fallback.href,
+          menuKey: fallback.menuKey,
+          children: undefined,
+        }}
+        active={childActive}
+        collapsed
+        activeClass={activeClass}
+        disabled={disabled}
+        disabledTitle={disabledTitle}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        title={item.label}
+        disabled={disabled}
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "admin-sb-item admin-sb-parent",
+          childActive && "has-active-child",
+          disabled && "cursor-not-allowed opacity-50",
+        )}
+      >
+        <Icon className="admin-sb-icon size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+        <ChevronRight
+          className={cn(
+            "admin-sb-parent-chevron size-3.5 shrink-0",
+            open && "open",
+          )}
+        />
+      </button>
+      {open && !disabled && (
+        <ul className="admin-sb-sublist space-y-0.5">
+          {children.map((child) => (
+            <li key={child.href}>
+              <SidebarNavSubItem
+                item={child}
+                active={isNavActive(child.href, pathname, searchParams, hash)}
+                activeClass={activeClass}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SidebarNavEntry({
+  item,
+  pathname,
+  searchParams,
+  hash,
+  collapsed,
+  activeClass,
+  disabled,
+  disabledTitle,
+}: {
+  item: NavItem;
+  pathname: string;
+  searchParams: { get: (key: string) => string | null } | null;
+  hash: string;
+  collapsed: boolean;
+  activeClass: string;
+  disabled?: boolean;
+  disabledTitle?: string;
+}) {
+  if (item.children?.length) {
+    return (
+      <SidebarNavParentItem
+        item={item}
+        pathname={pathname}
+        searchParams={searchParams}
+        hash={hash}
+        collapsed={collapsed}
+        activeClass={activeClass}
+        disabled={disabled}
+        disabledTitle={disabledTitle}
+      />
+    );
+  }
+
+  return (
+    <SidebarNavItem
+      item={item}
+      active={isNavActive(item.href, pathname, searchParams, hash)}
+      collapsed={collapsed}
+      activeClass={activeClass}
+      disabled={disabled}
+      disabledTitle={disabledTitle}
+    />
+  );
 }
 
 function SidebarNavItem({
@@ -95,7 +301,7 @@ function SidebarNavItem({
                 "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
                 item.badgeVariant === "danger"
                   ? "bg-brand-red text-white"
-                  : "bg-white/10 text-white/80",
+                  : "bg-surface-secondary text-text-secondary",
               )}
             >
               {item.badge}
@@ -168,9 +374,11 @@ function NavGroups({
           <ul className="space-y-0.5">
             {group.items.map((item) => (
               <li key={`${group.label}-${item.href}-${item.label}`}>
-                <SidebarNavItem
+                <SidebarNavEntry
                   item={item}
-                  active={isNavActive(item.href, pathname, searchParams, hash)}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  hash={hash}
                   collapsed={collapsed}
                   activeClass={activeClass}
                 />
@@ -216,10 +424,12 @@ function EventNavGroups({
           )}
           <ul className="space-y-0.5">
             {group.items.map((item) => (
-              <li key={`${group.label}-${item.href}`}>
-                <SidebarNavItem
+              <li key={`${group.label}-${item.href}-${item.label}`}>
+                <SidebarNavEntry
                   item={item}
-                  active={isNavActive(item.href, pathname, searchParams, hash)}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  hash={hash}
                   collapsed={collapsed}
                   activeClass={activeClass}
                   disabled={
@@ -269,16 +479,10 @@ export function Sidebar({
     isExhibitorRoute,
     userType,
   });
-  const theme = getRoleTheme(navRole);
   const sidebarActiveClass = getOrgSidebarActiveClass(
     session?.user?.userType === "ACCOUNT_ADMIN" ? "ORGANIZATION" : session?.user?.activeOrgType,
     session?.user?.userType ?? (role === UserRole.PLATFORM_ADMIN ? "PLATFORM_ADMIN" : undefined),
   );
-  const logoGradient =
-    session?.user?.userType === "ACCOUNT_ADMIN"
-      ? getOrgLogoGradient("ORGANIZATION")
-      : theme.logoGradient;
-
   const exhibitorBoothId = isExhibitorRoute
     ? (session?.user?.boothId ??
       user.entityId ??
@@ -376,8 +580,10 @@ export function Sidebar({
         : [...platformGroupsWithBadges, ...aiOpsGroups]
       : eventNav;
 
-  const flatItems = visibleGroups.flatMap((g) =>
-    g.items.map((item) => ({ ...item, groupKey: g.label })),
+  const flatItems = flattenNavItems(
+    visibleGroups.flatMap((g) =>
+      g.items.map((item) => ({ ...item, groupKey: g.label })),
+    ),
   );
 
   return (
@@ -387,22 +593,15 @@ export function Sidebar({
         collapsed ? "w-14" : "w-[220px]",
       )}
     >
-      <div className="flex h-14 shrink-0 items-center border-b border-white/10 px-3">
+      <div className="shrink-0 border-b border-border px-3 pb-3 pt-6">
         {collapsed ? (
-          <div className="flex w-full flex-col items-center gap-1">
-            <div
-              className={cn(
-                "admin-sb-logo flex size-8 items-center justify-center text-sm font-bold",
-                `bg-gradient-to-br ${logoGradient}`,
-              )}
-            >
-              C
-            </div>
+          <div className="flex w-full flex-col items-center gap-2">
+            <div className="admin-sb-logo">C</div>
             <Button
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="text-white/50 hover:bg-white/10 hover:text-white"
+              className="text-text-tertiary hover:bg-surface hover:text-text-primary"
               onClick={onToggleCollapse}
               aria-label="展开侧边栏"
             >
@@ -410,12 +609,13 @@ export function Sidebar({
             </Button>
           </div>
         ) : (
-          <>
+          <div className="flex items-start gap-2">
+            <div className="admin-sb-logo">C</div>
             <div className="flex min-w-0 flex-1 flex-col justify-center">
-              <span className="truncate text-[14.5px] font-semibold leading-tight text-white">
+              <span className="truncate text-sm font-semibold leading-tight text-text-primary">
                 ConnectIQ
               </span>
-              <span className="truncate text-[10px] tracking-widest text-[#7e84a6]">
+              <span className="truncate text-xs tracking-wide text-text-tertiary">
                 管理后台
               </span>
             </div>
@@ -423,18 +623,18 @@ export function Sidebar({
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="shrink-0 text-white/50 hover:bg-white/10 hover:text-white"
+              className="shrink-0 text-text-tertiary hover:bg-surface hover:text-text-primary"
               onClick={onToggleCollapse}
               aria-label="折叠侧边栏"
             >
               <ChevronLeft className="size-4" />
             </Button>
-          </>
+          </div>
         )}
       </div>
 
       {showPlatformBack && !collapsed && (
-        <div className="border-b border-white/[0.08] px-2.5 py-2">
+        <div className="border-b border-border px-2.5 py-2">
           <Link
             href={getPlatformHomeHref(role, hasPlatformAdmin)}
             className="admin-sb-back"
@@ -446,7 +646,7 @@ export function Sidebar({
       )}
 
       {showAccountCenterBack && !collapsed && (
-        <div className="border-b border-white/[0.08] px-2.5 py-2">
+        <div className="border-b border-border px-2.5 py-2">
           <Link href={getAccountCenterHref()} className="admin-sb-back">
             <ArrowLeft className="size-3.5 shrink-0" />
             {getAccountCenterLabel()}
@@ -455,10 +655,10 @@ export function Sidebar({
       )}
 
       {showAccountCenterBack && collapsed && (
-        <div className="flex justify-center border-b border-white/[0.08] py-2">
+        <div className="flex justify-center border-b border-border py-2">
           <Link
             href={getAccountCenterHref()}
-            className="flex size-8 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex size-8 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-surface hover:text-text-primary"
             title={getAccountCenterLabel()}
             aria-label={getAccountCenterLabel()}
           >
@@ -510,20 +710,15 @@ export function Sidebar({
 
       {!collapsed && (
         <div className="admin-sb-foot shrink-0">
-          <div className="flex items-center gap-2.5 rounded-lg px-1 py-1">
-            <div
-              className={cn(
-                "admin-sb-avatar bg-gradient-to-br",
-                logoGradient,
-              )}
-            >
+          <div className="flex items-center gap-2.5">
+            <div className="admin-sb-avatar">
               {user.name.slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium text-white">
+              <p className="truncate text-sm font-medium text-text-primary">
                 {user.name}
               </p>
-              <p className="truncate text-[11px] text-white/45">
+              <p className="truncate text-xs text-text-tertiary">
                 {userType === "ACCOUNT_ADMIN"
                   ? "账号管理员"
                   : eventNavRole === UserRole.EXHIBITOR && eventName
@@ -535,7 +730,7 @@ export function Sidebar({
               type="button"
               variant="ghost"
               size="icon-xs"
-              className="shrink-0 text-white/50 hover:bg-white/10 hover:text-white"
+              className="shrink-0 text-text-tertiary hover:bg-surface hover:text-text-primary"
               onClick={() => void signOutWithCleanup("/login")}
               title="退出登录"
             >

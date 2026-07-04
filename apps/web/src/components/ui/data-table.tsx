@@ -20,6 +20,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableShell,
+  TableToolbar,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
@@ -80,13 +82,10 @@ function getRowClassName<T extends DataTableRow>(
 ): string {
   return cn(
     rowHeightClass,
-    "hover:bg-gray-50",
-    row.isVip && "border-l-[3px] border-l-brand-gold bg-[#FFFDF0]",
-    row.isShadow && !row.isVip && "bg-[#FAFAFA]",
-    row.highlight === "amber" &&
-      "border-l-[3px] border-l-brand-amber bg-brand-amber-light/10",
-    row.highlight === "blue" &&
-      "border-l-[3px] border-l-brand-blue bg-brand-blue-light/10",
+    row.isVip && "border-l-[3px] border-l-brand-gold",
+    row.isShadow && !row.isVip && "opacity-90",
+    row.highlight === "amber" && "border-l-[3px] border-l-brand-amber",
+    row.highlight === "blue" && "border-l-[3px] border-l-brand-blue",
   );
 }
 
@@ -161,61 +160,62 @@ export function DataTable<T extends DataTableRow>({
   const isEmpty = !isLoading && data.length === 0;
 
   return (
-    <div className="space-y-3">
-      {searchable && (
-        <div className="relative max-w-xs">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-text-muted" />
-          <Input
-            placeholder={searchPlaceholder}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-[34px] pl-8"
-          />
-        </div>
-      )}
-
-      {selectable && selectedCount > 0 && (
-        <div className="sticky top-0 z-20 flex h-12 items-center gap-3 rounded-lg bg-gray-900 px-4 text-sm text-white shadow-md">
-          <span className="font-medium">已选 {selectedCount} 项</span>
-          {bulkActions.map((action) => (
-            <Button
-              key={action.label}
-              size="sm"
-              variant={
-                action.variant === "destructive" ? "destructive" : "secondary"
-              }
-              className={
-                action.variant === "destructive"
-                  ? "bg-brand-red text-white hover:bg-brand-red/90"
-                  : undefined
-              }
-              onClick={() => action.onClick(selectedIds)}
-            >
-              {action.label}
-            </Button>
-          ))}
-          <div className="flex-1" />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-white hover:bg-white/10 hover:text-white"
-            onClick={() => setRowSelection({})}
-          >
-            取消
-          </Button>
-        </div>
+    <div className="space-y-4">
+      {(searchable || (selectable && selectedCount > 0)) && (
+        <TableToolbar className={cn(!searchable && "py-3")}>
+          {searchable && (
+            <div className="relative min-w-[200px] max-w-xs flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-tertiary" />
+              <Input
+                placeholder={searchPlaceholder}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-9 pl-9"
+              />
+            </div>
+          )}
+          {selectable && selectedCount > 0 && (
+            <>
+              <span className="text-sm font-medium text-text-primary">
+                已选 {selectedCount} 项
+              </span>
+              {bulkActions.map((action) => (
+                <Button
+                  key={action.label}
+                  size="sm"
+                  variant={
+                    action.variant === "destructive" ? "destructive" : "outline"
+                  }
+                  className={
+                    action.variant === "destructive"
+                      ? "bg-brand-red text-white hover:bg-brand-red/90"
+                      : undefined
+                  }
+                  onClick={() => action.onClick(selectedIds)}
+                >
+                  {action.label}
+                </Button>
+              ))}
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setRowSelection({})}
+              >
+                取消
+              </Button>
+            </>
+          )}
+        </TableToolbar>
       )}
 
       {isLoading ? (
-        <div className="overflow-x-auto rounded-xl border border-border-light bg-white">
+        <TableShell>
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent">
+              <TableRow className="hover:bg-surface-secondary">
                 {Array.from({ length: columnCount }).map((_, i) => (
-                  <TableHead
-                    key={i}
-                    className="h-10 bg-[#fafaf8] text-xs font-semibold text-text-muted"
-                  >
+                  <TableHead key={i}>
                     <Skeleton className="h-3 w-16" />
                   </TableHead>
                 ))}
@@ -223,7 +223,10 @@ export function DataTable<T extends DataTableRow>({
             </TableHeader>
             <TableBody>
               {Array.from({ length: SKELETON_ROWS }).map((_, rowIdx) => (
-                <TableRow key={rowIdx} className={cn(rowHeightClass, "hover:bg-transparent")}>
+                <TableRow
+                  key={rowIdx}
+                  className={cn(rowHeightClass, "hover:bg-surface")}
+                >
                   {Array.from({ length: columnCount }).map((_, colIdx) => (
                     <TableCell key={colIdx}>
                       <Skeleton className="h-4 w-full max-w-[120px]" />
@@ -233,17 +236,17 @@ export function DataTable<T extends DataTableRow>({
               ))}
             </TableBody>
           </Table>
-        </div>
+        </TableShell>
       ) : isEmpty ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border-light bg-white px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-md border border-border bg-surface px-6 py-16 text-center shadow-sm">
           {emptyState?.icon && (
-            <emptyState.icon className="mb-3 size-10 text-text-muted opacity-40" />
+            <emptyState.icon className="mb-3 size-10 text-text-tertiary opacity-40" />
           )}
-          <p className="text-sm font-medium text-[var(--admin-ink)]">
+          <p className="text-sm font-medium text-text-primary">
             {emptyState?.title ?? "暂无数据"}
           </p>
           {emptyState?.description && (
-            <p className="mt-1 max-w-sm text-xs text-text-muted">
+            <p className="mt-1 max-w-sm text-xs text-text-secondary">
               {emptyState.description}
             </p>
           )}
@@ -258,16 +261,13 @@ export function DataTable<T extends DataTableRow>({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border-light bg-white">
+        <TableShell>
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                <TableRow key={headerGroup.id} className="hover:bg-surface-secondary">
                   {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className="h-10 bg-[#fafaf8] px-4 text-xs font-semibold text-text-muted"
-                    >
+                    <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -287,7 +287,7 @@ export function DataTable<T extends DataTableRow>({
                   className={getRowClassName(row.original, rowHeightClass)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-4 text-sm">
+                    <TableCell key={cell.id}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),
@@ -298,7 +298,7 @@ export function DataTable<T extends DataTableRow>({
               ))}
             </TableBody>
           </Table>
-        </div>
+        </TableShell>
       )}
 
       {pagination && !isLoading && (

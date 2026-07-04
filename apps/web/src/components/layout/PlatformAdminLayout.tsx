@@ -105,42 +105,50 @@ function PlatformSidebar({
   return (
     <aside
       className={cn(
-        "flex h-full shrink-0 flex-col bg-[#0D1117] transition-[width] duration-200",
+        "admin-sidebar flex h-full shrink-0 flex-col transition-[width] duration-150",
         collapsed ? "w-[68px]" : "w-[240px]",
       )}
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-4">
-        {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-white">ConnectIQ Platform</p>
-            <span className="mt-0.5 inline-block rounded bg-brand-gold/20 px-1.5 py-0.5 text-[10px] font-medium text-brand-gold">
-              超级管理员
-            </span>
+      <div className="shrink-0 border-b border-border px-3 pb-3 pt-6">
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="admin-sb-logo">C</div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-text-tertiary hover:bg-surface hover:text-text-primary"
+              onClick={onToggleCollapse}
+              aria-label="展开侧边栏"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <div className="admin-sb-logo">C</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-text-primary">ConnectIQ Platform</p>
+              <span className="mt-0.5 inline-block text-xs text-text-tertiary">超级管理员</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 text-text-tertiary hover:bg-surface hover:text-text-primary"
+              onClick={onToggleCollapse}
+              aria-label="折叠侧边栏"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
           </div>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="shrink-0 text-white/50 hover:bg-white/10 hover:text-white"
-          onClick={onToggleCollapse}
-        >
-          {collapsed ? (
-            <ChevronRight className="size-4" />
-          ) : (
-            <ChevronLeft className="size-4" />
-          )}
-        </Button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-4">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {NAV_GROUPS.map((group) => (
-          <div key={group.label} className="mb-5 last:mb-0">
-            {!collapsed && (
-              <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                {group.label}
-              </p>
-            )}
+          <div key={group.label}>
+            {!collapsed && <p className="admin-sb-label">{group.label}</p>}
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const active =
@@ -160,14 +168,12 @@ function PlatformSidebar({
                       href={item.href}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
-                        active
-                          ? "border border-brand-gold/30 bg-brand-gold/10 font-medium text-brand-gold"
-                          : "text-[#c9d1d9] hover:bg-white/5 hover:text-white",
+                        "admin-sb-item",
+                        active && "active active-green",
                         collapsed && "justify-center px-2",
                       )}
                     >
-                      <Icon className="size-4 shrink-0" />
+                      <Icon className="admin-sb-icon size-4 shrink-0" />
                       {!collapsed && (
                         <>
                           <span className="min-w-0 flex-1 truncate">
@@ -189,23 +195,23 @@ function PlatformSidebar({
         ))}
       </nav>
 
-      <div className="shrink-0 border-t border-white/10 p-3">
+      <div className="admin-sb-foot shrink-0">
         <div
           className={cn(
-            "flex items-center gap-2.5 rounded-lg px-2 py-2",
+            "flex items-center gap-2.5",
             collapsed && "justify-center",
           )}
         >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-gold/20 text-[12px] font-semibold text-brand-gold">
+          <div className="admin-sb-avatar">
             {user.name.slice(0, 1).toUpperCase()}
           </div>
           {!collapsed && (
             <>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-white">
+                <p className="truncate text-sm font-medium text-text-primary">
                   {user.name}
                 </p>
-                <p className="truncate text-[11px] text-white/45">
+                <p className="truncate text-xs text-text-tertiary">
                   平台超级管理员
                 </p>
               </div>
@@ -213,7 +219,7 @@ function PlatformSidebar({
                 type="button"
                 variant="ghost"
                 size="icon-xs"
-                className="shrink-0 text-white/50 hover:bg-white/10 hover:text-white"
+                className="shrink-0 text-text-tertiary hover:bg-surface hover:text-text-primary"
                 onClick={() => void signOutWithCleanup("/login")}
                 title="退出登录"
               >

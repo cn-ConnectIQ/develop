@@ -1,0 +1,27 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "ConnectIQ 大屏",
+  description: "ConnectIQ 现场互动投影大屏",
+};
+
+export default function ScreenLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        margin: 0,
+        padding: 0,
+        overflow: "hidden",
+        backgroundColor: "#0b0b14",
+      }}
+    >
+      {children}
+    </div>
+  );
+}

@@ -1,0 +1,30 @@
+---
+description: 管理端现代感 UI 设计语言（Linear / Notion / Vercel 方向）
+globs: apps/web/src/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# 管理端 UI 设计语言
+
+现代感来自**克制与精准**，不是深色炫酷。参考 Linear / Notion / Vercel Dashboard / 精致化 shadcn，抄设计语言不抄界面。
+
+## 五条原则
+
+1. **干净几何** — 圆角统一用 `rounded-lg` / `rounded-xl`；边框用 `border-border-light`，避免多重描边；层级靠间距与背景区分，不靠粗框线堆叠。
+2. **精准留白** — 不是 Mentimeter 式大留白铺张；区块间距 `space-y-4`~`6`，卡片内 `p-4`~`5`；每处留白要有呼吸作用，表格/列表类数据页保持密集（见 component-patterns）。
+3. **字体层级** — 页面标题 `text-lg font-semibold`；区块标题 `text-sm font-semibold`；正文 `text-sm`；辅助 `text-xs text-text-muted`；同一页面不超过 3 级字重对比。
+4. **柔和深度** — 卡片用 `border border-border-light bg-white`，必要时 `shadow-sm`；禁止 glow、光晕、`shadow-2xl` 堆叠、戏剧化渐变。
+5. **克制色彩** — 内容区 `bg-content` / 白底；品牌色只用于按钮、图标、状态点（见 color-system）；禁止大面积渐变背景。
+
+## 明确禁止
+
+- 深色背景作为内容区默认底色（侧栏导航深色可保留）
+- 发光 / 光晕 / `ring` 装饰性滥用
+- 大屏抽奖式的渐变 + 重阴影堆叠
+- 过度动效；管理端以完成任务为先，过渡 `150ms`~`200ms` 即可
+
+## 实现约定
+
+- 优先复用 `AdminPage` / `SectionCard` / shadcn 组件，不另起视觉体系
+- 新建/改造页：内容区白或 `#F5F5F3`，表单与列表保持功能密度
+- 互动创建页（投票/抽奖等）可左右分栏预览，但遵循上述五条，不做「演出感」

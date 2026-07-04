@@ -5,6 +5,7 @@ import {
   OrgStaffRole,
   prisma,
   type Lottery,
+  type Prisma,
 } from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
 import { ApiError, type AuthSession } from "@/lib/api-auth";
@@ -36,11 +37,13 @@ const MANAGE_ROLES = [
 ] as const;
 
 const STATUS_TRANSITIONS: Record<string, LotteryStatus[]> = {
-  DRAFT: ["READY", "DRAFT"] as LotteryStatus[],
-  READY: ["OPEN", "DRAFT"] as LotteryStatus[],
-  OPEN: ["DRAWING", "READY", "FINISHED"] as LotteryStatus[],
+  DRAFT: ["READY", "DRAFT", "ACTIVE"] as LotteryStatus[],
+  READY: ["OPEN", "DRAFT", "ACTIVE"] as LotteryStatus[],
+  OPEN: ["DRAWING", "READY", "FINISHED", "DRAFT"] as LotteryStatus[],
   DRAWING: ["FINISHED", "OPEN"] as LotteryStatus[],
   FINISHED: ["FINISHED"] as LotteryStatus[],
+  ACTIVE: ["DRAFT", "ACTIVE", "ENDED", "FINISHED"] as LotteryStatus[],
+  ENDED: ["ACTIVE", "ENDED"] as LotteryStatus[],
 };
 
 export async function requireLotteryManageAccess(
@@ -148,6 +151,373 @@ export function resolvePrizeName(
   const list = Array.isArray(prizes) ? (prizes as LotteryPrizeConfig[]) : [];
   const match = list.find((p) => p.rank === prizeRank);
   return match?.prize ?? match?.name ?? `第 ${prizeRank} 等奖`;
+}
+
+export type ParticipantLotteryPrizeItem = {
+  id?: string;
+  name: string;
+  quantity: number;
+  remaining: number;
+  /** 0–100 百分比；直接领取类型为 null */
+  probability_percent: number | null;
+};
+
+export type ParticipantLotteryListItem = {
+  id: string;
+  title: string;
+  status: string;
+  lottery_category: LotteryCategory;
+  animation_type: string | null;
+  trigger_action: string | null;
+  booth: { id: string; name: string; code: string } | null;
+  entry_count: number;
+  winner_count: number;
+  prize_count: number;
+  today_entry_count: number;
+  remaining_stock: number;
+  is_stock_depleted: boolean;
+  prizes: ParticipantLotteryPrizeItem[];
+  created_at: string;
+};
+
+function resolveLegacyPrizeCount(prizes: unknown): number {
+  if (!Array.isArray(prizes)) return 0;
+  return prizes.reduce((sum, raw) => {
+    if (!raw || typeof raw !== "object") return sum;
+    const count = (raw as { count?: number }).count;
+    return sum + (typeof count === "number" ? count : 1);
+  }, 0);
+}
+
+export type MobileParticipantLotteryItem = ParticipantLotteryListItem & {
+  today_entry_count: number;
+  remaining_stock: number;
+  is_stock_depleted: boolean;
+  is_mine: boolean;
+  session_id: string | null;
+  qr_url: string | null;
+  created_by_id: string;
+};
+
+export type ListMobileParticipantLotteriesOptions = {
+  scope: "ALL" | "MY_BOOTH";
+  boothId?: string;
+  categories?: LotteryCategory[];
+  userId?: string;
+};
+
+function parseInteractionRefs(raw: unknown): Array<{ type?: string; id?: string }> {
+  return Array.isArray(raw) ? (raw as Array<{ type?: string; id?: string }>) : [];
+}
+
+function resolveRemainingStock(
+  prizeItems: Array<{ quantity: number; remaining: number }>,
+  legacyPrizes: unknown,
+): number {
+  if (prizeItems.length > 0) {
+    return prizeItems.reduce((sum, prize) => sum + prize.remaining, 0);
+  }
+  return resolveLegacyPrizeCount(legacyPrizes);
+}
+
+/** 小程序 · 参与人抽奖列表（LOTTERY-LIST-02 / scope=ALL|MY_BOOTH） */
+export async function listMobileParticipantLotteries(
+  eventId: string,
+  options: ListMobileParticipantLotteriesOptions,
+): Promise<MobileParticipantLotteryItem[]> {
+  const categories = options.categories?.length
+    ? options.categories
+    : [LotteryCategory.AUTO_PROBABILITY, LotteryCategory.INSTANT_CLAIM];
+
+  const where: Prisma.LotteryWhereInput = {
+    eventId,
+    lotteryCategory: { in: categories },
+  };
+
+  if (options.scope === "MY_BOOTH") {
+    where.boothId = options.boothId ?? "__none__";
+  } else if (options.boothId) {
+    where.boothId = options.boothId;
+  }
+
+  const lotteries = await prisma.lottery.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: {
+      booth: { select: { id: true, name: true, code: true } },
+      prizeItems: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          quantity: true,
+          remaining: true,
+          probability: true,
+        },
+      },
+      _count: { select: { entries: true, winners: true } },
+    },
+  });
+
+  const lotteryIds = lotteries.map((lottery) => lottery.id);
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const [todayGroups, sessions] = await Promise.all([
+    lotteryIds.length
+      ? prisma.lotteryEntry.groupBy({
+          by: ["lotteryId"],
+          where: {
+            lotteryId: { in: lotteryIds },
+            enteredAt: { gte: startOfToday },
+          },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    prisma.interactionSession.findMany({
+      where: { eventId },
+      select: { id: true, qrUrl: true, interactions: true },
+    }),
+  ]);
+
+  const todayMap = new Map(
+    todayGroups.map((group) => [group.lotteryId, group._count._all]),
+  );
+  const sessionMap = new Map<string, { sessionId: string; qrUrl: string | null }>();
+  for (const session of sessions) {
+    for (const ref of parseInteractionRefs(session.interactions)) {
+      if (ref.type === "lottery" && ref.id && lotteryIds.includes(ref.id)) {
+        sessionMap.set(ref.id, { sessionId: session.id, qrUrl: session.qrUrl });
+      }
+    }
+  }
+
+  return lotteries.map((lottery) => {
+    const remaining_stock = resolveRemainingStock(lottery.prizeItems, lottery.prizes);
+    const prize_count =
+      lottery.prizeItems.reduce((sum, prize) => sum + prize.quantity, 0) ||
+      resolveLegacyPrizeCount(lottery.prizes);
+    const isOpen =
+      lottery.status === LotteryStatus.OPEN ||
+      lottery.status === LotteryStatus.ACTIVE;
+    const sessionInfo = sessionMap.get(lottery.id);
+    const prizes: ParticipantLotteryPrizeItem[] =
+      lottery.prizeItems.length > 0
+        ? lottery.prizeItems.map((prize) => ({
+            id: prize.id,
+            name: prize.name,
+            quantity: prize.quantity,
+            remaining: prize.remaining,
+            probability_percent:
+              prize.probability != null
+                ? Math.round(Number(prize.probability) * 10000) / 100
+                : null,
+          }))
+        : mapLegacyPrizeItems(lottery.prizes);
+
+    return {
+      id: lottery.id,
+      title: lottery.title,
+      status: lottery.status,
+      lottery_category: lottery.lotteryCategory!,
+      animation_type: lottery.animationType,
+      trigger_action: lottery.triggerAction,
+      booth: lottery.booth,
+      entry_count: lottery._count.entries,
+      winner_count: lottery._count.winners,
+      prize_count,
+      created_at: lottery.createdAt.toISOString(),
+      created_by_id: lottery.createdById,
+      today_entry_count: todayMap.get(lottery.id) ?? 0,
+      remaining_stock,
+      is_stock_depleted: isOpen && remaining_stock <= 0,
+      prizes,
+      is_mine: options.userId ? lottery.createdById === options.userId : false,
+      session_id: sessionInfo?.sessionId ?? null,
+      qr_url: sessionInfo?.qrUrl ?? null,
+    };
+  });
+}
+
+export async function replenishLotteryStock(
+  lotteryId: string,
+  addQuantity: number,
+  session: AuthSession,
+): Promise<{ remaining_stock: number }> {
+  if (!Number.isFinite(addQuantity) || addQuantity <= 0) {
+    throw new ApiError("补充数量无效", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const lottery = await prisma.lottery.findUnique({
+    where: { id: lotteryId },
+    include: {
+      prizeItems: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!lottery) {
+    throw new ApiError("抽奖不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  await requireLotteryManageAccess(session, lottery.eventId, lottery);
+
+  if (lottery.prizeItems.length > 0) {
+    const primary = lottery.prizeItems[0]!;
+    await prisma.lotteryPrize.update({
+      where: { id: primary.id },
+      data: {
+        remaining: { increment: addQuantity },
+        quantity: { increment: addQuantity },
+      },
+    });
+  }
+
+  if (
+    lottery.status !== LotteryStatus.ACTIVE &&
+    lottery.status !== LotteryStatus.OPEN
+  ) {
+    await prisma.lottery.update({
+      where: { id: lotteryId },
+      data: { status: LotteryStatus.ACTIVE },
+    });
+  }
+
+  const updated = await prisma.lottery.findUnique({
+    where: { id: lotteryId },
+    include: { prizeItems: { select: { remaining: true, quantity: true } } },
+  });
+  const remaining_stock = resolveRemainingStock(
+    updated?.prizeItems ?? [],
+    updated?.prizes,
+  );
+  return { remaining_stock };
+}
+
+function mapLegacyPrizeItems(prizes: unknown): ParticipantLotteryPrizeItem[] {
+  if (!Array.isArray(prizes)) return [];
+  return prizes.map((raw, index) => {
+    const prize = raw as {
+      name?: string;
+      prize?: string;
+      count?: number;
+      probability?: number;
+    };
+    const quantity = typeof prize.count === "number" ? prize.count : 1;
+    const probability =
+      typeof prize.probability === "number" ? prize.probability : null;
+    return {
+      name: prize.name ?? prize.prize ?? `奖品 ${index + 1}`,
+      quantity,
+      remaining: quantity,
+      probability_percent:
+        probability != null ? Math.round(probability * 10000) / 100 : null,
+    };
+  });
+}
+
+export type ListParticipantLotteriesOptions = {
+  boothId?: string;
+  categories?: LotteryCategory[];
+};
+
+export async function listParticipantLotteries(
+  eventId: string,
+  options: ListParticipantLotteriesOptions = {},
+): Promise<ParticipantLotteryListItem[]> {
+  const categories = options.categories?.length
+    ? options.categories
+    : [LotteryCategory.AUTO_PROBABILITY, LotteryCategory.INSTANT_CLAIM];
+
+  const where: Prisma.LotteryWhereInput = {
+    eventId,
+    lotteryCategory: { in: categories },
+  };
+
+  if (options.boothId) {
+    where.boothId = options.boothId;
+  }
+
+  const lotteries = await prisma.lottery.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: {
+      booth: { select: { id: true, name: true, code: true } },
+      prizeItems: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          quantity: true,
+          remaining: true,
+          probability: true,
+        },
+      },
+      _count: { select: { entries: true, winners: true } },
+    },
+  });
+
+  const lotteryIds = lotteries.map((lottery) => lottery.id);
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const todayGroups =
+    lotteryIds.length > 0
+      ? await prisma.lotteryEntry.groupBy({
+          by: ["lotteryId"],
+          where: {
+            lotteryId: { in: lotteryIds },
+            enteredAt: { gte: startOfToday },
+          },
+          _count: { _all: true },
+        })
+      : [];
+
+  const todayMap = new Map(
+    todayGroups.map((group) => [group.lotteryId, group._count._all]),
+  );
+
+  return lotteries.map((lottery) => {
+    const remaining_stock = resolveRemainingStock(
+      lottery.prizeItems,
+      lottery.prizes,
+    );
+    const prize_count =
+      lottery.prizeItems.reduce((sum, prize) => sum + prize.quantity, 0) ||
+      resolveLegacyPrizeCount(lottery.prizes);
+    const isOpen =
+      lottery.status === LotteryStatus.OPEN ||
+      lottery.status === LotteryStatus.ACTIVE;
+    const prizes: ParticipantLotteryPrizeItem[] =
+      lottery.prizeItems.length > 0
+        ? lottery.prizeItems.map((prize) => ({
+            id: prize.id,
+            name: prize.name,
+            quantity: prize.quantity,
+            remaining: prize.remaining,
+            probability_percent:
+              prize.probability != null
+                ? Math.round(Number(prize.probability) * 10000) / 100
+                : null,
+          }))
+        : mapLegacyPrizeItems(lottery.prizes);
+
+    return {
+      id: lottery.id,
+      title: lottery.title,
+      status: lottery.status,
+      lottery_category: lottery.lotteryCategory!,
+      animation_type: lottery.animationType,
+      trigger_action: lottery.triggerAction,
+      booth: lottery.booth,
+      entry_count: lottery._count.entries,
+      winner_count: lottery._count.winners,
+      prize_count,
+      today_entry_count: todayMap.get(lottery.id) ?? 0,
+      remaining_stock,
+      is_stock_depleted: isOpen && remaining_stock <= 0,
+      prizes,
+      created_at: lottery.createdAt.toISOString(),
+    };
+  });
 }
 
 export async function listLotteries(eventId: string) {

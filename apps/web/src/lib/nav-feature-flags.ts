@@ -1,4 +1,4 @@
-import type { NavGroup, NavItem } from "@/config/navigation";
+import type { NavGroup, NavItem, NavSubItem } from "@/config/navigation";
 import type { EventFeatureFlagKey, EventFeatureFlags } from "@/lib/event-feature-flags";
 
 type NavFlagRule = {
@@ -32,17 +32,54 @@ const NAV_FLAG_RULES: NavFlagRule[] = [
   { labelIncludes: "高价值买家", flag: "highValueBuyerPush" },
 ];
 
-function itemMatchesRule(item: NavItem, rule: NavFlagRule): boolean {
-  if (rule.pathIncludes && item.href.includes(rule.pathIncludes)) return true;
-  if (rule.hashIncludes && item.href.includes(rule.hashIncludes)) return true;
-  if (rule.labelIncludes && item.label.includes(rule.labelIncludes)) return true;
+function hrefMatchesRule(
+  href: string,
+  label: string,
+  rule: NavFlagRule,
+): boolean {
+  if (rule.pathIncludes && href.includes(rule.pathIncludes)) return true;
+  if (rule.hashIncludes && href.includes(rule.hashIncludes)) return true;
+  if (rule.labelIncludes && label.includes(rule.labelIncludes)) return true;
   return false;
+}
+
+function navEntryAllowed(
+  href: string,
+  label: string,
+  flags: EventFeatureFlags,
+): boolean {
+  const rule = NAV_FLAG_RULES.find((r) => hrefMatchesRule(href, label, r));
+  if (!rule) return true;
+  return flags[rule.flag];
+}
+
+function itemMatchesRule(item: NavItem, rule: NavFlagRule): boolean {
+  return hrefMatchesRule(item.href, item.label, rule);
 }
 
 function navItemAllowed(item: NavItem, flags: EventFeatureFlags): boolean {
   const rule = NAV_FLAG_RULES.find((r) => itemMatchesRule(item, r));
   if (!rule) return true;
   return flags[rule.flag];
+}
+
+function navSubItemAllowed(sub: NavSubItem, flags: EventFeatureFlags): boolean {
+  return navEntryAllowed(sub.href, sub.label, flags);
+}
+
+function filterNavItemByFlags(
+  item: NavItem,
+  flags: EventFeatureFlags,
+): NavItem | null {
+  if (item.children?.length) {
+    const children = item.children.filter((child) =>
+      navSubItemAllowed(child, flags),
+    );
+    if (children.length === 0) return null;
+    if (!navItemAllowed(item, flags)) return null;
+    return { ...item, children };
+  }
+  return navItemAllowed(item, flags) ? item : null;
 }
 
 export function filterNavByFeatureFlags(
@@ -60,7 +97,9 @@ export function filterNavByFeatureFlags(
     })
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => navItemAllowed(item, flags)),
+      items: group.items
+        .map((item) => filterNavItemByFlags(item, flags))
+        .filter((item): item is NavItem => item != null),
     }))
     .filter((group) => group.items.length > 0);
 }

@@ -2,7 +2,6 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
@@ -13,6 +12,7 @@ import {
   countOrganizerEligibleUsers,
   loadOrganizerLotteryMeta,
 } from "@/lib/lottery/organizer-lottery-service";
+import { requireEventAccessMobileOrWeb } from "@/lib/mobile-event-access";
 
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -20,7 +20,7 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireEventAccessMobileOrWeb(request, eventId);
 
   const { searchParams } = new URL(request.url);
   const parsed = eligibleCountQuerySchema.safeParse(

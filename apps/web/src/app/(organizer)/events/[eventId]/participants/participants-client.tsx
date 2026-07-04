@@ -34,6 +34,7 @@ import type { ParticipantListItem } from "@/lib/participants";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { cn } from "@/lib/utils";
+import { TableToolbar } from "@/components/ui/table";
 
 type StatusFilter =
   | "all"
@@ -268,8 +269,8 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         )}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative w-64">
+      <TableToolbar>
+        <div className="relative w-64 min-w-[200px]">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-tertiary" />
           <Input
             className="pl-9"
@@ -279,7 +280,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           />
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {statusTabs.map((tab) => {
             const count =
               tab.countKey === "notInvited" ? stats.notInvited : undefined;
@@ -288,10 +289,10 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
                 key={tab.id}
                 type="button"
                 className={cn(
-                  "inline-flex h-[30px] items-center rounded-lg border px-3 text-[12.5px] transition-colors",
+                  "inline-flex h-8 items-center rounded-md border px-3 text-xs transition-colors",
                   status === tab.id
-                    ? "border-brand-blue bg-brand-blue text-white"
-                    : "border-border-light bg-white text-text-muted hover:border-[#c5c2b8]",
+                    ? "border-brand-green bg-brand-green text-white"
+                    : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
                 )}
                 onClick={() => setStatus(tab.id)}
               >
@@ -302,7 +303,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           })}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           <Popover open={tagFilterOpen} onOpenChange={setTagFilterOpen}>
             <PopoverTrigger
               className={cn(
@@ -316,7 +317,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
               {tagFilters.length > 0 ? `（${tagFilters.length}）` : ""}
             </PopoverTrigger>
             <PopoverContent align="end" className="w-56">
-              <p className="mb-2 text-xs font-medium text-text-muted">
+              <p className="mb-2 text-xs font-medium text-text-secondary">
                 筛选身份标签（满足任一即可）
               </p>
               <div className="space-y-2">
@@ -374,7 +375,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           </Button>
           {showAdvanced && (
             <select
-              className="h-8 rounded-md border border-border-light px-2 text-sm"
+              className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
@@ -396,7 +397,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
             <Columns3 className="size-4" />
           </Button>
         </div>
-      </div>
+      </TableToolbar>
 
       <ParticipantTable
         eventId={eventId}

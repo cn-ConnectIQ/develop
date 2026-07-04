@@ -19,7 +19,7 @@ import {
   SectionCard,
 } from "@/components/admin/admin-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { SCREEN_ANIMATION_OPTIONS, tierMedal } from "@/lib/lottery/organizer-lottery-config";
 import type {
   OrganizerLotteryDto,
@@ -53,10 +53,10 @@ type ScreenState = {
   }>;
 };
 
-async function fetchGrandLottery(eventId: string) {
-  const res = await fetch(
-    `/api/events/${eventId}/lotteries?scope=organizer_grand`,
-  );
+async function fetchGrandLottery(eventId: string, lotteryId?: string | null) {
+  const params = new URLSearchParams({ category: "POOL_DRAW" });
+  if (lotteryId) params.set("lottery_id", lotteryId);
+  const res = await fetch(`/api/events/${eventId}/lotteries?${params.toString()}`);
   if (!res.ok) throw new Error("加载失败");
   const lotteries = (await res.json()).data.lotteries as OrganizerLotteryDto[];
   return lotteries[0] ?? null;
@@ -120,8 +120,8 @@ export function LotteryScreenConsole({
   const [started, setStarted] = useState(false);
 
   const { data: grandLottery, isLoading: lotteryLoading } = useQuery({
-    queryKey: ["organizer-grand-lottery", eventId],
-    queryFn: () => fetchGrandLottery(eventId),
+    queryKey: ["organizer-grand-lottery", eventId, lotteryParam],
+    queryFn: () => fetchGrandLottery(eventId, lotteryParam),
   });
 
   const lotteryId = lotteryParam ?? grandLottery?.id;
@@ -293,26 +293,26 @@ export function LotteryScreenConsole({
   return (
     <AdminPage>
       <AdminHeader
-        title="大屏开奖指挥中心"
+        title="大屏开奖控制台"
         description={eventName}
-        breadcrumb={["闭幕仪式", "大屏控制"]}
+        breadcrumb={["互动管理", "大屏抽奖", "开奖控制台"]}
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href={`/events/${eventId}/lottery`}
-              className="inline-flex h-9 items-center gap-1 rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
+              href={`/events/${eventId}/lottery/big-screen`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
             >
-              <ArrowLeft className="size-4" />
-              抽奖配置
+              <ArrowLeft className="mr-1.5 size-4" />
+              返回列表
             </Link>
             {previewUrl && (
               <a
                 href={previewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-9 items-center gap-1 rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
               >
-                <ExternalLink className="size-4" />
+                <ExternalLink className="mr-1.5 size-4" />
                 新窗口投影
               </a>
             )}
@@ -324,14 +324,14 @@ export function LotteryScreenConsole({
         {lotteryLoading ? (
           <p className="py-16 text-center text-text-muted">加载中…</p>
         ) : !lotteryId ? (
-          <div className="rounded-xl border border-dashed border-border-light py-20 text-center">
-            <Trophy className="mx-auto size-12 text-text-muted/40" />
-            <p className="mt-4 text-text-muted">请先配置并发布全场大抽奖</p>
+          <div className="rounded-lg border border-dashed border-border bg-surface py-20 text-center shadow-sm">
+            <Trophy className="mx-auto size-12 text-text-tertiary/60" />
+            <p className="mt-4 text-text-secondary">请先创建并发布大屏抽奖</p>
             <Link
-              href={`/events/${eventId}/lottery`}
-              className="mt-4 inline-block text-sm text-brand-blue hover:underline"
+              href={`/events/${eventId}/lottery/big-screen`}
+              className={buttonVariants({ variant: "link", size: "sm", className: "mt-4" })}
             >
-              前往配置 →
+              前往大屏抽奖列表 →
             </Link>
           </div>
         ) : (
@@ -362,17 +362,17 @@ export function LotteryScreenConsole({
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="rounded-xl border border-border-light bg-brand-blue-light/20 p-4">
-                        <p className="text-xs text-text-muted">参与人数</p>
-                        <p className="text-3xl font-bold text-brand-blue">
+                      <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+                        <p className="text-xs text-text-secondary">参与人数</p>
+                        <p className="text-3xl font-bold tabular-nums text-brand-green">
                           {state?.lottery.entry_count ?? 0}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-border-light p-4">
-                        <p className="text-xs text-text-muted">已揭晓</p>
-                        <p className="text-3xl font-bold">
+                      <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
+                        <p className="text-xs text-text-secondary">已揭晓</p>
+                        <p className="text-3xl font-bold tabular-nums text-text-primary">
                           {state?.revealed_count ?? 0}
-                          <span className="text-lg text-text-muted">
+                          <span className="text-lg text-text-secondary">
                             /{state?.winner_quota ?? "?"}
                           </span>
                         </p>

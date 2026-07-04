@@ -354,9 +354,9 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
               />
               {showLottery && (
                 <QuickActionCard
-                  href={`/events/${eventId}/lottery`}
+                  href={`/events/${eventId}/lottery/big-screen`}
                   icon={Gift}
-                  title="现场抽奖"
+                  title="大屏抽奖"
                   subtitle="开奖与奖池管理"
                   borderClassName="border-l-4 border-l-brand-red cursor-pointer"
                   iconClassName="text-brand-red"

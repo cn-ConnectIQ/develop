@@ -4,13 +4,13 @@ import {
   ApiError,
   createErrorResponse,
   createSuccessResponse,
-  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
   revealLotteryTierWinner,
   startLotteryTierDraw,
 } from "@/lib/lottery/lottery-screen-service";
+import { requireEventAccessMobileOrWeb } from "@/lib/mobile-event-access";
 
 const drawTierSchema = z.object({
   tier: z.number().int().positive(),
@@ -25,7 +25,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireEventAccessMobileOrWeb(request, eventId);
 
   const body = await request.json().catch(() => ({}));
   const parsed = drawTierSchema.safeParse(body);

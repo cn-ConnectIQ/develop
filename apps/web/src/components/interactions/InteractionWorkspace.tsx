@@ -442,7 +442,7 @@ function LotteryWorkspace({
             <Monitor className="size-4 text-text-muted" />
           </Button>
           <Link
-            href={`/events/${eventId}/lottery`}
+            href={`/events/${eventId}/lottery/big-screen`}
             className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm text-text-muted hover:text-brand-blue"
           >
             <ExternalLink className="mr-1 size-3.5" />

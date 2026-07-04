@@ -70,7 +70,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableShell,
 } from "@/components/ui/table";
+import { StatusChip } from "@/components/ui/status-chip";
 import type { ParticipantListItem } from "@/lib/participants";
 import { ParticipantTagChips } from "@/components/participants/ParticipantTagChips";
 import { TagEditor } from "@/components/participants/TagEditor";
@@ -100,24 +102,12 @@ function InviteStatusBadge({
     return <span className="text-text-tertiary">—</span>;
   }
   if (status === "INVITED") {
-    return (
-      <span className="inline-flex rounded-full bg-brand-blue-light px-2 py-0.5 text-xs text-brand-blue">
-        已邀请
-      </span>
-    );
+    return <StatusChip variant="info">已邀请</StatusChip>;
   }
   if (status === "CLICKED") {
-    return (
-      <span className="inline-flex rounded-full bg-brand-green-light px-2 py-0.5 text-xs text-brand-green">
-        已点击 ✓
-      </span>
-    );
+    return <StatusChip variant="success">已点击</StatusChip>;
   }
-  return (
-    <span className="inline-flex rounded-full bg-brand-green px-2 py-0.5 text-xs text-white">
-      已激活 ✅
-    </span>
-  );
+  return <StatusChip variant="success">已激活</StatusChip>;
 }
 
 export function ParticipantTable({
@@ -301,10 +291,10 @@ export function ParticipantTable({
               : undefined;
           return (
             <div className="flex items-center gap-3">
-              <Avatar className="size-8">
+              <Avatar className="size-8 rounded-sm after:rounded-sm">
                 <AvatarFallback
                   className={cn(
-                    "text-xs",
+                    "rounded-sm text-xs",
                     avatarStyle?.avatarClass ??
                       "bg-brand-blue-light text-brand-blue",
                   )}
@@ -346,15 +336,13 @@ export function ParticipantTable({
         cell: ({ row }) => {
           const checkedIn = row.original.checkedInAt;
           return checkedIn ? (
-            <span className="inline-flex items-center gap-1.5 text-brand-green">
-              <span className="size-1.5 rounded-full bg-brand-green" />
+            <StatusChip variant="success" dot>
               已签到 {format(new Date(checkedIn), "HH:mm")}
-            </span>
+            </StatusChip>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-text-muted">
-              <span className="size-1.5 rounded-full bg-text-tertiary" />
+            <StatusChip variant="neutral" dot>
               未签到
-            </span>
+            </StatusChip>
           );
         },
       },
@@ -599,16 +587,13 @@ export function ParticipantTable({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border-light bg-white">
+      <TableShell>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id} className="hover:bg-transparent">
+              <TableRow key={hg.id} className="hover:bg-surface-secondary">
                 {hg.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="h-10 bg-content text-xs font-semibold text-text-muted"
-                  >
+                  <TableHead key={header.id}>
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext(),
@@ -620,15 +605,15 @@ export function ParticipantTable({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.length === 0 ? (
-              <TableRow>
+              <TableRow className="hover:bg-surface">
                 <TableCell
                   colSpan={columns.length}
                   className="h-32 text-center"
                 >
-                  <div className="flex flex-col items-center gap-2 text-text-muted">
+                  <div className="flex flex-col items-center gap-2 text-text-secondary">
                     <UserRound className="size-8 opacity-40" />
                     <p className="text-sm">暂无参会者</p>
-                    <p className="text-xs">导入 Excel 或手动添加参会者</p>
+                    <p className="text-xs text-text-tertiary">导入 Excel 或手动添加参会者</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -639,16 +624,15 @@ export function ParticipantTable({
                   <TableRow
                     key={row.id}
                     className={cn(
-                      "h-[52px] hover:bg-content/80",
-                      p.isVip &&
-                        "border-l-[3px] border-l-brand-gold bg-[#FFFDF0]",
+                      "h-12",
+                      p.isVip && "border-l-[3px] border-l-brand-gold",
                       p.isSpeaker &&
                         !p.isVip &&
-                        "border-l-[3px] border-l-brand-blue bg-brand-blue-light/30",
+                        "border-l-[3px] border-l-brand-blue",
                     )}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="text-sm">
+                      <TableCell key={cell.id}>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -661,7 +645,7 @@ export function ParticipantTable({
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
 
       <AlertDialog open={!!removeId} onOpenChange={() => setRemoveId(null)}>
         <AlertDialogContent>

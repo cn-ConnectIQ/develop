@@ -1,14 +1,14 @@
-/* Connect-admin.html design tokens */
+/* ConnectIQ 管理端 — 引用 globals.css design tokens v2 */
 :root {
-  --admin-sidebar-bg: #1a1a2e;
-  --admin-sidebar-accent: #2d3561;
-  --admin-content-bg: #f5f5f3;
-  --admin-border: #d3d1c7;
-  --admin-border-soft: #e4e2da;
-  --admin-ink: #1a1a2e;
-  --admin-gray: #5f5e5a;
-  --admin-gray-2: #8a8983;
-  --admin-sidebar-text: #b6bad4;
-  --admin-sidebar-muted: #6b709a;
-  --admin-sidebar-icon: #8a90b4;
+  --admin-sidebar-bg: var(--surface-secondary);
+  --admin-sidebar-accent: var(--brand-green-soft);
+  --admin-content-bg: var(--background);
+  --admin-border: var(--border-strong);
+  --admin-border-soft: var(--border);
+  --admin-ink: var(--text-primary);
+  --admin-gray: var(--text-secondary);
+  --admin-gray-2: var(--text-tertiary);
+  --admin-sidebar-text: var(--text-secondary);
+  --admin-sidebar-muted: var(--text-tertiary);
+  --admin-sidebar-icon: var(--text-tertiary);
 }

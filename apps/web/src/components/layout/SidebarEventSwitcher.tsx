@@ -65,12 +65,12 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
               "加载活动..."
             ) : (
               <>
-                <span className="text-white/55">当前活动：</span>
+                <span className="text-text-tertiary">当前活动：</span>
                 {currentEvent?.name ?? "选择活动"}
               </>
             )}
           </span>
-          <ChevronDown className="size-3.5 shrink-0 text-[#8a90b4]" />
+          <ChevronDown className="size-3.5 shrink-0 text-text-tertiary" />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[280px] p-0">
           <Command>

@@ -144,14 +144,18 @@ function WinnerReveal({
 export type LotteryScreenDisplayClientProps = {
   eventId: string;
   eventName: string;
+  lotteryId?: string | null;
+  embedded?: boolean;
 };
 
 export function LotteryScreenDisplayClient({
   eventId,
   eventName,
+  lotteryId: lotteryIdProp,
+  embedded = false,
 }: LotteryScreenDisplayClientProps) {
   const searchParams = useSearchParams();
-  const filterLotteryId = searchParams.get("lottery");
+  const filterLotteryId = lotteryIdProp ?? searchParams.get("lottery");
 
   const [phase, setPhase] = useState<DisplayPhase>("idle");
   const [title, setTitle] = useState("闭幕全场大抽奖");
@@ -213,12 +217,20 @@ export function LotteryScreenDisplayClient({
   }, [eventId, filterLotteryId]);
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#0a0a12] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#1a1a3e_0%,_#0a0a12_60%)]" />
+    <div
+      className={
+        embedded
+          ? "relative flex h-full min-h-0 flex-col overflow-hidden text-white"
+          : "relative flex min-h-screen flex-col overflow-hidden bg-[#0a0a12] text-white"
+      }
+    >
+      {!embedded && (
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#1a1a3e_0%,_#0a0a12_60%)]" />
+      )}
 
-      <header className="relative z-10 flex items-center justify-between px-8 py-6">
+      <header className="relative z-10 flex items-center justify-between px-8 py-4">
         <div>
-          <p className="text-sm text-white/40">{eventName}</p>
+          {!embedded && <p className="text-sm text-white/40">{eventName}</p>}
           <h1 className="text-2xl font-bold">{title}</h1>
         </div>
         <div className="text-right">

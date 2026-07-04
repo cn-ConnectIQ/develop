@@ -297,9 +297,9 @@ function ExpoPanel({ data, eventId }: { data: ManageOverviewExpo; eventId: strin
             desc="各展位打卡与完成率"
           />
           <ActionTile
-            href={`/events/${eventId}/lottery`}
+            href={`/events/${eventId}/lottery/big-screen`}
             icon={Gift}
-            title="现场抽奖"
+            title="大屏抽奖"
             desc="开奖与中奖管理"
           />
           <ActionTile

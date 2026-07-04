@@ -227,12 +227,32 @@ export async function listOrganizerGrandLotteries(
       eventId,
       ownerType: LotteryOwnerType.ORGANIZER,
       boothId: null,
+      lotteryCategory: LotteryCategory.POOL_DRAW,
     },
     orderBy: { createdAt: "desc" },
     include: lotteryInclude,
   });
 
   return Promise.all(lotteries.map(mapLotteryDto));
+}
+
+export async function getOrganizerGrandLottery(
+  eventId: string,
+  lotteryId: string,
+): Promise<OrganizerLotteryDto | null> {
+  const lottery = await prisma.lottery.findFirst({
+    where: {
+      id: lotteryId,
+      eventId,
+      ownerType: LotteryOwnerType.ORGANIZER,
+      boothId: null,
+      lotteryCategory: LotteryCategory.POOL_DRAW,
+    },
+    include: lotteryInclude,
+  });
+
+  if (!lottery) return null;
+  return mapLotteryDto(lottery);
 }
 
 async function resolveActiveOrganizerStampRallyId(eventId: string) {

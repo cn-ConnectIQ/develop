@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Loader2, Users } from "lucide-react";
+import { ExternalLink, Loader2, Users, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
@@ -16,6 +17,7 @@ import {
 } from "@/components/admin/content-creation-layout";
 import { CreationNumberStepper } from "@/components/admin/creation-number-stepper";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,10 +48,10 @@ const DEFAULT_TIER_PRIZES: TierPrizeDraft[] = [
   { tier: 3, name: "定制礼品", quantity: 20, prize_type: "PHYSICAL" },
 ];
 
-async function fetchGrandLottery(eventId: string) {
-  const res = await fetch(
-    `/api/events/${eventId}/lotteries?scope=organizer_grand`,
-  );
+async function fetchGrandLottery(eventId: string, lotteryId?: string) {
+  const params = new URLSearchParams({ category: "POOL_DRAW" });
+  if (lotteryId) params.set("lottery_id", lotteryId);
+  const res = await fetch(`/api/events/${eventId}/lotteries?${params.toString()}`);
   if (!res.ok) throw new Error("加载失败");
   const lotteries = (await res.json()).data.lotteries as OrganizerLotteryDto[];
   return lotteries[0] ?? null;
@@ -91,13 +93,19 @@ async function fetchEligibleCount(url: string) {
 export type OrganizerLotteryConfiguratorProps = {
   eventId: string;
   eventName: string;
+  lotteryId?: string;
+  mode?: "create" | "edit";
 };
 
 export function OrganizerLotteryConfigurator({
   eventId,
   eventName,
+  lotteryId: initialLotteryId,
+  mode = initialLotteryId ? "edit" : "create",
 }: OrganizerLotteryConfiguratorProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const listHref = `/events/${eventId}/lottery/big-screen`;
   const [title, setTitle] = useState("闭幕全场大抽奖");
   const [description, setDescription] = useState("");
   const [drawAt, setDrawAt] = useState("");
@@ -109,7 +117,7 @@ export function OrganizerLotteryConfigurator({
   const [screenAnimation, setScreenAnimation] =
     useState<ScreenAnimationType>("REVEAL_ONE_BY_ONE");
   const [targetEntryCount, setTargetEntryCount] = useState<number | "">("");
-  const [lotteryId, setLotteryId] = useState<string | undefined>();
+  const [lotteryId, setLotteryId] = useState<string | undefined>(initialLotteryId);
   const [savedLottery, setSavedLottery] = useState<OrganizerLotteryDto | null>(
     null,
   );
@@ -118,8 +126,9 @@ export function OrganizerLotteryConfigurator({
   const [statsOpen, setStatsOpen] = useState(false);
 
   const { data: existing, isLoading } = useQuery({
-    queryKey: ["organizer-grand-lottery", eventId],
-    queryFn: () => fetchGrandLottery(eventId),
+    queryKey: ["organizer-grand-lottery", eventId, initialLotteryId],
+    queryFn: () => fetchGrandLottery(eventId, initialLotteryId),
+    enabled: mode === "edit" && Boolean(initialLotteryId),
   });
 
   useEffect(() => {
@@ -212,8 +221,14 @@ export function OrganizerLotteryConfigurator({
         queryKey: ["organizer-grand-lottery", eventId],
       });
       void queryClient.invalidateQueries({
+        queryKey: ["lotteries", eventId, "POOL_DRAW"],
+      });
+      void queryClient.invalidateQueries({
         queryKey: ["organizer-eligible-count"],
       });
+      if (mode === "create" && lottery.id) {
+        router.replace(`/events/${eventId}/lottery/big-screen/${lottery.id}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -238,24 +253,33 @@ export function OrganizerLotteryConfigurator({
   return (
     <AdminPage>
       <AdminHeader
-        title="闭幕全场大抽奖"
+        title={mode === "create" ? "新建大屏抽奖" : "大屏抽奖配置"}
         description={eventName}
-        breadcrumb={["互动管理", "全场抽奖"]}
+        breadcrumb={["互动管理", "大屏抽奖", mode === "create" ? "新建" : "配置"]}
         actions={
-          savedLottery?.status === "OPEN" ? (
+          <div className="flex items-center gap-2">
             <Link
-              href={`/events/${eventId}/screen/lottery?lottery=${savedLottery.id}`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-gold px-3 text-sm font-medium text-white hover:bg-brand-gold/90"
+              href={listHref}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
             >
-              <ExternalLink className="size-4" />
-              大屏开奖控制台
+              <ArrowLeft className="mr-1.5 size-4" />
+              返回列表
             </Link>
-          ) : null
+            {savedLottery?.status === "OPEN" ? (
+              <Link
+                href={`/events/${eventId}/screen/lottery?lottery=${savedLottery.id}`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-gold px-3 text-sm font-medium text-white hover:bg-brand-gold/90"
+              >
+                <ExternalLink className="size-4" />
+                大屏开奖控制台
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
       <AdminContent className="p-0">
-        {isLoading ? (
+        {mode === "edit" && isLoading ? (
           <p className="py-12 text-center text-sm text-text-muted">加载中…</p>
         ) : (
           <InteractionEditLayout

@@ -29,7 +29,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableShell,
+  TableToolbar,
+} from "@/components/ui/table";
+import { StatusChip, type StatusChipVariant } from "@/components/ui/status-chip";
 
 type BoothRow = {
   id: string;
@@ -71,6 +81,21 @@ const emptyForm: BoothForm = {
   exhibitorId: "",
   status: "AVAILABLE",
 };
+
+function boothStatusVariant(status: BoothRow["status"]): StatusChipVariant {
+  switch (status) {
+    case "AVAILABLE":
+      return "neutral";
+    case "BOOKED":
+      return "warning";
+    case "OCCUPIED":
+      return "success";
+  }
+}
+
+function boothStatusLabel(status: BoothRow["status"]) {
+  return STATUS_OPTIONS.find((opt) => opt.value === status)?.label ?? status;
+}
 
 export function ExpoBoothsPageClient({
   eventId,
@@ -237,7 +262,8 @@ export function ExpoBoothsPageClient({
           title={`全部展位（${booths.length}）`}
           description="管理展位编号、展商分配与入驻状态"
         >
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="space-y-4">
+          <TableToolbar>
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v ?? "all")}
@@ -254,39 +280,39 @@ export function ExpoBoothsPageClient({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </TableToolbar>
 
           {isLoading ? (
-            <p className="py-12 text-center text-sm text-text-muted">加载中…</p>
+            <p className="py-12 text-center text-sm text-text-secondary">加载中…</p>
           ) : filtered.length === 0 ? (
-            <p className="py-12 text-center text-sm text-text-muted">
+            <p className="py-12 text-center text-sm text-text-secondary">
               {booths.length === 0
                 ? "暂无展位，点击「新建展位」开始配置"
                 : "当前筛选条件下无展位"}
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border-light">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-[#fafaf8] text-left text-xs text-text-muted">
-                    <th className="p-3">展位号</th>
-                    <th className="p-3">名称</th>
-                    <th className="p-3">展商</th>
-                    <th className="p-3">状态</th>
-                    <th className="p-3">线索</th>
-                    <th className="p-3">今日访客</th>
-                    <th className="p-3 text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableShell>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-surface-secondary">
+                    <TableHead>展位号</TableHead>
+                    <TableHead>名称</TableHead>
+                    <TableHead>展商</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead>线索</TableHead>
+                    <TableHead>今日访客</TableHead>
+                    <TableHead className="text-right">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filtered.map((booth) => (
-                    <tr key={booth.id} className="border-b hover:bg-gray-50/80">
-                      <td className="p-3 font-mono font-medium text-brand-blue">
+                    <TableRow key={booth.id} className="h-12">
+                      <TableCell className="font-mono font-medium text-brand-blue">
                         {booth.code}
-                      </td>
-                      <td className="p-3">{booth.name}</td>
-                      <td className="p-3">{booth.exhibitor.name}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>{booth.name}</TableCell>
+                      <TableCell>{booth.exhibitor.name}</TableCell>
+                      <TableCell>
                         <Select
                           value={booth.status}
                           onValueChange={(v) =>
@@ -296,8 +322,10 @@ export function ExpoBoothsPageClient({
                             )
                           }
                         >
-                          <SelectTrigger className="h-8 w-28 text-xs">
-                            <SelectValue />
+                          <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none focus-visible:ring-0">
+                            <StatusChip variant={boothStatusVariant(booth.status)}>
+                              {boothStatusLabel(booth.status)}
+                            </StatusChip>
                           </SelectTrigger>
                           <SelectContent>
                             {STATUS_OPTIONS.map((opt) => (
@@ -307,12 +335,12 @@ export function ExpoBoothsPageClient({
                             ))}
                           </SelectContent>
                         </Select>
-                      </td>
-                      <td className="p-3 tabular-nums">{booth._count.leads}</td>
-                      <td className="p-3 tabular-nums">
+                      </TableCell>
+                      <TableCell className="tabular-nums">{booth._count.leads}</TableCell>
+                      <TableCell className="tabular-nums">
                         {booth.stats.todayVisitors}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex justify-end gap-1">
                           <Link
                             href={`/events/${eventId}/exhibitors/form-config?boothId=${booth.id}`}
@@ -351,13 +379,14 @@ export function ExpoBoothsPageClient({
                             <Trash2 className="size-3.5" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableShell>
           )}
+          </div>
         </SectionCard>
       </AdminContent>
 

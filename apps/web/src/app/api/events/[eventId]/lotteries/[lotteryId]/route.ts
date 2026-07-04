@@ -1,4 +1,4 @@
-import { LotteryStatus, prisma, type Prisma } from "@connectiq/database";
+import { LotteryCategory, LotteryStatus, prisma, type Prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
@@ -116,4 +116,48 @@ export const PATCH = withErrorHandler(async (request, context) => {
   }
 
   return createSuccessResponse({ ...updated, pushResult });
+});
+
+export const DELETE = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  const lotteryId = context?.params?.lotteryId;
+  if (!eventId || !lotteryId) {
+    return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const { session } = await requireEventAccess(eventId);
+  const disabled = await guardEventFeature(eventId, "lottery");
+  if (disabled) return disabled;
+
+  const lottery = await getLotteryOrThrow(eventId, lotteryId);
+  await requireLotteryManageAccess(session, eventId, lottery);
+
+  if (lottery.lotteryCategory !== LotteryCategory.POOL_DRAW) {
+    return createErrorResponse(
+      "仅支持删除大屏抽奖",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
+  if (lottery.status !== LotteryStatus.DRAFT) {
+    return createErrorResponse(
+      "仅草稿状态可删除",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.eventSetting.deleteMany({
+      where: {
+        eventId,
+        key: `organizer_lottery_meta_${lotteryId}`,
+      },
+    });
+    await tx.lotteryPrize.deleteMany({ where: { lotteryId } });
+    await tx.lottery.delete({ where: { id: lotteryId } });
+  });
+
+  return createSuccessResponse({ deleted: true });
 });

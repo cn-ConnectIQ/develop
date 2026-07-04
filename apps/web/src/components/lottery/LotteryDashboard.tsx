@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LotteryDrawType, LotteryStatus } from "@/lib/lottery/lottery-enums";
-import { Download, Loader2, Upload } from "lucide-react";
+import { Download, Loader2, Upload, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
   AdminHeader,
   AdminPage,
 } from "@/components/admin/admin-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DrawControl } from "@/components/lottery/DrawControl";
 import { RealtimeEntryFeed } from "@/components/lottery/RealtimeEntryFeed";
 import { WinnerList } from "@/components/lottery/WinnerList";
@@ -55,12 +55,12 @@ function StatCard({
   accent?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border-light bg-white p-5">
-      <p className="text-xs text-text-muted">{label}</p>
+    <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+      <p className="text-xs text-text-secondary">{label}</p>
       <p className={cn("mt-1 text-3xl font-bold", accent)}>
         <AnimatedNumber value={value} />
       </p>
-      {sub && <p className="mt-1 text-xs text-text-muted">{sub}</p>}
+      {sub && <p className="mt-1 text-xs text-text-secondary">{sub}</p>}
     </div>
   );
 }
@@ -129,21 +129,22 @@ export function LotteryDashboard({
     }
   }
 
+  const listHref = `/events/${eventId}/lottery/participant`;
+
   return (
     <AdminPage>
       <AdminHeader
         title={data.lottery.title}
         description={`${boothCode} · ${DRAW_TYPE_LABEL[data.lottery.draw_type]}`}
-        breadcrumb={["活动", "展位抽奖", "进行中"]}
+        breadcrumb={["互动管理", "参与人抽奖", "数据看板"]}
         actions={
-          <div className="flex gap-2">
-            <Link
-              href={`/events/${eventId}/booths/${boothId}/lottery/new`}
-              className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm hover:bg-gray-50"
-            >
-              新建抽奖
-            </Link>
-          </div>
+          <Link
+            href={listHref}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <ArrowLeft className="mr-1.5 size-4" />
+            返回列表
+          </Link>
         }
       />
 
@@ -165,8 +166,8 @@ export function LotteryDashboard({
             sub={`配额 ${data.stats.winner_quota}`}
             accent="text-brand-red"
           />
-          <div className="rounded-xl border border-border-light bg-white p-5">
-            <p className="text-xs text-text-muted">AI 评级分布</p>
+          <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+            <p className="text-xs text-text-secondary">AI 评级分布</p>
             <div className="mt-2 flex gap-3 text-sm font-semibold">
               <span className="text-brand-green">
                 A <AnimatedNumber value={A} />
@@ -198,7 +199,7 @@ export function LotteryDashboard({
             <div className="flex flex-wrap gap-2">
               <a
                 href={`/api/lotteries/${lotteryId}/export-leads`}
-                className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-gray-50"
+                className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 <Download className="mr-2 size-4" />
                 导出所有线索

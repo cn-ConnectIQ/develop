@@ -34,6 +34,13 @@ import {
   Users,
 } from "lucide-react";
 
+export type NavSubItem = {
+  label: string;
+  href: string;
+  menuKey?: string;
+  external?: boolean;
+};
+
 export type NavItem = {
   label: string;
   href: string;
@@ -44,6 +51,8 @@ export type NavItem = {
   external?: boolean;
   /** FIX-02 菜单映射 key，用于按 activityType 过滤 */
   menuKey?: string;
+  /** 子菜单（如现场抽奖 → 大屏/参与人） */
+  children?: NavSubItem[];
 };
 
 export type NavGroup = {
@@ -314,9 +323,21 @@ function getEventNavigationGroups(
               },
               {
                 label: "现场抽奖",
-                href: `/events/${eventId}/lottery`,
+                href: `/events/${eventId}/lottery/big-screen`,
                 icon: Gift,
                 menuKey: "lottery",
+                children: [
+                  {
+                    label: "大屏抽奖",
+                    href: `/events/${eventId}/lottery/big-screen`,
+                    menuKey: "lottery-big-screen",
+                  },
+                  {
+                    label: "参与人抽奖",
+                    href: `/events/${eventId}/lottery/participant`,
+                    menuKey: "lottery-participant",
+                  },
+                ],
               },
               {
                 label: "集章打卡",
