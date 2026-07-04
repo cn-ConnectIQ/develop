@@ -9,59 +9,61 @@ import {
 import {
   ScreenPairingExpiredError,
   bindScreenPairing,
-  expiredPairingResponse,
-  getScreenPairingByToken,
   requireScreenPairingBindOperator,
 } from "@/lib/screen-pairing/service";
 
-const bindSchema = z.object({
+const bodySchema = z.object({
   eventId: z.string().min(1),
   interactionType: z.enum(["POLL", "LOTTERY", "QA"]),
   interactionId: z.string().min(1),
-  interactionName: z.string().optional(),
+  interactionName: z.string().min(1),
 });
+
+function mapInteractionType(type: "POLL" | "LOTTERY" | "QA"): InteractionType {
+  if (type === "LOTTERY") return InteractionType.LOTTERY;
+  if (type === "QA") return InteractionType.QA;
+  return InteractionType.POLL;
+}
 
 export const POST = withErrorHandler(async (request, context) => {
   const token = context?.params?.token?.trim();
   if (!token) {
-    return createErrorResponse("缺少 pairing token", ErrorCode.VALIDATION_ERROR, 400);
+    return createErrorResponse("缺少配对码", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const raw = await request.json().catch(() => null);
-  const parsed = bindSchema.safeParse(raw);
+  const body = await request.json();
+  const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
-    return createErrorResponse(
-      parsed.error.issues[0]?.message ?? "参数校验失败",
-      ErrorCode.VALIDATION_ERROR,
-      400,
-    );
+    return createErrorResponse("参数错误", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { eventId, interactionType, interactionId, interactionName } = parsed.data;
-
-  await getScreenPairingByToken(token);
-
-  const { userId, role } = await requireScreenPairingBindOperator(request, eventId);
+  const operator = await requireScreenPairingBindOperator(request, parsed.data.eventId);
 
   try {
     const result = await bindScreenPairing({
       token,
-      userId,
-      role,
-      eventId,
-      interactionType: interactionType as InteractionType,
-      interactionId,
-      interactionName: interactionName?.trim() ?? "",
+      userId: operator.userId,
+      role: operator.role,
+      eventId: parsed.data.eventId,
+      interactionType: mapInteractionType(parsed.data.interactionType),
+      interactionId: parsed.data.interactionId,
+      interactionName: parsed.data.interactionName,
     });
 
     return createSuccessResponse({
-      paired: result.paired,
-      eventName: result.eventName,
+      paired: true,
+      screenOnline: true,
+      pairingToken: result.record.pairingToken,
+      interactionType: parsed.data.interactionType,
       interactionName: result.interactionName,
     });
   } catch (err) {
     if (err instanceof ScreenPairingExpiredError) {
-      return expiredPairingResponse();
+      return createErrorResponse(
+        "二维码已过期,请刷新浏览器重新扫码",
+        ErrorCode.VALIDATION_ERROR,
+        410,
+      );
     }
     throw err;
   }

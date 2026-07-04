@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { buildQrContent } from "@/lib/screen-pairing/service";
+import { buildQrContent } from "@/lib/screen-pairing/shared";
 
 type QRDisplayProps = {
   pairingToken: string;

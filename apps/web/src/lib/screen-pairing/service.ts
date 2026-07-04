@@ -1,3 +1,5 @@
+import "server-only";
+
 import crypto from "crypto";
 import {
   InteractionType,
@@ -14,33 +16,21 @@ import {
   type ScanOperatorRole,
 } from "@/lib/scan/permissions";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
-import { broadcastScreenPairingPaired } from "@/lib/screen-pairing/realtime";
+import { broadcastScreenPairingPaired, broadcastScreenPairingMessage } from "@/lib/screen-pairing/realtime";
+import {
+  ONLINE_WINDOW_MS,
+  TOKEN_TTL_SECONDS,
+  buildQrContent,
+  type ScreenPairingDisplayTarget,
+  type ScreenPairingStatusPayload,
+} from "@/lib/screen-pairing/shared";
 
-export const TOKEN_TTL_SECONDS = 90;
-export const ONLINE_WINDOW_MS = 30 * 1000;
-
-export type ScreenPairingDisplayTarget = {
-  pollId: string | null;
-  lotteryId: string | null;
-};
-
-export type ScreenPairingStatusPayload = {
-  id: string;
-  pairingToken: string;
-  status: PairingStatus;
-  tokenExpiresAt: string;
-  expiresIn?: number;
-  screenOnline: boolean;
-  eventId: string | null;
-  eventName: string | null;
-  interactionType: InteractionType | null;
-  interactionId: string | null;
-  interactionName: string | null;
-  displayTarget: ScreenPairingDisplayTarget | null;
-  pairedBy: string | null;
-  pairedAt: string | null;
-  lastHeartbeatAt: string | null;
-  createdAt: string;
+export {
+  ONLINE_WINDOW_MS,
+  TOKEN_TTL_SECONDS,
+  buildQrContent,
+  type ScreenPairingDisplayTarget,
+  type ScreenPairingStatusPayload,
 };
 
 type InteractionRefJson = { type?: string; id?: string };
@@ -113,10 +103,6 @@ function generatePairingToken(): string {
 
 function tokenExpiresAtFromNow() {
   return new Date(Date.now() + TOKEN_TTL_SECONDS * 1000);
-}
-
-export function buildQrContent(pairingToken: string): string {
-  return `CIQ:SCREEN:${pairingToken}`;
 }
 
 export function expiresInSeconds(tokenExpiresAt: Date): number {
@@ -226,6 +212,27 @@ export async function refreshScreenPairingToken(token: string): Promise<
   };
 }
 
+async function findBoothIdFromSessions(
+  eventId: string,
+  interactionId: string,
+): Promise<string | null> {
+  const sessions = await prisma.interactionSession.findMany({
+    where: { eventId },
+    select: { boothId: true, interactions: true },
+  });
+
+  for (const session of sessions) {
+    if (!Array.isArray(session.interactions)) continue;
+    for (const item of session.interactions as InteractionRefJson[]) {
+      if (item.id === interactionId) {
+        return session.boothId;
+      }
+    }
+  }
+
+  return null;
+}
+
 async function resolveInteractionContext(
   eventId: string,
   interactionType: InteractionType,
@@ -244,7 +251,8 @@ async function resolveInteractionContext(
       if (!poll || poll.eventId !== eventId) {
         throw new ApiError("互动不存在", ErrorCode.NOT_FOUND, 404);
       }
-      return { eventName: poll.event.name, boothId: null };
+      const boothId = await findBoothIdFromSessions(eventId, interactionId);
+      return { eventName: poll.event.name, boothId };
     }
     case InteractionType.LOTTERY: {
       const lottery = await prisma.lottery.findUnique({
@@ -271,10 +279,24 @@ async function resolveInteractionContext(
           event: { select: { name: true } },
         },
       });
-      if (!session || session.eventId !== eventId) {
-        throw new ApiError("互动不存在", ErrorCode.NOT_FOUND, 404);
+      if (session && session.eventId === eventId) {
+        return { eventName: session.event.name, boothId: session.boothId };
       }
-      return { eventName: session.event.name, boothId: session.boothId };
+
+      const poll = await prisma.poll.findUnique({
+        where: { id: interactionId },
+        select: {
+          eventId: true,
+          type: true,
+          event: { select: { name: true } },
+        },
+      });
+      if (poll && poll.eventId === eventId && poll.type === "QNA") {
+        const boothId = await findBoothIdFromSessions(eventId, interactionId);
+        return { eventName: poll.event.name, boothId };
+      }
+
+      throw new ApiError("互动不存在", ErrorCode.NOT_FOUND, 404);
     }
     default:
       throw new ApiError("不支持的互动类型", ErrorCode.VALIDATION_ERROR, 400);
@@ -433,6 +455,29 @@ export async function resetScreenPairing(token: string): Promise<ScreenPairing> 
   });
 }
 
+export async function resetScreenPairingsForInteraction(
+  interactionId: string,
+): Promise<{ resetCount: number; tokens: string[] }> {
+  const records = await prisma.screenPairing.findMany({
+    where: {
+      interactionId,
+      status: PairingStatus.PAIRED,
+    },
+  });
+
+  const tokens: string[] = [];
+  for (const record of records) {
+    const reset = await resetScreenPairing(record.pairingToken);
+    await broadcastScreenPairingMessage(reset.pairingToken, {
+      type: "RESET",
+      data: { pairingToken: reset.pairingToken },
+    });
+    tokens.push(reset.pairingToken);
+  }
+
+  return { resetCount: tokens.length, tokens };
+}
+
 export async function resolveInteractionEventId(
   interactionId: string,
 ): Promise<string | null> {
@@ -474,4 +519,18 @@ export async function getInteractionScreenPairingStatus(interactionId: string): 
     paired: Boolean(pairing),
     screenOnline: pairing ? isScreenOnline(pairing.lastHeartbeatAt) : false,
   };
+}
+
+export async function listPairedScreensForEvent(
+  eventId: string,
+): Promise<ScreenPairingStatusPayload[]> {
+  const records = await prisma.screenPairing.findMany({
+    where: {
+      eventId,
+      status: PairingStatus.PAIRED,
+    },
+    orderBy: [{ pairedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  return records.map((record) => serializeScreenPairing(record));
 }

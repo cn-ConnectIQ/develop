@@ -1,28 +1,24 @@
 import { ErrorCode } from "@connectiq/types";
 import {
-  ApiError,
   createErrorResponse,
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
-import {
-  getInteractionScreenPairingStatus,
-  requireScreenPairingBindOperator,
-  resolveInteractionEventId,
-} from "@/lib/screen-pairing/service";
+import { requireEventAccessMobileOrWeb } from "@/lib/mobile-event-access";
+import { getInteractionScreenPairingStatus } from "@/lib/screen-pairing/service";
 
 export const GET = withErrorHandler(async (request, context) => {
-  const interactionId = context?.params?.interactionId?.trim();
+  const interactionId = context?.params?.interactionId;
   if (!interactionId) {
     return createErrorResponse("缺少互动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const eventId = await resolveInteractionEventId(interactionId);
-  if (!eventId) {
-    throw new ApiError("互动不存在", ErrorCode.NOT_FOUND, 404);
-  }
+  const { searchParams } = new URL(request.url);
+  const eventId = searchParams.get("eventId") ?? undefined;
 
-  await requireScreenPairingBindOperator(request, eventId);
+  if (eventId) {
+    await requireEventAccessMobileOrWeb(request, eventId);
+  }
 
   const status = await getInteractionScreenPairingStatus(interactionId);
   return createSuccessResponse(status);

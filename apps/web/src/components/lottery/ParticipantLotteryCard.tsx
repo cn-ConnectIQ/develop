@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LotteryCategory } from "@connectiq/database";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -67,7 +66,7 @@ function StatusDot({ lottery }: { lottery: ParticipantLotteryListItem }) {
 }
 
 function PrizePreview({ lottery }: { lottery: ParticipantLotteryListItem }) {
-  if (lottery.lottery_category === LotteryCategory.INSTANT_CLAIM) {
+  if (lottery.lottery_category === "INSTANT_CLAIM") {
     const prize = lottery.prizes[0];
     if (!prize) {
       return (
@@ -160,7 +159,7 @@ export function ParticipantLotteryCard({
 
             <PrizePreview lottery={lottery} />
 
-            {lottery.lottery_category === LotteryCategory.AUTO_PROBABILITY &&
+            {lottery.lottery_category === "AUTO_PROBABILITY" &&
               animationBadge && (
                 <p className="text-xs text-text-secondary">
                   {animationBadge.emoji} {animationBadge.title}

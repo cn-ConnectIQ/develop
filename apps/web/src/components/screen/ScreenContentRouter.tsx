@@ -8,7 +8,7 @@ import { useBigscreenRealtime } from "@/hooks/useBigscreenRealtime";
 import { formatCountdown } from "@/lib/bigscreen-display";
 import type { BigscreenPoll, PollOptionResult, WordCloudItem } from "@/lib/bigscreen-types";
 import type { QnaQuestion } from "@/lib/bigscreen-display";
-import type { ScreenPairingDisplayTarget } from "@/lib/screen-pairing/service";
+import type { ScreenPairingDisplayTarget } from "@/lib/screen-pairing/shared";
 
 type PollResultsPayload = {
   pollId: string;

@@ -1,6 +1,8 @@
-import { LotteryCategory } from "@connectiq/database";
 import type { ParticipantLotteryListItem } from "@/lib/interaction/lottery-service";
 import { ANIMATION_TYPE_OPTIONS } from "@/lib/lottery/probability-lottery-config";
+
+const LOTTERY_CATEGORY_AUTO_PROBABILITY = "AUTO_PROBABILITY" as const;
+const LOTTERY_CATEGORY_INSTANT_CLAIM = "INSTANT_CLAIM" as const;
 
 export type ParticipantLotteryTypeFilter = "all" | "probability" | "instant";
 export type ParticipantLotteryStatusFilter = "all" | "active" | "ended";
@@ -49,12 +51,12 @@ export function getParticipantDisplayStatus(lottery: ParticipantLotteryListItem)
   return { label: "草稿", variant: "neutral" as const };
 }
 
-export function getParticipantTypeEmoji(category: LotteryCategory) {
-  return category === LotteryCategory.INSTANT_CLAIM ? "🎁" : "🎡";
+export function getParticipantTypeEmoji(category: string) {
+  return category === LOTTERY_CATEGORY_INSTANT_CLAIM ? "🎁" : "🎡";
 }
 
-export function getParticipantTypeLabel(category: LotteryCategory) {
-  return category === LotteryCategory.INSTANT_CLAIM ? "直接领取" : "概率抽奖";
+export function getParticipantTypeLabel(category: string) {
+  return category === LOTTERY_CATEGORY_INSTANT_CLAIM ? "直接领取" : "概率抽奖";
 }
 
 export function getAnimationBadge(animationType: string | null) {
@@ -86,13 +88,13 @@ export function filterParticipantLotteries(
     }
     if (
       filters.type === "probability" &&
-      lottery.lottery_category !== LotteryCategory.AUTO_PROBABILITY
+      lottery.lottery_category !== LOTTERY_CATEGORY_AUTO_PROBABILITY
     ) {
       return false;
     }
     if (
       filters.type === "instant" &&
-      lottery.lottery_category !== LotteryCategory.INSTANT_CLAIM
+      lottery.lottery_category !== LOTTERY_CATEGORY_INSTANT_CLAIM
     ) {
       return false;
     }

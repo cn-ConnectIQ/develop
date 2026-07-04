@@ -244,6 +244,12 @@ function parseParticipantLotteryCategories(
       if (item === "INSTANT_CLAIM") return LotteryCategory.INSTANT_CLAIM;
       return null;
     })
-    .filter((item): item is LotteryCategory => item != null);
+    .filter(
+      (
+        item,
+      ): item is
+        | typeof LotteryCategory.AUTO_PROBABILITY
+        | typeof LotteryCategory.INSTANT_CLAIM => item != null,
+    );
   return mapped.length > 0 ? mapped : undefined;
 }

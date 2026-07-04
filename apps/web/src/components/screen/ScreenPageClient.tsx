@@ -7,12 +7,12 @@ import {
 } from "@/components/screen/ConnectionStatusDot";
 import { QRDisplay } from "@/components/screen/QRDisplay";
 import { ScreenContentRouter } from "@/components/screen/ScreenContentRouter";
-import {
-  subscribeScreenPairing,
-  type ScreenPairingBroadcastMessage,
-} from "@/lib/screen-pairing/realtime";
-import type { ScreenPairingStatusPayload } from "@/lib/screen-pairing/service";
-import { TOKEN_TTL_SECONDS } from "@/lib/screen-pairing/service";
+import { subscribeScreenPairing } from "@/lib/screen-pairing/realtime.client";
+import type {
+  ScreenPairingBroadcastMessage,
+  ScreenPairingStatusPayload,
+} from "@/lib/screen-pairing/shared";
+import { TOKEN_TTL_SECONDS } from "@/lib/screen-pairing/shared";
 
 /** 每个浏览器标签页独立存储,避免多块屏互相覆盖 token */
 const STORAGE_KEY = "connectiq_screen_pairing_token";
