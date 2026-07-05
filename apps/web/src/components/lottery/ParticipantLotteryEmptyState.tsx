@@ -17,7 +17,7 @@ export function ParticipantLotteryEmptyState({
         <Gift className="size-7 text-text-tertiary" strokeWidth={1.5} />
       </div>
       <p className="mt-4 max-w-sm text-sm text-text-secondary">
-        还没有参与人抽奖，为展位配置一个快速获客工具
+        还没有参与人抽奖，主办方或展位都可以配置一个快速获客工具
       </p>
       {onCreate ? (
         <button

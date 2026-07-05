@@ -49,24 +49,36 @@ type PublishResult = {
   template_code: string;
 };
 
-export type InstantClaimSetupStepperProps = {
-  eventId: string;
+type ExhibitorContext = {
+  initiator: "exhibitor";
   boothId: string;
   boothCode: string;
   boothName: string;
   companyName: string;
 };
 
-export function InstantClaimSetupStepper({
-  eventId,
-  boothId,
-  boothCode,
-  boothName,
-  companyName,
-}: InstantClaimSetupStepperProps) {
+type OrganizerContext = {
+  initiator: "organizer";
+  eventName?: string;
+};
+
+export type InstantClaimSetupStepperProps = {
+  eventId: string;
+} & (ExhibitorContext | OrganizerContext);
+
+export function InstantClaimSetupStepper(props: InstantClaimSetupStepperProps) {
+  const { eventId, initiator } = props;
+  const isOrganizer = initiator === "organizer";
+  const boothId = isOrganizer ? null : props.boothId;
+  const boothCode = isOrganizer ? null : props.boothCode;
+  const companyName = isOrganizer
+    ? (props.eventName ?? "主办方")
+    : props.companyName;
   const router = useRouter();
   const listHref = `/events/${eventId}/lottery/participant`;
-  const [title, setTitle] = useState(`${boothCode} 直接领取`);
+  const [title, setTitle] = useState(
+    isOrganizer ? "现场直接领取" : `${boothCode} 直接领取`,
+  );
   const [description, setDescription] = useState("填写信息即可领取礼品");
   const [prizes, setPrizes] = useState<BoothLotteryPrizeDraft[]>(DEFAULT_PRIZE);
   const [leadFields, setLeadFields] = useState<LeadFormField[]>(DEFAULT_LEAD_FIELDS);
@@ -97,21 +109,22 @@ export function InstantClaimSetupStepper({
     else setSavingDraft(true);
 
     try {
-      const res = await fetch(
-        `/api/events/${eventId}/booths/${boothId}/lottery/instant-claim`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title.trim(),
-            description: description.trim() || undefined,
-            prizes,
-            require_lead_capture: true,
-            lead_form_config: { fields: leadFields },
-            publish,
-          }),
-        },
-      );
+      const apiUrl = isOrganizer
+        ? `/api/events/${eventId}/lottery/instant-claim`
+        : `/api/events/${eventId}/booths/${boothId}/lottery/instant-claim`;
+
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          prizes,
+          require_lead_capture: true,
+          lead_form_config: { fields: leadFields },
+          publish,
+        }),
+      });
 
       const json = (await res.json()) as {
         data?: PublishResult;
@@ -128,7 +141,9 @@ export function InstantClaimSetupStepper({
         const lotteryId = json.data?.lottery?.id;
         if (lotteryId) {
           router.push(
-            `/events/${eventId}/booths/${boothId}/lottery/${lotteryId}`,
+            isOrganizer
+              ? `/events/${eventId}/lottery/participant/${lotteryId}`
+              : `/events/${eventId}/booths/${boothId}/lottery/${lotteryId}`,
           );
         }
       }
@@ -157,7 +172,7 @@ export function InstantClaimSetupStepper({
       <div className="flex flex-wrap justify-center gap-2">
         <a
           href={publishResult.interaction.qr_url}
-          download={`instant-claim-${boothCode}.png`}
+          download={`instant-claim-${boothCode ?? "organizer"}.png`}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           <Download className="mr-1.5 size-4" />
@@ -167,7 +182,9 @@ export function InstantClaimSetupStepper({
           size="sm"
           onClick={() =>
             router.push(
-              `/events/${eventId}/booths/${boothId}/lottery/${publishResult.lottery.id}`,
+              isOrganizer
+                ? `/events/${eventId}/lottery/participant/${publishResult.lottery.id}`
+                : `/events/${eventId}/booths/${boothId}/lottery/${publishResult.lottery.id}`,
             )
           }
         >
@@ -191,7 +208,11 @@ export function InstantClaimSetupStepper({
     <AdminPage>
       <AdminHeader
         title="创建直接领取"
-        description={`${companyName} · ${boothCode} · QUICK-03B 填表必得`}
+        description={
+          isOrganizer
+            ? `${companyName} · 主办方发起 · QUICK-03B 填表必得`
+            : `${companyName} · ${boothCode} · QUICK-03B 填表必得`
+        }
         breadcrumb={["互动管理", "参与人抽奖", "直接领取"]}
         actions={
           <Link

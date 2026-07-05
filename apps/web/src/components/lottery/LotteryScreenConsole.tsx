@@ -142,8 +142,11 @@ export function LotteryScreenConsole({
     [state?.lottery.animation],
   );
 
-  const previewUrl = lotteryId
+  const projectionUrl = lotteryId
     ? `/events/${eventId}/screen/lottery-display?lottery=${lotteryId}`
+    : null;
+  const embedPreviewUrl = projectionUrl
+    ? `${projectionUrl}&embed=1`
     : null;
 
   function refresh() {
@@ -354,9 +357,9 @@ export function LotteryScreenConsole({
         <span className="truncate text-sm text-white/50">
           {eventName} · {state?.lottery.title ?? grandLottery?.title ?? "闭幕大抽奖"}
         </span>
-        {previewUrl && (
+        {projectionUrl && (
           <a
-            href={previewUrl}
+            href={projectionUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
@@ -536,18 +539,22 @@ export function LotteryScreenConsole({
             )}
           </div>
 
-          <aside className="hidden w-[min(420px,38%)] shrink-0 flex-col border-l border-white/10 bg-[#12151F] p-5 xl:flex">
-            <p className="mb-3 text-xs font-semibold tracking-widest text-white/40">
+          <aside className="hidden min-h-0 w-[min(440px,40%)] shrink-0 flex-col border-l border-white/10 bg-[#12151F] p-5 xl:flex">
+            <p className="mb-3 shrink-0 text-xs font-semibold tracking-widest text-white/40">
               大屏同步预览
             </p>
-            {previewUrl ? (
+            {embedPreviewUrl ? (
               <iframe
                 title="大屏预览"
-                src={previewUrl}
-                className="aspect-video w-full rounded-xl border border-white/10 bg-[#0D0D1F]"
+                src={embedPreviewUrl}
+                className="min-h-[360px] w-full flex-1 rounded-xl border border-white/10 bg-[#0D0D1F]"
+                style={{ height: "min(520px, 58vh)" }}
               />
             ) : (
-              <div className="flex aspect-video items-center justify-center rounded-xl bg-[#0D0D1F] text-sm text-white/30">
+              <div
+                className="flex w-full flex-1 items-center justify-center rounded-xl bg-[#0D0D1F] text-sm text-white/30"
+                style={{ minHeight: "360px" }}
+              >
                 暂无预览
               </div>
             )}

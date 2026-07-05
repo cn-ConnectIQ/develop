@@ -59,7 +59,7 @@ export function PollVotingBigScreenClient({
 
   if (!pollParam && loadingCurrent) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#12121e] text-white/50">
+      <div className="flex h-full items-center justify-center bg-[#1a1d2e] text-white/50">
         加载投票大屏…
       </div>
     );
@@ -67,7 +67,7 @@ export function PollVotingBigScreenClient({
 
   if (!resolvedPollId && !loadingCurrent) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#12121e] text-white/60">
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-[#1a1d2e] text-white/60">
         <p className="text-xl">暂无进行中的投票</p>
         <Link
           href={`/events/${eventId}/interactions`}
@@ -81,7 +81,7 @@ export function PollVotingBigScreenClient({
 
   if (loading && !data) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#12121e] text-white/50">
+      <div className="flex h-full items-center justify-center bg-[#1a1d2e] text-white/50">
         加载实时结果…
       </div>
     );
@@ -89,7 +89,7 @@ export function PollVotingBigScreenClient({
 
   if (error || !data) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#12121e] text-white/50">
+      <div className="flex h-full items-center justify-center bg-[#1a1d2e] text-white/50">
         {error ?? "加载失败"}
       </div>
     );
@@ -97,7 +97,7 @@ export function PollVotingBigScreenClient({
 
   if (data.type === "WORD_CLOUD") {
     return (
-      <div className="relative flex h-full flex-col bg-[#12121e]">
+      <div className="relative flex h-full flex-col bg-[#1a1d2e]">
         <div className="px-[5%] pt-[4%] text-center">
           <p className="text-sm text-white/45">现场投票 · 词云</p>
           <h1 className="mt-4 text-[clamp(24px,3vw,36px)] font-bold text-white">
@@ -117,7 +117,7 @@ export function PollVotingBigScreenClient({
 
   if (!isChoicePoll) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#12121e] text-white/60">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#1a1d2e] text-white/60">
         <p>该互动类型暂不支持 PR5 投票大屏</p>
         <Link
           href={`/events/${eventId}/interactions/bigscreen`}

@@ -35,6 +35,7 @@ export default async function BoothProbabilityLotteryNewPage({
     >
       <ProbabilityLotterySetupStepper
         eventId={eventId}
+        initiator="exhibitor"
         boothId={booth.id}
         boothCode={booth.code}
         boothName={booth.name}

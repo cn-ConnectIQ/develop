@@ -11,38 +11,50 @@ type PollVotingBigScreenProps = {
   showResults: boolean;
 };
 
-function getWinnerIndex(options: PollOptionResult[]): number {
-  if (options.length === 0) return -1;
+function getWinnerId(options: PollOptionResult[]): string | null {
+  if (options.length === 0) return null;
   let maxPct = -1;
-  let maxIdx = -1;
-  options.forEach((opt, i) => {
+  let winnerId: string | null = null;
+  for (const opt of options) {
     if (opt.percentage > maxPct) {
       maxPct = opt.percentage;
-      maxIdx = i;
+      winnerId = opt.id;
     }
-  });
-  return maxPct > 0 ? maxIdx : -1;
+  }
+  return maxPct > 0 ? winnerId : null;
 }
 
+/** PR5 · 大屏版 16:9 · 条形赛跑 */
 export function PollVotingBigScreen({
   title,
   total,
   options,
   showResults,
 }: PollVotingBigScreenProps) {
-  const winnerIdx = getWinnerIndex(options);
+  const winnerId = getWinnerId(options);
   const sorted = [...options].sort((a, b) => b.percentage - a.percentage);
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#12121e] text-white">
-      <header className="flex shrink-0 items-start justify-between px-[5%] pt-[4%]">
-        <p className="text-[clamp(12px,1.1vw,15px)] text-white/45">
-          现场投票 · 实时结果
-        </p>
-        <div className="text-right">
+    <div
+      className="relative flex h-full w-full flex-col overflow-hidden text-white"
+      style={{
+        background:
+          "radial-gradient(ellipse 120% 80% at 50% -20%, rgba(45,212,191,0.08) 0%, transparent 55%), #1a1d2e",
+      }}
+    >
+      <header className="flex shrink-0 items-start justify-between gap-6 px-[5%] pt-[4%]">
+        <div className="min-w-0 flex-1">
+          <p className="text-[clamp(12px,1.1vw,15px)] text-white/45">
+            现场投票 · 实时结果
+          </p>
+          <h1 className="mt-[clamp(12px,1.8vh,24px)] text-[clamp(26px,3.4vw,44px)] font-bold leading-snug text-white">
+            {title}
+          </h1>
+        </div>
+        <div className="shrink-0 text-right">
           <AnimatedParticipantCount
             value={total}
-            className="block text-[clamp(48px,6vw,80px)] font-black leading-none tracking-tight text-[#2dd4bf]"
+            className="block text-[clamp(44px,5.5vw,80px)] font-black leading-none tracking-tight text-[#2dd4bf]"
           />
           <p className="mt-1 text-[clamp(12px,1.1vw,15px)] text-white/45">
             人已参与
@@ -50,45 +62,47 @@ export function PollVotingBigScreen({
         </div>
       </header>
 
-      <h1 className="shrink-0 px-[5%] pt-[clamp(16px,2.5vh,32px)] text-center text-[clamp(24px,3.2vw,40px)] font-bold leading-snug text-white">
-        {title}
-      </h1>
-
-      <div className="flex min-h-0 flex-1 flex-col justify-center gap-[clamp(12px,2vh,20px)] px-[5%] py-[clamp(16px,3vh,40px)]">
+      <div className="flex min-h-0 flex-1 flex-col justify-center gap-[clamp(14px,2.2vh,24px)] px-[5%] py-[clamp(20px,3vh,48px)]">
         {!showResults ? (
-          <p className="text-center text-[clamp(18px,2vw,26px)] text-white/40">
-            投票进行中，结果暂不显示
-          </p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <div className="size-3 animate-pulse rounded-full bg-[#34d399]" />
+            <p className="text-center text-[clamp(18px,2vw,26px)] text-white/40">
+              投票进行中，结果暂不显示
+            </p>
+          </div>
         ) : sorted.length === 0 ? (
-          <p className="text-center text-[clamp(18px,2vw,26px)] text-white/40">
-            等待首个投票…
-          </p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <div className="size-3 animate-pulse rounded-full bg-[#34d399]" />
+            <p className="text-center text-[clamp(18px,2vw,26px)] text-white/40">
+              等待首个投票…
+            </p>
+          </div>
         ) : (
-          sorted.map((opt) => {
-            const originalIdx = options.findIndex((o) => o.id === opt.id);
-            return (
-              <PollVotingBar
-                key={opt.id}
-                label={opt.text}
-                percentage={opt.percentage}
-                isWinner={originalIdx === winnerIdx}
-              />
-            );
-          })
+          sorted.map((opt) => (
+            <PollVotingBar
+              key={opt.id}
+              label={opt.text}
+              percentage={opt.percentage}
+              isWinner={opt.id === winnerId}
+            />
+          ))
         )}
       </div>
 
       <footer className="flex shrink-0 items-center justify-between px-[5%] pb-[3%]">
-        <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-white/10 text-xs font-bold text-white/80">
-            CIQ
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-7 items-center justify-center rounded-md bg-[#22c55e] text-[11px] font-bold text-white">
+            C
           </span>
-          <span className="text-[clamp(12px,1.1vw,14px)] font-medium text-white/50">
+          <span className="text-[clamp(12px,1.1vw,14px)] font-medium text-white/55">
             ConnectIQ
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="size-2 animate-pulse rounded-full bg-[#34d399]" />
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#34d399] opacity-60" />
+            <span className="relative inline-flex size-2 rounded-full bg-[#34d399]" />
+          </span>
           <span className="text-[clamp(12px,1.1vw,14px)] text-white/45">
             实时更新中 · 扫码参与
           </span>

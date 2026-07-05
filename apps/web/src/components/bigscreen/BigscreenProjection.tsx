@@ -38,7 +38,7 @@ export function BigscreenProjection({
 
   if (poll.type === "QNA") {
     return (
-      <div className="relative flex flex-1 flex-col bg-[#12121e]">
+      <div className="relative flex flex-1 flex-col bg-[#1a1d2e]">
         <div className="p-8">
           <span className="rounded-full bg-brand-blue px-3 py-1 text-xs text-white">
             问答进行中 · {typeLabel}
@@ -54,7 +54,7 @@ export function BigscreenProjection({
 
   if (poll.type === "WORD_CLOUD" && showResults) {
     return (
-      <div className="relative flex flex-1 flex-col bg-[#12121e]">
+      <div className="relative flex flex-1 flex-col bg-[#1a1d2e]">
         <div className="px-[5%] pt-[4%] text-center">
           <p className="text-sm text-white/45">现场投票 · 词云</p>
           <h1 className="mt-4 text-[28px] font-bold text-white">{poll.title}</h1>
@@ -74,7 +74,7 @@ export function BigscreenProjection({
           showResults
         />
         {countdown !== "--:--" && (
-          <div className="absolute right-[5%] bottom-[12%] flex items-center gap-2">
+          <div className="absolute right-[5%] top-[18%] flex items-center gap-2">
             <span className="font-mono text-2xl font-bold text-[#fbbf24]">
               {countdown}
             </span>
@@ -98,7 +98,7 @@ export function BigscreenProjection({
 
   if (poll.type === "ANNOUNCEMENT") {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-[#12121e] px-12 pb-24">
+      <div className="flex flex-1 flex-col items-center justify-center bg-[#1a1d2e] px-12 pb-24">
         <p className="text-center text-2xl text-white/80">{poll.title}</p>
       </div>
     );

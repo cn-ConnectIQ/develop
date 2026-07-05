@@ -6,6 +6,7 @@ import {
   LotteryAnimationDispatch,
   useLotteryScreenAnimation,
 } from "@/components/screen/lottery-animations";
+import { cn } from "@/lib/utils";
 
 export type LotteryScreenDisplayClientProps = {
   eventId: string;
@@ -22,6 +23,8 @@ export function LotteryScreenDisplayClient({
 }: LotteryScreenDisplayClientProps) {
   const searchParams = useSearchParams();
   const lotteryId = lotteryIdProp ?? searchParams.get("lottery");
+  const isEmbedPreview =
+    embedded || searchParams.get("embed") === "1";
 
   if (!lotteryId) {
     return (
@@ -36,7 +39,7 @@ export function LotteryScreenDisplayClient({
       eventId={eventId}
       eventName={eventName}
       lotteryId={lotteryId}
-      embedded={embedded}
+      embedded={isEmbedPreview}
     />
   );
 }
@@ -97,7 +100,7 @@ function LotteryScreenDisplayInner({
     <div
       className={
         embedded
-          ? "relative flex h-full min-h-0 flex-col overflow-hidden text-white"
+          ? "relative flex h-full min-h-0 flex-col overflow-hidden bg-[#0a0a12] text-white"
           : "relative flex min-h-screen flex-col overflow-hidden bg-[#1A1A2E] text-white"
       }
     >
@@ -105,62 +108,130 @@ function LotteryScreenDisplayInner({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_#1a1a3e_0%,_#0a0a12_60%)]" />
       )}
 
-      <header className="relative z-10 flex items-center justify-between px-8 py-4">
-        <div>
+      <header
+        className={cn(
+          "relative z-10 flex shrink-0 items-center justify-between",
+          embedded ? "gap-3 px-3 py-2" : "px-8 py-4",
+        )}
+      >
+        <div className="min-w-0">
           {!embedded && <p className="text-sm text-white/40">{eventName}</p>}
-          <h1 className="text-2xl font-bold">{title}</h1>
+          <h1
+            className={cn(
+              "font-bold leading-tight",
+              embedded ? "truncate text-sm" : "text-2xl",
+            )}
+          >
+            {title}
+          </h1>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-white/40">参与人数</p>
-          <p className="text-3xl font-black text-brand-gold">{entryCount}</p>
+        <div className="shrink-0 text-right">
+          <p className={embedded ? "text-[10px] text-white/40" : "text-sm text-white/40"}>
+            参与人数
+          </p>
+          <p
+            className={cn(
+              "font-black text-brand-gold",
+              embedded ? "text-lg leading-none" : "text-3xl",
+            )}
+          >
+            {entryCount}
+          </p>
         </div>
       </header>
 
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-8 pb-16">
+      <main
+        className={cn(
+          "relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden",
+          embedded ? "px-2 py-1" : "px-8 pb-16",
+        )}
+      >
         {screenPhase === "idle" && (
           <div className="text-center">
-            <Gift className="mx-auto size-20 text-brand-gold/40" />
-            <p className="mt-6 text-2xl text-white/50">等待控制台启动抽奖…</p>
-            <p className="mt-2 text-sm text-white/30">
-              频道 event:{eventId.slice(-6)}:lottery-screen
+            <Gift
+              className={cn(
+                "mx-auto text-brand-gold/40",
+                embedded ? "size-10" : "size-20",
+              )}
+            />
+            <p
+              className={cn(
+                "text-white/50",
+                embedded ? "mt-2 text-xs" : "mt-6 text-2xl",
+              )}
+            >
+              等待控制台启动抽奖…
             </p>
+            {!embedded && (
+              <p className="mt-2 text-sm text-white/30">
+                频道 event:{eventId.slice(-6)}:lottery-screen
+              </p>
+            )}
           </div>
         )}
 
         {animationProps && (
-          <LotteryAnimationDispatch
-            animationType={animationType}
-            props={animationProps}
-            extras={dispatchExtras}
-          />
+          <div
+            className={cn(
+              "flex w-full items-center justify-center",
+              embedded && "max-h-full origin-top scale-[0.52] sm:scale-[0.58]",
+            )}
+          >
+            <LotteryAnimationDispatch
+              animationType={animationType}
+              props={animationProps}
+              extras={dispatchExtras}
+            />
+          </div>
         )}
 
         {screenPhase === "ended" && (
           <div className="text-center">
-            <Trophy className="mx-auto size-24 text-brand-gold" />
-            <h2 className="mt-6 text-4xl font-bold">抽奖圆满落幕</h2>
-            <p className="mt-2 text-white/50">共揭晓 {winners.length} 位中奖者</p>
+            <Trophy
+              className={cn(
+                "mx-auto text-brand-gold",
+                embedded ? "size-12" : "size-24",
+              )}
+            />
+            <h2
+              className={cn(
+                "font-bold",
+                embedded ? "mt-3 text-lg" : "mt-6 text-4xl",
+              )}
+            >
+              抽奖圆满落幕
+            </h2>
+            <p className={cn("text-white/50", embedded ? "mt-1 text-xs" : "mt-2")}>
+              共揭晓 {winners.length} 位中奖者
+            </p>
           </div>
         )}
       </main>
 
       {winners.length > 0 && screenPhase !== "idle" && (
-        <footer className="relative z-10 border-t border-white/10 px-8 py-4">
-          <p className="mb-2 text-xs text-white/40">
+        <footer
+          className={cn(
+            "relative z-10 shrink-0 border-t border-white/10",
+            embedded ? "px-2 py-2" : "px-8 py-4",
+          )}
+        >
+          <p className={cn("text-white/40", embedded ? "mb-1 text-[10px]" : "mb-2 text-xs")}>
             已揭晓 {progress.revealed}/{progress.quota || "?"}
           </p>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {winners.map((w) => (
-              <div
-                key={w.id}
-                className="shrink-0 rounded-lg bg-white/5 px-4 py-2 text-sm"
-              >
-                <span className="font-medium">{w.name}</span>
-                <span className="mx-2 text-white/30">·</span>
-                <span className="text-brand-gold">{w.prize_name}</span>
-              </div>
-            ))}
-          </div>
+          {!embedded && (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {winners.map((w) => (
+                <div
+                  key={w.id}
+                  className="shrink-0 rounded-lg bg-white/5 px-4 py-2 text-sm"
+                >
+                  <span className="font-medium">{w.name}</span>
+                  <span className="mx-2 text-white/30">·</span>
+                  <span className="text-brand-gold">{w.prize_name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </footer>
       )}
     </div>

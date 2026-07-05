@@ -1,29 +1,23 @@
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
-import { requireBoothAccessCheck } from "@/lib/api-auth";
+import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { LotteryDashboard } from "@/components/lottery/LotteryDashboard";
 import { getLotteryDashboard } from "@/lib/lottery/lottery-dashboard-service";
 
-export default async function BoothLotteryDashboardPage({
+export default async function OrganizerParticipantLotteryDashboardPage({
   params,
 }: {
-  params: Promise<{ eventId: string; boothId: string; lotteryId: string }>;
+  params: Promise<{ eventId: string; lotteryId: string }>;
 }) {
-  const { eventId, boothId, lotteryId } = await params;
+  const { eventId, lotteryId } = await params;
 
-  const access = await requireBoothAccessCheck(boothId);
+  const access = await requireEventAccessCheck(eventId);
   if ("error" in access) notFound();
 
-  const booth = await prisma.exhibitorBooth.findFirst({
-    where: { id: boothId, eventId },
-    select: { id: true, code: true },
-  });
-  if (!booth) notFound();
-
   const lottery = await prisma.lottery.findFirst({
-    where: { id: lotteryId, boothId, eventId },
-    select: { id: true },
+    where: { id: lotteryId, eventId, boothId: null },
+    select: { id: true, title: true },
   });
   if (!lottery) notFound();
 
@@ -34,12 +28,12 @@ export default async function BoothLotteryDashboardPage({
       eventId={eventId}
       flag="lottery"
       title="抽奖看板"
-      description="实时数据与开奖操作"
+      description="主办方参与人抽奖 · 实时数据"
     >
       <LotteryDashboard
         eventId={eventId}
         lotteryId={lotteryId}
-        contextLabel={booth.code}
+        contextLabel="主办方"
         initialData={initialData}
       />
     </FeatureFlagGate>

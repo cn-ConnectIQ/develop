@@ -150,11 +150,18 @@ export function ParticipantLotteryCard({
               <h3 className="truncate text-lg font-semibold text-text-primary">
                 {lottery.title}
               </h3>
-              {lottery.booth && (
-                <span className="inline-flex rounded-sm bg-brand-blue-light px-2 py-0.5 text-xs font-medium text-brand-blue">
+              {lottery.booth || lottery.owner_type === "ORGANIZER" ? (
+                <span
+                  className={cn(
+                    "inline-flex rounded-sm px-2 py-0.5 text-xs font-medium",
+                    lottery.owner_type === "ORGANIZER"
+                      ? "bg-brand-green-light text-brand-green"
+                      : "bg-brand-blue-light text-brand-blue",
+                  )}
+                >
                   {formatBoothChipName(lottery)}
                 </span>
-              )}
+              ) : null}
             </div>
 
             <PrizePreview lottery={lottery} />
@@ -198,7 +205,7 @@ export function ParticipantLotteryCard({
                 </Link>
               </>
             ) : (
-              <span className="text-xs text-text-secondary">缺少展位信息</span>
+              <span className="text-xs text-text-secondary">暂无管理入口</span>
             )}
 
             {canPauseParticipantLottery(lottery) && (

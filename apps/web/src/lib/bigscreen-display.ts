@@ -7,8 +7,8 @@ export const POLL_RESULT_VISUAL_OPTIONS: Array<{
 }> = [
   {
     value: "race_bar",
-    label: "竞速条形图",
-    description: "选项条形图实时竞速，适合现场氛围",
+    label: "条形赛跑（PR5）",
+    description: "选项条形图实时竞速，领先项高亮，适合现场大屏",
   },
   {
     value: "word_cloud",

@@ -141,20 +141,25 @@ function ResultVisualHint({
   return (
     <div className="mt-4 border-t border-border-light/80 pt-4">
       <p className="mb-2 text-[10px] uppercase tracking-wider text-text-muted">
-        结果呈现 · 竞速条形图
+        结果呈现 · PR5 条形赛跑
       </p>
-      <div className="space-y-2">
-        {sample.map((s) => (
-          <div key={s.text}>
-            <div className="mb-0.5 flex justify-between text-xs">
-              <span className="truncate">{s.text}</span>
-              <span className="text-text-muted">{s.pct}%</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+      <div className="space-y-2.5">
+        {sample.map((s, i) => (
+          <div key={s.text} className="flex items-center gap-2">
+            <span className="w-[42%] shrink-0 truncate text-right text-[11px]">
+              {s.text}
+            </span>
+            <div
+              className={`relative h-5 min-w-0 flex-1 overflow-hidden rounded-lg bg-gray-100 ${
+                i === 0 ? "ring-1 ring-amber-400/70" : ""
+              }`}
+            >
               <div
-                className="h-full rounded-full bg-brand-blue transition-all"
-                style={{ width: `${s.pct}%` }}
-              />
+                className="flex h-full items-center justify-end rounded-lg bg-gradient-to-r from-emerald-500 to-teal-400 px-1.5 text-[10px] font-bold text-white"
+                style={{ width: `${Math.max(s.pct, 8)}%` }}
+              >
+                {s.pct}%
+              </div>
             </div>
           </div>
         ))}

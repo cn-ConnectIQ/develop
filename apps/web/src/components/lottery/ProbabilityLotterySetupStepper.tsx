@@ -41,23 +41,35 @@ const DEFAULT_PRIZES: ProbabilityPrizeDraft[] = [
 
 type PollOption = { id: string; title: string; type: string; status: string };
 
-export type ProbabilityLotterySetupStepperProps = {
-  eventId: string;
+type ExhibitorContext = {
+  initiator: "exhibitor";
   boothId: string;
   boothCode: string;
   boothName: string;
   companyName: string;
 };
 
-export function ProbabilityLotterySetupStepper({
-  eventId,
-  boothId,
-  boothCode,
-  boothName,
-  companyName,
-}: ProbabilityLotterySetupStepperProps) {
+type OrganizerContext = {
+  initiator: "organizer";
+  eventName?: string;
+};
+
+export type ProbabilityLotterySetupStepperProps = {
+  eventId: string;
+} & (ExhibitorContext | OrganizerContext);
+
+export function ProbabilityLotterySetupStepper(props: ProbabilityLotterySetupStepperProps) {
+  const { eventId, initiator } = props;
+  const isOrganizer = initiator === "organizer";
+  const boothId = isOrganizer ? null : props.boothId;
+  const boothCode = isOrganizer ? null : props.boothCode;
+  const companyName = isOrganizer
+    ? (props.eventName ?? "主办方")
+    : props.companyName;
   const router = useRouter();
-  const [title, setTitle] = useState(`${boothCode} 概率抽奖`);
+  const [title, setTitle] = useState(
+    isOrganizer ? "现场概率抽奖" : `${boothCode} 概率抽奖`,
+  );
   const [description, setDescription] = useState("");
   const [triggerAction, setTriggerAction] = useState<TriggerActionValue>(
     TriggerAction.FILL_FORM,
@@ -118,7 +130,11 @@ export function ProbabilityLotterySetupStepper({
         publish,
       });
 
-      const res = await fetch(`/api/booths/${boothId}/lotteries/probability`, {
+      const apiUrl = isOrganizer
+        ? `/api/events/${eventId}/lottery/probability`
+        : `/api/booths/${boothId}/lotteries/probability`;
+
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -130,7 +146,9 @@ export function ProbabilityLotterySetupStepper({
       const lotteryId = json.data?.lottery?.id as string | undefined;
       if (lotteryId) {
         router.push(
-          `/events/${eventId}/booths/${boothId}/lottery/${lotteryId}`,
+          isOrganizer
+            ? `/events/${eventId}/lottery/participant/${lotteryId}`
+            : `/events/${eventId}/booths/${boothId}/lottery/${lotteryId}`,
         );
       }
     } catch (err) {
@@ -155,7 +173,11 @@ export function ProbabilityLotterySetupStepper({
     <AdminPage>
       <AdminHeader
         title="创建概率抽奖"
-        description={`${companyName} · ${boothCode} · LOTTERY-V2-04`}
+        description={
+          isOrganizer
+            ? `${companyName} · 主办方发起 · LOTTERY-V2-04`
+            : `${companyName} · ${boothCode} · LOTTERY-V2-04`
+        }
         breadcrumb={["互动管理", "参与人抽奖", "概率抽奖"]}
         actions={
           <Link
@@ -221,14 +243,20 @@ export function ProbabilityLotterySetupStepper({
 
                 {triggerAction === TriggerAction.FILL_FORM ? (
                   <div className="mt-4 rounded-lg border border-dashed border-border bg-surface-secondary/50 px-5 py-4 text-sm text-text-secondary">
-                    将使用展位留资字段引擎。
-                    <Link
-                      href={`/events/${eventId}/exhibitors/booths`}
-                      className="ml-1 inline-flex items-center gap-1 text-brand-blue hover:underline"
-                    >
-                      管理留资字段
-                      <ExternalLink className="size-3" />
-                    </Link>
+                    {isOrganizer ? (
+                      "参会者填写留资表单后触发抽奖。"
+                    ) : (
+                      <>
+                        将使用展位留资字段引擎。
+                        <Link
+                          href={`/events/${eventId}/exhibitors/booths`}
+                          className="ml-1 inline-flex items-center gap-1 text-brand-blue hover:underline"
+                        >
+                          管理留资字段
+                          <ExternalLink className="size-3" />
+                        </Link>
+                      </>
+                    )}
                   </div>
                 ) : null}
 

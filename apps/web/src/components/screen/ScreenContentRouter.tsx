@@ -200,7 +200,7 @@ function PollScreenContent({
         flex: 1,
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "#1A1A2E",
+        backgroundColor: "#1a1d2e",
       }}
     >
       <BigscreenProjection

@@ -169,6 +169,7 @@ export type ParticipantLotteryListItem = {
   lottery_category: LotteryCategory;
   animation_type: string | null;
   trigger_action: string | null;
+  owner_type: string;
   booth: { id: string; name: string; code: string } | null;
   entry_count: number;
   winner_count: number;
@@ -322,6 +323,7 @@ export async function listMobileParticipantLotteries(
       lottery_category: lottery.lotteryCategory!,
       animation_type: lottery.animationType,
       trigger_action: lottery.triggerAction,
+      owner_type: lottery.ownerType,
       booth: lottery.booth,
       entry_count: lottery._count.entries,
       winner_count: lottery._count.winners,
@@ -416,6 +418,7 @@ function mapLegacyPrizeItems(prizes: unknown): ParticipantLotteryPrizeItem[] {
 
 export type ListParticipantLotteriesOptions = {
   boothId?: string;
+  ownerType?: "ORGANIZER" | "EXHIBITOR";
   categories?: LotteryCategory[];
 };
 
@@ -434,6 +437,13 @@ export async function listParticipantLotteries(
 
   if (options.boothId) {
     where.boothId = options.boothId;
+  }
+
+  if (options.ownerType === "ORGANIZER") {
+    where.ownerType = "ORGANIZER";
+    where.boothId = null;
+  } else if (options.ownerType === "EXHIBITOR") {
+    where.ownerType = "EXHIBITOR";
   }
 
   const lotteries = await prisma.lottery.findMany({
@@ -507,6 +517,7 @@ export async function listParticipantLotteries(
       lottery_category: lottery.lotteryCategory!,
       animation_type: lottery.animationType,
       trigger_action: lottery.triggerAction,
+      owner_type: lottery.ownerType,
       booth: lottery.booth,
       entry_count: lottery._count.entries,
       winner_count: lottery._count.winners,

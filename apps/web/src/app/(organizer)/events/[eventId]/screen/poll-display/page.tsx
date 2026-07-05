@@ -11,7 +11,7 @@ export default async function PollDisplayPage({
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center bg-[#12121e] text-white/50">
+        <div className="flex h-screen items-center justify-center bg-[#1a1d2e] text-white/50">
           加载投票大屏…
         </div>
       }

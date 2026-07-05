@@ -136,7 +136,7 @@ export function ParticipantLotteryListClient({
   const visibleLotteries = useMemo(
     () =>
       filterParticipantLotteries(lotteries, {
-        boothId: boothFilter === "all" ? undefined : boothFilter,
+        initiator: boothFilter === "all" ? undefined : boothFilter,
         type: typeFilter,
         status: statusFilter,
       }),
@@ -188,7 +188,7 @@ export function ParticipantLotteryListClient({
           <p className="mb-1 text-xs text-text-tertiary">互动管理 / 参与人抽奖</p>
           <h1 className="text-2xl font-bold text-text-primary">参与人抽奖</h1>
           <p className="mt-1 text-sm text-text-secondary">
-            展位/现场即时抽奖，扫码参与或达成条件领取
+            主办方或展位即时抽奖，扫码参与或达成条件领取
           </p>
         </div>
         <button
@@ -226,27 +226,26 @@ export function ParticipantLotteryListClient({
             </div>
 
             <div className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-sm">
-              {booths.length > 1 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-text-tertiary">展位</span>
-                  <Select
-                    value={boothFilter}
-                    onValueChange={(value) => setBoothFilter(value ?? "all")}
-                  >
-                    <SelectTrigger className="h-8 w-[220px]">
-                      <SelectValue placeholder="全部展位" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部展位</SelectItem>
-                      {booths.map((booth) => (
-                        <SelectItem key={booth.id} value={booth.id}>
-                          {booth.code} · {booth.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-text-tertiary">发起方</span>
+                <Select
+                  value={boothFilter}
+                  onValueChange={(value) => setBoothFilter(value ?? "all")}
+                >
+                  <SelectTrigger className="h-8 w-[220px]">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="organizer">主办方</SelectItem>
+                    {booths.map((booth) => (
+                      <SelectItem key={booth.id} value={booth.id}>
+                        {booth.code} · {booth.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap gap-1">

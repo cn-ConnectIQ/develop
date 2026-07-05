@@ -73,17 +73,16 @@ const DRAW_TYPE_LABEL: Record<LotteryDrawType, string> = {
 
 export type LotteryDashboardProps = {
   eventId: string;
-  boothId: string;
   lotteryId: string;
-  boothCode: string;
   initialData: LotteryDashboardData;
+  /** 展位抽奖传展位编号；主办方抽奖传「主办方」等 */
+  contextLabel: string;
 };
 
 export function LotteryDashboard({
   eventId,
-  boothId,
   lotteryId,
-  boothCode,
+  contextLabel,
   initialData,
 }: LotteryDashboardProps) {
   const [data, setData] = useState(initialData);
@@ -135,7 +134,7 @@ export function LotteryDashboard({
     <AdminPage>
       <AdminHeader
         title={data.lottery.title}
-        description={`${boothCode} · ${DRAW_TYPE_LABEL[data.lottery.draw_type]}`}
+        description={`${contextLabel} · ${DRAW_TYPE_LABEL[data.lottery.draw_type]}`}
         breadcrumb={["互动管理", "参与人抽奖", "数据看板"]}
         actions={
           <Link

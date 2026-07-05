@@ -68,22 +68,36 @@ export function getAnimationBadge(animationType: string | null) {
 }
 
 export function formatBoothChipName(lottery: ParticipantLotteryListItem) {
+  if (lottery.owner_type === "ORGANIZER" && !lottery.booth) {
+    return "主办方";
+  }
   if (!lottery.booth) return "未关联展位";
   return lottery.booth.name.includes("展位")
     ? lottery.booth.name
     : `${lottery.booth.name}展位`;
 }
 
+export type ParticipantInitiatorFilter = "all" | "organizer" | string;
+
 export function filterParticipantLotteries(
   lotteries: ParticipantLotteryListItem[],
   filters: {
+    initiator?: ParticipantInitiatorFilter;
     boothId?: string;
     type: ParticipantLotteryTypeFilter;
     status: ParticipantLotteryStatusFilter;
   },
 ) {
   return lotteries.filter((lottery) => {
-    if (filters.boothId && lottery.booth?.id !== filters.boothId) {
+    if (filters.initiator === "organizer") {
+      if (lottery.owner_type !== "ORGANIZER" || lottery.booth) {
+        return false;
+      }
+    } else if (filters.initiator && filters.initiator !== "all") {
+      if (lottery.booth?.id !== filters.initiator) {
+        return false;
+      }
+    } else if (filters.boothId && lottery.booth?.id !== filters.boothId) {
       return false;
     }
     if (
@@ -140,19 +154,29 @@ export function canResumeParticipantLottery(
 
 export function buildParticipantCreatePath(
   eventId: string,
-  boothId: string,
+  initiator: { type: "organizer" } | { type: "booth"; boothId: string },
   type: "probability" | "instant",
 ) {
-  if (type === "probability") {
-    return `/events/${eventId}/booths/${boothId}/lottery/probability/new`;
+  if (initiator.type === "organizer") {
+    return type === "probability"
+      ? `/events/${eventId}/lottery/participant/probability/new`
+      : `/events/${eventId}/lottery/participant/instant/new`;
   }
-  return `/events/${eventId}/booths/${boothId}/lottery/instant/new`;
+  if (type === "probability") {
+    return `/events/${eventId}/booths/${initiator.boothId}/lottery/probability/new`;
+  }
+  return `/events/${eventId}/booths/${initiator.boothId}/lottery/instant/new`;
 }
 
 export function buildParticipantDashboardPath(
   eventId: string,
   lottery: ParticipantLotteryListItem,
 ) {
-  if (!lottery.booth) return null;
-  return `/events/${eventId}/booths/${lottery.booth.id}/lottery/${lottery.id}`;
+  if (lottery.booth) {
+    return `/events/${eventId}/booths/${lottery.booth.id}/lottery/${lottery.id}`;
+  }
+  if (lottery.owner_type === "ORGANIZER") {
+    return `/events/${eventId}/lottery/participant/${lottery.id}`;
+  }
+  return null;
 }

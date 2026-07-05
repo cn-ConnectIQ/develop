@@ -389,12 +389,6 @@ function getEventNavigationGroups(
                 icon: Monitor,
                 external: true,
               },
-              {
-                label: "投票大屏",
-                href: `/events/${eventId}/screen/poll-display`,
-                icon: Monitor,
-                external: true,
-              },
             ],
           },
           {

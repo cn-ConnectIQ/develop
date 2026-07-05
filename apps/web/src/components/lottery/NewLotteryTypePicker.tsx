@@ -21,6 +21,7 @@ import { buildParticipantCreatePath } from "@/lib/lottery/participant-lottery-ut
 import { cn } from "@/lib/utils";
 
 type LotteryCreateType = "probability" | "instant";
+type InitiatorType = "organizer" | "booth";
 
 type BoothOption = {
   id: string;
@@ -48,6 +49,23 @@ const TYPE_OPTIONS: Array<{
   },
 ];
 
+const INITIATOR_OPTIONS: Array<{
+  value: InitiatorType;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "organizer",
+    title: "主办方发起",
+    description: "活动现场统一抽奖，不绑定展位",
+  },
+  {
+    value: "booth",
+    title: "展位发起",
+    description: "为指定参展商展位配置抽奖",
+  },
+];
+
 async function fetchBooths(eventId: string) {
   const res = await fetch(`/api/events/${eventId}/booths`);
   if (!res.ok) throw new Error("展位加载失败");
@@ -69,16 +87,18 @@ export function NewLotteryTypePicker({
   const router = useRouter();
   const [selectedType, setSelectedType] =
     useState<LotteryCreateType>("probability");
+  const [initiator, setInitiator] = useState<InitiatorType>("organizer");
   const [selectedBoothId, setSelectedBoothId] = useState("");
 
   const { data: booths = [] } = useQuery({
     queryKey: ["event-booths", eventId],
     queryFn: () => fetchBooths(eventId),
-    enabled: open,
+    enabled: open && initiator === "booth",
   });
 
   function resetState() {
     setSelectedType("probability");
+    setInitiator("organizer");
     setSelectedBoothId("");
   }
 
@@ -88,15 +108,22 @@ export function NewLotteryTypePicker({
   }
 
   function handleContinue() {
-    if (!selectedBoothId) return;
+    if (initiator === "booth" && !selectedBoothId) return;
+
     const path = buildParticipantCreatePath(
       eventId,
-      selectedBoothId,
+      initiator === "organizer"
+        ? { type: "organizer" }
+        : { type: "booth", boothId: selectedBoothId },
       selectedType,
     );
     handleOpenChange(false);
     router.push(path);
   }
+
+  const canContinue =
+    initiator === "organizer" ||
+    (initiator === "booth" && selectedBoothId.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -130,30 +157,61 @@ export function NewLotteryTypePicker({
         </div>
 
         <div className="space-y-2 pt-2">
-          <p className="text-sm font-medium text-text-primary">选择展位</p>
-          <Select
-            value={selectedBoothId}
-            onValueChange={(value) => setSelectedBoothId(value ?? "")}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="选择要配置抽奖的展位" />
-            </SelectTrigger>
-            <SelectContent>
-              {booths.map((booth) => (
-                <SelectItem key={booth.id} value={booth.id}>
-                  {booth.code} · {booth.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <p className="text-sm font-medium text-text-primary">发起方</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {INITIATOR_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  setInitiator(option.value);
+                  setSelectedBoothId("");
+                }}
+                className={cn(
+                  "rounded-lg border px-4 py-3 text-left transition-colors",
+                  initiator === option.value
+                    ? "border-brand-green bg-brand-green-soft"
+                    : "border-border hover:bg-surface-secondary/70",
+                )}
+              >
+                <p className="text-sm font-medium text-text-primary">
+                  {option.title}
+                </p>
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  {option.description}
+                </p>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {initiator === "booth" && (
+          <div className="space-y-2 pt-2">
+            <p className="text-sm font-medium text-text-primary">选择展位</p>
+            <Select
+              value={selectedBoothId}
+              onValueChange={(value) => setSelectedBoothId(value ?? "")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="选择要配置抽奖的展位" />
+              </SelectTrigger>
+              <SelectContent>
+                {booths.map((booth) => (
+                  <SelectItem key={booth.id} value={booth.id}>
+                    {booth.code} · {booth.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             取消
           </Button>
           <Button
-            disabled={!selectedBoothId}
+            disabled={!canContinue}
             className="shadow-sm"
             onClick={handleContinue}
           >
