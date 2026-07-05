@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Gift, Star } from "lucide-react";
+import { PollVotingBigScreen } from "@/components/bigscreen/PollVotingBigScreen";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
-  getMaxPercentage,
   useBigscreenStore,
   type RollingPerson,
 } from "@/stores/bigscreenStore";
@@ -63,7 +63,6 @@ export function BigscreenProjection() {
   const pollResults = useBigscreenStore((s) => s.pollResults);
   const showResults = useBigscreenStore((s) => s.showResults);
   const featuredQna = useBigscreenStore((s) => s.featuredQna);
-  const countdown = useBigscreenStore((s) => s.countdown);
   const lotteryTitle = useBigscreenStore((s) => s.lotteryTitle);
   const lotteryEntryCount = useBigscreenStore((s) => s.lotteryEntryCount);
   const lotteryQuota = useBigscreenStore((s) => s.lotteryQuota);
@@ -82,7 +81,6 @@ export function BigscreenProjection() {
   const activePrize = lotteryPrizes.find((p) => p.rank === activePrizeRank);
 
   const options = pollResults?.options ?? [];
-  const maxPct = getMaxPercentage(options);
   const wordCloud = pollResults?.wordCloud ?? [];
   const totalVotes = pollResults?.total ?? 0;
 
@@ -165,56 +163,12 @@ export function BigscreenProjection() {
       )}
 
       {currentMode === "poll" && currentPoll && (
-        <div className="flex h-full flex-col pb-20">
-          <span className="mx-auto mt-12 block w-fit rounded-full bg-brand-blue px-4 py-1.5 text-sm text-white">
-            ● 投票进行中
-          </span>
-          <h1 className="mt-6 px-16 text-center text-[30px] font-bold leading-tight text-white">
-            {currentPoll.title}
-          </h1>
-          {showResults && (
-            <div className="mt-8 space-y-4 px-12">
-              {options.map((opt, index) => (
-                <div key={opt.id} className="flex items-center gap-4">
-                  <span className="w-8 shrink-0 text-[18px] text-white/40">
-                    {index + 1}
-                  </span>
-                  <span className="min-w-[160px] text-[18px] text-white">
-                    {opt.text}
-                  </span>
-                  <div className="relative h-[52px] flex-1 rounded-xl bg-white/10">
-                    <div
-                      className={cn(
-                        "absolute inset-y-0 left-0 rounded-xl bg-gradient-to-r from-[#185FA5] to-[#3B82F6] transition-all duration-700",
-                        opt.percentage === maxPct &&
-                          maxPct > 0 &&
-                          "outline outline-2 outline-[#EF9F27]",
-                      )}
-                      style={{ width: `${Math.max(opt.percentage, 2)}%` }}
-                    />
-                  </div>
-                  <span className="w-16 shrink-0 text-right text-[20px] font-bold text-white">
-                    {opt.percentage}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {!showResults && (
-            <p className="mt-12 text-center text-xl text-white/50">
-              投票进行中，结果暂不显示
-            </p>
-          )}
-          <footer className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-10 py-4">
-            <span className="text-sm text-white/60">{totalVotes} 人已投票</span>
-            {countdown !== "--:--" && (
-              <span className="font-mono text-[28px] font-bold text-brand-amber">
-                {countdown}
-              </span>
-            )}
-            <span className="text-xs text-white/30">ConnectIQ</span>
-          </footer>
-        </div>
+        <PollVotingBigScreen
+          title={currentPoll.title}
+          total={totalVotes}
+          options={showResults ? options : []}
+          showResults={showResults}
+        />
       )}
 
       {currentMode === "qna" && (

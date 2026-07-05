@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { BarChart2, ExternalLink, Monitor } from "lucide-react";
+import { BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { QnaManager } from "@/components/interactions/QnaManager";
@@ -19,23 +17,17 @@ import {
 } from "@/components/interactions/PollCreatorTypeTabs";
 import { PollResultVisualPicker } from "@/components/interactions/PollResultVisualPicker";
 import {
-  ContentCreationPreviewPanel,
   CreationSection,
 } from "@/components/admin/content-creation-layout";
-import { MobileDevicePreview } from "@/components/admin/mobile-device-preview";
 import { RealtimeConsole } from "@/components/interactions/RealtimeConsole";
 import { PollOptionsEditor } from "@/components/interactions/editors/PollOptionsEditor";
 import { WordCloudEditor } from "@/components/interactions/editors/WordCloudEditor";
 import { RatingPollEditor } from "@/components/interactions/editors/RatingPollEditor";
-import { LotteryEditor } from "@/components/interactions/editors/LotteryEditor";
-import { LotteryDrawPanel } from "@/components/interactions/LotteryDrawPanel";
-import { PushToAttendeesButton } from "@/components/interactions/PushToAttendeesButton";
 import {
   isPollLive,
   normalizePollOptionsForType,
   type InteractionItem,
   type InteractionPollItem,
-  type InteractionLotteryItem,
 } from "@/lib/interaction-manager";
 import type { SessionOption } from "@/lib/interactions";
 import { patchPoll } from "@/hooks/useInteractionAutoSave";
@@ -43,7 +35,6 @@ import {
   DEFAULT_DISPLAY_CONFIG,
   type PollResultVisual,
 } from "@/lib/bigscreen-display";
-import { parsePrizes, type LotteryDetail } from "@/lib/lottery-types";
 type InteractionWorkspaceProps = {
   eventId: string;
   selection: InteractionItem | null;
@@ -108,13 +99,12 @@ export function InteractionWorkspace({
     );
   }
 
-  if (selection.kind === "lottery") {
+  if (selection.kind !== "poll") {
     return (
-      <LotteryWorkspace
-        eventId={eventId}
-        lottery={selection}
-        onRefresh={onRefresh}
-      />
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <BarChart2 className="size-12 text-text-tertiary/40" />
+        <p className="mt-3 text-sm text-text-muted">选择左侧的互动进行编辑</p>
+      </div>
     );
   }
 
@@ -366,124 +356,5 @@ function PollEditWorkspace({
       }
       footer={footer}
     />
-  );
-}
-
-function LotteryWorkspace({
-  eventId,
-  lottery,
-  onRefresh,
-}: {
-  eventId: string;
-  lottery: InteractionLotteryItem;
-  onRefresh: () => void;
-}) {
-  const showDrawPanel =
-    lottery.status === "DRAWING" || lottery.status === "OPEN";
-
-  const { data: detail, isLoading } = useQuery({
-    queryKey: ["lottery-detail", eventId, lottery.id],
-    queryFn: async (): Promise<LotteryDetail> => {
-      const res = await fetch(
-        `/api/events/${eventId}/lotteries/${lottery.id}`,
-      );
-      if (!res.ok) throw new Error("加载抽奖失败");
-      const json = await res.json();
-      const d = json.data;
-      return {
-        id: d.id,
-        eventId: d.eventId,
-        title: d.title,
-        description: d.description,
-        type: d.type,
-        status: d.status,
-        prizes: parsePrizes(d.prizes),
-        requireCheckin: d.requireCheckin ?? false,
-        requirePollId: d.requirePollId ?? null,
-        quizPollId: d.quizPollId ?? null,
-        eligibleRoles: d.eligibleRoles ?? [],
-        allowReenter: d.allowReenter ?? false,
-        entryCount: d.entryCount ?? 0,
-        winnerCount: d.winnerCount ?? 1,
-        boothId: d.boothId,
-      };
-    },
-  });
-
-  if (isLoading || !detail) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-text-muted">
-        加载抽奖配置…
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-w-0 flex-1 overflow-hidden">
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-border-light px-8 py-3">
-          <span className="rounded bg-brand-red-light px-2 py-0.5 text-xs font-medium text-brand-red">
-            抽奖
-          </span>
-          <div className="flex-1" />
-          <PushToAttendeesButton
-            eventId={eventId}
-            kind="lottery"
-            targetId={lottery.id}
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 rounded-lg"
-            onClick={() =>
-              window.open(`/events/${eventId}/interactions/bigscreen`, "_blank")
-            }
-          >
-            <Monitor className="size-4 text-text-muted" />
-          </Button>
-          <Link
-            href={`/events/${eventId}/lottery/big-screen`}
-            className="inline-flex h-8 items-center rounded-lg border border-border-light px-3 text-sm text-text-muted hover:text-brand-blue"
-          >
-            <ExternalLink className="mr-1 size-3.5" />
-            抽奖管理
-          </Link>
-        </div>
-        <LotteryEditor
-          lottery={detail}
-          eventId={eventId}
-          onChange={onRefresh}
-        />
-      </div>
-      {(showDrawPanel || lottery.status === "FINISHED") ? (
-        <LotteryDrawPanel
-          eventId={eventId}
-          lotteryId={lottery.id}
-          title={detail.title}
-          entryCount={detail.entryCount}
-          prizes={detail.prizes}
-          onFinished={onRefresh}
-        />
-      ) : (
-        <ContentCreationPreviewPanel label="参会者预览">
-          <MobileDevicePreview label="" width={260}>
-            <div className="space-y-3 text-center">
-              <p className="text-xs text-text-muted">活动抽奖</p>
-              <h2 className="text-xl font-semibold">{detail.title}</h2>
-              <ul className="mt-4 space-y-2 text-left text-sm">
-                {detail.prizes.slice(0, 4).map((p) => (
-                  <li
-                    key={p.rank}
-                    className="rounded-lg border border-border-light px-3 py-2"
-                  >
-                    {p.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </MobileDevicePreview>
-        </ContentCreationPreviewPanel>
-      )}
-    </div>
   );
 }

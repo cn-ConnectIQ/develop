@@ -22,8 +22,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { InteractionEditLayout } from "@/components/interactions/InteractionEditLayout";
-import { BoothLotteryPreview } from "@/components/lottery/BoothLotteryPreview";
 import { LotteryCreationFooter } from "@/components/lottery/LotteryCreationFooter";
+import { ScreenAnimationPreview } from "@/components/lottery/ScreenAnimationPreview";
 import {
   TierPrizeListEditor,
   type TierPrizeDraft,
@@ -115,7 +115,7 @@ export function OrganizerLotteryConfigurator({
     defaultOrganizerEligibility(),
   );
   const [screenAnimation, setScreenAnimation] =
-    useState<ScreenAnimationType>("REVEAL_ONE_BY_ONE");
+    useState<ScreenAnimationType>("SLOT_MACHINE");
   const [targetEntryCount, setTargetEntryCount] = useState<number | "">("");
   const [lotteryId, setLotteryId] = useState<string | undefined>(initialLotteryId);
   const [savedLottery, setSavedLottery] = useState<OrganizerLotteryDto | null>(
@@ -482,8 +482,12 @@ export function OrganizerLotteryConfigurator({
                   </div>
                 </CreationSection>
 
-                <CreationSection hint="开奖仪式" description="大屏动画风格">
+                <CreationSection
+                  hint="大屏动效"
+                  description="二选一 · 决定投影大屏的开奖视觉（BS3–8）"
+                >
                   <ScreenAnimationPicker
+                    variant="grand"
                     value={screenAnimation}
                     onChange={setScreenAnimation}
                   />
@@ -576,14 +580,15 @@ export function OrganizerLotteryConfigurator({
               </>
             }
             preview={
-              <BoothLotteryPreview
-                eventName={eventName}
+              <ScreenAnimationPreview
+                animation={screenAnimation}
                 title={title}
-                description={description}
-                prizes={prizes}
-                submitLabel="报名参与"
+                tier={prizes[0]?.tier ?? 1}
+                entryCount={stats?.eligible_count ?? stats?.entered_count ?? undefined}
               />
             }
+            previewLabel="大屏投影预览"
+            previewAsideClassName="bg-[#1A1A2E]"
             footer={
               <LotteryCreationFooter
                 saving={saving}

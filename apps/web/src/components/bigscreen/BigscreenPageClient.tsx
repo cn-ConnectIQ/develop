@@ -80,7 +80,7 @@ export function BigscreenPageClient() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
-      <div className="relative flex w-[70%] flex-col bg-sidebar-shell">
+      <div className="relative flex w-[70%] flex-col bg-[#12121e]">
         {poll ? (
           <BigscreenProjection
             poll={poll}

@@ -390,8 +390,8 @@ function getEventNavigationGroups(
                 external: true,
               },
               {
-                label: "Poll 投票大屏",
-                href: `/events/${eventId}/bigscreen`,
+                label: "投票大屏",
+                href: `/events/${eventId}/screen/poll-display`,
                 icon: Monitor,
                 external: true,
               },

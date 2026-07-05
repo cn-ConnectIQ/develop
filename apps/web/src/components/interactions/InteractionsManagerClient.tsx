@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -19,20 +18,15 @@ import { InteractionSidebar } from "@/components/interactions/InteractionSidebar
 import { InteractionWorkspace } from "@/components/interactions/InteractionWorkspace";
 import type { InteractionCreateType } from "@/components/interactions/InteractionTypePopover";
 import type { PollListItem, SessionOption } from "@/lib/interactions";
-import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import {
   getDefaultPollOptions,
   getDefaultPollTitle,
   mergeInteractions,
   type InteractionItem,
-  type LotteryListItem,
 } from "@/lib/interaction-manager";
 
 async function fetchInteractions(eventId: string) {
-  const [pollsRes, lotteriesRes] = await Promise.all([
-    fetch(`/api/events/${eventId}/polls`),
-    fetch(`/api/events/${eventId}/lotteries`),
-  ]);
+  const pollsRes = await fetch(`/api/events/${eventId}/polls`);
   if (!pollsRes.ok) {
     const json = await pollsRes.json().catch(() => null);
     throw new Error(json?.error ?? "加载投票失败");
@@ -53,29 +47,13 @@ async function fetchInteractions(eventId: string) {
   }));
   const sessions = Array.isArray(pollsData) ? [] : pollsData.sessions;
 
-  let lotteries: LotteryListItem[] = [];
-  if (lotteriesRes.ok) {
-    const lotteriesJson = await lotteriesRes.json();
-    lotteries = lotteriesJson.data as LotteryListItem[];
-  }
-
-  return { polls, lotteries, sessions };
+  return { polls, sessions };
 }
 
 export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const { data: featureFlags } = useEventFeatureFlags(eventId);
-  const lotteryEnabled = featureFlags?.lottery ?? true;
-  const lotteryFromUrl = searchParams.get("lottery");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InteractionItem | null>(null);
-
-  useEffect(() => {
-    if (lotteryFromUrl) {
-      setSelectedId(lotteryFromUrl);
-    }
-  }, [lotteryFromUrl]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["interactions", eventId],
@@ -83,7 +61,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   });
 
   const items = useMemo(
-    () => mergeInteractions(data?.polls ?? [], data?.lotteries ?? []),
+    () => mergeInteractions(data?.polls ?? [], []),
     [data],
   );
 
@@ -95,22 +73,6 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
 
   const createMutation = useMutation({
     mutationFn: async (type: InteractionCreateType) => {
-      if (type === "LOTTERY") {
-        if (!lotteryEnabled) {
-          throw new Error("现场抽奖模块未开启");
-        }
-        const res = await fetch(`/api/events/${eventId}/lotteries`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: "未命名抽奖",
-            prizes: [{ rank: 1, name: "一等奖", prize: "奖品", count: 1 }],
-          }),
-        });
-        if (!res.ok) throw new Error("创建抽奖失败");
-        return { kind: "lottery" as const, data: (await res.json()).data };
-      }
-
       const pollType =
         type === "SURVEY"
           ? "MULTI_CHOICE"
@@ -162,36 +124,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
       | undefined;
   }
 
-  async function updateLotteryStatus(
-    lotteryId: string,
-    status: string,
-    push = false,
-  ) {
-    const res = await fetch(
-      `/api/events/${eventId}/lotteries/${lotteryId}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          push: status === "OPEN" ? push : false,
-        }),
-      },
-    );
-    if (!res.ok) throw new Error("状态更新失败");
-    const json = await res.json().catch(() => null);
-    refresh();
-    return json?.data?.pushResult as
-      | { sent: number; skipped: number }
-      | null
-      | undefined;
-  }
-
   async function handleDelete(item: InteractionItem) {
-    if (item.kind === "lottery") {
-      toast.error("抽奖暂不支持删除，请先结束抽奖");
-      return;
-    }
     const res = await fetch(`/api/events/${eventId}/polls/${item.id}`, {
       method: "DELETE",
     });
@@ -207,24 +140,13 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   function handleActivate(item: InteractionItem) {
     void (async () => {
       try {
-        if (item.kind === "poll") {
-          const pushResult = await updatePollStatus(item.id, "LIVE", true);
-          if (pushResult) {
-            toast.success(
-              `互动已激活，推送 ${pushResult.sent} 人${pushResult.skipped > 0 ? `，${pushResult.skipped} 人未绑定账号` : ""}`,
-            );
-          } else {
-            toast.success("互动已激活");
-          }
+        const pushResult = await updatePollStatus(item.id, "LIVE", true);
+        if (pushResult) {
+          toast.success(
+            `互动已激活，推送 ${pushResult.sent} 人${pushResult.skipped > 0 ? `，${pushResult.skipped} 人未绑定账号` : ""}`,
+          );
         } else {
-          const pushResult = await updateLotteryStatus(item.id, "OPEN", true);
-          if (pushResult) {
-            toast.success(
-              `抽奖已开放，推送 ${pushResult.sent} 人${pushResult.skipped > 0 ? `，${pushResult.skipped} 人未绑定账号` : ""}`,
-            );
-          } else {
-            toast.success("抽奖已开放");
-          }
+          toast.success("互动已激活");
         }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "激活失败");
@@ -235,11 +157,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   function handlePause(item: InteractionItem) {
     void (async () => {
       try {
-        if (item.kind === "poll") {
-          await updatePollStatus(item.id, "PAUSED");
-        } else {
-          await updateLotteryStatus(item.id, "READY");
-        }
+        await updatePollStatus(item.id, "PAUSED");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "操作失败");
       }
@@ -249,11 +167,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   function handleStop(item: InteractionItem) {
     void (async () => {
       try {
-        if (item.kind === "poll") {
-          await updatePollStatus(item.id, "CLOSED");
-        } else {
-          await updateLotteryStatus(item.id, "FINISHED");
-        }
+        await updatePollStatus(item.id, "CLOSED");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "操作失败");
       }
@@ -296,7 +210,6 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
           onPause={handlePause}
           onStop={handleStop}
           creating={createMutation.isPending}
-          lotteryEnabled={lotteryEnabled}
         />
         <InteractionWorkspace
           eventId={eventId}

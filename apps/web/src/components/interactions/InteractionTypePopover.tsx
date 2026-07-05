@@ -5,7 +5,6 @@ import {
   CheckSquare,
   ClipboardList,
   Cloud,
-  Gift,
   MessageSquare,
   Star,
   ToggleLeft,
@@ -25,7 +24,6 @@ export type InteractionCreateType =
   | "RATING"
   | "SURVEY"
   | "QNA"
-  | "LOTTERY"
   | "ANNOUNCEMENT"
   | "QUIZ";
 
@@ -79,14 +77,6 @@ const TYPE_CARDS: Array<{
     iconClass: "text-brand-green",
     label: "问答",
     desc: "收集问题",
-  },
-  {
-    type: "LOTTERY",
-    icon: Gift,
-    iconClass: "text-brand-red text-[20px]",
-    label: "抽奖",
-    desc: "随机抽取",
-    highlight: true,
   },
   {
     type: "ANNOUNCEMENT",

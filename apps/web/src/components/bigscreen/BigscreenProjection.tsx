@@ -1,7 +1,7 @@
 "use client";
 
 import { CountdownRing } from "@/components/bigscreen/CountdownRing";
-import { PollBarsView } from "@/components/bigscreen/PollBarsView";
+import { PollVotingBigScreen } from "@/components/bigscreen/PollVotingBigScreen";
 import { QnaProjectionView } from "@/components/bigscreen/QnaProjectionView";
 import { WordCloudView } from "@/components/bigscreen/WordCloudView";
 import { pollTypeLabel } from "@/lib/bigscreen-display";
@@ -36,56 +36,80 @@ export function BigscreenProjection({
     poll.type === "MULTI_CHOICE" ||
     poll.type === "RATING";
 
-  return (
-    <>
-      <div className="p-8">
-        <span className="rounded-full bg-brand-green px-3 py-1 text-xs text-white">
-          正在进行 · {typeLabel}
-        </span>
-        <h1 className="mt-8 px-12 text-center text-[28px] leading-snug font-bold text-white">
-          {poll.title}
-        </h1>
-      </div>
-
-      {poll.type === "WORD_CLOUD" && showResults && (
-        <WordCloudView words={wordCloud} />
-      )}
-
-      {poll.type === "QNA" && (
-        <QnaProjectionView question={featuredQna} />
-      )}
-
-      {isChoicePoll && showResults && results && (
-        <PollBarsView options={results.options} />
-      )}
-
-      {isChoicePoll && !showResults && (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-2xl text-white/50">投票进行中，结果暂不显示</p>
-        </div>
-      )}
-
-      {poll.type === "ANNOUNCEMENT" && (
-        <div className="flex flex-1 items-center justify-center px-12 pb-24">
-          <p className="text-center text-2xl text-white/80">{poll.title}</p>
-        </div>
-      )}
-
-      <footer className="absolute right-0 bottom-0 left-0 flex items-center justify-between px-8 py-4">
-        <span className="text-sm text-white/60">
-          {results?.total ?? poll.responseCount} 人已投票 · 实时更新
-        </span>
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-2xl font-bold text-brand-amber">
-            {countdown}
+  if (poll.type === "QNA") {
+    return (
+      <div className="relative flex flex-1 flex-col bg-[#12121e]">
+        <div className="p-8">
+          <span className="rounded-full bg-brand-blue px-3 py-1 text-xs text-white">
+            问答进行中 · {typeLabel}
           </span>
-          <CountdownRing
-            closesAt={poll.closesAt}
-            startedAt={poll.createdAt}
-          />
+          <h1 className="mt-8 px-12 text-center text-[28px] leading-snug font-bold text-white">
+            {poll.title}
+          </h1>
         </div>
-        <span className="text-sm text-white/30">ConnectIQ</span>
-      </footer>
-    </>
+        <QnaProjectionView question={featuredQna} />
+      </div>
+    );
+  }
+
+  if (poll.type === "WORD_CLOUD" && showResults) {
+    return (
+      <div className="relative flex flex-1 flex-col bg-[#12121e]">
+        <div className="px-[5%] pt-[4%] text-center">
+          <p className="text-sm text-white/45">现场投票 · 词云</p>
+          <h1 className="mt-4 text-[28px] font-bold text-white">{poll.title}</h1>
+        </div>
+        <WordCloudView words={wordCloud} />
+      </div>
+    );
+  }
+
+  if (isChoicePoll && showResults && results) {
+    return (
+      <div className="relative flex flex-1 flex-col">
+        <PollVotingBigScreen
+          title={poll.title}
+          total={results.total}
+          options={results.options}
+          showResults
+        />
+        {countdown !== "--:--" && (
+          <div className="absolute right-[5%] bottom-[12%] flex items-center gap-2">
+            <span className="font-mono text-2xl font-bold text-[#fbbf24]">
+              {countdown}
+            </span>
+            <CountdownRing closesAt={poll.closesAt} startedAt={poll.createdAt} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (isChoicePoll && !showResults) {
+    return (
+      <PollVotingBigScreen
+        title={poll.title}
+        total={results?.total ?? poll.responseCount}
+        options={[]}
+        showResults={false}
+      />
+    );
+  }
+
+  if (poll.type === "ANNOUNCEMENT") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center bg-[#12121e] px-12 pb-24">
+        <p className="text-center text-2xl text-white/80">{poll.title}</p>
+      </div>
+    );
+  }
+
+  return (
+    <PollVotingBigScreen
+      title={poll.title}
+      total={results?.total ?? poll.responseCount}
+      options={results?.options ?? []}
+      showResults={showResults}
+    />
   );
 }

@@ -24,28 +24,41 @@ export const SCREEN_ANIMATION_OPTIONS = [
   {
     value: "SLOT_MACHINE",
     emoji: "🎰",
-    title: "老虎机滚动",
-    description: "经典滚动抽名，节奏紧凑",
+    title: "摇号机",
+    description: "公正严肃，适合重要大奖、有公信力要求的场合",
+    bestFor: "全场大奖",
+    duration: "8–15s",
+  },
+  {
+    value: "REVEAL_ONE_BY_ONE",
+    emoji: "📜",
+    title: "滚动名单",
+    description: "名单高速滚动后定格，仪式感强、适合压轴揭晓",
+    bestFor: "终极大奖",
+    duration: "6–12s",
   },
   {
     value: "WHEEL",
     emoji: "🎡",
     title: "转盘",
     description: "视觉华丽，适合大屏投影",
+    bestFor: "展位",
+    duration: "8–15s",
   },
   {
     value: "RED_ENVELOPE",
     emoji: "🎊",
     title: "红包雨",
     description: "热闹氛围，调动全场情绪",
-  },
-  {
-    value: "REVEAL_ONE_BY_ONE",
-    emoji: "🏆",
-    title: "逐一揭晓",
-    description: "庄重仪式感，适合终极大奖",
+    bestFor: "暖场",
+    duration: "5–10s",
   },
 ] as const;
+
+/** 大屏全场抽奖（BS1）：设计稿为二选一 */
+export const GRAND_SCREEN_ANIMATION_OPTIONS = SCREEN_ANIMATION_OPTIONS.filter(
+  (o) => o.value === "SLOT_MACHINE" || o.value === "REVEAL_ONE_BY_ONE",
+);
 
 export type ScreenAnimationType =
   (typeof SCREEN_ANIMATION_OPTIONS)[number]["value"];

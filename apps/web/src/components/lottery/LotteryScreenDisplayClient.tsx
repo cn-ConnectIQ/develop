@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Gift, Sparkles, Trophy } from "lucide-react";
+import { SlotMachineAnimation } from "@/components/lottery/SlotMachineAnimation";
 import { SCREEN_ANIMATION_OPTIONS } from "@/lib/lottery/organizer-lottery-config";
 import type { ScreenAnimationType } from "@/lib/lottery/organizer-lottery-config";
 import {
@@ -67,6 +68,55 @@ function RollingSlot({
   );
 }
 
+function ScrollListAnimation({
+  entries,
+  active,
+  highlight,
+}: {
+  entries: LotteryScreenRollingEntry[];
+  active: boolean;
+  highlight?: LotteryScreenRollingEntry | null;
+}) {
+  const rows =
+    entries.length > 0
+      ? [...entries, ...entries].map((e) =>
+          e.company ? `${e.name} · ${e.company}` : e.name,
+        )
+      : ["等待名单同步…", "等待名单同步…"];
+
+  return (
+    <div className="flex w-full max-w-2xl flex-col items-center">
+      <div className="relative h-40 w-full overflow-hidden">
+        <div
+          className={cn(
+            "flex flex-col items-center gap-4",
+            active && !highlight && "animate-ciq-name-scroll",
+          )}
+        >
+          {rows.map((row, i) => {
+            const isHighlight =
+              highlight &&
+              (row.startsWith(highlight.name) ||
+                row === highlight.name ||
+                row.includes(highlight.name));
+            return (
+              <span
+                key={`${row}-${i}`}
+                className={cn(
+                  "whitespace-nowrap text-2xl text-white/40 md:text-3xl",
+                  isHighlight && "text-5xl font-black text-brand-gold md:text-6xl",
+                )}
+              >
+                {row}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WheelAnimation({ active }: { active: boolean }) {
   return (
     <div
@@ -91,10 +141,7 @@ function RedEnvelopeRain({ active }: { active: boolean }) {
       {drops.map((_, i) => (
         <span
           key={i}
-          className={cn(
-            "absolute text-3xl",
-            active && "animate-bounce",
-          )}
+          className={cn("absolute text-3xl", active && "animate-bounce")}
           style={{
             left: `${(i * 13) % 100}%`,
             top: `${(i * 7) % 80}%`,
@@ -170,6 +217,20 @@ export function LotteryScreenDisplayClient({
   const [winners, setWinners] = useState<LotteryScreenWinnerPayload[]>([]);
   const [progress, setProgress] = useState({ revealed: 0, quota: 0 });
   const [tierLabel, setTierLabel] = useState<string | null>(null);
+  const [slotPhase, setSlotPhase] = useState<"animating" | "pop" | "revealed">(
+    "animating",
+  );
+
+  useEffect(() => {
+    if (phase === "revealed" && animation === "SLOT_MACHINE") {
+      setSlotPhase("pop");
+      const t = setTimeout(() => setSlotPhase("revealed"), 900);
+      return () => clearTimeout(t);
+    }
+    if (phase === "animating" && animation === "SLOT_MACHINE") {
+      setSlotPhase("animating");
+    }
+  }, [phase, animation]);
 
   useEffect(() => {
     const unsub = subscribeLotteryScreen(eventId, (msg: LotteryScreenBroadcast) => {
@@ -188,11 +249,13 @@ export function LotteryScreenDisplayClient({
         setRollingEntries(msg.data.rolling_entries);
         setCurrentWinner(null);
         setTierLabel(null);
+        setSlotPhase("animating");
         setPhase("animating");
       }
 
       if (msg.type === "TIER_START") {
         setTierLabel(msg.data.tier_label);
+        setSlotPhase("animating");
         setPhase("animating");
       }
 
@@ -221,7 +284,7 @@ export function LotteryScreenDisplayClient({
       className={
         embedded
           ? "relative flex h-full min-h-0 flex-col overflow-hidden text-white"
-          : "relative flex min-h-screen flex-col overflow-hidden bg-[#0a0a12] text-white"
+          : "relative flex min-h-screen flex-col overflow-hidden bg-[#1A1A2E] text-white"
       }
     >
       {!embedded && (
@@ -253,27 +316,79 @@ export function LotteryScreenDisplayClient({
         {phase === "animating" && (
           <div className="relative w-full max-w-4xl">
             {animation === "RED_ENVELOPE" && <RedEnvelopeRain active />}
-            {tierLabel && (
-              <p className="mb-4 text-center text-3xl font-bold text-brand-gold">
-                {tierLabel} 抽奖进行中
-              </p>
-            )}
-            <p className="mb-8 text-center text-sm uppercase tracking-widest text-brand-gold">
-              {animationLabel(animation)}
-            </p>
-            {animation === "WHEEL" ? (
-              <WheelAnimation active />
+            {animation === "SLOT_MACHINE" ? (
+              <SlotMachineAnimation
+                phase={slotPhase}
+                tierLabel={tierLabel}
+                entryCount={entryCount}
+                balls={rollingEntries.slice(0, 3).map((e, i) => ({
+                  initial: e.name.slice(0, 1),
+                  color: ["#534AB7", "#B77A12", "#2E7D32"][i] ?? "#534AB7",
+                  bg: ["#D4D0FF", "#FFE4B5", "#C8E6C9"][i] ?? "#D4D0FF",
+                }))}
+                outletBall={
+                  rollingEntries[0]
+                    ? {
+                        initial: rollingEntries[0].name.slice(0, 1),
+                        color: "#534AB7",
+                        bg: "#D4D0FF",
+                      }
+                    : undefined
+                }
+              />
+            ) : animation === "REVEAL_ONE_BY_ONE" ? (
+              <div className="space-y-6">
+                {tierLabel && (
+                  <p className="text-center text-3xl font-bold text-brand-gold">
+                    {tierLabel} 抽奖进行中
+                  </p>
+                )}
+                <ScrollListAnimation entries={rollingEntries} active />
+              </div>
+            ) : animation === "WHEEL" ? (
+              <div className="space-y-8">
+                {tierLabel && (
+                  <p className="text-center text-3xl font-bold text-brand-gold">
+                    {tierLabel} 抽奖进行中
+                  </p>
+                )}
+                <WheelAnimation active />
+              </div>
             ) : (
               <RollingSlot entries={rollingEntries} active />
             )}
-            <div className="mt-10 flex justify-center gap-2">
-              <Sparkles className="size-5 animate-pulse text-brand-gold" />
-              <span className="text-white/50">抽奖进行中…</span>
-            </div>
+            {animation !== "SLOT_MACHINE" && (
+              <>
+                <p className="mb-8 mt-8 text-center text-sm uppercase tracking-widest text-brand-gold">
+                  {animationLabel(animation)}
+                </p>
+                <div className="flex justify-center gap-2">
+                  <Sparkles className="size-5 animate-pulse text-brand-gold" />
+                  <span className="text-white/50">抽奖进行中…</span>
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {phase === "revealed" && currentWinner && (
+        {phase === "revealed" && currentWinner && animation === "SLOT_MACHINE" && (
+          <SlotMachineAnimation
+            phase={slotPhase}
+            tierLabel={tierLabel}
+            winner={{
+              name: currentWinner.name,
+              company: currentWinner.company,
+              prize_name: currentWinner.prize_name,
+            }}
+            outletBall={{
+              initial: currentWinner.name.slice(0, 1),
+              color: "#534AB7",
+              bg: "#D4D0FF",
+            }}
+          />
+        )}
+
+        {phase === "revealed" && currentWinner && animation !== "SLOT_MACHINE" && (
           <WinnerReveal winner={currentWinner} title={title} />
         )}
 

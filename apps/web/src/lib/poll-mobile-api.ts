@@ -60,9 +60,8 @@ export function buildPollBigscreenUrl(eventId: string, pollId?: string) {
     process.env.NEXTAUTH_URL ??
     "https://app.connectiq.cn";
   const root = base.replace(/\/$/, "");
-  const params = new URLSearchParams({ tab: "poll" });
-  if (pollId) params.set("poll", pollId);
-  return `${root}/events/${eventId}/interactions/bigscreen?${params.toString()}`;
+  const params = pollId ? `?poll=${pollId}` : "";
+  return `${root}/events/${eventId}/screen/poll-display${params}`;
 }
 
 export function serializePollForMobile(

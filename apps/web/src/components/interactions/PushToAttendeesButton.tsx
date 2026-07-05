@@ -66,11 +66,16 @@ export function PushToAttendeesButton({
 
 export function OpenBigscreenButton({
   eventId,
+  pollId,
   className,
+  label = "投票大屏",
 }: {
   eventId: string;
+  pollId?: string;
   className?: string;
+  label?: string;
 }) {
+  const params = pollId ? `?poll=${pollId}` : "";
   return (
     <Button
       type="button"
@@ -78,10 +83,13 @@ export function OpenBigscreenButton({
       variant="outline"
       className={className}
       onClick={() =>
-        window.open(`/events/${eventId}/interactions/bigscreen`, "_blank")
+        window.open(
+          `/events/${eventId}/screen/poll-display${params}`,
+          "_blank",
+        )
       }
     >
-      打开大屏
+      {label}
     </Button>
   );
 }

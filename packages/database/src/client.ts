@@ -4,8 +4,14 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
 function getConnectionString() {
-  // Session Pooler（5432）优先；Transaction Pooler 仅作备选
-  const url = process.env.DATABASE_URL ?? process.env.DATABASE_URL_POOLER;
+  // Vercel / 生产环境优先 Transaction Pooler（6543），避免 Session 模式连接数打满
+  const preferPooler =
+    process.env.VERCEL === "1" ||
+    process.env.USE_DATABASE_POOLER === "1" ||
+    process.env.NODE_ENV === "production";
+  const url = preferPooler
+    ? (process.env.DATABASE_URL_POOLER ?? process.env.DATABASE_URL)
+    : (process.env.DATABASE_URL ?? process.env.DATABASE_URL_POOLER);
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
@@ -29,7 +35,10 @@ type DbGlobal = {
 const globalForDb = globalThis as unknown as DbGlobal;
 
 function createPool() {
-  const max = Number(process.env.DATABASE_POOL_MAX ?? 5);
+  const isServerless = process.env.VERCEL === "1";
+  const max = Number(
+    process.env.DATABASE_POOL_MAX ?? (isServerless ? 2 : 5),
+  );
   return new pg.Pool({
     connectionString: getConnectionString(),
     ssl: { rejectUnauthorized: false },

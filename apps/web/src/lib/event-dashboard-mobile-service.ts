@@ -10,7 +10,10 @@ import {
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
-import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
+import {
+  parseEventFeatureFlags,
+  type EventFeatureFlags,
+} from "@/lib/event-feature-flags";
 import { scoreIntentMatch } from "@/lib/mobile-intent-match";
 import { countUnreadNotifications } from "@/lib/mobile-notification-service";
 import { getStampPassportForEvent } from "@/lib/stamp-rally-service";
@@ -174,6 +177,7 @@ async function loadAiRecommendations(
 async function loadLiveInteractions(
   eventId: string,
   userId: string | null,
+  featureFlags: EventFeatureFlags,
 ): Promise<ApiMobileLiveInteraction[]> {
   const items: ApiMobileLiveInteraction[] = [];
 
@@ -215,8 +219,7 @@ async function loadLiveInteractions(
     });
   }
 
-  const stampEnabled = await isEventFeatureEnabled(eventId, "stampRally");
-  if (stampEnabled) {
+  if (featureFlags.stampRally) {
     const rally = await prisma.stampRally.findFirst({
       where: { eventId, status: StampRallyStatus.ACTIVE },
       orderBy: { createdAt: "desc" },
@@ -240,8 +243,7 @@ async function loadLiveInteractions(
     }
   }
 
-  const lotteryEnabled = await isEventFeatureEnabled(eventId, "lottery");
-  if (lotteryEnabled) {
+  if (featureFlags.lottery) {
     const boothLottery = await prisma.lottery.findFirst({
       where: {
         eventId,
@@ -273,9 +275,9 @@ async function loadLiveInteractions(
 
 async function loadActiveLottery(
   eventId: string,
+  featureFlags: EventFeatureFlags,
 ): Promise<ApiMobileLiveInteraction | null> {
-  const enabled = await isEventFeatureEnabled(eventId, "lottery");
-  if (!enabled) return null;
+  if (!featureFlags.lottery) return null;
 
   const poolLottery = await prisma.lottery.findFirst({
     where: {
@@ -342,9 +344,9 @@ async function loadAnnouncements(eventId: string): Promise<ApiMobileAnnouncement
 async function loadStampRallySummary(
   eventId: string,
   userId: string | null,
+  featureFlags: EventFeatureFlags,
 ): Promise<ApiMobileStampRally | null> {
-  const enabled = await isEventFeatureEnabled(eventId, "stampRally");
-  if (!enabled || !userId) return null;
+  if (!featureFlags.stampRally || !userId) return null;
 
   const rally = await prisma.stampRally.findFirst({
     where: {
@@ -389,18 +391,32 @@ export async function getEventDashboardMobile(
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const [aiRecommendations, liveInteractions, activeLottery, announcements, stampRally, stampPassport, unreadNotificationCount] =
-    await Promise.all([
-      loadAiRecommendations(eventId, userId),
-      loadLiveInteractions(eventId, userId),
-      loadActiveLottery(eventId),
-      loadAnnouncements(eventId),
-      loadStampRallySummary(eventId, userId),
-      userId && (await isEventFeatureEnabled(eventId, "stampRally"))
-        ? getStampPassportForEvent(eventId, userId).catch(() => null)
-        : Promise.resolve(null),
-      userId ? countUnreadNotifications(userId) : Promise.resolve(0),
-    ]);
+  const featureFlags = parseEventFeatureFlags(event.featureFlags ?? null);
+
+  // 分两批查询，避免 Supabase Session Pooler 在 Promise.all 下连接数打满导致 500
+  const [liveInteractions, activeLottery, announcements] = await Promise.all([
+    loadLiveInteractions(eventId, userId, featureFlags),
+    loadActiveLottery(eventId, featureFlags),
+    loadAnnouncements(eventId),
+  ]);
+
+  let aiRecommendations: ApiMobileAiRecommendation[] = [];
+  let stampRally: ApiMobileStampRally | null = null;
+  let stampPassport: Awaited<ReturnType<typeof getStampPassportForEvent>> | null =
+    null;
+  let unreadNotificationCount = 0;
+
+  if (userId) {
+    [aiRecommendations, stampRally, stampPassport, unreadNotificationCount] =
+      await Promise.all([
+        loadAiRecommendations(eventId, userId),
+        loadStampRallySummary(eventId, userId, featureFlags),
+        featureFlags.stampRally
+          ? getStampPassportForEvent(eventId, userId).catch(() => null)
+          : Promise.resolve(null),
+        countUnreadNotifications(userId),
+      ]);
+  }
 
   const liveInteraction =
     liveInteractions.find(

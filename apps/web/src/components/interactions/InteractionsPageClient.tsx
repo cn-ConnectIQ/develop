@@ -249,10 +249,13 @@ export function InteractionsPageClient({ eventId }: { eventId: string }) {
               >
                 结束
               </Button>
-              <Link href={`/events/${eventId}/bigscreen`} target="_blank">
+              <Link
+                href={`/events/${eventId}/screen/poll-display?poll=${livePoll.id}`}
+                target="_blank"
+              >
                 <Button variant="outline" size="sm">
                   <ExternalLink className="mr-1 size-3" />
-                  大屏 ↗
+                  投票大屏 ↗
                 </Button>
               </Link>
             </div>

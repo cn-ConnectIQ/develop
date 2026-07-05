@@ -60,7 +60,6 @@ type InteractionSidebarProps = {
   onPause: (item: InteractionItem) => void;
   onStop: (item: InteractionItem) => void;
   creating?: boolean;
-  lotteryEnabled?: boolean;
 };
 
 function itemFilterTab(item: InteractionItem): FilterTab {
@@ -82,7 +81,6 @@ export function InteractionSidebar({
   onPause,
   onStop,
   creating,
-  lotteryEnabled = true,
 }: InteractionSidebarProps) {
   const stats = countInteractionStats(items);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -106,7 +104,6 @@ export function InteractionSidebar({
           open={popoverOpen}
           onOpenChange={setPopoverOpen}
           onSelect={onCreate}
-          disabledTypes={lotteryEnabled ? [] : ["LOTTERY"]}
         >
           <button
             type="button"
@@ -227,11 +224,13 @@ function InteractionListItem({
               <Square className="size-3.5" />
             </ListIconAction>
             <ListIconAction
-              title="大屏"
+              title="投票大屏"
               className="hover:text-brand-blue"
               onClick={() => {
+                const pollParam =
+                  item.kind === "poll" ? `?poll=${item.id}` : "";
                 window.open(
-                  `/events/${eventId}/interactions/bigscreen`,
+                  `/events/${eventId}/screen/poll-display${pollParam}`,
                   "_blank",
                 );
               }}

@@ -51,7 +51,13 @@ export async function resolveOptionalMobileUserId(
     const { user } = await requireAuth(request);
     return user.id;
   } catch (err) {
-    if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    if (err instanceof ApiError && err.status === 401) {
+      // fall through to Bearer token
+    } else if (err instanceof ApiError) {
+      throw err;
+    } else {
+      console.warn("[resolveOptionalMobileUserId] session lookup failed", err);
+    }
   }
 
   const auth = request.headers.get("authorization");

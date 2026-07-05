@@ -109,7 +109,7 @@ export function RealtimeConsole({
           kind="poll"
           targetId={poll.id}
         />
-        <OpenBigscreenButton eventId={eventId} />
+        <OpenBigscreenButton eventId={eventId} pollId={poll.id} />
         <button
           type="button"
           onClick={onPause}

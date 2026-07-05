@@ -275,10 +275,10 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
           locked={isReviewLocked}
         />
         <QuickActionCard
-          href={`/events/${eventId}/bigscreen`}
+          href={`/events/${eventId}/screen/poll-display`}
           icon={Monitor}
-          title="大屏控制台"
-          subtitle="↗ 新标签页"
+          title="投票大屏"
+          subtitle="↗ 新标签页投影"
           subtitleClassName="text-brand-blue"
           external
           borderClassName="cursor-pointer"

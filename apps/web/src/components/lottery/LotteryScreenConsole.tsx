@@ -12,14 +12,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AdminContent,
-  AdminHeader,
-  AdminPage,
-  SectionCard,
-} from "@/components/admin/admin-header";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { SCREEN_ANIMATION_OPTIONS, tierMedal } from "@/lib/lottery/organizer-lottery-config";
 import type {
   OrganizerLotteryDto,
@@ -283,311 +276,287 @@ export function LotteryScreenConsole({
 
   const statusLabel =
     state?.lottery.status === "DRAWING"
-      ? "开奖中"
+      ? "进行中"
       : state?.lottery.status === "OPEN"
-        ? "报名中"
+        ? "准备就绪"
         : state?.lottery.status === "FINISHED"
           ? "已结束"
           : "草稿";
 
+  const focusTier = activeTierState ?? nextTier ?? state?.tiers.find((t) => !t.complete);
+  const stepIndex =
+    activeTierState && !activeTierState.complete
+      ? 2
+      : nextTier && state?.active_tier == null && started
+        ? 1
+        : 0;
+
+  const primaryAction = (() => {
+    if (!state || state.lottery.status === "FINISHED") return null;
+    if (isTierMode) {
+      if (!started && state.lottery.status !== "DRAWING") {
+        return {
+          label: "初始化大屏",
+          onClick: () => void startAnimation(),
+          disabled: animating || state.lottery.status !== "OPEN",
+          loading: animating,
+        };
+      }
+      if (nextTier && state.active_tier == null) {
+        return {
+          label: `开始${nextTier.label}抽奖`,
+          onClick: () => void startTierDraw(nextTier.tier),
+          disabled: tierAction != null,
+          loading: tierAction === nextTier.tier,
+        };
+      }
+      if (activeTierState && !activeTierState.complete) {
+        return {
+          label: `揭晓${activeTierState.label}中奖者`,
+          onClick: () => void revealTierWinner(activeTierState.tier),
+          disabled: tierAction != null,
+          loading: tierAction === activeTierState.tier,
+        };
+      }
+    }
+    if (!started && state.lottery.status !== "DRAWING") {
+      return {
+        label: "开始抽奖",
+        onClick: () => void startAnimation(),
+        disabled: animating || state.lottery.status !== "OPEN",
+        loading: animating,
+      };
+    }
+    if (state.lottery.status === "DRAWING") {
+      return {
+        label: "揭晓中奖者",
+        onClick: () => void revealWinner(),
+        disabled: revealing,
+        loading: revealing,
+      };
+    }
+    return null;
+  })();
+
   return (
-    <AdminPage>
-      <AdminHeader
-        title="大屏开奖控制台"
-        description={eventName}
-        breadcrumb={["互动管理", "大屏抽奖", "开奖控制台"]}
-        actions={
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/events/${eventId}/lottery/big-screen`}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-            >
-              <ArrowLeft className="mr-1.5 size-4" />
-              返回列表
-            </Link>
-            {previewUrl && (
-              <a
-                href={previewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                <ExternalLink className="mr-1.5 size-4" />
-                新窗口投影
-              </a>
-            )}
-          </div>
-        }
-      />
+    <div className="-mx-4 -my-6 flex min-h-[calc(100vh-56px)] flex-col bg-[#0F1117] text-white sm:-mx-6">
+      <div className="flex h-[52px] shrink-0 items-center gap-4 border-b border-white/10 bg-[#161B27] px-7">
+        <Link
+          href={`/events/${eventId}/lottery/big-screen`}
+          className="inline-flex items-center gap-1.5 text-sm text-white/50 hover:text-white"
+        >
+          <ArrowLeft className="size-4" />
+          返回
+        </Link>
+        <div className="h-4 w-px bg-white/10" />
+        <span className="text-sm text-white/50">大屏抽奖控制台</span>
+        <div className="flex-1" />
+        <span className="truncate text-sm text-white/50">
+          {eventName} · {state?.lottery.title ?? grandLottery?.title ?? "闭幕大抽奖"}
+        </span>
+        {previewUrl && (
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/5"
+          >
+            <ExternalLink className="size-3.5" />
+            新窗口投影
+          </a>
+        )}
+      </div>
 
-      <AdminContent>
-        {lotteryLoading ? (
-          <p className="py-16 text-center text-text-muted">加载中…</p>
-        ) : !lotteryId ? (
-          <div className="rounded-lg border border-dashed border-border bg-surface py-20 text-center shadow-sm">
-            <Trophy className="mx-auto size-12 text-text-tertiary/60" />
-            <p className="mt-4 text-text-secondary">请先创建并发布大屏抽奖</p>
-            <Link
-              href={`/events/${eventId}/lottery/big-screen`}
-              className={buttonVariants({ variant: "link", size: "sm", className: "mt-4" })}
-            >
-              前往大屏抽奖列表 →
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
-              <div className="space-y-6">
-                <SectionCard title="主控制区" description="闭幕仪式抽奖节奏控制">
-                  <div className="space-y-5 p-5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Badge
-                        className={cn(
-                          "font-normal",
-                          state?.lottery.status === "DRAWING"
-                            ? "bg-brand-green-light text-brand-green"
-                            : "bg-brand-amber-light text-brand-amber",
-                        )}
-                      >
-                        {statusLabel}
-                      </Badge>
-                      {animationMeta && (
-                        <span className="text-sm text-text-muted">
-                          {animationMeta.emoji} {animationMeta.title}
-                        </span>
-                      )}
-                      {isFetching && (
-                        <Loader2 className="size-4 animate-spin text-text-muted" />
-                      )}
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-                        <p className="text-xs text-text-secondary">参与人数</p>
-                        <p className="text-3xl font-bold tabular-nums text-brand-green">
-                          {state?.lottery.entry_count ?? 0}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-                        <p className="text-xs text-text-secondary">已揭晓</p>
-                        <p className="text-3xl font-bold tabular-nums text-text-primary">
-                          {state?.revealed_count ?? 0}
-                          <span className="text-lg text-text-secondary">
-                            /{state?.winner_quota ?? "?"}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-
-                    {countdown && (
-                      <div className="rounded-xl border border-brand-gold/30 bg-brand-gold/10 px-4 py-3 text-center">
-                        <p className="text-xs text-brand-gold">距计划开奖</p>
-                        <p className="font-mono text-3xl font-bold text-brand-gold">
-                          {countdown}
-                        </p>
-                      </div>
-                    )}
-
-                    {!isTierMode && !started && state?.lottery.status !== "DRAWING" && (
-                      <Button
-                        className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
-                        disabled={animating || state?.lottery.status !== "OPEN"}
-                        onClick={() => void startAnimation()}
-                      >
-                        {animating ? (
-                          <Loader2 className="mr-2 size-5 animate-spin" />
-                        ) : (
-                          <Sparkles className="mr-2 size-5" />
-                        )}
-                        开始抽奖动画
-                      </Button>
-                    )}
-
-                    {isTierMode && state?.lottery.status !== "FINISHED" && (
-                      <div className="space-y-3">
-                        {!started && state?.lottery.status !== "DRAWING" && (
-                          <Button
-                            className="h-12 w-full bg-brand-blue text-white hover:bg-brand-blue/90"
-                            disabled={animating || state?.lottery.status !== "OPEN"}
-                            onClick={() => void startAnimation()}
-                          >
-                            {animating ? (
-                              <Loader2 className="mr-2 size-4 animate-spin" />
-                            ) : (
-                              <Sparkles className="mr-2 size-4" />
-                            )}
-                            初始化大屏（同步参与名单）
-                          </Button>
-                        )}
-
-                        {state?.tiers && state.tiers.length > 0 && (
-                          <div className="space-y-2 rounded-xl border border-border-light p-3">
-                            {state.tiers.map((tier) => (
-                              <div
-                                key={tier.tier}
-                                className={cn(
-                                  "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
-                                  tier.complete && "bg-brand-green-light/40 text-brand-green",
-                                  tier.is_active && "bg-brand-gold/15 ring-1 ring-brand-gold/40",
-                                  tier.is_next && !tier.complete && "bg-brand-blue-light/30",
-                                )}
-                              >
-                                <span>
-                                  {tierMedal(tier.tier)} {tier.label}
-                                  <span className="ml-2 text-xs text-text-muted">
-                                    {tier.prize_name} × {tier.quantity}
-                                  </span>
-                                </span>
-                                <span className="text-xs text-text-muted">
-                                  {tier.drawn_count}/{tier.quantity}
-                                  {tier.complete && " · 已完成"}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {nextTier && state?.active_tier == null && (
-                          <Button
-                            className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
-                            disabled={tierAction != null}
-                            onClick={() => void startTierDraw(nextTier.tier)}
-                          >
-                            {tierAction === nextTier.tier ? (
-                              <Loader2 className="mr-2 size-5 animate-spin" />
-                            ) : (
-                              <Sparkles className="mr-2 size-5" />
-                            )}
-                            开始{nextTier.label}抽奖
-                          </Button>
-                        )}
-
-                        {activeTierState && !activeTierState.complete && (
-                          <Button
-                            className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
-                            disabled={tierAction != null}
-                            onClick={() => void revealTierWinner(activeTierState.tier)}
-                          >
-                            {tierAction === activeTierState.tier ? (
-                              <Loader2 className="mr-2 size-5 animate-spin" />
-                            ) : (
-                              <Trophy className="mr-2 size-5" />
-                            )}
-                            揭晓{activeTierState.label}中奖者
-                            {activeTierState.quantity > 1 &&
-                              ` (${activeTierState.drawn_count + 1}/${activeTierState.quantity})`}
-                          </Button>
-                        )}
-
-                        {(started || state?.lottery.status === "DRAWING") && (
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => void endCeremony()}
-                          >
-                            结束仪式
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    {!isTierMode &&
-                      (started || state?.lottery.status === "DRAWING") &&
-                      state?.lottery.status !== "FINISHED" && (
-                        <div className="space-y-3">
-                          <Button
-                            className="h-14 w-full bg-brand-gold text-lg font-semibold text-white hover:bg-brand-gold/90"
-                            disabled={revealing}
-                            onClick={() => void revealWinner()}
-                          >
-                            {revealing ? (
-                              <Loader2 className="mr-2 size-5 animate-spin" />
-                            ) : (
-                              <Trophy className="mr-2 size-5" />
-                            )}
-                            揭晓中奖者
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => void endCeremony()}
-                          >
-                            结束仪式
-                          </Button>
-                        </div>
-                      )}
-
-                    {state?.lottery.status === "FINISHED" && (
-                      <p className="text-center text-sm text-brand-green">
-                        本场抽奖已全部完成
-                      </p>
-                    )}
+      {lotteryLoading ? (
+        <p className="flex flex-1 items-center justify-center text-white/50">加载中…</p>
+      ) : !lotteryId ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-white/60">
+          <Trophy className="size-12 opacity-40" />
+          <p>请先创建并发布大屏抽奖</p>
+          <Link
+            href={`/events/${eventId}/lottery/big-screen`}
+            className="text-sm text-brand-green hover:underline"
+          >
+            前往大屏抽奖列表 →
+          </Link>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-8 lg:p-9">
+            {focusTier && (
+              <div className="flex flex-wrap items-center gap-5 rounded-2xl bg-[#1A2035] px-7 py-5">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{tierMedal(focusTier.tier)}</span>
+                  <div>
+                    <p className="text-sm text-white/50">当前开奖等级</p>
+                    <p className="text-2xl font-extrabold text-brand-gold">{focusTier.label}</p>
                   </div>
-                </SectionCard>
-              </div>
-
-              <SectionCard title="大屏预览" description="参会者看到的投影画面">
-                <div className="p-3">
-                  {previewUrl ? (
-                    <iframe
-                      title="大屏预览"
-                      src={previewUrl}
-                      className="aspect-video w-full rounded-lg border border-border-light bg-[#0a0a12]"
-                    />
-                  ) : (
-                    <div className="flex aspect-video items-center justify-center rounded-lg bg-gray-100 text-sm text-text-muted">
-                      暂无预览
-                    </div>
-                  )}
                 </div>
-              </SectionCard>
+                <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                <div>
+                  <p className="text-sm text-white/50">奖品</p>
+                  <p className="text-lg font-bold">
+                    {focusTier.prize_name} × {focusTier.quantity}
+                  </p>
+                </div>
+                <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                <div>
+                  <p className="text-sm text-white/50">奖池人数</p>
+                  <p className="text-2xl font-extrabold text-[#7DE0BE]">
+                    {state?.lottery.entry_count ?? 0}
+                    <span className="ml-1 text-sm font-medium">人</span>
+                  </p>
+                </div>
+                <div className="flex-1" />
+                <div className="inline-flex items-center gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/15 px-4 py-2">
+                  <span className="size-2 animate-pulse rounded-full bg-brand-gold shadow-[0_0_8px_#EF9F27]" />
+                  <span className="text-sm font-semibold text-brand-gold">{statusLabel}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col items-center gap-5 rounded-[20px] bg-[#1A2035] px-8 py-10">
+              <p className="text-sm font-semibold text-white/50">
+                动效：{animationMeta?.title ?? "摇号机"} · {statusLabel}
+              </p>
+              {primaryAction && (
+                <Button
+                  className="h-20 w-full max-w-xs rounded-[20px] bg-gradient-to-br from-brand-green to-[#0B8A69] text-2xl font-extrabold text-white shadow-[0_12px_40px_rgba(15,110,86,0.5),0_0_60px_rgba(15,110,86,0.2)] hover:from-brand-green/90 hover:to-[#0B8A69]/90"
+                  disabled={primaryAction.disabled}
+                  onClick={primaryAction.onClick}
+                >
+                  {primaryAction.loading ? (
+                    <Loader2 className="mr-2 size-6 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 size-6" />
+                  )}
+                  {primaryAction.label}
+                </Button>
+              )}
+              <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-white/40">
+                <span
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5 font-semibold",
+                    stepIndex === 0
+                      ? "bg-brand-green/30 text-[#7DE0BE]"
+                      : "border border-white/10",
+                  )}
+                >
+                  ① 开始抽奖
+                </span>
+                <span className="text-white/20">→</span>
+                <span
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5",
+                    stepIndex === 1
+                      ? "bg-brand-gold/20 font-semibold text-brand-gold"
+                      : "border border-white/10",
+                  )}
+                >
+                  ② 等待开奖中…
+                </span>
+                <span className="text-white/20">→</span>
+                <span
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5",
+                    stepIndex === 2
+                      ? "bg-brand-gold/20 font-semibold text-brand-gold"
+                      : "border border-white/10",
+                  )}
+                >
+                  ③ 确认结果，进入下一等级
+                </span>
+              </div>
+              {countdown && (
+                <p className="font-mono text-lg text-brand-gold">距计划开奖 {countdown}</p>
+              )}
+              {isFetching && (
+                <Loader2 className="size-4 animate-spin text-white/40" />
+              )}
             </div>
 
-            <SectionCard
-              title="中奖名单"
-              description="按揭晓顺序展示，从小奖到大奖"
-            >
-              <div className="divide-y divide-border-light">
-                {state?.winners.length === 0 ? (
-                  <p className="p-8 text-center text-sm text-text-muted">
-                    尚未揭晓中奖者
-                  </p>
-                ) : (
-                  state?.winners.map((w, index) => (
+            {state?.tiers && state.tiers.length > 0 && (
+              <div className="rounded-2xl bg-[#1A2035] p-5">
+                <p className="mb-3 text-sm font-semibold text-white/50">等级进度</p>
+                <div className="space-y-2">
+                  {state.tiers.map((tier) => (
                     <div
-                      key={w.id}
-                      className="flex flex-wrap items-center gap-4 px-5 py-4"
+                      key={tier.tier}
+                      className={cn(
+                        "flex items-center justify-between rounded-xl px-4 py-3 text-sm",
+                        tier.complete && "bg-brand-green/10 text-[#7DE0BE]",
+                        tier.is_active && "bg-brand-gold/10 ring-1 ring-brand-gold/30",
+                        tier.is_next && !tier.complete && "bg-white/5",
+                      )}
                     >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-gold/15 text-sm font-bold text-brand-gold">
+                      <span>
+                        {tierMedal(tier.tier)} {tier.label}
+                        <span className="ml-2 text-white/40">
+                          {tier.prize_name}
+                        </span>
+                      </span>
+                      <span className="text-white/50">
+                        {tier.drawn_count}/{tier.quantity}
+                        {tier.complete && " ✓"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {(started || state.lottery.status === "DRAWING") &&
+                  state.lottery.status !== "FINISHED" && (
+                    <Button
+                      variant="outline"
+                      className="mt-4 w-full border-white/15 bg-transparent text-white/70 hover:bg-white/5"
+                      onClick={() => void endCeremony()}
+                    >
+                      结束仪式
+                    </Button>
+                  )}
+              </div>
+            )}
+
+            {state?.winners && state.winners.length > 0 && (
+              <div className="rounded-2xl bg-[#1A2035] p-5">
+                <p className="mb-3 text-sm font-semibold text-white/50">已揭晓中奖者</p>
+                <div className="divide-y divide-white/10">
+                  {state.winners.map((w, index) => (
+                    <div key={w.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+                      <span className="flex size-7 items-center justify-center rounded-full bg-brand-gold/15 text-xs font-bold text-brand-gold">
                         {index + 1}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold">{w.name}</p>
-                        <p className="text-sm text-text-muted">
-                          {w.company ?? "—"}
-                        </p>
+                        <p className="text-white/40">{w.company ?? "—"}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-brand-gold">
-                          {w.prize_name}
-                        </p>
-                        {w.verification_code && (
-                          <p className="font-mono text-xs text-text-muted">
-                            核销码 {w.verification_code}
-                          </p>
-                        )}
-                      </div>
-                      <p className="w-full text-xs text-text-muted sm:w-auto">
-                        {w.pickup_note}
-                      </p>
+                      <p className="font-medium text-brand-gold">{w.prize_name}</p>
                     </div>
-                  ))
-                )}
+                  ))}
+                </div>
               </div>
-            </SectionCard>
+            )}
           </div>
-        )}
-      </AdminContent>
-    </AdminPage>
+
+          <aside className="hidden w-[min(420px,38%)] shrink-0 flex-col border-l border-white/10 bg-[#12151F] p-5 xl:flex">
+            <p className="mb-3 text-xs font-semibold tracking-widest text-white/40">
+              大屏同步预览
+            </p>
+            {previewUrl ? (
+              <iframe
+                title="大屏预览"
+                src={previewUrl}
+                className="aspect-video w-full rounded-xl border border-white/10 bg-[#0D0D1F]"
+              />
+            ) : (
+              <div className="flex aspect-video items-center justify-center rounded-xl bg-[#0D0D1F] text-sm text-white/30">
+                暂无预览
+              </div>
+            )}
+            <p className="mt-3 text-xs leading-relaxed text-white/35">
+              右侧小窗实时同步投影大屏画面，控制台操作与现场显示分离（BS9）。
+            </p>
+          </aside>
+        </div>
+      )}
+    </div>
   );
 }
