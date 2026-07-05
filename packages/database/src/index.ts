@@ -19,6 +19,7 @@ export {
   ScanActionType,
   ScanResult,
   AnimationType,
+  BigScreenAnimationType,
   TriggerAction,
   LotteryOwnerType,
   LotteryDrawType,

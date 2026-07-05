@@ -1,192 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Gift, Sparkles, Trophy } from "lucide-react";
-import { SlotMachineAnimation } from "@/components/lottery/SlotMachineAnimation";
-import { SCREEN_ANIMATION_OPTIONS } from "@/lib/lottery/organizer-lottery-config";
-import type { ScreenAnimationType } from "@/lib/lottery/organizer-lottery-config";
+import { Gift, Trophy } from "lucide-react";
 import {
-  subscribeLotteryScreen,
-  type LotteryScreenBroadcast,
-  type LotteryScreenRollingEntry,
-  type LotteryScreenWinnerPayload,
-} from "@/lib/realtime/lottery-screen";
-import { cn } from "@/lib/utils";
-
-type DisplayPhase = "idle" | "animating" | "revealed" | "ended";
-
-function animationLabel(type: ScreenAnimationType) {
-  return SCREEN_ANIMATION_OPTIONS.find((o) => o.value === type)?.title ?? type;
-}
-
-function RollingSlot({
-  entries,
-  active,
-}: {
-  entries: LotteryScreenRollingEntry[];
-  active: boolean;
-}) {
-  const [current, setCurrent] = useState(entries[0] ?? null);
-  const ref = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (!active || entries.length === 0) {
-      if (ref.current) clearInterval(ref.current);
-      return;
-    }
-
-    let delay = 60;
-    let step = 0;
-
-    function tick() {
-      const pick = entries[Math.floor(Math.random() * entries.length)]!;
-      setCurrent(pick);
-      step += 1;
-      if (step > 30 && step % 2 === 0) delay = Math.min(delay + 30, 400);
-      if (ref.current) clearInterval(ref.current);
-      ref.current = setInterval(tick, delay);
-    }
-
-    ref.current = setInterval(tick, delay);
-    return () => {
-      if (ref.current) clearInterval(ref.current);
-    };
-  }, [active, entries]);
-
-  if (!current) return null;
-
-  return (
-    <div className="text-center">
-      <p className="text-5xl font-black tracking-tight text-white md:text-7xl">
-        {current.name}
-      </p>
-      {current.company && (
-        <p className="mt-3 text-xl text-white/60">{current.company}</p>
-      )}
-    </div>
-  );
-}
-
-function ScrollListAnimation({
-  entries,
-  active,
-  highlight,
-}: {
-  entries: LotteryScreenRollingEntry[];
-  active: boolean;
-  highlight?: LotteryScreenRollingEntry | null;
-}) {
-  const rows =
-    entries.length > 0
-      ? [...entries, ...entries].map((e) =>
-          e.company ? `${e.name} · ${e.company}` : e.name,
-        )
-      : ["等待名单同步…", "等待名单同步…"];
-
-  return (
-    <div className="flex w-full max-w-2xl flex-col items-center">
-      <div className="relative h-40 w-full overflow-hidden">
-        <div
-          className={cn(
-            "flex flex-col items-center gap-4",
-            active && !highlight && "animate-ciq-name-scroll",
-          )}
-        >
-          {rows.map((row, i) => {
-            const isHighlight =
-              highlight &&
-              (row.startsWith(highlight.name) ||
-                row === highlight.name ||
-                row.includes(highlight.name));
-            return (
-              <span
-                key={`${row}-${i}`}
-                className={cn(
-                  "whitespace-nowrap text-2xl text-white/40 md:text-3xl",
-                  isHighlight && "text-5xl font-black text-brand-gold md:text-6xl",
-                )}
-              >
-                {row}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function WheelAnimation({ active }: { active: boolean }) {
-  return (
-    <div
-      className={cn(
-        "relative mx-auto size-64 rounded-full border-8 border-brand-gold/40 md:size-80",
-        active && "animate-spin",
-      )}
-      style={{ animationDuration: active ? "3s" : "0s" }}
-    >
-      <div className="absolute inset-4 rounded-full bg-gradient-to-br from-brand-purple/40 to-brand-blue/40" />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-5xl">🎡</span>
-      </div>
-    </div>
-  );
-}
-
-function RedEnvelopeRain({ active }: { active: boolean }) {
-  const drops = Array.from({ length: 16 });
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {drops.map((_, i) => (
-        <span
-          key={i}
-          className={cn("absolute text-3xl", active && "animate-bounce")}
-          style={{
-            left: `${(i * 13) % 100}%`,
-            top: `${(i * 7) % 80}%`,
-            animationDelay: `${i * 0.15}s`,
-            animationDuration: "1.2s",
-          }}
-        >
-          🧧
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function WinnerReveal({
-  winner,
-  title,
-}: {
-  winner: LotteryScreenWinnerPayload;
-  title: string;
-}) {
-  return (
-    <div className="flex flex-col items-center text-center">
-      <div className="mb-6 flex size-24 items-center justify-center rounded-full bg-brand-gold/20 ring-4 ring-brand-gold/50">
-        <Trophy className="size-12 text-brand-gold" />
-      </div>
-      <p className="text-sm uppercase tracking-[0.3em] text-brand-gold">
-        {winner.prize_name}
-      </p>
-      <h1 className="mt-4 text-5xl font-black text-white md:text-7xl">
-        {winner.name}
-      </h1>
-      {winner.company && (
-        <p className="mt-3 text-2xl text-white/70">{winner.company}</p>
-      )}
-      {winner.verification_code && (
-        <p className="mt-8 font-mono text-3xl tracking-widest text-brand-amber">
-          {winner.verification_code}
-        </p>
-      )}
-      <p className="mt-4 text-lg text-white/50">{winner.pickup_note}</p>
-      <p className="mt-8 text-sm text-white/30">{title}</p>
-    </div>
-  );
-}
+  LotteryAnimationDispatch,
+  useLotteryScreenAnimation,
+} from "@/components/screen/lottery-animations";
 
 export type LotteryScreenDisplayClientProps = {
   eventId: string;
@@ -202,82 +21,77 @@ export function LotteryScreenDisplayClient({
   embedded = false,
 }: LotteryScreenDisplayClientProps) {
   const searchParams = useSearchParams();
-  const filterLotteryId = lotteryIdProp ?? searchParams.get("lottery");
+  const lotteryId = lotteryIdProp ?? searchParams.get("lottery");
 
-  const [phase, setPhase] = useState<DisplayPhase>("idle");
-  const [title, setTitle] = useState("闭幕全场大抽奖");
-  const [animation, setAnimation] =
-    useState<ScreenAnimationType>("SLOT_MACHINE");
-  const [entryCount, setEntryCount] = useState(0);
-  const [rollingEntries, setRollingEntries] = useState<
-    LotteryScreenRollingEntry[]
-  >([]);
-  const [currentWinner, setCurrentWinner] =
-    useState<LotteryScreenWinnerPayload | null>(null);
-  const [winners, setWinners] = useState<LotteryScreenWinnerPayload[]>([]);
-  const [progress, setProgress] = useState({ revealed: 0, quota: 0 });
-  const [tierLabel, setTierLabel] = useState<string | null>(null);
-  const [slotPhase, setSlotPhase] = useState<"animating" | "pop" | "revealed">(
-    "animating",
+  if (!lotteryId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-white/50">
+        未指定抽奖活动
+      </div>
+    );
+  }
+
+  return (
+    <LotteryScreenDisplayInner
+      eventId={eventId}
+      eventName={eventName}
+      lotteryId={lotteryId}
+      embedded={embedded}
+    />
   );
+}
 
-  useEffect(() => {
-    if (phase === "revealed" && animation === "SLOT_MACHINE") {
-      setSlotPhase("pop");
-      const t = setTimeout(() => setSlotPhase("revealed"), 900);
-      return () => clearTimeout(t);
-    }
-    if (phase === "animating" && animation === "SLOT_MACHINE") {
-      setSlotPhase("animating");
-    }
-  }, [phase, animation]);
+function LotteryScreenDisplayInner({
+  eventId,
+  eventName,
+  lotteryId,
+  embedded,
+}: {
+  eventId: string;
+  eventName: string;
+  lotteryId: string;
+  embedded: boolean;
+}) {
+  const {
+    screenPhase,
+    animationType,
+    animationProps,
+    title,
+    entryCount,
+    winners,
+    progress,
+    loading,
+    error,
+    dispatchExtras,
+  } = useLotteryScreenAnimation(eventId, lotteryId);
 
-  useEffect(() => {
-    const unsub = subscribeLotteryScreen(eventId, (msg: LotteryScreenBroadcast) => {
-      if (
-        filterLotteryId &&
-        "lottery_id" in msg.data &&
-        msg.data.lottery_id !== filterLotteryId
-      ) {
-        return;
-      }
+  if (loading) {
+    return (
+      <div
+        className={
+          embedded
+            ? "flex h-full items-center justify-center text-white/50"
+            : "flex min-h-screen items-center justify-center text-white/50"
+        }
+      >
+        加载抽奖大屏…
+      </div>
+    );
+  }
 
-      if (msg.type === "START_ANIMATION") {
-        setTitle(msg.data.title);
-        setAnimation(msg.data.animation);
-        setEntryCount(msg.data.entry_count);
-        setRollingEntries(msg.data.rolling_entries);
-        setCurrentWinner(null);
-        setTierLabel(null);
-        setSlotPhase("animating");
-        setPhase("animating");
-      }
-
-      if (msg.type === "TIER_START") {
-        setTierLabel(msg.data.tier_label);
-        setSlotPhase("animating");
-        setPhase("animating");
-      }
-
-      if (msg.type === "REVEAL_WINNER") {
-        setCurrentWinner(msg.data.winner);
-        setWinners((prev) => [...prev, msg.data.winner]);
-        setProgress({
-          revealed: msg.data.revealed_total,
-          quota: msg.data.winner_quota,
-        });
-        setPhase("revealed");
-      }
-
-      if (msg.type === "END") {
-        setPhase("ended");
-      }
-    });
-
-    return () => {
-      unsub?.();
-    };
-  }, [eventId, filterLotteryId]);
+  if (error) {
+    return (
+      <div
+        className={
+          embedded
+            ? "flex h-full items-center justify-center text-white/60"
+            : "flex min-h-screen items-center justify-center text-white/60"
+        }
+      >
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -303,7 +117,7 @@ export function LotteryScreenDisplayClient({
       </header>
 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-8 pb-16">
-        {phase === "idle" && (
+        {screenPhase === "idle" && (
           <div className="text-center">
             <Gift className="mx-auto size-20 text-brand-gold/40" />
             <p className="mt-6 text-2xl text-white/50">等待控制台启动抽奖…</p>
@@ -313,86 +127,15 @@ export function LotteryScreenDisplayClient({
           </div>
         )}
 
-        {phase === "animating" && (
-          <div className="relative w-full max-w-4xl">
-            {animation === "RED_ENVELOPE" && <RedEnvelopeRain active />}
-            {animation === "SLOT_MACHINE" ? (
-              <SlotMachineAnimation
-                phase={slotPhase}
-                tierLabel={tierLabel}
-                entryCount={entryCount}
-                balls={rollingEntries.slice(0, 3).map((e, i) => ({
-                  initial: e.name.slice(0, 1),
-                  color: ["#534AB7", "#B77A12", "#2E7D32"][i] ?? "#534AB7",
-                  bg: ["#D4D0FF", "#FFE4B5", "#C8E6C9"][i] ?? "#D4D0FF",
-                }))}
-                outletBall={
-                  rollingEntries[0]
-                    ? {
-                        initial: rollingEntries[0].name.slice(0, 1),
-                        color: "#534AB7",
-                        bg: "#D4D0FF",
-                      }
-                    : undefined
-                }
-              />
-            ) : animation === "REVEAL_ONE_BY_ONE" ? (
-              <div className="space-y-6">
-                {tierLabel && (
-                  <p className="text-center text-3xl font-bold text-brand-gold">
-                    {tierLabel} 抽奖进行中
-                  </p>
-                )}
-                <ScrollListAnimation entries={rollingEntries} active />
-              </div>
-            ) : animation === "WHEEL" ? (
-              <div className="space-y-8">
-                {tierLabel && (
-                  <p className="text-center text-3xl font-bold text-brand-gold">
-                    {tierLabel} 抽奖进行中
-                  </p>
-                )}
-                <WheelAnimation active />
-              </div>
-            ) : (
-              <RollingSlot entries={rollingEntries} active />
-            )}
-            {animation !== "SLOT_MACHINE" && (
-              <>
-                <p className="mb-8 mt-8 text-center text-sm uppercase tracking-widest text-brand-gold">
-                  {animationLabel(animation)}
-                </p>
-                <div className="flex justify-center gap-2">
-                  <Sparkles className="size-5 animate-pulse text-brand-gold" />
-                  <span className="text-white/50">抽奖进行中…</span>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {phase === "revealed" && currentWinner && animation === "SLOT_MACHINE" && (
-          <SlotMachineAnimation
-            phase={slotPhase}
-            tierLabel={tierLabel}
-            winner={{
-              name: currentWinner.name,
-              company: currentWinner.company,
-              prize_name: currentWinner.prize_name,
-            }}
-            outletBall={{
-              initial: currentWinner.name.slice(0, 1),
-              color: "#534AB7",
-              bg: "#D4D0FF",
-            }}
+        {animationProps && (
+          <LotteryAnimationDispatch
+            animationType={animationType}
+            props={animationProps}
+            extras={dispatchExtras}
           />
         )}
 
-        {phase === "revealed" && currentWinner && animation !== "SLOT_MACHINE" && (
-          <WinnerReveal winner={currentWinner} title={title} />
-        )}
-
-        {phase === "ended" && (
+        {screenPhase === "ended" && (
           <div className="text-center">
             <Trophy className="mx-auto size-24 text-brand-gold" />
             <h2 className="mt-6 text-4xl font-bold">抽奖圆满落幕</h2>
@@ -401,7 +144,7 @@ export function LotteryScreenDisplayClient({
         )}
       </main>
 
-      {winners.length > 0 && phase !== "idle" && (
+      {winners.length > 0 && screenPhase !== "idle" && (
         <footer className="relative z-10 border-t border-white/10 px-8 py-4">
           <p className="mb-2 text-xs text-white/40">
             已揭晓 {progress.revealed}/{progress.quota || "?"}

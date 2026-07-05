@@ -10,6 +10,7 @@ import {
   PrizeType,
   StampOwnerType,
   StampRallyStatus,
+  BigScreenAnimationType,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
@@ -25,12 +26,16 @@ import {
   defaultOrganizerMeta,
   normalizeOrganizerEligibility,
 } from "@/lib/lottery/organizer-lottery-config";
+import {
+  normalizeBigScreenAnimationType,
+} from "@/lib/lottery/big-screen-animation-config";
 
 const metaKey = (lotteryId: string) => `organizer_lottery_meta_${lotteryId}`;
 
 export async function loadOrganizerLotteryMeta(
   eventId: string,
   lotteryId: string,
+  dbAnimation?: BigScreenAnimationType | null,
 ): Promise<OrganizerLotteryMeta> {
   const row = await prisma.eventSetting.findUnique({
     where: { eventId_key: { eventId, key: metaKey(lotteryId) } },
@@ -67,24 +72,20 @@ export async function loadOrganizerLotteryMeta(
   });
 
   const animation = obj.screen_animation;
-  const validAnimations = [
-    "SLOT_MACHINE",
-    "WHEEL",
-    "RED_ENVELOPE",
-    "REVEAL_ONE_BY_ONE",
-  ] as const;
+  const legacyAnimation =
+    typeof animation === "string" ? animation : undefined;
 
   const drawOrderRaw = obj.prize_draw_order;
   const prize_draw_order: OrganizerLotteryMeta["prize_draw_order"] =
     drawOrderRaw === "ALL_AT_ONCE" ? "ALL_AT_ONCE" : "ASC";
 
+  const big_screen_animation_type = dbAnimation
+    ? normalizeBigScreenAnimationType(dbAnimation)
+    : normalizeBigScreenAnimationType(legacyAnimation);
+
   return {
     eligibility,
-    screen_animation: validAnimations.includes(
-      animation as (typeof validAnimations)[number],
-    )
-      ? (animation as OrganizerLotteryMeta["screen_animation"])
-      : "SLOT_MACHINE",
+    big_screen_animation_type,
     prize_draw_order,
     target_entry_count:
       typeof obj.target_entry_count === "number"
@@ -177,6 +178,7 @@ async function mapLotteryDto(
     drawAt: Date | null;
     entryCount: number;
     createdAt: Date;
+    bigScreenAnimationType: BigScreenAnimationType | null;
     prizeItems: Array<{
       id: string;
       name: string;
@@ -189,7 +191,11 @@ async function mapLotteryDto(
     _count: { winners: number };
   },
 ): Promise<OrganizerLotteryDto> {
-  const meta = await loadOrganizerLotteryMeta(lottery.eventId, lottery.id);
+  const meta = await loadOrganizerLotteryMeta(
+    lottery.eventId,
+    lottery.id,
+    lottery.bigScreenAnimationType,
+  );
 
   return {
     id: lottery.id,
@@ -281,11 +287,17 @@ export async function upsertOrganizerGrandLottery(
 
   const meta: OrganizerLotteryMeta = {
     eligibility,
-    screen_animation: input.screen_animation ?? "SLOT_MACHINE",
+    big_screen_animation_type:
+      input.big_screen_animation_type ??
+      (input.screen_animation
+        ? normalizeBigScreenAnimationType(input.screen_animation)
+        : BigScreenAnimationType.ROLLING_MACHINE),
     prize_draw_order: input.prize_draw_order ?? "ASC",
     target_entry_count: input.target_entry_count ?? null,
     active_draw_tier: null,
   };
+
+  const bigScreenAnimationType = meta.big_screen_animation_type;
 
   const sortedPrizes = [...input.prizes].sort(
     (a, b) => (a.tier ?? 99) - (b.tier ?? 99),
@@ -332,6 +344,7 @@ export async function upsertOrganizerGrandLottery(
           drawAt: input.draw_at ? new Date(input.draw_at) : null,
           status,
           requireLeadCapture: false,
+          bigScreenAnimationType,
         },
       });
 
@@ -371,6 +384,7 @@ export async function upsertOrganizerGrandLottery(
         drawAt: input.draw_at ? new Date(input.draw_at) : null,
         status,
         requireLeadCapture: false,
+        bigScreenAnimationType,
         prizeItems: {
           create: sortedPrizes.map((prize, index) => ({
             name: prize.name.trim(),

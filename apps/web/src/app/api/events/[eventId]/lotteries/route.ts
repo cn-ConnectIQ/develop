@@ -145,6 +145,7 @@ export const POST = withErrorHandler(async (request, context) => {
   const isOrganizerGrand =
     body?.owner_type === "ORGANIZER" ||
     body?.eligibility != null ||
+    body?.big_screen_animation_type != null ||
     body?.screen_animation != null ||
     (Array.isArray(body?.prizes) &&
       body.prizes.length > 0 &&

@@ -14,6 +14,9 @@ import {
   syncOrganizerLotteryEntriesFromEligibility,
 } from "@/lib/lottery/organizer-lottery-service";
 import {
+  bigScreenToLegacyAnimation,
+} from "@/lib/lottery/big-screen-animation-config";
+import {
   tierLabel,
   type PrizeDrawOrder,
 } from "@/lib/lottery/organizer-lottery-config";
@@ -172,7 +175,11 @@ async function drawOneWinnerForPrize(
 
 export async function startLotteryScreen(eventId: string, lotteryId: string) {
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
-  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  const meta = await loadOrganizerLotteryMeta(
+    eventId,
+    lotteryId,
+    lottery.bigScreenAnimationType,
+  );
 
   if (
     lottery.status !== LotteryStatus.OPEN &&
@@ -229,7 +236,7 @@ export async function startLotteryScreen(eventId: string, lotteryId: string) {
   const data: LotteryScreenStartData = {
     lottery_id: lotteryId,
     title: lottery.title,
-    animation: meta.screen_animation,
+    animation: bigScreenToLegacyAnimation(meta.big_screen_animation_type),
     entry_count: entries.length,
     rolling_entries,
     prizes,
@@ -250,7 +257,11 @@ export async function revealNextLotteryScreenWinner(
   await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
 
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
-  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  const meta = await loadOrganizerLotteryMeta(
+    eventId,
+    lotteryId,
+    lottery.bigScreenAnimationType,
+  );
 
   if (meta.prize_draw_order === "ASC") {
     throw new ApiError(
@@ -367,7 +378,11 @@ export async function startLotteryTierDraw(
   await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
 
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
-  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  const meta = await loadOrganizerLotteryMeta(
+    eventId,
+    lotteryId,
+    lottery.bigScreenAnimationType,
+  );
 
   if (meta.prize_draw_order !== "ASC") {
     throw new ApiError("当前为一次性开奖模式", ErrorCode.VALIDATION_ERROR, 400);
@@ -463,7 +478,11 @@ export async function revealLotteryTierWinner(
   await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
 
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
-  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  const meta = await loadOrganizerLotteryMeta(
+    eventId,
+    lotteryId,
+    lottery.bigScreenAnimationType,
+  );
 
   if (meta.prize_draw_order !== "ASC") {
     throw new ApiError("当前为一次性开奖模式", ErrorCode.VALIDATION_ERROR, 400);
@@ -590,7 +609,11 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
   await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
 
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
-  const meta = await loadOrganizerLotteryMeta(eventId, lotteryId);
+  const meta = await loadOrganizerLotteryMeta(
+    eventId,
+    lotteryId,
+    lottery.bigScreenAnimationType,
+  );
 
   const winners = await prisma.lotteryWinner.findMany({
     where: { lotteryId },
@@ -623,7 +646,8 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
       status: lottery.status,
       draw_at: lottery.drawAt?.toISOString() ?? null,
       entry_count: entryCount,
-      animation: meta.screen_animation,
+      animation: bigScreenToLegacyAnimation(meta.big_screen_animation_type),
+      big_screen_animation_type: meta.big_screen_animation_type,
       prize_draw_order: meta.prize_draw_order,
     },
     winner_quota: winnerQuota,

@@ -1,0 +1,77 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(640px, 92vw);
+}
+
+.tierLabel {
+  margin: 0 0 1.25rem;
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 700;
+  color: #ef9f27;
+  text-align: center;
+}
+
+.scrollViewport {
+  position: relative;
+  width: 100%;
+  height: 10rem;
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 18%,
+    #000 82%,
+    transparent 100%
+  );
+}
+
+.scrollTrack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.scrollTrackActive {
+  animation: spotlight-scroll 8s linear infinite;
+}
+
+.scrollTrackStopping {
+  animation: spotlight-scroll 2.8s linear infinite;
+  filter: blur(0.3px);
+}
+
+.row {
+  white-space: nowrap;
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  color: rgba(255, 255, 255, 0.38);
+  transition:
+    color 0.4s ease,
+    transform 0.4s ease,
+    font-size 0.4s ease;
+}
+
+.rowHighlight {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 900;
+  color: #ef9f27;
+  transform: scale(1.02);
+}
+
+.revealWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+@keyframes spotlight-scroll {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}

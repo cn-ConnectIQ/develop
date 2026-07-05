@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { BigScreenAnimationType } from "@connectiq/database";
+import type { BigScreenAnimationTypeValue } from "@/lib/lottery/big-screen-animation-config";
 
 function emptyToUndefined(value: unknown) {
   if (value === "" || value === null || value === undefined) return undefined;
@@ -53,6 +55,30 @@ export const SCREEN_ANIMATION_OPTIONS = [
     bestFor: "暖场",
     duration: "5–10s",
   },
+  {
+    value: "STARLIGHT_ORBIT",
+    emoji: "🌌",
+    title: "星轨流转",
+    description: "科技感轨道旋转，适合未来主题现场",
+    bestFor: "科技场",
+    duration: "8–12s",
+  },
+  {
+    value: "PRECISION_ROLLER",
+    emoji: "🔢",
+    title: "精工数轮",
+    description: "机械滚轮逐字定格，精密公正",
+    bestFor: "正式场",
+    duration: "6–10s",
+  },
+  {
+    value: "SCROLL_UNVEILING",
+    emoji: "🏮",
+    title: "卷轴揭榜",
+    description: "水墨卷轴徐徐展开，文化庄重",
+    bestFor: "文化场",
+    duration: "6–12s",
+  },
 ] as const;
 
 /** 大屏全场抽奖（BS1）：设计稿为二选一 */
@@ -76,7 +102,8 @@ export type PrizeDrawOrder = "ASC" | "ALL_AT_ONCE";
 
 export type OrganizerLotteryMeta = {
   eligibility: OrganizerLotteryEligibility;
-  screen_animation: ScreenAnimationType;
+  /** POOL_DRAW 大屏动效（存于 lotteries.big_screen_animation_type） */
+  big_screen_animation_type: BigScreenAnimationTypeValue;
   prize_draw_order: PrizeDrawOrder;
   target_entry_count: number | null;
   /** 大屏分级开奖时当前进行中的等级（tier 数字） */
@@ -118,7 +145,7 @@ export function normalizeOrganizerEligibility(
 
 export const defaultOrganizerMeta = (): OrganizerLotteryMeta => ({
   eligibility: defaultOrganizerEligibility(),
-  screen_animation: "SLOT_MACHINE",
+  big_screen_animation_type: BigScreenAnimationType.ROLLING_MACHINE,
   prize_draw_order: "ASC",
   target_entry_count: null,
   active_draw_tier: null,
@@ -168,8 +195,18 @@ export const createOrganizerLotterySchema = z.object({
     .min(1),
   draw_at: z.string().datetime().optional().nullable(),
   eligibility: organizerEligibilitySchema.optional(),
+  big_screen_animation_type: z.nativeEnum(BigScreenAnimationType).optional(),
+  /** @deprecated 请使用 big_screen_animation_type */
   screen_animation: z
-    .enum(["SLOT_MACHINE", "WHEEL", "RED_ENVELOPE", "REVEAL_ONE_BY_ONE"])
+    .enum([
+      "SLOT_MACHINE",
+      "WHEEL",
+      "RED_ENVELOPE",
+      "STARLIGHT_ORBIT",
+      "PRECISION_ROLLER",
+      "SCROLL_UNVEILING",
+      "REVEAL_ONE_BY_ONE",
+    ])
     .optional(),
   prize_draw_order: z.enum(["ASC", "ALL_AT_ONCE"]).optional(),
   target_entry_count: z.number().int().positive().optional().nullable(),

@@ -28,13 +28,14 @@ import {
   TierPrizeListEditor,
   type TierPrizeDraft,
 } from "@/components/lottery/TierPrizeListEditor";
-import { ScreenAnimationPicker } from "@/components/lottery/ScreenAnimationPicker";
+import { BigScreenAnimationTypePicker } from "@/components/lottery/AnimationTypePicker";
+import { BigScreenAnimationType } from "@connectiq/database";
 import type {
   OrganizerLotteryDto,
   OrganizerLotteryEligibility,
   PrizeDrawOrder,
-  ScreenAnimationType,
 } from "@/lib/lottery/organizer-lottery-config";
+import type { BigScreenAnimationTypeValue } from "@/lib/lottery/big-screen-animation-config";
 import {
   defaultOrganizerEligibility,
   normalizeOrganizerEligibility,
@@ -114,8 +115,8 @@ export function OrganizerLotteryConfigurator({
   const [eligibility, setEligibility] = useState<OrganizerLotteryEligibility>(
     defaultOrganizerEligibility(),
   );
-  const [screenAnimation, setScreenAnimation] =
-    useState<ScreenAnimationType>("SLOT_MACHINE");
+  const [bigScreenAnimation, setBigScreenAnimation] =
+    useState<BigScreenAnimationTypeValue>(BigScreenAnimationType.ROLLING_MACHINE);
   const [targetEntryCount, setTargetEntryCount] = useState<number | "">("");
   const [lotteryId, setLotteryId] = useState<string | undefined>(initialLotteryId);
   const [savedLottery, setSavedLottery] = useState<OrganizerLotteryDto | null>(
@@ -148,7 +149,7 @@ export function OrganizerLotteryConfigurator({
       })),
     );
     setEligibility(normalizeOrganizerEligibility(existing.meta.eligibility));
-    setScreenAnimation(existing.meta.screen_animation);
+    setBigScreenAnimation(existing.meta.big_screen_animation_type);
     setPrizeDrawOrder(existing.meta.prize_draw_order ?? "ASC");
     setTargetEntryCount(existing.meta.target_entry_count ?? "");
   }, [existing]);
@@ -198,7 +199,7 @@ export function OrganizerLotteryConfigurator({
         })),
         draw_at: drawAt ? new Date(drawAt).toISOString() : null,
         eligibility: normalizeOrganizerEligibility(eligibility),
-        screen_animation: screenAnimation,
+        big_screen_animation_type: bigScreenAnimation,
         prize_draw_order: prizeDrawOrder,
         target_entry_count:
           targetEntryCount === "" ? null : Number(targetEntryCount),
@@ -484,12 +485,11 @@ export function OrganizerLotteryConfigurator({
 
                 <CreationSection
                   hint="大屏动效"
-                  description="二选一 · 决定投影大屏的开奖视觉（BS3–8）"
+                  description="六选一 · 决定投影大屏的开奖视觉（BS3–8）"
                 >
-                  <ScreenAnimationPicker
-                    variant="grand"
-                    value={screenAnimation}
-                    onChange={setScreenAnimation}
+                  <BigScreenAnimationTypePicker
+                    value={bigScreenAnimation}
+                    onChange={setBigScreenAnimation}
                   />
                   {prizeDrawOrder === "ASC" && (
                     <p className="mt-3 text-sm text-text-muted">
@@ -581,7 +581,7 @@ export function OrganizerLotteryConfigurator({
             }
             preview={
               <ScreenAnimationPreview
-                animation={screenAnimation}
+                animation={bigScreenAnimation}
                 title={title}
                 tier={prizes[0]?.tier ?? 1}
                 entryCount={stats?.eligible_count ?? stats?.entered_count ?? undefined}

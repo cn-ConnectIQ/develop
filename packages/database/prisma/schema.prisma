@@ -380,6 +380,16 @@ enum AnimationType {
   GIFT_RAIN // 红包雨
 }
 
+/// 类型① POOL_DRAW 大屏投影动效（与 animation_type 分离，避免选项混用）
+enum BigScreenAnimationType {
+  ROLLING_MACHINE // 摇号机
+  SPOTLIGHT_SCROLL // 滚动名单
+  REEL_OF_HONOR // 荣耀转轮
+  STARLIGHT_ORBIT // 星轨流转
+  PRECISION_ROLLER // 精工数轮
+  SCROLL_UNVEILING // 卷轴揭榜
+}
+
 /// 类型② 触发抽奖的用户动作
 enum TriggerAction {
   FILL_FORM // 填表单
@@ -1404,6 +1414,8 @@ model Lottery {
 
   lotteryCategory LotteryCategory @default(AUTO_PROBABILITY) @map("lottery_category")
   animationType   AnimationType?  @map("animation_type")
+  /// 仅 POOL_DRAW 大屏全场抽奖使用；与 animation_type（AUTO_PROBABILITY 等）分离
+  bigScreenAnimationType BigScreenAnimationType? @map("big_screen_animation_type")
   triggerAction   TriggerAction?  @map("trigger_action")
 
   requireLeadCapture Boolean @default(true) @map("require_lead_capture")

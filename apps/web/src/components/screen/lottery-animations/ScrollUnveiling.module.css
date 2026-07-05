@@ -1,0 +1,229 @@
+.root {
+  --scroll-parchment: #f3e8d4;
+  --scroll-parchment-dark: #dcc9a8;
+  --scroll-ink: #1a1410;
+  --scroll-seal: #b91c1c;
+  --scroll-gold: #c9a227;
+  position: relative;
+  width: min(960px, 96vw);
+  margin: 0 auto;
+  min-height: 26rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem 2rem;
+  background: #0c0c14;
+  border-radius: 1.25rem;
+  overflow: hidden;
+}
+
+.inkWash {
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.inkBlob {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(40, 40, 50, 0.55) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.watermark {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.5rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: rgba(201, 162, 39, 0.35);
+  pointer-events: none;
+  user-select: none;
+  z-index: 5;
+}
+
+.heading {
+  position: relative;
+  z-index: 2;
+  margin: 0 0 1.75rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: rgba(243, 232, 212, 0.92);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.stage {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.stageRevealed {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.scrollWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.scrollWrapSway {
+  animation: scroll-sway 4.5s ease-in-out infinite;
+}
+
+.scrollSvg {
+  width: min(520px, 88vw);
+  height: auto;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45));
+}
+
+.paperClip {
+  position: relative;
+  transition: clip-path 2.4s cubic-bezier(0.25, 0.85, 0.35, 1);
+}
+
+.paperClipRolled {
+  clip-path: inset(0 42% 0 42% round 4px);
+}
+
+.paperClipUnrolling {
+  clip-path: inset(0 0 0 0 round 4px);
+}
+
+.paperClipOpen {
+  clip-path: inset(0 0 0 0 round 4px);
+}
+
+.scrollAssembly {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.content {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  width: min(52%, 14rem);
+  text-align: center;
+  pointer-events: none;
+}
+
+.nameLine {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem;
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.35;
+  color: var(--scroll-ink);
+}
+
+.companyLine {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.1rem;
+  margin: 0.75rem 0 0;
+  font-size: clamp(1rem, 2.2vw, 1.35rem);
+  color: rgba(26, 20, 16, 0.72);
+}
+
+.char {
+  opacity: 0;
+  display: inline-block;
+}
+
+.charHidden {
+  opacity: 0;
+}
+
+.charRevealed {
+  opacity: 1;
+}
+
+.charReveal {
+  animation: char-write 0.55s ease forwards;
+}
+
+.seal {
+  position: absolute;
+  right: 14%;
+  top: 38%;
+  width: 3.25rem;
+  height: 3.25rem;
+  opacity: 0;
+  transform: scale(1.55);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.sealStamp {
+  animation: seal-stamp 0.45s cubic-bezier(0.34, 1.35, 0.64, 1) forwards;
+}
+
+.sealSvg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.cardAside {
+  flex: 1;
+  min-width: min(360px, 90vw);
+  max-width: 420px;
+}
+
+@keyframes scroll-sway {
+  0%,
+  100% {
+    transform: rotate(-1.8deg);
+  }
+  50% {
+    transform: rotate(1.8deg);
+  }
+}
+
+@keyframes char-write {
+  0% {
+    opacity: 0;
+    transform: translateY(0.35rem);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes seal-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.55) rotate(-8deg);
+  }
+  70% {
+    opacity: 0.95;
+    transform: scale(0.92) rotate(2deg);
+  }
+  100% {
+    opacity: 0.88;
+    transform: scale(1) rotate(0deg);
+  }
+}

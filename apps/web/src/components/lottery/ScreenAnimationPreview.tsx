@@ -1,12 +1,16 @@
 "use client";
 
-import type { ScreenAnimationType } from "@/lib/lottery/organizer-lottery-config";
+import { BigScreenAnimationType } from "@connectiq/database";
 import { tierLabel } from "@/lib/lottery/organizer-lottery-config";
+import {
+  bigScreenToLegacyAnimation,
+  type BigScreenAnimationTypeValue,
+} from "@/lib/lottery/big-screen-animation-config";
 import { SlotMachineAnimation } from "@/components/lottery/SlotMachineAnimation";
 import { cn } from "@/lib/utils";
 
 export type ScreenAnimationPreviewProps = {
-  animation: ScreenAnimationType;
+  animation: BigScreenAnimationTypeValue;
   title: string;
   tier?: number;
   entryCount?: number;
@@ -43,6 +47,74 @@ function ScrollListPreview({ active }: { active?: boolean }) {
   );
 }
 
+function GenericBigScreenPreview({
+  animation,
+}: {
+  animation: BigScreenAnimationTypeValue;
+}) {
+  const legacy = bigScreenToLegacyAnimation(animation);
+
+  if (legacy === "WHEEL") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div
+          className="size-24 animate-spin rounded-full bg-[conic-gradient(#0F6E56_0_60deg,#EF9F27_60deg_120deg,#C77A1B_120deg_180deg,#0F6E56_180deg_240deg,#EF9F27_240deg_300deg,#C77A1B_300deg_360deg)]"
+          style={{ animationDuration: "3s" }}
+        />
+      </div>
+    );
+  }
+
+  if (legacy === "STARLIGHT_ORBIT" || legacy === "RED_ENVELOPE") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="relative size-20">
+          <div className="absolute inset-0 rounded-full border border-cyan-400/30" />
+          {[0, 120, 240].map((deg) => (
+            <span
+              key={deg}
+              className="absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400"
+              style={{ transform: `rotate(${deg}deg) translateY(-28px)` }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (legacy === "PRECISION_ROLLER") {
+    return (
+      <div className="flex h-full items-center justify-center gap-1.5">
+        {["3", "2", "8", "5"].map((digit) => (
+          <div
+            key={digit}
+            className="flex h-12 w-8 items-center justify-center rounded-md border border-white/15 bg-[#2A2A50] font-mono text-lg font-bold text-white"
+          >
+            {digit}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (legacy === "SCROLL_UNVEILING") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
+        <div className="relative h-10 w-40 overflow-hidden rounded bg-[#f3e8d4]/90">
+          <div className="absolute inset-y-0 left-0 w-2 bg-[#5c4f3a]" />
+          <div className="absolute inset-y-0 right-0 w-2 bg-[#5c4f3a]" />
+          <p className="flex h-full items-center justify-center text-sm font-bold text-[#1a1410]">
+            揭晓
+          </p>
+        </div>
+        <p className="text-xs text-amber-200/60">卷轴揭榜</p>
+      </div>
+    );
+  }
+
+  return <ScrollListPreview active />;
+}
+
 export function ScreenAnimationPreview({
   animation,
   title,
@@ -50,6 +122,9 @@ export function ScreenAnimationPreview({
   entryCount = 328,
 }: ScreenAnimationPreviewProps) {
   const label = tierLabel(tier);
+  const isRollingMachine = animation === BigScreenAnimationType.ROLLING_MACHINE;
+  const isSpotlightScroll =
+    animation === BigScreenAnimationType.SPOTLIGHT_SCROLL;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -58,7 +133,7 @@ export function ScreenAnimationPreview({
       </p>
       <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-white/10 bg-[#0D0D1F]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(83,74,183,0.25)_0%,transparent_65%)]" />
-        {animation === "SLOT_MACHINE" ? (
+        {isRollingMachine ? (
           <SlotMachineAnimation
             compact
             phase="animating"
@@ -71,23 +146,10 @@ export function ScreenAnimationPreview({
             ]}
             outletBall={{ initial: "李", color: "#534AB7", bg: "#D4D0FF" }}
           />
-        ) : animation === "REVEAL_ONE_BY_ONE" ? (
+        ) : isSpotlightScroll ? (
           <ScrollListPreview active />
-        ) : animation === "WHEEL" ? (
-          <div className="flex h-full items-center justify-center">
-            <div
-              className="size-24 animate-spin rounded-full bg-[conic-gradient(#0F6E56_0_60deg,#EF9F27_60deg_120deg,#C77A1B_120deg_180deg,#0F6E56_180deg_240deg,#EF9F27_240deg_300deg,#C77A1B_300deg_360deg)]"
-              style={{ animationDuration: "3s" }}
-            />
-          </div>
         ) : (
-          <div className="flex h-full items-center justify-center gap-4 text-3xl">
-            {["🧧", "🎁", "🧧", "🎊"].map((e, i) => (
-              <span key={i} className="animate-bounce" style={{ animationDelay: `${i * 0.15}s` }}>
-                {e}
-              </span>
-            ))}
-          </div>
+          <GenericBigScreenPreview animation={animation} />
         )}
       </div>
       <div className="space-y-1">
