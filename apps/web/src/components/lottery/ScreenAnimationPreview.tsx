@@ -1,6 +1,6 @@
 "use client";
 
-import { BigScreenAnimationType } from "@connectiq/database";
+import { BigScreenAnimationType } from "@/lib/lottery/big-screen-animation-config";
 import { tierLabel } from "@/lib/lottery/organizer-lottery-config";
 import {
   bigScreenToLegacyAnimation,

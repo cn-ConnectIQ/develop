@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { BigScreenAnimationType } from "@connectiq/database";
-import type { BigScreenAnimationTypeValue } from "@/lib/lottery/big-screen-animation-config";
+import {
+  BigScreenAnimationType,
+  type BigScreenAnimationTypeValue,
+} from "@/lib/lottery/big-screen-animation-config";
 
 function emptyToUndefined(value: unknown) {
   if (value === "" || value === null || value === undefined) return undefined;

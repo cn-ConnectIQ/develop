@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { BigScreenAnimationType } from "@connectiq/database";
+import { BigScreenAnimationType } from "@/lib/lottery/big-screen-animation-config";
 import {
   ANIMATION_TYPE_OPTIONS,
   type AnimationTypeValue,

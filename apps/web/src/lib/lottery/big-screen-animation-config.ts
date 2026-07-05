@@ -1,7 +1,14 @@
-import { BigScreenAnimationType } from "@connectiq/database";
 import type { ScreenAnimationType } from "@/lib/lottery/organizer-lottery-config";
 
-export { BigScreenAnimationType };
+/** 与 Prisma BigScreenAnimationType 一致，供客户端组件安全引用（勿从 @connectiq/database 导入） */
+export const BigScreenAnimationType = {
+  ROLLING_MACHINE: "ROLLING_MACHINE",
+  SPOTLIGHT_SCROLL: "SPOTLIGHT_SCROLL",
+  REEL_OF_HONOR: "REEL_OF_HONOR",
+  STARLIGHT_ORBIT: "STARLIGHT_ORBIT",
+  PRECISION_ROLLER: "PRECISION_ROLLER",
+  SCROLL_UNVEILING: "SCROLL_UNVEILING",
+} as const;
 
 export type BigScreenAnimationTypeValue =
   (typeof BigScreenAnimationType)[keyof typeof BigScreenAnimationType];

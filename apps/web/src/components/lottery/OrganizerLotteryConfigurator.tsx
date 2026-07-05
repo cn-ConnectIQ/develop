@@ -29,7 +29,7 @@ import {
   type TierPrizeDraft,
 } from "@/components/lottery/TierPrizeListEditor";
 import { BigScreenAnimationTypePicker } from "@/components/lottery/AnimationTypePicker";
-import { BigScreenAnimationType } from "@connectiq/database";
+import { BigScreenAnimationType } from "@/lib/lottery/big-screen-animation-config";
 import type {
   OrganizerLotteryDto,
   OrganizerLotteryEligibility,

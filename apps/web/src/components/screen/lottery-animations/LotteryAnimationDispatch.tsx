@@ -1,21 +1,13 @@
 "use client";
 
-import { BigScreenAnimationType } from "@connectiq/database";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ReelOfHonor,
-  StarlightOrbit,
-  PrecisionRoller,
-  ScrollUnveiling,
-  RollingMachine,
-  SpotlightScroll,
-  buildReelColumns,
-  resolveReelFinalIndices,
-  DEFAULT_REEL_STOP_SEQUENCE,
-  resolveOrbitWinnerIndex,
-  buildPrecisionRollerConfig,
-  calcScrollUnveilingDuration,
-} from "@/components/screen/lottery-animations";
+import { ReelOfHonor, buildReelColumns, resolveReelFinalIndices, DEFAULT_REEL_STOP_SEQUENCE } from "@/components/screen/lottery-animations/ReelOfHonor";
+import { StarlightOrbit, resolveOrbitWinnerIndex } from "@/components/screen/lottery-animations/StarlightOrbit";
+import { PrecisionRoller, buildPrecisionRollerConfig } from "@/components/screen/lottery-animations/PrecisionRoller";
+import { ScrollUnveiling, calcScrollUnveilingDuration } from "@/components/screen/lottery-animations/ScrollUnveiling";
+import { RollingMachine } from "@/components/screen/lottery-animations/RollingMachine";
+import { SpotlightScroll } from "@/components/screen/lottery-animations/SpotlightScroll";
+import { BigScreenAnimationType } from "@/lib/lottery/big-screen-animation-config";
 import type {
   LotteryAnimationPhase,
   LotteryAnimationProps,
