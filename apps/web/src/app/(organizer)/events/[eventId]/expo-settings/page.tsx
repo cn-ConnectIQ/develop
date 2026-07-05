@@ -1,11 +1,7 @@
 import { EventType, prisma } from "@connectiq/database";
 import { notFound, redirect } from "next/navigation";
-import { ExpoOverviewSections } from "@/components/expo/ExpoOverviewSections";
-import {
-  AdminContent,
-  AdminHeader,
-  AdminPage,
-} from "@/components/admin/admin-header";
+import { ExpoSettingsPageClient } from "@/components/expo/ExpoSettingsPageClient";
+import { loadExpoSettingsPayload } from "@/lib/expo-settings-service";
 
 export default async function ExpoSettingsPage({
   params,
@@ -27,16 +23,13 @@ export default async function ExpoSettingsPage({
     redirect(`/events/${eventId}`);
   }
 
+  const initialData = await loadExpoSettingsPayload(eventId);
+
   return (
-    <AdminPage>
-      <AdminHeader
-        title="展会配置"
-        description={event.name}
-        breadcrumb={["活动", "展会配置"]}
-      />
-      <AdminContent>
-        <ExpoOverviewSections expoId={eventId} />
-      </AdminContent>
-    </AdminPage>
+    <ExpoSettingsPageClient
+      eventId={eventId}
+      eventName={event.name}
+      initialData={initialData}
+    />
   );
 }

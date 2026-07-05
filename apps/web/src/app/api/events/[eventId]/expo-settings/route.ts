@@ -4,10 +4,17 @@ import { z } from "zod";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireAccountAdmin,
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import {
+  getExpoSettings,
+  loadExpoSettingsPayload,
+} from "@/lib/expo-settings-service";
+
+export { getExpoSettings, type ExpoSettingKey } from "@/lib/expo-settings-service";
+
+const patchSchema = z.record(z.string(), z.unknown());
 
 const EXPO_KEYS = [
   "expo_registration",
@@ -16,24 +23,6 @@ const EXPO_KEYS = [
   "expo_notifications",
 ] as const;
 
-export type ExpoSettingKey = (typeof EXPO_KEYS)[number];
-
-export async function getExpoSettings(eventId: string) {
-  const rows = await prisma.eventSetting.findMany({
-    where: {
-      eventId,
-      key: { in: [...EXPO_KEYS] },
-    },
-  });
-  const map: Record<string, unknown> = {};
-  for (const row of rows) {
-    map[row.key] = row.value;
-  }
-  return map;
-}
-
-const patchSchema = z.record(z.string(), z.unknown());
-
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
@@ -41,31 +30,8 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
   await requireEventAccess(eventId);
 
-  const settings = await getExpoSettings(eventId);
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: {
-      id: true,
-      name: true,
-      orgId: true,
-      org: {
-        select: {
-          staff: {
-            include: {
-              user: { select: { id: true, name: true, phone: true } },
-            },
-          },
-        },
-      },
-    },
-  });
-  if (!event) {
-    return createErrorResponse("活动不存在", ErrorCode.NOT_FOUND, 404);
-  }
-  return createSuccessResponse({
-    settings,
-    staff: event.org?.staff ?? [],
-  });
+  const data = await loadExpoSettingsPayload(eventId);
+  return createSuccessResponse(data);
 });
 
 export const PATCH = withErrorHandler(async (request, context) => {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { BarChart3, Bot, Bell, ClipboardList, Handshake, Send, Trophy, Users } from "lucide-react";
+import { BarChart3, Bot, Bell, ClipboardList, Handshake, Send, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
@@ -13,15 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
-
-type ExpoSettingsPayload = {
-  settings: Record<string, Record<string, unknown>>;
-  staff: Array<{
-    id: string;
-    role: string;
-    user: { id: string; name: string; phone: string | null };
-  }>;
-};
+import type { ExpoSettingsPayload } from "@/lib/expo-settings-service";
 
 function getSetting<T extends Record<string, unknown>>(
   settings: Record<string, Record<string, unknown>>,
@@ -39,12 +31,21 @@ async function fetchExpoSettings(expoId: string) {
   return (await res.json()).data as ExpoSettingsPayload;
 }
 
-export function ExpoOverviewSections({ expoId }: { expoId: string }) {
+export function ExpoOverviewSections({
+  expoId,
+  initialData,
+}: {
+  expoId: string;
+  initialData?: ExpoSettingsPayload;
+}) {
   const queryClient = useQueryClient();
   const { data: featureFlags } = useEventFeatureFlags(expoId);
   const { data } = useQuery({
     queryKey: ["expo-settings", expoId],
     queryFn: () => fetchExpoSettings(expoId),
+    initialData,
+    staleTime: initialData ? 60_000 : 0,
+    refetchOnMount: initialData ? "always" : true,
   });
 
   const registration = getSetting(data?.settings ?? {}, "expo_registration", {
