@@ -14,6 +14,10 @@ import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
 import { cacheDel, cacheGet } from "@/lib/redis";
 import { smsVerifyKey } from "@/lib/sms";
 import { code2Session } from "@/lib/wechat/auth";
+import {
+  bindWechatIdentities,
+  resolveUserIdFromWechatIdentities,
+} from "@/lib/wechat/identity";
 import { getWxMiniCredentials } from "@/lib/wechat/config";
 import { getWechatAccessToken } from "@/lib/wechat/access-token";
 
@@ -98,9 +102,12 @@ async function findUserByPhone(phone: string) {
   });
 }
 
-async function exchangeWxCode(code: string): Promise<{ openid: string }> {
-  const { openid } = await code2Session(code);
-  return { openid };
+async function exchangeWxCode(code: string): Promise<{
+  openid: string;
+  unionid?: string;
+}> {
+  const session = await code2Session(code);
+  return { openid: session.openid, unionid: session.unionid };
 }
 
 async function exchangePhoneCode(phoneCode: string): Promise<string> {
@@ -139,42 +146,44 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
   return phone;
 }
 
-async function bindWechatOpenIdToUser(userId: string, openid: string) {
-  const existingByOpenId = await prisma.userIdentity.findFirst({
-    where: { provider: "wechat_mini", value: openid },
-    select: { id: true, userId: true },
-  });
-  if (existingByOpenId && existingByOpenId.userId !== userId) {
-    await prisma.userIdentity.delete({ where: { id: existingByOpenId.id } });
-  }
-
-  await prisma.userIdentity.upsert({
-    where: {
-      userId_provider: { userId, provider: "wechat_mini" },
-    },
-    create: {
-      userId,
-      provider: "wechat_mini",
-      value: openid,
-      verified: true,
-    },
-    update: {
-      value: openid,
-      verified: true,
-    },
+async function bindWechatOpenIdToUser(
+  userId: string,
+  openid: string,
+  unionid?: string,
+) {
+  await bindWechatIdentities(userId, {
+    miniOpenId: openid,
+    unionId: unionid,
   });
 }
 
 /** @deprecated 内部请用 bindWechatOpenIdToUser */
-async function ensureWechatIdentity(userId: string, openid: string) {
-  await bindWechatOpenIdToUser(userId, openid);
+async function ensureWechatIdentity(
+  userId: string,
+  openid: string,
+  unionid?: string,
+) {
+  await bindWechatOpenIdToUser(userId, openid, unionid);
 }
 
-async function findOrCreateUserByOpenId(openid: string): Promise<DbUser> {
-  const existing = await findUserByWechatOpenId(openid);
-  if (existing) {
-    await ensureWechatIdentity(existing.id, openid);
-    return existing;
+async function findOrCreateUserByOpenId(
+  openid: string,
+  unionid?: string,
+): Promise<DbUser> {
+  const existingId = await resolveUserIdFromWechatIdentities({
+    channel: "mini",
+    openId: openid,
+    unionId: unionid,
+  });
+  if (existingId) {
+    const user = await prisma.user.findUnique({
+      where: { id: existingId },
+      select: userSelect,
+    });
+    if (user) {
+      await bindWechatOpenIdToUser(user.id, openid, unionid);
+      return user;
+    }
   }
 
   const email = openidToEmail(openid);
@@ -190,17 +199,11 @@ async function findOrCreateUserByOpenId(openid: string): Promise<DbUser> {
           registrationSource: RegistrationSource.WECHAT,
         },
       },
-      identities: {
-        create: {
-          provider: "wechat_mini",
-          value: openid,
-          verified: true,
-        },
-      },
     },
     select: userSelect,
   });
 
+  await bindWechatOpenIdToUser(user.id, openid, unionid);
   return user;
 }
 
@@ -349,9 +352,9 @@ export async function miniWxLogin(
   code: string,
   eventId?: string,
 ): Promise<MiniWxLoginResult> {
-  const { openid } = await exchangeWxCode(code);
-  const user = await findOrCreateUserByOpenId(openid);
-  await bindWechatOpenIdToUser(user.id, openid);
+  const { openid, unionid } = await exchangeWxCode(code);
+  const user = await findOrCreateUserByOpenId(openid, unionid);
+  await bindWechatOpenIdToUser(user.id, openid, unionid);
   await linkUserToEvent(user.id, eventId);
 
   return buildMiniLoginResult(user.id);
@@ -388,8 +391,8 @@ export async function miniPhoneLogin(
   }
 
   if (wxCode) {
-    const { openid } = await exchangeWxCode(wxCode);
-    await bindWechatOpenIdToUser(user.id, openid);
+    const { openid, unionid } = await exchangeWxCode(wxCode);
+    await bindWechatOpenIdToUser(user.id, openid, unionid);
   }
 
   await linkUserToEvent(user.id, eventId);
@@ -409,7 +412,7 @@ export async function miniWxLoginWithPhone(
   phoneCode: string,
   eventId?: string,
 ): Promise<MiniWxLoginResult> {
-  const [{ openid }, phone] = await Promise.all([
+  const [{ openid, unionid }, phone] = await Promise.all([
     exchangeWxCode(wxCode),
     exchangePhoneCode(phoneCode),
   ]);
@@ -419,7 +422,7 @@ export async function miniWxLoginWithPhone(
     user = await createEndUserByPhone(phone);
   }
 
-  await bindWechatOpenIdToUser(user.id, openid);
+  await bindWechatOpenIdToUser(user.id, openid, unionid);
   await linkUserToEvent(user.id, eventId);
 
   return buildMiniLoginResult(user.id);

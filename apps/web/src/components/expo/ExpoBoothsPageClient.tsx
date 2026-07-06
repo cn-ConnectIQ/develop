@@ -1,9 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Map, ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ClipboardList,
+  Map as MapIcon,
+  Monitor,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
@@ -41,6 +50,11 @@ import {
   TableToolbar,
 } from "@/components/ui/table";
 import { StatusChip, type StatusChipVariant } from "@/components/ui/status-chip";
+import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
+import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
+import type { BoothRankingItem } from "@/lib/booth-rankings-service";
+
+type SortMode = "code" | "popularity";
 
 type BoothRow = {
   id: string;
@@ -63,6 +77,23 @@ const STATUS_OPTIONS = [
   { value: "OCCUPIED", label: "已入驻" },
 ] as const;
 
+async function fetchRankings(eventId: string) {
+  const res = await fetch(`/api/events/${eventId}/booth-rankings`);
+  if (!res.ok) return { rankings: [] as BoothRankingItem[] };
+  const json = (await res.json()) as { data?: { rankings?: BoothRankingItem[] } };
+  return { rankings: json.data?.rankings ?? [] };
+}
+
+function HeatChangeBadge({ change }: { change: number }) {
+  if (change === 0) return <span className="text-text-muted">—</span>;
+  const up = change > 0;
+  return (
+    <span className={up ? "text-brand-green" : "text-brand-red"}>
+      {up ? "↑" : "↓"}
+      {Math.abs(change)}
+    </span>
+  );
+}
 async function fetchBooths(eventId: string): Promise<BoothMapData> {
   const res = await fetch(`/api/events/${eventId}/booths`);
   if (!res.ok) throw new Error("加载失败");
@@ -106,23 +137,72 @@ export function ExpoBoothsPageClient({
   eventName: string;
 }) {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const { data: featureFlags } = useEventFeatureFlags(eventId);
+  const showRanking = isFeatureFlagEnabled(featureFlags, "boothRanking");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<BoothRow | null>(null);
   const [form, setForm] = useState<BoothForm>(emptyForm);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<SortMode>(
+    searchParams.get("sort") === "popularity" ? "popularity" : "code",
+  );
+
+  useEffect(() => {
+    if (showRanking && searchParams.get("sort") === "popularity") {
+      setSortBy("popularity");
+    }
+  }, [showRanking, searchParams]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["expo-booths", eventId],
     queryFn: () => fetchBooths(eventId),
   });
 
+  const {
+    data: rankingData,
+    isFetching: rankingsFetching,
+    refetch: refetchRankings,
+  } = useQuery({
+    queryKey: ["booth-rankings", eventId],
+    queryFn: () => fetchRankings(eventId),
+    refetchInterval: 60_000,
+    enabled: showRanking,
+  });
+
   const booths = data?.booths ?? [];
   const exhibitors = data?.exhibitors ?? [];
+
+  const rankingMap = useMemo(
+    () => new Map((rankingData?.rankings ?? []).map((row) => [row.booth_id, row])),
+    [rankingData?.rankings],
+  );
 
   const filtered = useMemo(() => {
     if (statusFilter === "all") return booths;
     return booths.filter((b) => b.status === statusFilter);
   }, [booths, statusFilter]);
+
+  const visibleBooths = useMemo(() => {
+    if (!showRanking || sortBy === "code") return filtered;
+    return [...filtered].sort((a, b) => {
+      const rankA = rankingMap.get(a.id)?.rank ?? 9999;
+      const rankB = rankingMap.get(b.id)?.rank ?? 9999;
+      return rankA - rankB;
+    });
+  }, [filtered, sortBy, rankingMap, showRanking]);
+
+  const exhibitorOptions = useMemo(() => {
+    if (!editing) return exhibitors;
+    if (exhibitors.some((ex) => ex.id === editing.exhibitor.id)) return exhibitors;
+    return [
+      { id: editing.exhibitor.id, name: editing.exhibitor.name },
+      ...exhibitors,
+    ];
+  }, [exhibitors, editing]);
+
+  const selectedExhibitorName =
+    exhibitorOptions.find((ex) => ex.id === form.exhibitorId)?.name ?? "";
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -229,12 +309,39 @@ export function ExpoBoothsPageClient({
         description={eventName}
         breadcrumb={["展商管理", "展商列表"]}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {showRanking && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={rankingsFetching}
+                  onClick={() => {
+                    void refetchRankings();
+                    toast.success("热度数据已刷新");
+                  }}
+                >
+                  <RefreshCw
+                    className={`mr-1 size-4 ${rankingsFetching ? "animate-spin" : ""}`}
+                  />
+                  刷新热度
+                </Button>
+                <a
+                  href={`/events/${eventId}/interactions/bigscreen?tab=booth_ranking`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center rounded-lg bg-brand-purple px-4 text-sm text-white hover:bg-brand-purple/90"
+                >
+                  <Monitor className="mr-1 size-4" />
+                  大屏投放
+                </a>
+              </>
+            )}
             <Link
               href={`/events/${eventId}/exhibitors/map`}
               className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"
             >
-              <Map className="mr-1 size-4" />
+              <MapIcon className="mr-1 size-4" />
               展位地图
             </Link>
             <Button
@@ -261,7 +368,11 @@ export function ExpoBoothsPageClient({
 
         <SectionCard
           title={`全部展位（${booths.length}）`}
-          description="管理展位编号、展商分配与入驻状态"
+          description={
+            showRanking
+              ? "管理展位编号、展商分配与入驻状态；浏览量综合扫码与线索，可按人气排序"
+              : "管理展位编号、展商分配与入驻状态"
+          }
         >
           <div className="space-y-4">
           <TableToolbar>
@@ -281,11 +392,25 @@ export function ExpoBoothsPageClient({
                 ))}
               </SelectContent>
             </Select>
+            {showRanking && (
+              <Select
+                value={sortBy}
+                onValueChange={(v) => setSortBy((v as SortMode) ?? "code")}
+              >
+                <SelectTrigger className="h-9 w-36">
+                  <SelectValue placeholder="排序" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="code">按展位号</SelectItem>
+                  <SelectItem value="popularity">按人气</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </TableToolbar>
 
           {isLoading ? (
             <p className="py-12 text-center text-sm text-text-secondary">加载中…</p>
-          ) : filtered.length === 0 ? (
+          ) : visibleBooths.length === 0 ? (
             <p className="py-12 text-center text-sm text-text-secondary">
               {booths.length === 0
                 ? "暂无展位，点击「新建展位」开始配置"
@@ -300,13 +425,23 @@ export function ExpoBoothsPageClient({
                     <TableHead>名称</TableHead>
                     <TableHead>展商</TableHead>
                     <TableHead>状态</TableHead>
+                    {showRanking && (
+                      <>
+                        <TableHead>排名</TableHead>
+                        <TableHead>浏览</TableHead>
+                        <TableHead>今日浏览</TableHead>
+                        <TableHead>30 分钟</TableHead>
+                      </>
+                    )}
+                    {!showRanking && <TableHead>今日访客</TableHead>}
                     <TableHead>线索</TableHead>
-                    <TableHead>今日访客</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((booth) => (
+                  {visibleBooths.map((booth) => {
+                    const heat = rankingMap.get(booth.id);
+                    return (
                     <TableRow key={booth.id} className="h-12">
                       <TableCell className="font-mono font-medium text-brand-blue">
                         {booth.code}
@@ -337,10 +472,44 @@ export function ExpoBoothsPageClient({
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      {showRanking && (
+                        <>
+                          <TableCell className="tabular-nums">
+                            {heat ? (
+                              <span
+                                className={
+                                  heat.rank <= 3
+                                    ? "font-bold text-brand-gold"
+                                    : "text-text-secondary"
+                                }
+                              >
+                                #{heat.rank}
+                              </span>
+                            ) : (
+                              <span className="text-text-muted">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {heat?.total_visitors ?? 0}
+                          </TableCell>
+                          <TableCell className="tabular-nums font-medium">
+                            {heat?.today_visitors ?? booth.stats.todayVisitors}
+                          </TableCell>
+                          <TableCell className="tabular-nums">
+                            {heat ? (
+                              <HeatChangeBadge change={heat.change} />
+                            ) : (
+                              <span className="text-text-muted">—</span>
+                            )}
+                          </TableCell>
+                        </>
+                      )}
+                      {!showRanking && (
+                        <TableCell className="tabular-nums">
+                          {booth.stats.todayVisitors}
+                        </TableCell>
+                      )}
                       <TableCell className="tabular-nums">{booth._count.leads}</TableCell>
-                      <TableCell className="tabular-nums">
-                        {booth.stats.todayVisitors}
-                      </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
                           <Link
@@ -382,7 +551,8 @@ export function ExpoBoothsPageClient({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableShell>
@@ -422,10 +592,12 @@ export function ExpoBoothsPageClient({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择展商" />
+                  <SelectValue placeholder="选择展商">
+                    {selectedExhibitorName || undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {exhibitors.map((ex) => (
+                  {exhibitorOptions.map((ex) => (
                     <SelectItem key={ex.id} value={ex.id}>
                       {ex.name}
                     </SelectItem>
@@ -442,7 +614,7 @@ export function ExpoBoothsPageClient({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>{boothStatusLabel(form.status)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((opt) => (

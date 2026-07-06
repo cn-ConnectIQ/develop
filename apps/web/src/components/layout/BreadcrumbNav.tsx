@@ -29,7 +29,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   "speed-networking": "Speed Networking",
   "ai-referral": "AI 引荐",
   "high-value-buyer-push": "高价值买家推送",
-  manage: "活动管理",
+  manage: "活动工作台",
   scan: "扫码核验",
   "admin-leads": "全场线索",
   "exhibitor-reviews": "展商审核",

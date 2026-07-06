@@ -1,6 +1,4 @@
-import { prisma } from "@connectiq/database";
-import { notFound } from "next/navigation";
-import { BoothRankingPageClient } from "@/components/expo/BoothRankingPageClient";
+import { redirect } from "next/navigation";
 
 export default async function BoothRankingPage({
   params,
@@ -8,13 +6,5 @@ export default async function BoothRankingPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { id: true },
-  });
-
-  if (!event) notFound();
-
-  return <BoothRankingPageClient eventId={eventId} />;
+  redirect(`/events/${eventId}/exhibitors/booths?sort=popularity`);
 }

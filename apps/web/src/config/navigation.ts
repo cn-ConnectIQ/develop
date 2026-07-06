@@ -188,12 +188,6 @@ function getEventNavigationGroups(
                 icon: LayoutDashboard,
               },
               {
-                label: "活动管理",
-                href: `/events/${eventId}/manage`,
-                icon: LayoutGrid,
-                isNew: true,
-              },
-              {
                 label: "活动设置",
                 href: `/events/${eventId}/settings`,
                 icon: Settings,
@@ -339,12 +333,6 @@ function getEventNavigationGroups(
                 icon: Trophy,
                 isNew: true,
                 menuKey: "stamp-rally",
-              },
-              {
-                label: "展位人气榜",
-                href: `/events/${eventId}/booth-ranking`,
-                icon: BarChart3,
-                isNew: true,
               },
             ],
           },

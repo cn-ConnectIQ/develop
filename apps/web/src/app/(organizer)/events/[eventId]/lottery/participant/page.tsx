@@ -28,7 +28,7 @@ export default async function ParticipantLotteryListPage({
       title="参与人抽奖"
       description="管理展位/现场扫码即抽或即领"
     >
-      <ParticipantLotteryListClient eventId={eventId} />
+      <ParticipantLotteryListClient eventId={eventId} eventName={event.name} />
     </FeatureFlagGate>
   );
 }

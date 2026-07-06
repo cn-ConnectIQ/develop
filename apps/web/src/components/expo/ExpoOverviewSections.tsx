@@ -380,16 +380,16 @@ export function ExpoOverviewSections({
       {featureFlags?.boothRanking && (
         <SectionCard
           id="booth-ranking"
-          title="展位人气榜（AI-03）"
-          description="实时展位访问与线索热度排行，可投放至互动大屏"
+          title="展位人气（AI-03）"
+          description="在展商列表中按人气排序查看浏览量与排名，可投放至互动大屏"
         >
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              href={`/events/${expoId}/booth-ranking`}
+              href={`/events/${expoId}/exhibitors/booths?sort=popularity`}
               className="inline-flex h-9 items-center rounded-lg bg-brand-purple/10 px-4 text-sm font-medium text-brand-purple hover:bg-brand-purple/20"
             >
               <BarChart3 className="mr-1 size-4" />
-              查看人气排行
+              展商列表 · 按人气
             </Link>
             <Link
               href={`/events/${expoId}/interactions/bigscreen?tab=booth_ranking`}
@@ -428,9 +428,6 @@ export function ExpoOverviewSections({
             : []),
           ...(featureFlags?.stampRally
             ? [{ href: `/events/${expoId}/stamp-rally`, icon: Trophy, label: "集章打卡" }]
-            : []),
-          ...(featureFlags?.boothRanking
-            ? [{ href: `/events/${expoId}/booth-ranking`, icon: BarChart3, label: "展位人气榜" }]
             : []),
           ...(isFeatureFlagEnabled(featureFlags, "aiBoothRoute")
             ? [{ href: `/events/${expoId}/booth-route`, icon: Bot, label: "AI 展位路线" }]

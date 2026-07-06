@@ -61,7 +61,12 @@ export async function resolveOptionalMobileUserId(
   }
 
   const auth = request.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  let token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) {
+    const cookie = request.headers.get("cookie");
+    const match = cookie?.match(/(?:^|;\s*)connectiq_mini_token=([^;]+)/);
+    token = match ? decodeURIComponent(match[1]) : null;
+  }
   if (!token) return null;
 
   return resolveMiniBearerUserId(token);
@@ -77,7 +82,12 @@ export async function resolveMobileUserId(request: Request): Promise<string> {
   }
 
   const auth = request.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  let token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) {
+    const cookie = request.headers.get("cookie");
+    const match = cookie?.match(/(?:^|;\s*)connectiq_mini_token=([^;]+)/);
+    token = match ? decodeURIComponent(match[1]) : null;
+  }
   if (!token) {
     throw new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
   }

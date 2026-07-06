@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { AdminContent, AdminPage } from "@/components/admin/admin-header";
+import { AdminContent, AdminHeader, AdminPage } from "@/components/admin/admin-header";
 import { NewLotteryTypePicker } from "@/components/lottery/NewLotteryTypePicker";
 import { ParticipantLotteryCard } from "@/components/lottery/ParticipantLotteryCard";
 import { ParticipantLotteryEmptyState } from "@/components/lottery/ParticipantLotteryEmptyState";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -101,6 +101,7 @@ async function replenishStock(
 
 export function ParticipantLotteryListClient({
   eventId,
+  eventName,
 }: {
   eventId: string;
   eventName?: string;
@@ -183,23 +184,17 @@ export function ParticipantLotteryListClient({
 
   return (
     <AdminPage>
-      <header className="admin-header flex flex-wrap items-start justify-between gap-4 border-b border-border bg-surface px-6 py-5">
-        <div className="min-w-0">
-          <p className="mb-1 text-xs text-text-tertiary">互动管理 / 参与人抽奖</p>
-          <h1 className="text-2xl font-bold text-text-primary">参与人抽奖</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            主办方或展位即时抽奖，扫码参与或达成条件领取
-          </p>
-        </div>
-        <button
-          type="button"
-          className={buttonVariants({ variant: "default", className: "shadow-sm" })}
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus data-icon="inline-start" />
-          新建抽奖
-        </button>
-      </header>
+      <AdminHeader
+        title="参与人抽奖"
+        description={eventName}
+        breadcrumb={["互动管理", "参与人抽奖"]}
+        actions={
+          <Button className="shadow-sm" onClick={() => setCreateOpen(true)}>
+            <Plus data-icon="inline-start" />
+            新建抽奖
+          </Button>
+        }
+      />
 
       <AdminContent className="space-y-4">
         {!isLoading && !isError && lotteries.length > 0 && (

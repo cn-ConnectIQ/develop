@@ -37,3 +37,23 @@ export type DashboardAlert = {
   message: string;
   href: string;
 };
+
+export type DashboardPendingExhibitor = {
+  id: string;
+  company_name: string;
+  booth_code: string;
+};
+
+export type DashboardBoothRanking = {
+  booth_id: string;
+  booth_name: string;
+  booth_code: string;
+  heat: number;
+  tag?: "hottest" | "coldest";
+};
+
+export type DashboardInsights = {
+  peakInsight?: string | null;
+  pendingExhibitors?: DashboardPendingExhibitor[];
+  boothRankings?: DashboardBoothRanking[];
+};

@@ -25,10 +25,11 @@ import { AiReferralScanCard } from "@/components/events/AiReferralScanCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { useRealtimeCheckin } from "@/hooks/useRealtimeCheckin";
-import type { DashboardAlert } from "@/lib/dashboard-types";
+import type { DashboardAlert, DashboardInsights } from "@/lib/dashboard-types";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { formatElapsed, formatTimeRemaining } from "@/lib/event-utils";
 import { LockedOverlay } from "@/components/events/EventReviewBanner";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 async function fetchDashboard(eventId: string) {
@@ -55,6 +56,7 @@ type DashboardData = {
   stats: Parameters<typeof RealtimeStats>[0]["stats"];
   recentCheckIns: Parameters<typeof CheckinFeed>[0]["items"];
   alerts: DashboardAlert[];
+  insights: DashboardInsights | null;
 };
 
 function QuickActionCard({
@@ -153,6 +155,9 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
   const pollSubtitle = data?.stats?.hasLivePoll
     ? data.stats.livePollTitle ?? "互动进行中"
     : "无进行中互动";
+  const insights = data?.insights;
+  const pendingExhibitors = insights?.pendingExhibitors ?? [];
+  const boothRankings = insights?.boothRankings ?? [];
 
   return (
     <AdminContent>
@@ -206,6 +211,79 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
       )}
 
       <RealtimeStats stats={data?.stats} isLoading={isLoading} />
+
+      {insights?.peakInsight && (
+        <div className="rounded-xl border border-border-light bg-white p-5">
+          <h2 className="text-[15px] font-semibold text-text-primary">运营洞察</h2>
+          <p className="mt-2 text-sm text-text-muted">{insights.peakInsight}</p>
+        </div>
+      )}
+
+      {pendingExhibitors.length > 0 && (
+        <div className="rounded-xl border border-border-light bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[15px] font-semibold text-text-primary">
+                待审展商（{pendingExhibitors.length}）
+              </h2>
+              <p className="mt-1 text-sm text-text-muted">
+                需尽快审核以开放展位运营
+              </p>
+            </div>
+            <Link href={`/events/${eventId}/exhibitors/booths#reviews`}>
+              <Button variant="outline" size="sm">
+                前往审核
+              </Button>
+            </Link>
+          </div>
+          <ul className="mt-4 divide-y divide-border-light">
+            {pendingExhibitors.slice(0, 5).map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-3 py-2.5 text-sm"
+              >
+                <span>
+                  {row.booth_code} · {row.company_name}
+                </span>
+                <span className="text-xs text-brand-amber">待审核</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {boothRankings.length > 0 && (
+        <div className="rounded-xl border border-border-light bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-[15px] font-semibold text-text-primary">
+              展位热度 Top
+            </h2>
+            <Link
+              href={`/events/${eventId}/exhibitors/booths?sort=popularity`}
+              className="text-sm text-brand-blue hover:underline"
+            >
+              查看全部
+            </Link>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {boothRankings.map((booth) => (
+              <li
+                key={booth.booth_id}
+                className="flex items-center justify-between gap-2 text-sm"
+              >
+                <span
+                  className={cn(
+                    booth.tag === "hottest" && "font-medium text-brand-blue",
+                  )}
+                >
+                  {booth.booth_code} {booth.booth_name}
+                </span>
+                <span className="tabular-nums text-text-muted">{booth.heat}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {showFeatureConfig && (
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -375,7 +453,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
               )}
               {showBoothRanking && (
                 <QuickActionCard
-                  href={`/events/${eventId}/booth-ranking`}
+                  href={`/events/${eventId}/exhibitors/booths?sort=popularity`}
                   icon={BarChart3}
                   title="展位人气榜"
                   subtitle="热度排行大屏"
