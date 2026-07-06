@@ -194,12 +194,6 @@ function getEventNavigationGroups(
                 isNew: true,
               },
               {
-                label: "现场指挥中心",
-                href: `/events/${eventId}/live-ops`,
-                icon: Monitor,
-                isNew: true,
-              },
-              {
                 label: "活动设置",
                 href: `/events/${eventId}/settings`,
                 icon: Settings,

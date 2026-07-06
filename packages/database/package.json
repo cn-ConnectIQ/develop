@@ -24,6 +24,7 @@
     "db:verify-test1377": "tsx prisma/verify-test1377-data.ts",
     "db:setup-test1377-admin": "tsx prisma/setup-test1377-admin-demo.ts",
     "db:setup-test1377-attendee-milo": "tsx prisma/setup-test1377-attendee-milo.ts",
+    "db:setup-test1377-lottery-attendees": "tsx prisma/setup-test1377-lottery-attendees.ts",
     "db:setup-test1377-attendee-milo-invite-pending": "tsx prisma/setup-test1377-attendee-milo-invite-pending.ts",
     "db:setup-test1377-booth-staff": "tsx prisma/setup-test1377-booth-staff.ts",
     "db:verify-test1377-booth-staff": "tsx prisma/verify-test1377-booth-staff.ts",

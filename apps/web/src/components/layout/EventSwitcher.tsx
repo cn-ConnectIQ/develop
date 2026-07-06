@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/popover";
 import { EventStatusBadge } from "@/components/admin/status-badge";
 import { useCurrentEvent } from "@/hooks/useCurrentEvent";
-import { getEventPhase } from "@/lib/event-utils";
+import type { EventListItem } from "@/hooks/useEvents";
+import { getEventPhase, getEventDisplayTypeLabel } from "@/lib/event-utils";
 import { getRoleTheme } from "@/lib/role-theme";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@connectiq/types";
@@ -175,6 +176,9 @@ function EventCommandItem({
     name: string;
     status: string;
     startDate: string | null;
+    category?: EventListItem["category"];
+    type?: string;
+    activityType?: string;
   };
   active: boolean;
   activeHighlight: string;
@@ -188,7 +192,7 @@ function EventCommandItem({
         active && activeHighlight,
       )}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{event.name}</p>
         {event.startDate && (
           <p className="text-xs text-text-muted">
@@ -196,7 +200,12 @@ function EventCommandItem({
           </p>
         )}
       </div>
-      <EventStatusBadge status={event.status} />
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className="rounded-sm bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
+          {getEventDisplayTypeLabel(event)}
+        </span>
+        <EventStatusBadge status={event.status} />
+      </div>
     </CommandItem>
   );
 }

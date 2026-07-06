@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useCurrentEvent } from "@/contexts/event-context";
-import { getEventPhase } from "@/lib/event-utils";
+import { getEventPhase, getEventDisplayTypeLabel } from "@/lib/event-utils";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@connectiq/types";
 
@@ -83,13 +83,14 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
                     key={event.id}
                     onSelect={() => setCurrentEventId(event.id)}
                     className={cn(
+                      "flex items-center gap-2",
                       currentEvent?.id === event.id &&
                         "bg-brand-blue-light text-brand-blue",
                     )}
                   >
                     <span
                       className={cn(
-                        "mr-2 size-2 rounded-full",
+                        "size-2 shrink-0 rounded-full",
                         getEventPhase({
                           status: event.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
                           startDate: event.startDate
@@ -103,7 +104,7 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
                           : "bg-brand-blue",
                       )}
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{event.name}</p>
                       {event.startDate && (
                         <p className="text-xs text-text-muted">
@@ -113,6 +114,9 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
                         </p>
                       )}
                     </div>
+                    <span className="shrink-0 rounded-sm bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
+                      {getEventDisplayTypeLabel(event)}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

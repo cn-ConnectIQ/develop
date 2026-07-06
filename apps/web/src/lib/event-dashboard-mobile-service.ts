@@ -53,8 +53,12 @@ export type ApiMobileLiveInteraction = {
 
 export type ApiMobileAnnouncement = {
   id: string;
+  title: string;
   content: string;
-  time: string;
+  is_pinned: boolean;
+  published_at: string;
+  /** @deprecated 使用 published_at */
+  time?: string;
 };
 
 export type ApiMobileStampRally = {
@@ -323,7 +327,35 @@ async function loadActiveLottery(
 }
 
 async function loadAnnouncements(eventId: string): Promise<ApiMobileAnnouncement[]> {
-  const rows = await prisma.poll.findMany({
+  const rows = await prisma.announcement.findMany({
+    where: { eventId },
+    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+    take: 8,
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      isPinned: true,
+      publishedAt: true,
+    },
+  });
+
+  if (rows.length > 0) {
+    return rows.map((row) => {
+      const publishedAt = row.publishedAt.toISOString();
+      return {
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        is_pinned: row.isPinned,
+        published_at: publishedAt,
+        time: publishedAt,
+      };
+    });
+  }
+
+  // 兼容旧数据：PollType.ANNOUNCEMENT
+  const legacy = await prisma.poll.findMany({
     where: {
       eventId,
       type: PollType.ANNOUNCEMENT,
@@ -334,11 +366,18 @@ async function loadAnnouncements(eventId: string): Promise<ApiMobileAnnouncement
     select: { id: true, title: true, updatedAt: true, createdAt: true },
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    content: row.title,
-    time: (row.updatedAt ?? row.createdAt).toISOString(),
-  }));
+  return legacy.map((row) => {
+    const publishedAt = (row.updatedAt ?? row.createdAt).toISOString();
+    const text = row.title;
+    return {
+      id: row.id,
+      title: text,
+      content: text,
+      is_pinned: false,
+      published_at: publishedAt,
+      time: publishedAt,
+    };
+  });
 }
 
 async function loadStampRallySummary(

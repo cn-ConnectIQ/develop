@@ -336,8 +336,11 @@ Query：`role=introducer|recipient`，`limit`
 | `liveInteraction.closesAt` | string \| null | ISO8601，投票截止时刻 |
 | `announcements` | array | 公告 |
 | `announcements[].id` | string | |
-| `announcements[].content` | string | |
-| `announcements[].time` | string | ISO8601 |
+| `announcements[].title` | string | 公告标题 |
+| `announcements[].content` | string | 正文 |
+| `announcements[].is_pinned` | boolean | 是否置顶 |
+| `announcements[].published_at` | string | ISO8601 发布时间 |
+| `announcements[].time` | string | **deprecated**，同 `published_at` |
 | `stampRally` | object \| null | 集章进度（feature 关闭或未登录时为 null） |
 | `stampRally.id` | string | 集章活动 ID，用于 `/stamp-rallies/{rallyId}/…` |
 | `stampRally.current` | number | |

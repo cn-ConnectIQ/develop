@@ -187,3 +187,26 @@ export function categoryToDbType(category: EventCategory): EventType {
   const found = eventCategoryOptions.find((o) => o.value === category);
   return found?.dbType ?? "CONFERENCE";
 }
+
+const activityTypeLabels: Record<string, string> = {
+  CONFERENCE: "会议",
+  EXPO: "展会",
+  EXHIBITION: "展览",
+};
+
+/** 活动切换器 / 列表卡片展示用类型文案 */
+export function getEventDisplayTypeLabel(event: {
+  category?: EventCategory | null;
+  type?: string | null;
+  activityType?: string | null;
+}): string {
+  const fromCategory = eventCategoryOptions.find((o) => o.value === event.category);
+  if (fromCategory) return fromCategory.label;
+
+  if (event.activityType && activityTypeLabels[event.activityType]) {
+    return activityTypeLabels[event.activityType]!;
+  }
+
+  if (event.type === "EXPO") return "展会";
+  return "峰会";
+}

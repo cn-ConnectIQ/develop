@@ -922,8 +922,24 @@ model Event {
   userEventCodes UserEventCode[]
   codeScanLogs        CodeScanLog[]
   screenPairings      ScreenPairing[]
+  announcements       Announcement[]
 
   @@map("events")
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  eventId     String   @map("event_id")
+  title       String
+  content     String
+  isPinned    Boolean  @default(false) @map("is_pinned")
+  publishedAt DateTime @default(now()) @map("published_at")
+  createdBy   String   @map("created_by")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, isPinned, publishedAt])
+  @@map("announcements")
 }
 
 model ExternalSync {

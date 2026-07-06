@@ -532,22 +532,22 @@ async function ensureLivePollCountdown() {
 
 async function ensureExtraAnnouncements(eventId: string, creatorId: string) {
   for (const [index, ann] of EXTRA_ANNOUNCEMENTS.entries()) {
-    await prisma.poll.upsert({
+    await prisma.announcement.upsert({
       where: { id: ann.id },
       update: {
         title: ann.title,
-        status: PollStatus.LIVE,
-        type: PollType.ANNOUNCEMENT,
+        content: ann.title,
+        isPinned: index === 0,
+        publishedAt: new Date(Date.now() - index * 15 * 60_000),
       },
       create: {
         id: ann.id,
         eventId,
-        createdById: creatorId,
-        type: PollType.ANNOUNCEMENT,
+        createdBy: creatorId,
         title: ann.title,
-        status: PollStatus.LIVE,
-        showResults: false,
-        displayOrder: 20 + index,
+        content: ann.title,
+        isPinned: index === 0,
+        publishedAt: new Date(Date.now() - index * 15 * 60_000),
       },
     });
   }

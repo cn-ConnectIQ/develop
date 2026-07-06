@@ -36,6 +36,7 @@ import { ReviewStatusBadge } from "@/components/admin/status-badge";
 import {
   eventCategoryOptions,
   formatEventDateRange,
+  getEventDisplayTypeLabel,
   getEventPhase,
   type EventPhase,
 } from "@/lib/event-utils";
@@ -84,9 +85,7 @@ function getCoverGradient(category: EventListItem["category"], type: string) {
 }
 
 function getCategoryLabel(event: EventListItem) {
-  const fromSetting = eventCategoryOptions.find((o) => o.value === event.category);
-  if (fromSetting) return fromSetting.label;
-  return event.type === "EXPO" ? "展会" : "峰会";
+  return getEventDisplayTypeLabel(event);
 }
 
 function getEventHomeHref(
