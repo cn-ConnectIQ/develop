@@ -89,7 +89,7 @@ export async function listOperatorStampPoints(
   const role = await resolveScanOperatorRole(operatorId, eventId);
   const boothFilter = opts?.boothId?.trim();
 
-  if (role === "ORGANIZER" || role === "STAFF") {
+  if (role === "ORGANIZER" || role === "ORGANIZER_STAFF") {
     const stamps = await prisma.stamp.findMany({
       where: {
         rallyId: { in: rallyIds },
