@@ -4,7 +4,7 @@ import {
   buildDimensionHits,
   loadExcludedUserIds,
   loadPeerProfiles,
-  loadStaffExcludedUserIds,
+  loadOrganizerStaffExcludedUserIds,
   loadViewerProfile,
 } from "@/lib/ai/matching/recall";
 import type { RecallCandidate } from "@/lib/ai/matching/types";
@@ -540,7 +540,7 @@ export async function getRealtimeRecommendations(
   ]);
 
   const excluded = new Set(excludedBase);
-  for (const staffUserId of await loadStaffExcludedUserIds(eventId)) {
+  for (const staffUserId of await loadOrganizerStaffExcludedUserIds(eventId)) {
     excluded.add(staffUserId);
   }
 
