@@ -7,7 +7,7 @@ import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 import { fisherYatesShuffle } from "@/lib/interaction/lottery-rewards";
 import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
-import { attachToRedemptionCode } from "@/lib/lottery/redemption";
+import { attachToRedemptionCode, ensureEventCodesForUsers } from "@/lib/lottery/redemption";
 import {
   loadOrganizerLotteryMeta,
   patchOrganizerLotteryDrawMeta,
@@ -177,39 +177,63 @@ async function drawWinnersForPrize(
   const picked = shuffled.slice(0, drawCount);
   const prizeRank = resolvePrizeTier(targetPrize);
 
-  const created = await prisma.$transaction(async (tx) => {
-    const rows: Array<{
-      winnerRow: { id: string };
-      picked: (typeof picked)[number];
-      code: string;
-    }> = [];
+  const created = await prisma.$transaction(
+    async (tx) => {
+      if (drawCount === 1) {
+        const entry = picked[0]!;
+        const winnerRow = await tx.lotteryWinner.create({
+          data: {
+            lotteryId,
+            userId: entry.userId,
+            entryId: entry.id,
+            prizeId: targetPrize.id,
+            prizeRank,
+            prizeName: targetPrize.name,
+          },
+        });
+        const redemption = await attachToRedemptionCode(
+          entry.userId,
+          eventId,
+          winnerRow.id,
+          tx,
+        );
+        return [
+          {
+            winnerRow,
+            picked: entry,
+            code: redemption.code,
+          },
+        ];
+      }
 
-    for (const entry of picked) {
-      const winnerRow = await tx.lotteryWinner.create({
-        data: {
+      const codeByUser = await ensureEventCodesForUsers(
+        eventId,
+        picked.map((entry) => entry.userId),
+        tx,
+      );
+
+      const winnerRows = await tx.lotteryWinner.createManyAndReturn({
+        data: picked.map((entry) => ({
           lotteryId,
           userId: entry.userId,
           entryId: entry.id,
           prizeId: targetPrize.id,
           prizeRank,
           prizeName: targetPrize.name,
-        },
+          eventCodeId: codeByUser.get(entry.userId)!.id,
+        })),
       });
-      const redemption = await attachToRedemptionCode(
-        entry.userId,
-        eventId,
-        winnerRow.id,
-        tx,
-      );
-      rows.push({
-        winnerRow,
-        picked: entry,
-        code: redemption.code,
-      });
-    }
 
-    return rows;
-  });
+      const winnerByUserId = new Map(winnerRows.map((row) => [row.userId, row]));
+
+      return picked.map((entry) => ({
+        winnerRow: winnerByUserId.get(entry.userId)!,
+        picked: entry,
+        code: codeByUser.get(entry.userId)!.code,
+      }));
+    },
+    { timeout: 60_000 },
+  );
 
   const winners: LotteryScreenWinnerPayload[] = created.map(
     ({ winnerRow, picked: entry, code }) => ({
@@ -655,20 +679,25 @@ export async function drawLotteryTierWinners(
     });
   }
 
-  const sent = await broadcastLotteryScreenMessage(eventId, {
-    type: "REVEAL_TIER",
-    data: {
-      lottery_id: lotteryId,
-      tier,
-      tier_label: tierLabel(tier),
-      prize_name: prize.name,
-      winners,
-      revealed_total: revealedTotal,
-      winner_quota: winnerQuota,
-      total_drawn_count: totalDrawnCount,
-      remaining_count: remainingCount,
-    },
-  });
+  let sent = false;
+  try {
+    sent = await broadcastLotteryScreenMessage(eventId, {
+      type: "REVEAL_TIER",
+      data: {
+        lottery_id: lotteryId,
+        tier,
+        tier_label: tierLabel(tier),
+        prize_name: prize.name,
+        winners,
+        revealed_total: revealedTotal,
+        winner_quota: winnerQuota,
+        total_drawn_count: totalDrawnCount,
+        remaining_count: remainingCount,
+      },
+    });
+  } catch (err) {
+    console.error("[lottery-screen] REVEAL_TIER broadcast failed", err);
+  }
 
   return {
     sent,

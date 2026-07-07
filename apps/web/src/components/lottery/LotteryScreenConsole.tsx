@@ -388,34 +388,83 @@ export function LotteryScreenConsole({
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-8 lg:p-9">
             {focusTier && (
-              <div className="flex flex-wrap items-center gap-5 rounded-2xl bg-[#1A2035] px-7 py-5">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{tierMedal(focusTier.tier)}</span>
+              <div className="overflow-hidden rounded-2xl bg-[#1A2035]">
+                <div className="flex flex-wrap items-center gap-5 px-7 py-5">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{tierMedal(focusTier.tier)}</span>
+                    <div>
+                      <p className="text-sm text-white/50">当前开奖等级</p>
+                      <p className="text-2xl font-extrabold text-brand-gold">{focusTier.label}</p>
+                    </div>
+                  </div>
+                  <div className="hidden h-12 w-px bg-white/10 sm:block" />
                   <div>
-                    <p className="text-sm text-white/50">当前开奖等级</p>
-                    <p className="text-2xl font-extrabold text-brand-gold">{focusTier.label}</p>
+                    <p className="text-sm text-white/50">奖品</p>
+                    <p className="text-lg font-bold">
+                      {focusTier.prize_name} × {focusTier.quantity}
+                    </p>
+                  </div>
+                  {isTierMode && (
+                    <>
+                      <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                      <div>
+                        <p className="text-sm text-white/50">抽取进度</p>
+                        <p className="text-2xl font-extrabold text-white">
+                          {focusTier.drawn_count}
+                          <span className="text-lg font-medium text-white/40">
+                            /{focusTier.quantity}
+                          </span>
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                  <div>
+                    <p className="text-sm text-white/50">奖池人数</p>
+                    <p className="text-2xl font-extrabold text-[#7DE0BE]">
+                      {state?.lottery.entry_count ?? 0}
+                      <span className="ml-1 text-sm font-medium">人</span>
+                    </p>
+                  </div>
+                  <div className="flex-1" />
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/15 px-4 py-2">
+                    <span className="size-2 animate-pulse rounded-full bg-brand-gold shadow-[0_0_8px_#EF9F27]" />
+                    <span className="text-sm font-semibold text-brand-gold">{statusLabel}</span>
                   </div>
                 </div>
-                <div className="hidden h-12 w-px bg-white/10 sm:block" />
-                <div>
-                  <p className="text-sm text-white/50">奖品</p>
-                  <p className="text-lg font-bold">
-                    {focusTier.prize_name} × {focusTier.quantity}
-                  </p>
-                </div>
-                <div className="hidden h-12 w-px bg-white/10 sm:block" />
-                <div>
-                  <p className="text-sm text-white/50">奖池人数</p>
-                  <p className="text-2xl font-extrabold text-[#7DE0BE]">
-                    {state?.lottery.entry_count ?? 0}
-                    <span className="ml-1 text-sm font-medium">人</span>
-                  </p>
-                </div>
-                <div className="flex-1" />
-                <div className="inline-flex items-center gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/15 px-4 py-2">
-                  <span className="size-2 animate-pulse rounded-full bg-brand-gold shadow-[0_0_8px_#EF9F27]" />
-                  <span className="text-sm font-semibold text-brand-gold">{statusLabel}</span>
-                </div>
+
+                {isTierMode && activeTierState && (
+                  <div className="border-t border-white/10 px-7 py-5">
+                    <TierDrawControl
+                      embedded
+                      tier={activeTierState}
+                      drawing={tierAction === activeTierState.tier}
+                      onDraw={(mode) => drawTierWinners(activeTierState.tier, mode)}
+                    />
+                  </div>
+                )}
+
+                {isTierMode &&
+                  started &&
+                  nextTier &&
+                  state?.active_tier == null &&
+                  !nextTier.complete && (
+                    <div className="border-t border-white/10 px-7 py-4 text-sm text-white/50">
+                      点击下方「开始{nextTier.label}抽奖」后，将在此选择
+                      <span className="mx-1 text-[#7DE0BE]">逐个抽取</span>或
+                      <span className="mx-1 text-[#D4D0FF]">一次性抽完</span>
+                    </div>
+                  )}
+
+                {isTierMode &&
+                  !started &&
+                  state?.lottery.status === "OPEN" &&
+                  nextTier &&
+                  !nextTier.complete && (
+                    <div className="border-t border-white/10 px-7 py-4 text-sm text-white/50">
+                      先点击「初始化大屏」，再开始{nextTier.label}抽奖，即可在此选择抽取模式
+                    </div>
+                  )}
               </div>
             )}
 
@@ -468,7 +517,9 @@ export function LotteryScreenConsole({
                       : "border border-white/10",
                   )}
                 >
-                  ③ 确认结果，进入下一等级
+                  {isTierMode && activeTierState && !activeTierState.complete
+                    ? "③ 选择模式并抽取"
+                    : "③ 确认结果，进入下一等级"}
                 </span>
               </div>
               {countdown && (
@@ -478,14 +529,6 @@ export function LotteryScreenConsole({
                 <Loader2 className="size-4 animate-spin text-white/40" />
               )}
             </div>
-
-            {isTierMode && activeTierState && (
-              <TierDrawControl
-                tier={activeTierState}
-                drawing={tierAction === activeTierState.tier}
-                onDraw={(mode) => drawTierWinners(activeTierState.tier, mode)}
-              />
-            )}
 
             {isTierMode && activeTierState && state?.winners && (
               <TierWinnersList tier={activeTierState} winners={state.winners} />

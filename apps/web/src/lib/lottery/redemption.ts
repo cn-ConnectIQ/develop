@@ -92,6 +92,41 @@ export async function attachToEventCode(
   return code;
 }
 
+/** 批量确保用户一码通存在（事务内调用） */
+export async function ensureEventCodesForUsers(
+  eventId: string,
+  userIds: string[],
+  db: DbClient = prisma,
+): Promise<Map<string, { id: string; code: string }>> {
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) return new Map();
+
+  const existing = await db.userEventCode.findMany({
+    where: { eventId, userId: { in: unique } },
+    select: { id: true, userId: true, code: true },
+  });
+  const map = new Map(
+    existing.map((row) => [row.userId, { id: row.id, code: row.code }]),
+  );
+
+  const missing = unique.filter((userId) => !map.has(userId));
+  if (missing.length > 0) {
+    await db.userEventCode.createMany({
+      data: missing.map((userId) => ({ eventId, userId })),
+      skipDuplicates: true,
+    });
+    const created = await db.userEventCode.findMany({
+      where: { eventId, userId: { in: missing } },
+      select: { id: true, userId: true, code: true },
+    });
+    for (const row of created) {
+      map.set(row.userId, { id: row.id, code: row.code });
+    }
+  }
+
+  return map;
+}
+
 /** @deprecated 使用 attachToEventCode */
 export const attachToRedemptionCode = attachToEventCode;
 
