@@ -19,6 +19,8 @@ import type {
   PrizeDrawOrder,
 } from "@/lib/lottery/organizer-lottery-config";
 import type { LotteryTierState } from "@/lib/lottery/lottery-screen-service";
+import { TierDrawControl, type TierDrawMode } from "@/components/lottery/TierDrawControl";
+import { TierWinnersList } from "@/components/lottery/TierWinnersList";
 import { cn } from "@/lib/utils";
 
 type ScreenState = {
@@ -221,7 +223,7 @@ export function LotteryScreenConsole({
     }
   }
 
-  async function revealTierWinner(tier: number) {
+  async function drawTierWinners(tier: number, mode: TierDrawMode) {
     if (!lotteryId) return;
     setTierAction(tier);
     try {
@@ -230,14 +232,18 @@ export function LotteryScreenConsole({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier, action: "reveal" }),
+          body: JSON.stringify({ tier, action: "draw", mode }),
         },
       );
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "揭晓失败");
-      toast.success(
-        `恭喜 ${json.data.winner.name} 获得 ${json.data.winner.prize_name}`,
-      );
+      if (!res.ok) throw new Error(json.error ?? "抽取失败");
+
+      const drawn = json.data.thisDrawWinners as Array<{ name: string }>;
+      if (drawn.length === 1) {
+        toast.success(`恭喜 ${drawn[0]!.name} 中奖`);
+      } else {
+        toast.success(`已一次性抽出 ${drawn.length} 位获奖者`);
+      }
       if (json.data.tier_complete) {
         toast.info(`${json.data.tier_label} 已全部揭晓`);
       }
@@ -246,7 +252,7 @@ export function LotteryScreenConsole({
       }
       refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "揭晓失败");
+      toast.error(err instanceof Error ? err.message : "抽取失败");
     } finally {
       setTierAction(null);
     }
@@ -314,12 +320,7 @@ export function LotteryScreenConsole({
         };
       }
       if (activeTierState && !activeTierState.complete) {
-        return {
-          label: `揭晓${activeTierState.label}中奖者`,
-          onClick: () => void revealTierWinner(activeTierState.tier),
-          disabled: tierAction != null,
-          loading: tierAction === activeTierState.tier,
-        };
+        return null;
       }
     }
     if (!started && state.lottery.status !== "DRAWING") {
@@ -477,6 +478,18 @@ export function LotteryScreenConsole({
                 <Loader2 className="size-4 animate-spin text-white/40" />
               )}
             </div>
+
+            {isTierMode && activeTierState && (
+              <TierDrawControl
+                tier={activeTierState}
+                drawing={tierAction === activeTierState.tier}
+                onDraw={(mode) => drawTierWinners(activeTierState.tier, mode)}
+              />
+            )}
+
+            {isTierMode && activeTierState && state?.winners && (
+              <TierWinnersList tier={activeTierState} winners={state.winners} />
+            )}
 
             {state?.tiers && state.tiers.length > 0 && (
               <div className="rounded-2xl bg-[#1A2035] p-5">

@@ -78,10 +78,13 @@ export type ScrollUnveilingProps = {
 /** 大屏抽奖动效统一阶段 */
 export type LotteryAnimationPhase = "spinning" | "stopping" | "revealed";
 
-/** 各动效组件统一 props（phase / winner 由 Realtime 驱动） */
+/** 各动效组件统一 props（phase / winners 由 Realtime 驱动） */
 export type LotteryAnimationProps = {
   phase: LotteryAnimationPhase;
-  winner: ReelWinnerInfo | null;
+  /** 本次抽取动作产生的获奖者（1 人或多人） */
+  winners: ReelWinnerInfo[];
+  /** 单人动效目标（winners[0] 的别名，兼容旧组件） */
+  winner?: ReelWinnerInfo | null;
   stopSequence?: readonly number[];
   stoppedIndexes?: readonly number[];
   title: string;

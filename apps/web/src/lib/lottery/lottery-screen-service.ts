@@ -27,6 +27,32 @@ import {
   type LotteryScreenWinnerPayload,
 } from "@/lib/realtime/lottery-screen";
 
+export type TierDrawMode = "ONE" | "ALL";
+
+export type TierDrawWinnerResult = {
+  winnerId: string;
+  userId: string;
+  name: string;
+  avatar: string;
+  company: string | null;
+  verification_code: string | null;
+};
+
+export type DrawTierWinnersResult = {
+  sent: boolean;
+  tier: number;
+  tier_label: string;
+  prizeName: string;
+  quantity: number;
+  thisDrawWinners: TierDrawWinnerResult[];
+  totalDrawnCount: number;
+  remainingCount: number;
+  tier_complete: boolean;
+  revealed_total: number;
+  winner_quota: number;
+  finished: boolean;
+};
+
 async function getOrganizerLotteryOrThrow(eventId: string, lotteryId: string) {
   const lottery = await prisma.lottery.findFirst({
     where: {
@@ -120,6 +146,98 @@ export function buildTierStates(
   return states;
 }
 
+async function drawWinnersForPrize(
+  eventId: string,
+  lotteryId: string,
+  targetPrize: PrizeItem,
+  drawCount: number,
+  entries: Array<{
+    id: string;
+    userId: string;
+    user: { name: string; profile: { company: string | null } | null };
+  }>,
+  existingWinners: Array<{ userId: string }>,
+) {
+  if (drawCount <= 0) {
+    throw new ApiError("本等级名额已抽完", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const winnerUserIds = new Set(existingWinners.map((w) => w.userId));
+  const pool = entries.filter((e) => !winnerUserIds.has(e.userId));
+
+  if (pool.length < drawCount) {
+    throw new ApiError(
+      `奖池剩余参与者不足，需要 ${drawCount} 人，当前可选 ${pool.length} 人`,
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
+  const shuffled = fisherYatesShuffle(pool);
+  const picked = shuffled.slice(0, drawCount);
+  const prizeRank = resolvePrizeTier(targetPrize);
+
+  const created = await prisma.$transaction(async (tx) => {
+    const rows: Array<{
+      winnerRow: { id: string };
+      picked: (typeof picked)[number];
+      code: string;
+    }> = [];
+
+    for (const entry of picked) {
+      const winnerRow = await tx.lotteryWinner.create({
+        data: {
+          lotteryId,
+          userId: entry.userId,
+          entryId: entry.id,
+          prizeId: targetPrize.id,
+          prizeRank,
+          prizeName: targetPrize.name,
+        },
+      });
+      const redemption = await attachToRedemptionCode(
+        entry.userId,
+        eventId,
+        winnerRow.id,
+        tx,
+      );
+      rows.push({
+        winnerRow,
+        picked: entry,
+        code: redemption.code,
+      });
+    }
+
+    return rows;
+  });
+
+  const winners: LotteryScreenWinnerPayload[] = created.map(
+    ({ winnerRow, picked: entry, code }) => ({
+      id: winnerRow.id,
+      user_id: entry.userId,
+      name: entry.user.name,
+      company: entry.user.profile?.company ?? null,
+      prize_name: targetPrize.name,
+      prize_rank: prizeRank,
+      verification_code: code,
+      pickup_note: "请凭统一核销码至领奖台领取奖品",
+    }),
+  );
+
+  const thisDrawWinners: TierDrawWinnerResult[] = created.map(
+    ({ winnerRow, picked: entry, code }) => ({
+      winnerId: winnerRow.id,
+      userId: entry.userId,
+      name: entry.user.name,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${resolveAvatarSeed(entry.user.name)}`,
+      company: entry.user.profile?.company ?? null,
+      verification_code: code,
+    }),
+  );
+
+  return { winners, thisDrawWinners };
+}
+
 async function drawOneWinnerForPrize(
   eventId: string,
   lotteryId: string,
@@ -131,46 +249,17 @@ async function drawOneWinnerForPrize(
   }>,
   existingWinners: Array<{ userId: string }>,
 ) {
-  const winnerUserIds = new Set(existingWinners.map((w) => w.userId));
-  const pool = entries.filter((e) => !winnerUserIds.has(e.userId));
-
-  if (pool.length === 0) {
-    throw new ApiError("奖池中没有可抽取的参与者", ErrorCode.VALIDATION_ERROR, 400);
-  }
-
-  const shuffled = fisherYatesShuffle(pool);
-  const picked = shuffled[0]!;
-  const prizeRank = resolvePrizeTier(targetPrize);
-
-  const winnerRow = await prisma.lotteryWinner.create({
-    data: {
-      lotteryId,
-      userId: picked.userId,
-      entryId: picked.id,
-      prizeId: targetPrize.id,
-      prizeRank,
-      prizeName: targetPrize.name,
-    },
-  });
-
-  const redemption = await attachToRedemptionCode(
-    picked.userId,
+  const { winners, thisDrawWinners } = await drawWinnersForPrize(
     eventId,
-    winnerRow.id,
+    lotteryId,
+    targetPrize,
+    1,
+    entries,
+    existingWinners,
   );
-
-  const winner: LotteryScreenWinnerPayload = {
-    id: winnerRow.id,
-    user_id: picked.userId,
-    name: picked.user.name,
-    company: picked.user.profile?.company ?? null,
-    prize_name: targetPrize.name,
-    prize_rank: prizeRank,
-    verification_code: redemption.code,
-    pickup_note: "请凭统一核销码至领奖台领取奖品",
-  };
-
-  return { winner, winnerRow, picked };
+  const winner = winners[0]!;
+  const picked = entries.find((e) => e.userId === winner.user_id)!;
+  return { winner, winnerRow: { id: thisDrawWinners[0]!.winnerId }, picked };
 }
 
 export async function startLotteryScreen(eventId: string, lotteryId: string) {
@@ -470,11 +559,12 @@ export async function startLotteryTierDraw(
   };
 }
 
-export async function revealLotteryTierWinner(
+export async function drawLotteryTierWinners(
   eventId: string,
   lotteryId: string,
   tier: number,
-) {
+  mode: TierDrawMode,
+): Promise<DrawTierWinnersResult> {
   await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
 
   const lottery = await getOrganizerLotteryOrThrow(eventId, lotteryId);
@@ -523,25 +613,31 @@ export async function revealLotteryTierWinner(
   const drawnForTier = existingWinners.filter(
     (w) => w.prizeId === prize.id || w.prizeRank === tier,
   ).length;
+  const remaining = prize.quantity - drawnForTier;
 
-  if (drawnForTier >= prize.quantity) {
+  if (remaining <= 0) {
     await patchOrganizerLotteryDrawMeta(eventId, lotteryId, {
       active_draw_tier: null,
     });
-    throw new ApiError(`${tierLabel(tier)} 已全部揭晓`, ErrorCode.VALIDATION_ERROR, 400);
+    throw new ApiError(`${tierLabel(tier)} 名额已抽完`, ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const { winner } = await drawOneWinnerForPrize(
+  const drawCount = mode === "ONE" ? 1 : remaining;
+
+  const { winners, thisDrawWinners } = await drawWinnersForPrize(
     eventId,
     lotteryId,
     prize,
+    drawCount,
     entries,
     existingWinners,
   );
 
   const winnerQuota = lottery.prizeItems.reduce((sum, p) => sum + p.quantity, 0);
-  const revealedTotal = existingWinners.length + 1;
-  const tierComplete = drawnForTier + 1 >= prize.quantity;
+  const revealedTotal = existingWinners.length + winners.length;
+  const totalDrawnCount = drawnForTier + winners.length;
+  const remainingCount = prize.quantity - totalDrawnCount;
+  const tierComplete = remainingCount <= 0;
 
   if (tierComplete) {
     await patchOrganizerLotteryDrawMeta(eventId, lotteryId, {
@@ -560,24 +656,65 @@ export async function revealLotteryTierWinner(
   }
 
   const sent = await broadcastLotteryScreenMessage(eventId, {
-    type: "REVEAL_WINNER",
+    type: "REVEAL_TIER",
     data: {
       lottery_id: lotteryId,
-      winner,
+      tier,
+      tier_label: tierLabel(tier),
+      prize_name: prize.name,
+      winners,
       revealed_total: revealedTotal,
       winner_quota: winnerQuota,
+      total_drawn_count: totalDrawnCount,
+      remaining_count: remainingCount,
     },
   });
 
   return {
     sent,
-    winner,
     tier,
     tier_label: tierLabel(tier),
+    prizeName: prize.name,
+    quantity: prize.quantity,
+    thisDrawWinners,
+    totalDrawnCount,
+    remainingCount,
     tier_complete: tierComplete,
     revealed_total: revealedTotal,
     winner_quota: winnerQuota,
     finished: revealedTotal >= winnerQuota,
+  };
+}
+
+/** @deprecated 使用 drawLotteryTierWinners(mode: ONE) */
+export async function revealLotteryTierWinner(
+  eventId: string,
+  lotteryId: string,
+  tier: number,
+) {
+  const result = await drawLotteryTierWinners(eventId, lotteryId, tier, "ONE");
+  const winner = result.thisDrawWinners[0];
+  if (!winner) {
+    throw new ApiError("抽取失败", ErrorCode.INTERNAL_ERROR, 500);
+  }
+  return {
+    sent: result.sent,
+    winner: {
+      id: winner.winnerId,
+      user_id: winner.userId,
+      name: winner.name,
+      company: winner.company,
+      prize_name: result.prizeName,
+      prize_rank: result.tier,
+      verification_code: winner.verification_code,
+      pickup_note: "请凭统一核销码至领奖台领取奖品",
+    },
+    tier: result.tier,
+    tier_label: result.tier_label,
+    tier_complete: result.tier_complete,
+    revealed_total: result.revealed_total,
+    winner_quota: result.winner_quota,
+    finished: result.finished,
   };
 }
 

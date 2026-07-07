@@ -11,4 +11,6 @@ export { LotteryDashboard } from "./LotteryDashboard";
 export type { LotteryDashboardProps } from "./LotteryDashboard";
 export { RealtimeEntryFeed } from "./RealtimeEntryFeed";
 export { DrawControl } from "./DrawControl";
+export { TierDrawControl } from "./TierDrawControl";
+export { TierWinnersList } from "./TierWinnersList";
 export { WinnerList } from "./WinnerList";

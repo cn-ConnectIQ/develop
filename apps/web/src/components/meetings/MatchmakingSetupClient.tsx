@@ -33,9 +33,18 @@ async function fetchConfig(eventId: string): Promise<ApiMatchmakingConfig> {
 }
 
 async function fetchTags(eventId: string): Promise<IntentTagRow[]> {
-  const res = await fetch(`/api/events/${eventId}/intent-tags`);
+  const res = await fetch(`/api/events/${eventId}/intent-tags`, {
+    cache: "no-store",
+  });
   if (!res.ok) throw new Error("加载标签失败");
-  return (await res.json()).data.tags;
+  const tags = (await res.json()).data?.tags;
+  if (!Array.isArray(tags)) return [];
+  return tags.filter(
+    (tag): tag is IntentTagRow =>
+      typeof tag?.id === "string" &&
+      typeof tag?.label === "string" &&
+      typeof tag?.pool === "string",
+  );
 }
 
 export function MatchmakingSetupClient({
@@ -48,7 +57,6 @@ export function MatchmakingSetupClient({
   const queryClient = useQueryClient();
   const [intentConfig, setIntentConfig] = useState<EventIntentConfig>(DEFAULT_INTENT_CONFIG);
   const [premeetEnabled, setPremeetEnabled] = useState(false);
-  const [tags, setTags] = useState<IntentTagRow[]>([]);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -57,9 +65,10 @@ export function MatchmakingSetupClient({
     queryFn: () => fetchConfig(eventId),
   });
 
-  const { data: tagsData, isLoading: tagsLoading } = useQuery({
+  const { data: tags = [], isLoading: tagsLoading } = useQuery({
     queryKey: ["event-intent-tags", eventId],
     queryFn: () => fetchTags(eventId),
+    staleTime: 0,
   });
 
   useEffect(() => {
@@ -70,9 +79,19 @@ export function MatchmakingSetupClient({
     }
   }, [configMeta]);
 
-  useEffect(() => {
-    if (tagsData) setTags(tagsData);
-  }, [tagsData]);
+  const syncTags = useCallback(
+    (next: IntentTagRow[] | ((prev: IntentTagRow[]) => IntentTagRow[])) => {
+      queryClient.setQueryData<IntentTagRow[]>(
+        ["event-intent-tags", eventId],
+        (prev) => (typeof next === "function" ? next(prev ?? []) : next),
+      );
+    },
+    [eventId, queryClient],
+  );
+
+  const refreshTags = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ["event-intent-tags", eventId] });
+  }, [eventId, queryClient]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -145,7 +164,8 @@ export function MatchmakingSetupClient({
             setIntentConfig(c);
             setDirty(true);
           }}
-          onTagsChange={setTags}
+          onTagsChange={syncTags}
+          onTagsRefresh={refreshTags}
           onSave={handleSave}
           saving={saving}
           dirty={dirty}

@@ -280,19 +280,6 @@ function getEventNavigationGroups(
                 menuKey: "booth-map",
               },
               {
-                label: "意向标签",
-                href: `/events/${eventId}/intent-tags`,
-                icon: Tag,
-                menuKey: "intent-tags",
-              },
-              {
-                label: "MarketUP 同步",
-                href: `/events/${eventId}/marketup-sync`,
-                icon: Sparkles,
-                isNew: true,
-                menuKey: "marketup-sync",
-              },
-              {
                 label: "高价值买家推送",
                 href: `/events/${eventId}/high-value-buyer-push`,
                 icon: Bell,
@@ -389,16 +376,6 @@ function getEventNavigationGroups(
               },
             ],
           },
-          {
-            label: "外部集成",
-            items: [
-              {
-                label: "MarketUP 集成",
-                href: "/integrations/marketup",
-                icon: Sparkles,
-              },
-            ],
-          },
         ].filter((group) => group.items.length > 0);
 
     case UserRole.EXPO_ORGANIZER:
@@ -487,11 +464,6 @@ function getEventNavigationGroups(
         {
           label: "数据与集成",
           items: [
-            {
-              label: "MarketUP 集成",
-              href: "/integrations/marketup",
-              icon: Sparkles,
-            },
             {
               label: "线索导出",
               href: `/exhibitor/booths/${boothId}/leads#export`,

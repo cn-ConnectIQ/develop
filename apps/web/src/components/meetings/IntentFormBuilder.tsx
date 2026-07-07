@@ -41,7 +41,10 @@ type IntentFormBuilderProps = {
   tags: IntentTagRow[];
   loading: boolean;
   onConfigChange: (config: EventIntentConfig) => void;
-  onTagsChange: (tags: IntentTagRow[]) => void;
+  onTagsChange: (
+    tags: IntentTagRow[] | ((prev: IntentTagRow[]) => IntentTagRow[]),
+  ) => void;
+  onTagsRefresh?: () => Promise<void>;
   onSave: () => Promise<void>;
   saving: boolean;
   dirty: boolean;
@@ -54,6 +57,7 @@ export function IntentFormBuilder({
   loading,
   onConfigChange,
   onTagsChange,
+  onTagsRefresh,
   onSave,
   saving,
   dirty,
@@ -84,26 +88,50 @@ export function IntentFormBuilder({
     const res = await fetch(`/api/events/${eventId}/intent-tags`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      cache: "no-store",
       body: JSON.stringify({ label, pool }),
     });
+    const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      toast.error("添加标签失败");
+      toast.error(typeof json.error === "string" ? json.error : "添加标签失败");
       return;
     }
-    const json = await res.json();
-    onTagsChange([...tags, { id: json.data.id, label: json.data.label, pool: json.data.pool }]);
+    const created = json.data as { id?: string; label?: string; pool?: string };
+    if (!created?.id || !created.label || !created.pool) {
+      toast.error("添加标签失败");
+      void onTagsRefresh?.();
+      return;
+    }
+    onTagsChange((prev) => {
+      if (prev.some((t) => t.id === created.id)) return prev;
+      return [...prev, { id: created.id!, label: created.label!, pool: created.pool! }];
+    });
     toast.success("标签已添加");
   };
 
   const removeTag = async (tagId: string) => {
-    const res = await fetch(`/api/events/${eventId}/intent-tags/${tagId}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      toast.error("删除失败");
+    if (!tagId) {
+      toast.error("标签数据异常，正在刷新…");
+      await onTagsRefresh?.();
       return;
     }
-    onTagsChange(tags.filter((t) => t.id !== tagId));
+
+    const res = await fetch(`/api/events/${eventId}/intent-tags`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ delete_ids: [tagId] }),
+    });
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      toast.error(typeof json.error === "string" ? json.error : "删除失败");
+      await onTagsRefresh?.();
+      return;
+    }
+
+    onTagsChange((prev) => prev.filter((t) => t.id !== tagId));
+    toast.success("标签已删除");
   };
 
   const submitNewTag = async (pool: TagPool) => {

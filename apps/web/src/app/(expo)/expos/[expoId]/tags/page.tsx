@@ -6,5 +6,5 @@ export default async function ExpoTagsRedirectPage({
   params: Promise<{ expoId: string }>;
 }) {
   const { expoId } = await params;
-  redirect(`/events/${expoId}/intent-tags`);
+  redirect(`/events/${expoId}/matchmaking`);
 }

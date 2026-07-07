@@ -82,9 +82,9 @@ export default async function ExpoPage({
               icon={Users}
             />
             <QuickTile
-              title="意向标签"
-              description={`${expo._count.intentTags} 个标签`}
-              href={`/events/${expoId}/intent-tags`}
+              title="匹配预热"
+              description={`${expo._count.intentTags} 个意向标签`}
+              href={`/events/${expoId}/matchmaking`}
               icon={Tag}
             />
           </QuickTileGrid>

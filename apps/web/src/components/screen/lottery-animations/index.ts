@@ -20,6 +20,7 @@ export {
   useLotteryScreenAnimation,
 } from "@/components/screen/lottery-animations/LotteryAnimationDispatch";
 export { WinnerResultCard } from "@/components/screen/lottery-animations/WinnerResultCard";
+export { WinnerGridReveal } from "@/components/screen/lottery-animations/WinnerGridReveal";
 export type {
   ReelColumnEntry,
   ReelOfHonorPhase,

@@ -219,15 +219,28 @@ function LotteryScreenDisplayInner({
             已揭晓 {progress.revealed}/{progress.quota || "?"}
           </p>
           {!embedded && (
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {winners.map((w) => (
-                <div
-                  key={w.id}
-                  className="shrink-0 rounded-lg bg-white/5 px-4 py-2 text-sm"
-                >
-                  <span className="font-medium">{w.name}</span>
-                  <span className="mx-2 text-white/30">·</span>
-                  <span className="text-brand-gold">{w.prize_name}</span>
+            <div className="space-y-3">
+              {Object.entries(
+                winners.reduce<Record<number, typeof winners>>((acc, w) => {
+                  const key = w.prize_rank;
+                  acc[key] = acc[key] ? [...acc[key], w] : [w];
+                  return acc;
+                }, {}),
+              ).map(([rank, group]) => (
+                <div key={rank}>
+                  <p className="mb-1 text-xs text-brand-gold/80">
+                    {group[0]?.prize_name ?? `${rank}等奖`}（{group.length} 位）
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {group.map((w) => (
+                      <div
+                        key={w.id}
+                        className="shrink-0 rounded-lg bg-white/5 px-3 py-1.5 text-sm"
+                      >
+                        <span className="font-medium">{w.name}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

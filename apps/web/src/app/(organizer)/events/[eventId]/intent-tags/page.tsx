@@ -1,16 +1,11 @@
-import { Suspense } from "react";
-import { IntentTagsManagementClient } from "@/components/intent-tags/IntentTagsManagementClient";
+import { redirect } from "next/navigation";
 
+/** 活动级意向标签已合并至「匹配预热」 */
 export default async function EventIntentTagsPage({
   params,
 }: {
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-
-  return (
-    <Suspense>
-      <IntentTagsManagementClient eventId={eventId} />
-    </Suspense>
-  );
+  redirect(`/events/${eventId}/matchmaking`);
 }

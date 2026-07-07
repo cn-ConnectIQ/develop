@@ -1,4 +1,4 @@
-import { ActivityType, prisma } from "@connectiq/database";
+import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
 import { MatchmakingSetupClient } from "@/components/meetings/MatchmakingSetupClient";
 
@@ -15,7 +15,6 @@ export default async function MatchmakingPage({
   });
 
   if (!event) notFound();
-  if (event.activityType === ActivityType.EXHIBITION) notFound();
 
   return <MatchmakingSetupClient eventId={eventId} eventName={event.name} />;
 }

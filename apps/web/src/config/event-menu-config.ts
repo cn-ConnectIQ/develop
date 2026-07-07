@@ -16,7 +16,6 @@ export const EVENT_MENU_VISIBILITY: Record<string, EventActivityKind[]> = {
   "exhibitor-list": ["EXPO"],
   "all-leads": ["EXPO", "EXHIBITION"],
   "booth-map": ["EXPO"],
-  "intent-tags": ["CONFERENCE", "EXPO", "EXHIBITION"],
   "lead-form": ["CONFERENCE", "EXPO", "EXHIBITION"],
   "marketup-sync": ["CONFERENCE", "EXPO", "EXHIBITION"],
   interaction: ["CONFERENCE", "EXPO", "EXHIBITION"],

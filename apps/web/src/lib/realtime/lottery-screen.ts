@@ -9,6 +9,7 @@ export type LotteryScreenEventType =
   | "START_ANIMATION"
   | "TIER_START"
   | "REVEAL_WINNER"
+  | "REVEAL_TIER"
   | "END";
 
 export type LotteryScreenRollingEntry = {
@@ -44,6 +45,19 @@ export type LotteryScreenRevealData = {
   winner_quota: number;
 };
 
+export type LotteryScreenRevealTierData = {
+  lottery_id: string;
+  tier: number;
+  tier_label: string;
+  prize_name: string;
+  /** 本次抽取动作产生的获奖者（1 人或多人） */
+  winners: LotteryScreenWinnerPayload[];
+  revealed_total: number;
+  winner_quota: number;
+  total_drawn_count: number;
+  remaining_count: number;
+};
+
 export type LotteryScreenTierStartData = {
   lottery_id: string;
   tier: number;
@@ -62,6 +76,7 @@ export type LotteryScreenMessage =
   | { type: "START_ANIMATION"; data: LotteryScreenStartData }
   | { type: "TIER_START"; data: LotteryScreenTierStartData }
   | { type: "REVEAL_WINNER"; data: LotteryScreenRevealData }
+  | { type: "REVEAL_TIER"; data: LotteryScreenRevealTierData }
   | { type: "END"; data: LotteryScreenEndData };
 
 export type LotteryScreenBroadcast = LotteryScreenMessage & {

@@ -1,0 +1,64 @@
+.wrap {
+  width: min(960px, 92vw);
+  text-align: center;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.tier {
+  font-size: 0.875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(239, 159, 39, 0.85);
+}
+
+.title {
+  margin-top: 0.5rem;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 800;
+  color: #fff;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  max-height: min(420px, 50vh);
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.cell {
+  border: 1px solid rgba(239, 159, 39, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.75rem 0.5rem;
+  box-shadow: 0 0 24px rgba(239, 159, 39, 0.12);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #534ab7, #0f6e56);
+  font-weight: 700;
+  color: #fff;
+}
+
+.name {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.company {
+  margin-top: 0.125rem;
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.55);
+}

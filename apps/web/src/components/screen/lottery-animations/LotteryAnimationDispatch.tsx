@@ -5,6 +5,7 @@ import { ReelOfHonor, buildReelColumns, resolveReelFinalIndices, DEFAULT_REEL_ST
 import { StarlightOrbit, resolveOrbitWinnerIndex } from "@/components/screen/lottery-animations/StarlightOrbit";
 import { PrecisionRoller, buildPrecisionRollerConfig } from "@/components/screen/lottery-animations/PrecisionRoller";
 import { ScrollUnveiling, calcScrollUnveilingDuration } from "@/components/screen/lottery-animations/ScrollUnveiling";
+import { WinnerGridReveal } from "@/components/screen/lottery-animations/WinnerGridReveal";
 import { RollingMachine } from "@/components/screen/lottery-animations/RollingMachine";
 import { SpotlightScroll } from "@/components/screen/lottery-animations/SpotlightScroll";
 import { BigScreenAnimationType } from "@/lib/lottery/big-screen-animation-config";
@@ -100,6 +101,9 @@ export function useLotteryScreenAnimation(
   const [rollingEntries, setRollingEntries] = useState<
     LotteryScreenRollingEntry[]
   >([]);
+  const [currentWinners, setCurrentWinners] = useState<
+    LotteryScreenWinnerPayload[]
+  >([]);
   const [currentWinner, setCurrentWinner] =
     useState<LotteryScreenWinnerPayload | null>(null);
   const [winners, setWinners] = useState<LotteryScreenWinnerPayload[]>([]);
@@ -110,6 +114,9 @@ export function useLotteryScreenAnimation(
 
   const [animPhase, setAnimPhase] = useState<LotteryAnimationPhase>("spinning");
   const [stoppedIndexes, setStoppedIndexes] = useState<number[]>([]);
+  const [pendingWinners, setPendingWinners] = useState<
+    LotteryScreenWinnerPayload[]
+  >([]);
   const [pendingWinner, setPendingWinner] =
     useState<LotteryScreenWinnerPayload | null>(null);
 
@@ -168,6 +175,8 @@ export function useLotteryScreenAnimation(
     setAnimPhase("spinning");
     setStoppedIndexes([]);
     setPendingWinner(null);
+    setPendingWinners([]);
+    setCurrentWinners([]);
   }
 
   function beginGenericStopping(
@@ -251,6 +260,26 @@ export function useLotteryScreenAnimation(
     }, duration);
   }
 
+  function beginStoppingForWinners(
+    type: BigScreenAnimationTypeValue,
+    batch: LotteryScreenWinnerPayload[],
+  ) {
+    if (batch.length === 0) return;
+    setPendingWinners(batch);
+    setPendingWinner(batch[0] ?? null);
+    if (batch.length > 1) {
+      setScreenPhase("animating");
+      setAnimPhase("stopping");
+      clearGenericStopTimer();
+      genericStopTimer.current = setTimeout(() => {
+        setAnimPhase("revealed");
+        setScreenPhase("revealed");
+      }, 1400);
+      return;
+    }
+    beginStoppingForType(type, batch[0]!);
+  }
+
   function beginStoppingForType(
     type: BigScreenAnimationTypeValue,
     winner: LotteryScreenWinnerPayload,
@@ -315,6 +344,7 @@ export function useLotteryScreenAnimation(
         setEntryCount(msg.data.entry_count);
         setRollingEntries(msg.data.rolling_entries);
         setCurrentWinner(null);
+        setCurrentWinners([]);
         setTierLabel(null);
         resetAnimState();
         setScreenPhase("animating");
@@ -328,12 +358,25 @@ export function useLotteryScreenAnimation(
 
       if (msg.type === "REVEAL_WINNER") {
         setCurrentWinner(msg.data.winner);
+        setCurrentWinners([msg.data.winner]);
         setWinners((prev) => [...prev, msg.data.winner]);
         setProgress({
           revealed: msg.data.revealed_total,
           quota: msg.data.winner_quota,
         });
-        beginStoppingForType(animationTypeRef.current, msg.data.winner);
+        beginStoppingForWinners(animationTypeRef.current, [msg.data.winner]);
+      }
+
+      if (msg.type === "REVEAL_TIER") {
+        setCurrentWinners(msg.data.winners);
+        setCurrentWinner(msg.data.winners[0] ?? null);
+        setWinners((prev) => [...prev, ...msg.data.winners]);
+        setProgress({
+          revealed: msg.data.revealed_total,
+          quota: msg.data.winner_quota,
+        });
+        setTierLabel(msg.data.tier_label);
+        beginStoppingForWinners(animationTypeRef.current, msg.data.winners);
       }
 
       if (msg.type === "END") {
@@ -347,7 +390,21 @@ export function useLotteryScreenAnimation(
     };
   }, [eventId, lotteryId]);
 
-  const resolvedWinner = toReelWinner(currentWinner ?? pendingWinner);
+  const batchWinners = useMemo(() => {
+    const source =
+      currentWinners.length > 0
+        ? currentWinners
+        : pendingWinners.length > 0
+          ? pendingWinners
+          : currentWinner
+            ? [currentWinner]
+            : pendingWinner
+              ? [pendingWinner]
+              : [];
+    return source.map((w) => toReelWinner(w)).filter((w): w is ReelWinnerInfo => w != null);
+  }, [currentWinners, pendingWinners, currentWinner, pendingWinner]);
+
+  const resolvedWinner = batchWinners[0] ?? null;
   const displayAnimPhase: LotteryAnimationPhase =
     screenPhase === "revealed" ? "revealed" : animPhase;
 
@@ -378,6 +435,7 @@ export function useLotteryScreenAnimation(
     screenPhase === "animating" || screenPhase === "revealed"
       ? {
           phase: displayAnimPhase,
+          winners: showWinner ? batchWinners : [],
           winner: showWinner ? resolvedWinner : null,
           stopSequence: DEFAULT_REEL_STOP_SEQUENCE,
           stoppedIndexes,
@@ -421,62 +479,76 @@ export function LotteryAnimationDispatch({
   props: LotteryAnimationProps;
   extras: LotteryDispatchExtras;
 }) {
+  const isMultiReveal =
+    props.phase === "revealed" && props.winners.length > 1;
+
+  if (isMultiReveal) {
+    return (
+      <WinnerGridReveal
+        winners={props.winners}
+        tierLabel={props.tierLabel}
+        prizeName={props.winners[0]?.prize_name}
+      />
+    );
+  }
+
   const winnerForCard =
     props.phase === "revealed" ? extras.resolvedWinner : props.winner;
+  const singleProps = { ...props, winner: winnerForCard };
 
   switch (animationType) {
     case BigScreenAnimationType.ROLLING_MACHINE:
-      return <RollingMachine {...props} winner={winnerForCard} />;
+      return <RollingMachine {...singleProps} winner={winnerForCard} />;
 
     case BigScreenAnimationType.SPOTLIGHT_SCROLL:
-      return <SpotlightScroll {...props} winner={winnerForCard} />;
+      return <SpotlightScroll {...singleProps} winner={winnerForCard} />;
 
     case BigScreenAnimationType.REEL_OF_HONOR:
       return (
         <ReelOfHonor
-          phase={props.phase}
+          phase={singleProps.phase}
           columns={extras.reelColumns}
           finalIndices={extras.reelFinalIndices}
-          stopSequence={props.stopSequence ?? DEFAULT_REEL_STOP_SEQUENCE}
-          stoppedColumns={props.stoppedIndexes}
+          stopSequence={singleProps.stopSequence ?? DEFAULT_REEL_STOP_SEQUENCE}
+          stoppedColumns={singleProps.stoppedIndexes}
           winner={winnerForCard}
-          tierLabel={props.tierLabel}
+          tierLabel={singleProps.tierLabel}
         />
       );
 
     case BigScreenAnimationType.STARLIGHT_ORBIT:
       return (
         <StarlightOrbit
-          phase={props.phase}
-          entries={props.rollingEntries}
+          phase={singleProps.phase}
+          entries={singleProps.rollingEntries}
           winnerIndex={extras.orbitWinnerIndex}
           winner={winnerForCard}
-          tierLabel={props.tierLabel}
+          tierLabel={singleProps.tierLabel}
         />
       );
 
     case BigScreenAnimationType.PRECISION_ROLLER:
       return (
         <PrecisionRoller
-          phase={props.phase}
-          entryNames={props.rollingEntries.map((e) => e.name)}
+          phase={singleProps.phase}
+          entryNames={singleProps.rollingEntries.map((e) => e.name)}
           targetName={
             extras.pendingWinner?.name ?? extras.currentWinner?.name ?? ""
           }
           charsets={extras.rollerConfig.charsets}
           finalIndices={extras.rollerConfig.finalIndices}
           stopSequence={extras.rollerConfig.stopSequence}
-          stoppedRollers={props.stoppedIndexes}
+          stoppedRollers={singleProps.stoppedIndexes}
           winner={winnerForCard}
-          tierLabel={props.tierLabel}
+          tierLabel={singleProps.tierLabel}
         />
       );
 
     case BigScreenAnimationType.SCROLL_UNVEILING:
       return (
         <ScrollUnveiling
-          phase={props.phase}
-          heading={props.title}
+          phase={singleProps.phase}
+          heading={singleProps.title}
           revealName={
             extras.pendingWinner?.name ?? extras.currentWinner?.name ?? ""
           }
@@ -486,11 +558,11 @@ export function LotteryAnimationDispatch({
             null
           }
           winner={winnerForCard}
-          tierLabel={props.tierLabel}
+          tierLabel={singleProps.tierLabel}
         />
       );
 
     default:
-      return <RollingMachine {...props} winner={winnerForCard} />;
+      return <RollingMachine {...singleProps} winner={winnerForCard} />;
   }
 }
