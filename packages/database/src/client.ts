@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
-function getConnectionString() {
+function getRawConnectionUrl() {
   // Vercel / 生产环境优先 Transaction Pooler（6543），避免 Session 模式连接数打满
   const preferPooler =
     process.env.VERCEL === "1" ||
@@ -15,6 +15,18 @@ function getConnectionString() {
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
+  return url;
+}
+
+function usesDatabaseSsl(url: string) {
+  const match = url.match(/[?&]sslmode=([^&]+)/i);
+  if (!match) return true;
+  const mode = match[1].toLowerCase();
+  return mode !== "disable" && mode !== "allow";
+}
+
+function getConnectionString() {
+  const url = getRawConnectionUrl();
 
   // pg 与 URL 中的 sslmode 冲突时会导致证书校验失败，由 Pool 统一处理 SSL
   return url
@@ -39,9 +51,10 @@ function createPool() {
   const max = Number(
     process.env.DATABASE_POOL_MAX ?? (isServerless ? 2 : 5),
   );
+  const rawUrl = getRawConnectionUrl();
   return new pg.Pool({
     connectionString: getConnectionString(),
-    ssl: { rejectUnauthorized: false },
+    ssl: usesDatabaseSsl(rawUrl) ? { rejectUnauthorized: false } : false,
     max,
     idleTimeoutMillis: 20_000,
     connectionTimeoutMillis: 30_000,
