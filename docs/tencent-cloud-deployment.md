@@ -1,5 +1,8 @@
 # ConnectIQ 腾讯云部署安装指南
 
+> **迁移到 CloudBase？** 若计划使用 **腾讯云 CloudBase（云开发）** 托管 Next.js，请优先阅读 **[CloudBase 部署指南](./cloudbase-deployment.md)**。  
+> 本文档保留 **CVM + Nginx + PM2** 自建方案，适合需要完全自主运维或使用已有 CVM 的场景。
+
 本文档描述如何将 ConnectIQ 全栈系统部署到**腾讯云**体系，覆盖 Web 管理端/API、PostgreSQL 数据库、缓存、对象存储、定时任务与微信小程序发布。
 
 ---
@@ -32,7 +35,7 @@
 
 | 组件 | 仓库 | 技术栈 | 腾讯云推荐产品 |
 |------|------|--------|----------------|
-| Web + API | `connectiq` | Next.js 16、Prisma、NextAuth | **CVM** 或 **Lighthouse**（2C4G 起） |
+| Web + API | `connectiq` | Next.js 16、Prisma、NextAuth | **CloudBase 云托管**（推荐）或 **CVM** / **Lighthouse** |
 | 数据库 | `connectiq/packages/database` | PostgreSQL 15+ | **TencentDB for PostgreSQL** |
 | 缓存（可选） | `apps/web/src/lib/redis.ts` | Redis | **TencentDB for Redis** |
 | 文件上传 | `/api/upload` | 本地目录（生产建议 COS） | **对象存储 COS** + **CDN** |
@@ -205,9 +208,9 @@ WX_MINI_PROGRAM_STATE="formal"          # 正式版
 CRON_SECRET="随机长字符串"
 WECHAT_INTERNAL_SECRET="可与 CRON_SECRET 相同"
 
-# ── AI（任选 provider）──
-LLM_PROVIDER="deepseek"                 # deepseek | dashscope | zhipu
-LLM_API_KEY="sk-..."
+# ── AI（DeepSeek）──
+DEEPSEEK_API_KEY="sk-..."
+DEEPSEEK_MODEL="deepseek-v4-flash"
 ```
 
 ### 5.2 推荐项
@@ -514,8 +517,8 @@ WX_TMPL_LOTTERY_RESULT=""
 
 | 原服务 | 腾讯云替代 | 备注 |
 |--------|-----------|------|
-| Vercel 托管 | CVM + Nginx + PM2 | 需自行维护 Node 进程 |
-| Vercel Cron | SCF 定时 / crontab | 调用时需带 `CRON_SECRET` |
+| Vercel 托管 | **CloudBase 云托管**（推荐）或 CVM + Nginx + PM2 | 见 [cloudbase-deployment.md](./cloudbase-deployment.md) |
+| Vercel Cron | CloudBase 云函数定时 / SCF / crontab | 调用时需带 `CRON_SECRET` |
 | Supabase Postgres | TencentDB PostgreSQL | 改 `DATABASE_URL` 即可 |
 | Supabase Realtime | 保留或自建 WS | 抽奖大屏需单独方案 |
 | Supabase Storage | COS | 需改 `stamp-qrcode.ts` 等 |
@@ -554,6 +557,9 @@ Client Component 不得 import 含 `prisma` 的模块。确保 UI 组件只引�
 
 | 文件 | 说明 |
 |------|------|
+| `docs/cloudbase-deployment.md` | **CloudBase 云托管部署（推荐）** |
+| `Dockerfile` | 云托管镜像构建 |
+| `cloudbaserc.json` | CloudBase CLI 配置 |
 | `apps/web/.env.example` | Web 环境变量模板 |
 | `apps/web/vercel.json` | 原 Cron 调度参考 |
 | `packages/database/prisma/schema.prisma` | 数据库模型 |
