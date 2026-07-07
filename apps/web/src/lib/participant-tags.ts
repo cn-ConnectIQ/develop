@@ -89,7 +89,7 @@ export function resolveDisplayTags(
   return resolved;
 }
 
-/** @deprecated 工作人员请用 system_role=STAFF；保留以兼容历史 Staff 标签数据 */
+/** @deprecated 工作人员请用 system_role=ORGANIZER_STAFF；保留以兼容历史 Staff 标签数据 */
 export function isStaffTagged(tags: string[]): boolean {
   return participantHasTag(tags, "Staff");
 }
