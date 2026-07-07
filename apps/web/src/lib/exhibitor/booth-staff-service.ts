@@ -1,4 +1,6 @@
 import {
+  InviteStatus,
+  OrgStaffRole,
   ParticipantSource,
   SystemRole,
   prisma,
@@ -36,10 +38,21 @@ type BoothStaffContext = {
   userId: string;
   booth: Pick<
     ExhibitorBooth,
-    "id" | "eventId" | "name" | "maxStaffCount" | "extraStaffPurchased"
+    | "id"
+    | "eventId"
+    | "name"
+    | "maxStaffCount"
+    | "extraStaffPurchased"
+    | "operatorUserId"
+    | "companyOrgId"
   >;
   viewerParticipant: Participant | null;
 };
+
+type BoothOperatorBooth = Pick<
+  ExhibitorBooth,
+  "id" | "operatorUserId" | "companyOrgId"
+>;
 
 function normalizePhone(phone: string): string {
   return phone.trim();
@@ -95,6 +108,7 @@ async function loadBoothOrThrow(boothId: string) {
       maxStaffCount: true,
       extraStaffPurchased: true,
       operatorUserId: true,
+      companyOrgId: true,
       event: { select: { name: true } },
     },
   });
@@ -119,6 +133,87 @@ export async function findBoothExhibitorParticipantForUser(
     return null;
   }
   return linked;
+}
+
+/** 展位操作员：operatorUserId / 组织 owner / 已接受 OrgStaff OWNER|ADMIN */
+async function isUserBoothOperator(
+  userId: string,
+  booth: BoothOperatorBooth,
+): Promise<boolean> {
+  if (booth.operatorUserId === userId) return true;
+
+  const orgAccess = await prisma.organization.findFirst({
+    where: {
+      id: booth.companyOrgId,
+      OR: [
+        { ownerId: userId },
+        {
+          staff: {
+            some: {
+              userId,
+              status: InviteStatus.ACCEPTED,
+              role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  return Boolean(orgAccess);
+}
+
+/** 将展位操作员同步为 is_booth_owner 的 Participant（兼容历史数据） */
+async function ensureBoothOwnerParticipant(
+  eventId: string,
+  boothId: string,
+  userId: string,
+): Promise<Participant | null> {
+  const existing = await findBoothExhibitorParticipantForUser(
+    eventId,
+    boothId,
+    userId,
+  );
+  if (existing?.isBoothOwner) return existing;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, phone: true, name: true },
+  });
+  if (!user) return null;
+
+  const linked = await findParticipantForUser(eventId, userId);
+  if (linked) {
+    if (
+      linked.systemRole === SystemRole.EXHIBITOR &&
+      linked.boothId &&
+      linked.boothId !== boothId
+    ) {
+      return null;
+    }
+    return prisma.participant.update({
+      where: { id: linked.id },
+      data: {
+        systemRole: SystemRole.EXHIBITOR,
+        boothId,
+        isBoothOwner: true,
+        name: linked.name || user.name || "展位主账号",
+      },
+    });
+  }
+
+  return prisma.participant.create({
+    data: {
+      eventId,
+      name: user.name ?? `用户${user.phone?.slice(-4) ?? ""}`,
+      email: user.email ?? null,
+      phone: user.phone ?? null,
+      systemRole: SystemRole.EXHIBITOR,
+      boothId,
+      isBoothOwner: true,
+      badgeQr: generateBadgeQr(eventId),
+    },
+  });
 }
 
 async function countBoothStaff(boothId: string): Promise<number> {
@@ -149,13 +244,22 @@ export async function requireBoothStaffViewer(
   const booth = await loadBoothOrThrow(boothId);
   const userId = await resolveMobileUserId(request);
 
-  const viewerParticipant = await findBoothExhibitorParticipantForUser(
+  const linked = await findBoothExhibitorParticipantForUser(
     booth.eventId,
     boothId,
     userId,
   );
-  if (viewerParticipant) {
-    return { userId, booth, viewerParticipant };
+  if (linked) {
+    return { userId, booth, viewerParticipant: linked };
+  }
+
+  if (await isUserBoothOperator(userId, booth)) {
+    const ownerParticipant = await ensureBoothOwnerParticipant(
+      booth.eventId,
+      boothId,
+      userId,
+    );
+    return { userId, booth, viewerParticipant: ownerParticipant };
   }
 
   try {
@@ -174,11 +278,23 @@ export async function requireBoothStaffOwner(
   const booth = await loadBoothOrThrow(boothId);
   const userId = await resolveMobileUserId(request);
 
-  const ownerParticipant = await findBoothExhibitorParticipantForUser(
+  let ownerParticipant = await findBoothExhibitorParticipantForUser(
     booth.eventId,
     boothId,
     userId,
   );
+
+  if (ownerParticipant && !ownerParticipant.isBoothOwner) {
+    throw new ApiError("仅展位主账号可管理团队成员", ErrorCode.FORBIDDEN, 403);
+  }
+
+  if (!ownerParticipant?.isBoothOwner && (await isUserBoothOperator(userId, booth))) {
+    ownerParticipant = await ensureBoothOwnerParticipant(
+      booth.eventId,
+      boothId,
+      userId,
+    );
+  }
 
   if (!ownerParticipant?.isBoothOwner) {
     throw new ApiError("仅展位主账号可管理团队成员", ErrorCode.FORBIDDEN, 403);
