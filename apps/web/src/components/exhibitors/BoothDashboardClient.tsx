@@ -4,7 +4,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { backgroundPoll } from "@/lib/query-options";
 import Link from "next/link";
-import { QrCode } from "lucide-react";
+import { ChevronRight, QrCode } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AdminContent } from "@/components/admin/admin-header";
 import { LeadStatusBadge, CrmSyncStatusBadge, formatDateTime } from "@/components/admin/status-badge";
@@ -87,6 +87,129 @@ function gradeBadge(tags: BoothDashboardData["leads"][0]["intentTags"]) {
     >
       {label || "待评估"}
     </span>
+  );
+}
+
+type StaffSummary = {
+  currentCount: number;
+  maxCount: number;
+  viewerIsOwner: boolean;
+};
+
+type FormSummary = {
+  fieldCount: number;
+  conditionRulesEnabled: boolean;
+};
+
+async function fetchStaffSummary(boothId: string): Promise<StaffSummary> {
+  const res = await fetch(`/api/booths/${boothId}/staff`, { credentials: "include" });
+  if (!res.ok) throw new Error("加载团队成员失败");
+  const json = await res.json();
+  const data = json.data as {
+    currentCount: number;
+    maxCount: number;
+    viewerIsOwner?: boolean;
+  };
+  return {
+    currentCount: data.currentCount,
+    maxCount: data.maxCount,
+    viewerIsOwner: data.viewerIsOwner === true,
+  };
+}
+
+async function fetchFormSummary(boothId: string): Promise<FormSummary> {
+  const res = await fetch(`/api/booths/${boothId}/form-config`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("加载表单配置失败");
+  const json = await res.json();
+  const data = json.data as {
+    customFields?: unknown[];
+    conditionRules?: { enabled?: boolean };
+  };
+  return {
+    fieldCount: Array.isArray(data.customFields) ? data.customFields.length : 0,
+    conditionRulesEnabled: data.conditionRules?.enabled === true,
+  };
+}
+
+function SettingCardLink({
+  title,
+  description,
+  actionLabel,
+  href,
+  meta,
+}: {
+  title: string;
+  description: string;
+  actionLabel: string;
+  href: string;
+  meta?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-start justify-between gap-4 rounded-xl border border-border-light bg-white p-4 transition-colors hover:border-brand-green/40 hover:bg-brand-green-light/20"
+    >
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold">{title}</h3>
+        <p className="mt-1 text-sm text-text-muted">{description}</p>
+        {meta ? <p className="mt-2 text-xs text-brand-green">{meta}</p> : null}
+      </div>
+      <span className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-brand-green">
+        {actionLabel}
+        <ChevronRight className="size-4" />
+      </span>
+    </Link>
+  );
+}
+
+function BoothSettingSummaryCards({ boothId }: { boothId: string }) {
+  const { data: staff } = useQuery({
+    queryKey: ["booth-staff-summary", boothId],
+    queryFn: () => fetchStaffSummary(boothId),
+    ...backgroundPoll(60_000),
+  });
+
+  const { data: form } = useQuery({
+    queryKey: ["booth-form-summary", boothId],
+    queryFn: () => fetchFormSummary(boothId),
+    ...backgroundPoll(60_000),
+  });
+
+  const staffMeta = staff
+    ? `已添加 ${staff.currentCount}/${staff.maxCount} 位${
+        staff.currentCount >= staff.maxCount ? " · 已满" : ""
+      }`
+    : undefined;
+
+  const formMeta = form
+    ? `已配置 ${form.fieldCount} 个自定义字段${
+        form.conditionRulesEnabled ? " · 条件规则已开启" : ""
+      }`
+    : undefined;
+
+  return (
+    <div id="team" className="scroll-mt-4 space-y-3">
+      <SettingCardLink
+        title="采集表单管理"
+        description="可为不同咨询场景配置采集字段，访客扫码留资后线索自动进入列表。"
+        actionLabel="去配置"
+        href={`/exhibitor/booths/${boothId}/form-config`}
+        meta={formMeta}
+      />
+      <SettingCardLink
+        title="展位团队成员"
+        description={
+          staff?.viewerIsOwner
+            ? "添加同事共同跟进展位线索；主账号可管理成员与名额。"
+            : "查看本展位团队成员；如需调整请联系展位主账号。"
+        }
+        actionLabel={staff?.viewerIsOwner ? "添加成员" : "查看团队"}
+        href={`/exhibitor/booths/${boothId}/staff`}
+        meta={staffMeta}
+      />
+    </div>
   );
 }
 
@@ -199,17 +322,8 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
       </section>
 
       <section id="form-preview" className="admin-card mt-6 p-5 scroll-mt-4">
-        <h2 className="font-semibold">采集表单预览</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          访客扫码后将填写主办方配置的采集字段，线索自动进入下方列表。
-        </p>
-      </section>
-
-      <section id="team" className="admin-card mt-6 p-5 scroll-mt-4">
-        <h2 className="font-semibold">展位团队成员</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          联系主办方添加团队成员，共同跟进展位线索。
-        </p>
+        <h2 className="mb-4 font-semibold">展位设置</h2>
+        <BoothSettingSummaryCards boothId={boothId} />
       </section>
 
       <section id="target-profile" className="admin-card mt-6 p-5 scroll-mt-4">
@@ -220,13 +334,21 @@ export function BoothDashboardClient({ boothId }: { boothId: string }) {
       </section>
 
       <section id="export" className="admin-card mt-6 p-5 scroll-mt-4">
-        <h2 className="font-semibold">线索导出</h2>
-        <Link
-          href={`/exhibitor/booths/${boothId}/leads#export`}
-          className="mt-2 inline-block text-sm text-brand-blue hover:underline"
-        >
-          前往线索列表导出 →
-        </Link>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">线索导出</h2>
+            <p className="mt-1 text-sm text-text-muted">
+              导出已采集线索，对接 MarketUP 或本地表格。
+            </p>
+          </div>
+          <Link
+            href={`/exhibitor/booths/${boothId}/leads#export`}
+            className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-brand-blue hover:underline"
+          >
+            去导出
+            <ChevronRight className="size-4" />
+          </Link>
+        </div>
       </section>
 
       <section id="report" className="admin-card mt-6 p-5 scroll-mt-4">

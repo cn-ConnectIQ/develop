@@ -445,13 +445,13 @@ function getEventNavigationGroups(
           label: "展位设置",
           items: [
             {
-              label: "采集表单预览",
-              href: `/exhibitor/booths/${boothId}#form-preview`,
+              label: "采集表单配置",
+              href: `/exhibitor/booths/${boothId}/form-config`,
               icon: ClipboardList,
             },
             {
               label: "展位团队成员",
-              href: `/exhibitor/booths/${boothId}#team`,
+              href: `/exhibitor/booths/${boothId}/staff`,
               icon: Users,
             },
             {
