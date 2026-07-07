@@ -57,7 +57,7 @@ function AdminLayoutInner({
 
         <main
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
+            "flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden",
             isReviewLocked && currentEventId && "pt-12",
           )}
         >

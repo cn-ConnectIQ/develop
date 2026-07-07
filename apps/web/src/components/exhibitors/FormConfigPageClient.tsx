@@ -15,16 +15,10 @@ import { AdminContent } from "@/components/admin/admin-header";
 import { ConditionalRulesPanel } from "@/components/exhibitors/ConditionalRulesPanel";
 import { FormConfigPreview } from "@/components/exhibitors/FormConfigPreview";
 import { FormFieldList } from "@/components/exhibitors/FormFieldList";
-import { MarketupConfigPanel } from "@/components/exhibitors/MarketupConfigPanel";
-import {
-  buildDefaultFieldMap,
-  DEFAULT_MARKETUP_SYNC_CONFIG,
-  SYSTEM_CAPTURE_FIELDS,
-} from "@/lib/form-config";
+import { SYSTEM_CAPTURE_FIELDS } from "@/lib/form-config";
 import {
   DEFAULT_LEAD_FORM_CONFIG,
   type LeadFormConfig,
-  type MarketupSyncConfig,
 } from "@/types/booth";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +37,6 @@ type FormConfigData = {
     leadFormConfig: LeadFormConfig;
   };
   booths: BoothOption[];
-  externalSync: {
-    fieldMap: Record<string, string>;
-    syncConfig: MarketupSyncConfig;
-  };
   template: LeadFormConfig | null;
 };
 
@@ -71,10 +61,6 @@ export function FormConfigPageClient({
   const queryClient = useQueryClient();
   const [selectedBoothId, setSelectedBoothId] = useState(initialBoothId);
   const [config, setConfig] = useState<LeadFormConfig>(DEFAULT_LEAD_FORM_CONFIG);
-  const [fieldMap, setFieldMap] = useState<Record<string, string>>({});
-  const [syncConfig, setSyncConfig] = useState<MarketupSyncConfig>(
-    DEFAULT_MARKETUP_SYNC_CONFIG,
-  );
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -93,16 +79,6 @@ export function FormConfigPageClient({
         ? data.booth.leadFormConfig
         : DEFAULT_LEAD_FORM_CONFIG,
     );
-    setFieldMap(
-      Object.keys(data.externalSync.fieldMap).length
-        ? data.externalSync.fieldMap
-        : buildDefaultFieldMap(
-            data.booth.leadFormConfig?.fields?.length
-              ? data.booth.leadFormConfig
-              : DEFAULT_LEAD_FORM_CONFIG,
-          ),
-    );
-    setSyncConfig(data.externalSync.syncConfig);
   }, [data]);
 
   const selectorLabel = useMemo(() => {
@@ -134,14 +110,6 @@ export function FormConfigPageClient({
 
   async function handleSave() {
     setSaving(true);
-    const configToSave: LeadFormConfig = {
-      ...config,
-      fields: config.fields.map((field) => ({
-        ...field,
-        marketupField: fieldMap[field.id] ?? field.marketupField,
-      })),
-    };
-
     try {
       const res = await fetch(
         `/api/events/${eventId}/booths/${activeBoothId}/form-config`,
@@ -149,21 +117,12 @@ export function FormConfigPageClient({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            leadFormConfig: configToSave,
+            leadFormConfig: config,
             applyToAll,
           }),
         },
       );
       if (!res.ok) throw new Error("保存表单失败");
-
-      const marketupRes = await fetch(`/api/events/${eventId}/marketup-config`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fieldMap, syncConfig }),
-      });
-      if (!marketupRes.ok) throw new Error("保存映射失败");
-
-      setConfig(configToSave);
       void queryClient.invalidateQueries({
         queryKey: ["form-config", eventId],
       });
@@ -286,23 +245,6 @@ export function FormConfigPageClient({
           )}
 
           <ConditionalRulesPanel config={config} onChange={setConfig} />
-
-          <MarketupConfigPanel
-            config={config}
-            fieldMap={fieldMap}
-            syncConfig={syncConfig}
-            onFieldMapChange={setFieldMap}
-            onSyncConfigChange={setSyncConfig}
-          />
-          <p className="mt-3 text-xs text-text-muted">
-            保存后新采集线索将按映射自动同步至 MarketUP。查看{" "}
-            <a
-              href={`/events/${eventId}/marketup-sync`}
-              className="text-brand-blue hover:underline"
-            >
-              同步状态监控 →
-            </a>
-          </p>
         </div>
 
         <FormConfigPreview config={config} boothCode={currentBoothCode} />

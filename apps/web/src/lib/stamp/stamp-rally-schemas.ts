@@ -25,6 +25,7 @@ export const stampPointSchema = z
     weight: z.number().int().min(1).max(3),
     required: z.boolean(),
     stamp_id: z.string().min(1).optional().nullable(),
+    client_id: z.string().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.point_type === "BOOTH") {

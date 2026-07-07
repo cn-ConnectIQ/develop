@@ -263,7 +263,9 @@ export function StampPointTable({
                           }
                         >
                           <SelectTrigger className="h-8 w-[120px] text-xs">
-                            <SelectValue />
+                            <SelectValue placeholder="选择类型">
+                              {STAMP_POINT_TYPE_LABELS[stamp.point_type]}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {CUSTOM_STAMP_POINT_TYPES.map((type) => (

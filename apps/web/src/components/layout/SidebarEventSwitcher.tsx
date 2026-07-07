@@ -17,7 +17,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useCurrentEvent } from "@/contexts/event-context";
-import { getEventPhase, getEventDisplayTypeLabel } from "@/lib/event-utils";
+import { EventListItemBadges, getEventListRoleLabel } from "@/components/events/EventListItemBadges";
+import { getEventPhase } from "@/lib/event-utils";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@connectiq/types";
 
@@ -55,6 +56,53 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
         ? "bg-text-tertiary"
         : "bg-brand-blue";
 
+  const hostEvents = events.filter((e) => e.listRole === "HOST");
+  const exhibitorEvents = events.filter((e) => e.listRole === "EXHIBITOR");
+  const currentRoleLabel = currentEvent
+    ? getEventListRoleLabel(currentEvent)
+    : null;
+
+  function renderEventItem(event: (typeof events)[number]) {
+    return (
+      <CommandItem
+        key={event.id}
+        onSelect={() => setCurrentEventId(event.id)}
+        className={cn(
+          "flex items-center gap-2",
+          currentEvent?.id === event.id &&
+            "bg-brand-blue-light text-brand-blue",
+        )}
+      >
+        <span
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            getEventPhase({
+              status: event.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
+              startDate: event.startDate ? new Date(event.startDate) : null,
+              endDate: event.endDate ? new Date(event.endDate) : null,
+            }) === "live"
+              ? "bg-brand-green"
+              : "bg-brand-blue",
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{event.name}</p>
+          <p className="text-xs text-text-muted">
+            {event.startDate
+              ? format(new Date(event.startDate), "yyyy/M/d", {
+                  locale: zhCN,
+                })
+              : "日期待定"}
+            {event.listRole === "EXHIBITOR" && event.boothCode
+              ? ` · 展位 ${event.boothCode}`
+              : ""}
+          </p>
+        </div>
+        <EventListItemBadges event={event} />
+      </CommandItem>
+    );
+  }
+
   return (
     <div className="admin-sb-ctx">
       <Popover>
@@ -67,6 +115,11 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
               <>
                 <span className="text-text-tertiary">当前活动：</span>
                 {currentEvent?.name ?? "选择活动"}
+                {currentRoleLabel ? (
+                  <span className="ml-1 text-[11px] font-normal text-brand-blue">
+                    · {currentRoleLabel}
+                  </span>
+                ) : null}
               </>
             )}
           </span>
@@ -77,49 +130,16 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
             <CommandInput placeholder="搜索活动..." />
             <CommandList>
               <CommandEmpty>未找到活动</CommandEmpty>
-              <CommandGroup heading="活动">
-                {events.map((event) => (
-                  <CommandItem
-                    key={event.id}
-                    onSelect={() => setCurrentEventId(event.id)}
-                    className={cn(
-                      "flex items-center gap-2",
-                      currentEvent?.id === event.id &&
-                        "bg-brand-blue-light text-brand-blue",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "size-2 shrink-0 rounded-full",
-                        getEventPhase({
-                          status: event.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
-                          startDate: event.startDate
-                            ? new Date(event.startDate)
-                            : null,
-                          endDate: event.endDate
-                            ? new Date(event.endDate)
-                            : null,
-                        }) === "live"
-                          ? "bg-brand-green"
-                          : "bg-brand-blue",
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{event.name}</p>
-                      {event.startDate && (
-                        <p className="text-xs text-text-muted">
-                          {format(new Date(event.startDate), "yyyy/M/d", {
-                            locale: zhCN,
-                          })}
-                        </p>
-                      )}
-                    </div>
-                    <span className="shrink-0 rounded-sm bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
-                      {getEventDisplayTypeLabel(event)}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {hostEvents.length > 0 ? (
+                <CommandGroup heading="主办">
+                  {hostEvents.map(renderEventItem)}
+                </CommandGroup>
+              ) : null}
+              {exhibitorEvents.length > 0 ? (
+                <CommandGroup heading="参展">
+                  {exhibitorEvents.map(renderEventItem)}
+                </CommandGroup>
+              ) : null}
             </CommandList>
           </Command>
         </PopoverContent>

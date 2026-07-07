@@ -52,7 +52,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   FORM_FIELD_TYPE_OPTIONS,
-  MARKETUP_FIELD_OPTIONS,
   TYPE_BADGE_CLASS,
   TYPE_BADGE_LABEL,
 } from "@/lib/form-config";
@@ -121,12 +120,6 @@ function SortableFieldRow({
         >
           {TYPE_BADGE_LABEL[field.type]}
         </span>
-
-        {field.marketupField && (
-          <span className="hidden shrink-0 text-[10px] text-brand-purple xl:inline">
-            → MarketUP: {field.marketupField}
-          </span>
-        )}
 
         <Switch
           checked={field.required}
@@ -263,26 +256,6 @@ function FieldEditSheet({
               />
             </div>
           )}
-          <div>
-            <Label className="text-xs">MarketUP 映射字段</Label>
-            <Select
-              value={draft.marketupField ?? ""}
-              onValueChange={(v) =>
-                setDraft({ ...draft, marketupField: v || undefined })
-              }
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="选择映射字段" />
-              </SelectTrigger>
-              <SelectContent>
-                {MARKETUP_FIELD_OPTIONS.map((opt) => (
-                  <SelectItem key={opt} value={opt}>
-                    {opt}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="flex items-center justify-between">
             <Label className="text-xs">必填</Label>
             <Switch

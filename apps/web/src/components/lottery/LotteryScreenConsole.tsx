@@ -343,7 +343,7 @@ export function LotteryScreenConsole({
   })();
 
   return (
-    <div className="-mx-4 -my-6 flex min-h-[calc(100vh-56px)] flex-col bg-[#0F1117] text-white sm:-mx-6">
+    <div className="flex min-h-full flex-col bg-[#0F1117] text-white">
       <div className="flex h-[52px] shrink-0 items-center gap-4 border-b border-white/10 bg-[#161B27] px-7">
         <Link
           href={`/events/${eventId}/lottery/big-screen`}

@@ -34,6 +34,7 @@ import {
   computeWeightedRequired,
   extractBoothIdsFromStampPoints,
   isBoothStampPoint,
+  normalizeStampPoints,
   stampPointClientKey,
 } from "@/lib/stamp/stamp-rally-config";
 import type { ApiStampRally } from "@/lib/stamp-rally-service";
@@ -292,7 +293,7 @@ export function StampRallyConfigurator({
     setPrizeDesc(rally.prize_desc ?? "");
     setPrizeQuantity(rally.prize_quantity ?? "");
     setRequiredCount(rally.required_count);
-    setStampPoints(rally.booth_stamps);
+    setStampPoints(normalizeStampPoints(rally.booth_stamps));
     setAlwaysOpen(rally.always_open);
     setStartsAt(rally.starts_at ? rally.starts_at.slice(0, 16) : "");
     setEndsAt(rally.ends_at ? rally.ends_at.slice(0, 16) : "");

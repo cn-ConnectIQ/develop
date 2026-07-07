@@ -18,9 +18,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { EventStatusBadge } from "@/components/admin/status-badge";
+import { EventListItemBadges, getEventListRoleLabel } from "@/components/events/EventListItemBadges";
 import { useCurrentEvent } from "@/hooks/useCurrentEvent";
 import type { EventListItem } from "@/hooks/useEvents";
-import { getEventPhase, getEventDisplayTypeLabel } from "@/lib/event-utils";
+import { getEventPhase } from "@/lib/event-utils";
 import { getRoleTheme } from "@/lib/role-theme";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@connectiq/types";
@@ -89,6 +90,10 @@ export function EventSwitcher({ role }: EventSwitcherProps) {
 
   if (!showSwitcher) return null;
 
+  const currentRoleLabel = currentEvent
+    ? getEventListRoleLabel(currentEvent)
+    : null;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="inline-flex h-[34px] w-[320px] max-w-[40vw] shrink-0 items-center justify-between rounded-lg border border-border-light bg-white px-3 text-left text-sm font-normal shadow-none">
@@ -98,6 +103,11 @@ export function EventSwitcher({ role }: EventSwitcherProps) {
             {isLoading
               ? "加载活动..."
               : (currentEvent?.name ?? "选择活动")}
+            {currentRoleLabel ? (
+              <span className="ml-1 text-xs font-normal text-brand-blue">
+                · {currentRoleLabel}
+              </span>
+            ) : null}
           </span>
           {currentEvent && (
             <EventStatusBadge status={currentEvent.status} />
@@ -171,15 +181,7 @@ function EventCommandItem({
   activeHighlight,
   onSelect,
 }: {
-  event: {
-    id: string;
-    name: string;
-    status: string;
-    startDate: string | null;
-    category?: EventListItem["category"];
-    type?: string;
-    activityType?: string;
-  };
+  event: EventListItem;
   active: boolean;
   activeHighlight: string;
   onSelect: () => void;
@@ -194,16 +196,17 @@ function EventCommandItem({
     >
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{event.name}</p>
-        {event.startDate && (
-          <p className="text-xs text-text-muted">
-            {format(new Date(event.startDate), "yyyy/M/d", { locale: zhCN })}
-          </p>
-        )}
+        <p className="text-xs text-text-muted">
+          {event.startDate
+            ? format(new Date(event.startDate), "yyyy/M/d", { locale: zhCN })
+            : "日期待定"}
+          {event.listRole === "EXHIBITOR" && event.boothCode
+            ? ` · 展位 ${event.boothCode}`
+            : ""}
+        </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className="rounded-sm bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-text-secondary">
-          {getEventDisplayTypeLabel(event)}
-        </span>
+        <EventListItemBadges event={event} layout="row" />
         <EventStatusBadge status={event.status} />
       </div>
     </CommandItem>
