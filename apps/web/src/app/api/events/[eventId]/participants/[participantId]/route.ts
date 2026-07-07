@@ -26,6 +26,8 @@ const patchSchema = z.object({
   jobTitle: z.string().optional(),
   role: z.nativeEnum(ParticipantRole).optional(),
   systemRole: z.nativeEnum(SystemRole).optional(),
+  boothId: z.string().nullable().optional(),
+  isBoothOwner: z.boolean().optional(),
   tags: z.array(z.string()).optional(),
   addTags: z.array(z.string()).optional(),
   ticketTypeId: z.string().nullable().optional(),
@@ -102,6 +104,8 @@ export const PATCH = withErrorHandler(async (request, context) => {
       jobTitle: parsed.data.jobTitle,
       role: parsed.data.role,
       systemRole: parsed.data.systemRole,
+      boothId: parsed.data.boothId,
+      isBoothOwner: parsed.data.isBoothOwner,
       tags: nextTags,
     },
     include: {

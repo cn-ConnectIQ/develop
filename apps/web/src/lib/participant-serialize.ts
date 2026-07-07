@@ -30,6 +30,8 @@ export function serializeParticipantRow(
     jobTitle: p.jobTitle,
     role: p.role,
     systemRole: p.systemRole,
+    boothId: p.boothId,
+    isBoothOwner: p.isBoothOwner,
     source: p.source,
     tags,
     badgeQr: p.badgeQr,

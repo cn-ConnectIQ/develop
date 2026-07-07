@@ -15,6 +15,8 @@ export type ParticipantListItem = {
   jobTitle: string | null;
   role: import("@connectiq/database").ParticipantRole;
   systemRole: import("@connectiq/database").SystemRole;
+  boothId: string | null;
+  isBoothOwner: boolean;
   source: import("@connectiq/database").ParticipantSource;
   tags: string[];
   badgeQr: string | null;

@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -62,6 +63,15 @@ type BoothRow = {
   name: string;
   status: "AVAILABLE" | "BOOKED" | "OCCUPIED";
   exhibitor: { id: string; name: string };
+  hallLabel: string | null;
+  maxStaffCount: number;
+  extraStaffPurchased: number;
+  staffQuota: {
+    currentCount: number;
+    maxCount: number;
+    remainingSlots: number;
+    isFull: boolean;
+  };
   _count: { leads: number };
   stats: { todayVisitors: number; gradeA: number; crmSynced: number };
 };
@@ -105,6 +115,8 @@ type BoothForm = {
   name: string;
   exhibitorId: string;
   status: BoothRow["status"];
+  maxStaffCount: number;
+  hallLabel: string;
 };
 
 const emptyForm: BoothForm = {
@@ -112,6 +124,8 @@ const emptyForm: BoothForm = {
   name: "",
   exhibitorId: "",
   status: "AVAILABLE",
+  maxStaffCount: 2,
+  hallLabel: "",
 };
 
 function boothStatusVariant(status: BoothRow["status"]): StatusChipVariant {
@@ -129,6 +143,18 @@ function boothStatusLabel(status: BoothRow["status"]) {
   return STATUS_OPTIONS.find((opt) => opt.value === status)?.label ?? status;
 }
 
+function staffQuotaLabel(booth: BoothRow): string {
+  const { currentCount, maxCount, isFull } = booth.staffQuota;
+  if (isFull) return `${currentCount}/${maxCount} 已满`;
+  return `${currentCount}/${maxCount}`;
+}
+
+const BOOTH_TYPE_PRESETS = [
+  { label: "标准展位", hallLabel: "标准展位", maxStaffCount: 2 },
+  { label: "大展位", hallLabel: "大展位", maxStaffCount: 5 },
+  { label: "VIP 展位", hallLabel: "VIP", maxStaffCount: 10 },
+] as const;
+
 export function ExpoBoothsPageClient({
   eventId,
   eventName,
@@ -141,6 +167,9 @@ export function ExpoBoothsPageClient({
   const { data: featureFlags } = useEventFeatureFlags(eventId);
   const showRanking = isFeatureFlagEnabled(featureFlags, "boothRanking");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [batchHallLabel, setBatchHallLabel] = useState("");
+  const [batchMaxStaff, setBatchMaxStaff] = useState(2);
   const [editing, setEditing] = useState<BoothRow | null>(null);
   const [form, setForm] = useState<BoothForm>(emptyForm);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -204,25 +233,36 @@ export function ExpoBoothsPageClient({
   const selectedExhibitorName =
     exhibitorOptions.find((ex) => ex.id === form.exhibitorId)?.name ?? "";
 
+  const hallLabelOptions = useMemo(() => {
+    const labels = new Set<string>();
+    for (const booth of booths) {
+      if (booth.hallLabel?.trim()) labels.add(booth.hallLabel.trim());
+    }
+    return [...labels].sort();
+  }, [booths]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const payload = {
+        code: form.code,
+        name: form.name,
+        exhibitorId: form.exhibitorId || undefined,
+        status: form.status,
+        maxStaffCount: form.maxStaffCount,
+        hallLabel: form.hallLabel.trim() || null,
+      };
       if (editing) {
         const res = await fetch(
           `/api/events/${eventId}/booths/${editing.id}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code: form.code,
-              name: form.name,
-              exhibitorId: form.exhibitorId || undefined,
-              status: form.status,
-            }),
+            body: JSON.stringify(payload),
           },
         );
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
-          throw new Error(json.message ?? "保存失败");
+          throw new Error(json.error ?? json.message ?? "保存失败");
         }
         return;
       }
@@ -230,16 +270,11 @@ export function ExpoBoothsPageClient({
       const res = await fetch(`/api/events/${eventId}/booths`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: form.code,
-          name: form.name,
-          exhibitorId: form.exhibitorId || undefined,
-          status: form.status,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.message ?? "创建失败");
+        throw new Error(json.error ?? json.message ?? "创建失败");
       }
     },
     onSuccess: () => {
@@ -251,6 +286,32 @@ export function ExpoBoothsPageClient({
     },
     onError: (e) =>
       toast.error(e instanceof Error ? e.message : "操作失败"),
+  });
+
+  const batchMutation = useMutation({
+    mutationFn: async () => {
+      const hallLabel = batchHallLabel.trim();
+      if (!hallLabel) throw new Error("请选择或输入展位类型");
+      const res = await fetch(`/api/events/${eventId}/booths`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchMaxStaffCount: { hallLabel, maxStaffCount: batchMaxStaff },
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error ?? "批量设置失败");
+      }
+      return json.data as { updated: number };
+    },
+    onSuccess: (data) => {
+      toast.success(`已更新 ${data.updated} 个展位的名额上限`);
+      setBatchDialogOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["expo-booths", eventId] });
+    },
+    onError: (e) =>
+      toast.error(e instanceof Error ? e.message : "批量设置失败"),
   });
 
   const deleteMutation = useMutation({
@@ -284,8 +345,16 @@ export function ExpoBoothsPageClient({
       name: booth.name,
       exhibitorId: booth.exhibitor.id,
       status: booth.status,
+      maxStaffCount: booth.maxStaffCount,
+      hallLabel: booth.hallLabel ?? "",
     });
     setDialogOpen(true);
+  }
+
+  function openBatchDialog() {
+    setBatchHallLabel(hallLabelOptions[0] ?? "");
+    setBatchMaxStaff(2);
+    setBatchDialogOpen(true);
   }
 
   async function quickStatusChange(booth: BoothRow, status: BoothRow["status"]) {
@@ -344,6 +413,19 @@ export function ExpoBoothsPageClient({
               <MapIcon className="mr-1 size-4" />
               展位地图
             </Link>
+            <Button
+              variant="outline"
+              onClick={openBatchDialog}
+              disabled={hallLabelOptions.length === 0}
+              title={
+                hallLabelOptions.length === 0
+                  ? "请先在展位编辑中设置「展位类型」后再批量配置"
+                  : undefined
+              }
+            >
+              <Users className="mr-1 size-4" />
+              批量设置名额
+            </Button>
             <Button
               className="bg-brand-blue text-white"
               onClick={openCreate}
@@ -425,6 +507,7 @@ export function ExpoBoothsPageClient({
                     <TableHead>名称</TableHead>
                     <TableHead>展商</TableHead>
                     <TableHead>状态</TableHead>
+                    <TableHead>工作人员名额</TableHead>
                     {showRanking && (
                       <>
                         <TableHead>排名</TableHead>
@@ -471,6 +554,18 @@ export function ExpoBoothsPageClient({
                             ))}
                           </SelectContent>
                         </Select>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "text-sm tabular-nums",
+                            booth.staffQuota.isFull
+                              ? "font-medium text-brand-red"
+                              : "text-text-secondary",
+                          )}
+                        >
+                          {staffQuotaLabel(booth)}
+                        </span>
                       </TableCell>
                       {showRanking && (
                         <>
@@ -625,6 +720,37 @@ export function ExpoBoothsPageClient({
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>展位类型（批量设置用）</Label>
+              <Input
+                value={form.hallLabel}
+                onChange={(e) => setForm({ ...form, hallLabel: e.target.value })}
+                placeholder="如：标准展位、大展位"
+              />
+            </div>
+            <div>
+              <Label>工作人员名额上限</Label>
+              <Input
+                type="number"
+                min={1}
+                max={99}
+                value={form.maxStaffCount}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    maxStaffCount: Math.max(
+                      1,
+                      Math.min(99, Number(e.target.value) || 1),
+                    ),
+                  })
+                }
+              />
+              <p className="mt-1.5 text-xs text-text-muted">
+                该展位最多可添加几位工作人员账号；超出需调整此处或走加购流程
+                {editing &&
+                  `（当前已用 ${editing.staffQuota.currentCount} 位）`}
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -641,6 +767,79 @@ export function ExpoBoothsPageClient({
               onClick={() => saveMutation.mutate()}
             >
               {saveMutation.isPending ? "保存中…" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>按展位类型批量设置名额</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <p className="text-sm text-text-muted">
+              将同一「展位类型」下的所有展位统一设置为相同的工作人员名额上限。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {BOOTH_TYPE_PRESETS.map((preset) => (
+                <Button
+                  key={preset.hallLabel}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setBatchHallLabel(preset.hallLabel);
+                    setBatchMaxStaff(preset.maxStaffCount);
+                  }}
+                >
+                  {preset.label} · {preset.maxStaffCount} 人
+                </Button>
+              ))}
+            </div>
+            <div>
+              <Label>展位类型</Label>
+              <Select
+                value={batchHallLabel}
+                onValueChange={(v) => setBatchHallLabel(v ?? "")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择展位类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {hallLabelOptions.map((label) => (
+                    <SelectItem key={label} value={label}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>名额上限</Label>
+              <Input
+                type="number"
+                min={1}
+                max={99}
+                value={batchMaxStaff}
+                onChange={(e) =>
+                  setBatchMaxStaff(
+                    Math.max(1, Math.min(99, Number(e.target.value) || 1)),
+                  )
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              className="bg-brand-blue text-white"
+              disabled={!batchHallLabel.trim() || batchMutation.isPending}
+              onClick={() => batchMutation.mutate()}
+            >
+              {batchMutation.isPending ? "应用中…" : "应用到同类型展位"}
             </Button>
           </DialogFooter>
         </DialogContent>

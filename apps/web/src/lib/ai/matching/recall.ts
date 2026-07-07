@@ -23,6 +23,23 @@ import type {
   ViewerIntentProfile,
 } from "./types";
 
+/**
+ * AI 召回候选池可见性（维护者必读）
+ *
+ * 排除：system_role === ORGANIZER_STAFF（主办方现场工作人员，签到台/引导员）
+ * 保留：system_role === EXHIBITOR（展位主账号 is_booth_owner 与普通团队成员均须可被推荐）
+ * 保留：PARTICIPANT / ORGANIZER / 无 Participant 关联的用户
+ */
+function isEligibleForAiRecall(systemRole: SystemRole | undefined | null): boolean {
+  if (systemRole == null) return true;
+  if (systemRole === SystemRole.ORGANIZER_STAFF) return false;
+  return (
+    systemRole === SystemRole.PARTICIPANT ||
+    systemRole === SystemRole.EXHIBITOR ||
+    systemRole === SystemRole.ORGANIZER
+  );
+}
+
 function normalizeTag(tag: string): string {
   return tag.trim().toLowerCase();
 }
@@ -162,10 +179,12 @@ async function loadExcludedUserIds(userId: string, eventId: string) {
   return excluded;
 }
 
-/** 现场工作人员（system_role=STAFF）不参与任何人的推荐候选池 */
-async function loadStaffExcludedUserIds(eventId: string): Promise<Set<string>> {
+/** 主办方现场工作人员（system_role=ORGANIZER_STAFF）不参与任何人的推荐候选池 */
+async function loadOrganizerStaffExcludedUserIds(
+  eventId: string,
+): Promise<Set<string>> {
   const staffParticipants = await prisma.participant.findMany({
-    where: { eventId, systemRole: SystemRole.STAFF },
+    where: { eventId, systemRole: SystemRole.ORGANIZER_STAFF },
     select: { email: true, phone: true },
   });
 
@@ -332,7 +351,7 @@ async function loadPeerProfiles(
   return intents
     .filter((intent) => {
       const link = participantByUserId.get(intent.userId);
-      return link?.systemRole !== SystemRole.STAFF;
+      return isEligibleForAiRecall(link?.systemRole);
     })
     .map((intent) => {
     const link = participantByUserId.get(intent.userId);
@@ -437,7 +456,7 @@ export async function vectorRecall(
   if (!viewerEmbedding) return [];
 
   const excluded = await loadExcludedUserIds(userId, eventId);
-  for (const staffUserId of await loadStaffExcludedUserIds(eventId)) {
+  for (const staffUserId of await loadOrganizerStaffExcludedUserIds(eventId)) {
     excluded.add(staffUserId);
   }
   const hits = await querySimilarIntentEmbeddings(
@@ -520,7 +539,7 @@ export async function recallCandidates(
   if (!viewer) return [];
 
   const excluded = await loadExcludedUserIds(userId, eventId);
-  for (const staffUserId of await loadStaffExcludedUserIds(eventId)) {
+  for (const staffUserId of await loadOrganizerStaffExcludedUserIds(eventId)) {
     excluded.add(staffUserId);
   }
   const peers = await loadPeerProfiles(eventId, excluded);
@@ -570,4 +589,4 @@ export async function recallCandidates(
   return result;
 }
 
-export { buildDimensionHits, loadViewerProfile, loadExcludedUserIds, loadPeerProfiles, loadStaffExcludedUserIds };
+export { buildDimensionHits, loadViewerProfile, loadExcludedUserIds, loadPeerProfiles, loadOrganizerStaffExcludedUserIds, isEligibleForAiRecall };

@@ -12,6 +12,10 @@ import {
   resolveCompanyOrgId,
   withLegacyExhibitor,
 } from "@/lib/exhibitor-booth-utils";
+import {
+  countBoothStaffByEvent,
+  resolveBoothStaffMaxCount,
+} from "@/lib/exhibitor/booth-staff-service";
 import type { MapLabel, MapPoi } from "@/types/booth";
 
 const positionSchema = z.object({
@@ -29,6 +33,8 @@ const createBoothSchema = z.object({
   hallId: z.string().optional(),
   status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
   positionData: positionSchema.optional(),
+  maxStaffCount: z.number().int().min(1).max(99).optional(),
+  hallLabel: z.string().max(64).optional(),
 });
 
 const updateBoothSchema = z.object({
@@ -100,7 +106,8 @@ export const GET = withErrorHandler(async (_request, context) => {
 
   await requireEventAccess(eventId);
 
-  const [booths, settings, exhibitors, statsByBooth] = await Promise.all([
+  const [booths, settings, exhibitors, statsByBooth, staffCountByBooth] =
+    await Promise.all([
     prisma.exhibitorBooth.findMany({
       where: { eventId },
       include: {
@@ -121,6 +128,7 @@ export const GET = withErrorHandler(async (_request, context) => {
       orderBy: { name: "asc" },
     }),
     getBoothStats(eventId),
+    countBoothStaffByEvent(eventId),
   ]);
 
   const settingMap = Object.fromEntries(settings.map((s) => [s.key, s.value]));
@@ -131,14 +139,27 @@ export const GET = withErrorHandler(async (_request, context) => {
   const pois = parseJsonSetting<MapPoi[]>(settingMap.floor_plan_pois, []);
   const labels = parseJsonSetting<MapLabel[]>(settingMap.floor_plan_labels, []);
 
-  const boothsWithStats = booths.map((booth) => ({
-    ...withLegacyExhibitor(booth),
-    stats: statsByBooth.get(booth.id) ?? {
-      todayVisitors: 0,
-      gradeA: 0,
-      crmSynced: 0,
-    },
-  }));
+  const boothsWithStats = booths.map((booth) => {
+    const maxCount = resolveBoothStaffMaxCount(booth);
+    const currentCount = staffCountByBooth.get(booth.id) ?? 0;
+    return {
+      ...withLegacyExhibitor(booth),
+      maxStaffCount: booth.maxStaffCount,
+      extraStaffPurchased: booth.extraStaffPurchased,
+      hallLabel: booth.hallLabel,
+      staffQuota: {
+        currentCount,
+        maxCount,
+        remainingSlots: Math.max(0, maxCount - currentCount),
+        isFull: maxCount > 0 && currentCount >= maxCount,
+      },
+      stats: statsByBooth.get(booth.id) ?? {
+        todayVisitors: 0,
+        gradeA: 0,
+        crmSynced: 0,
+      },
+    };
+  });
 
   return createSuccessResponse({
     booths: boothsWithStats,
@@ -201,6 +222,8 @@ export const POST = withErrorHandler(async (request, context) => {
         hallId: parsed.data.hallId,
         status: parsed.data.status ?? "AVAILABLE",
         positionData: parsed.data.positionData as Prisma.InputJsonValue | undefined,
+        maxStaffCount: parsed.data.maxStaffCount ?? 2,
+        hallLabel: parsed.data.hallLabel,
       },
       include: {
         companyOrg: { select: { id: true, name: true, slug: true } },
@@ -263,6 +286,28 @@ export const PATCH = withErrorHandler(async (request, context) => {
       update: { value: body.labels },
     });
     return createSuccessResponse({ labels: body.labels });
+  }
+
+  const batchParsed = z
+    .object({
+      batchMaxStaffCount: z.object({
+        hallLabel: z.string().min(1),
+        maxStaffCount: z.number().int().min(1).max(99),
+      }),
+    })
+    .safeParse(body);
+
+  if (batchParsed.success) {
+    const { hallLabel, maxStaffCount } = batchParsed.data.batchMaxStaffCount;
+    const result = await prisma.exhibitorBooth.updateMany({
+      where: { eventId, hallLabel },
+      data: { maxStaffCount },
+    });
+    return createSuccessResponse({
+      updated: result.count,
+      hallLabel,
+      maxStaffCount,
+    });
   }
 
   return createErrorResponse("无效请求", ErrorCode.VALIDATION_ERROR, 400);

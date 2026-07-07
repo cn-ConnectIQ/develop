@@ -45,11 +45,16 @@ enum ParticipantRole {
 }
 
 /// 系统角色（权限边界，互斥；与 honor tags 分离）
+///
+/// AI 匹配池规则（维护者必读）：
+/// - system_role=EXHIBITOR 的所有人（主账号 is_booth_owner 与普通团队成员）
+///   均正常进入 AI 匹配池——他们是访客最想连接的人，不能排除。
+/// - 仅 system_role=ORGANIZER_STAFF 排除出 AI 匹配池（签到台/引导员，不是来做生意的）。
 enum SystemRole {
-  PARTICIPANT // 普通参会者（默认）
-  ORGANIZER   // 主办方工作人员
-  EXHIBITOR   // 展商代表
-  STAFF       // 现场工作人员（不进 AI 推荐池）
+  PARTICIPANT      // 普通参会者（默认）
+  ORGANIZER        // 主办方后台工作人员
+  EXHIBITOR        // 展商代表（主账号或展位团队成员，均进 AI 匹配池）
+  ORGANIZER_STAFF  // 主办方现场工作人员（不进 AI 匹配池；原 STAFF）
 }
 
 /// 参会者进入活动的来源
@@ -1023,15 +1028,18 @@ model ExhibitorBooth {
   positionData   Json?       @map("position_data")
   positionX      Float?      @map("position_x")
   positionY      Float?      @map("position_y")
-  hallLabel      String?     @map("hall")
-  leadFormConfig Json?       @map("lead_form_config")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  hallLabel            String?     @map("hall")
+  leadFormConfig       Json?       @map("lead_form_config")
+  maxStaffCount        Int         @default(2) @map("max_staff_count")
+  extraStaffPurchased  Int         @default(0) @map("extra_staff_purchased")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
 
   event               Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
   hall                ExpoHall?            @relation(fields: [hallId], references: [id])
   companyOrg          Organization         @relation("BoothOrg", fields: [companyOrgId], references: [id], onDelete: Cascade)
   operator            User?                @relation("BoothOperator", fields: [operatorUserId], references: [id], onDelete: SetNull)
+  participants        Participant[]
   bookings            BoothBooking[]
   leads               Lead[]
   lotteries           Lottery[]
@@ -1069,12 +1077,17 @@ model Participant {
   badgeQr      String?                 @unique @map("badge_qr")
   role         ParticipantRole         @default(ATTENDEE) @map("role")
   systemRole   SystemRole              @default(PARTICIPANT) @map("system_role")
+  /// system_role=EXHIBITOR 时关联展位；ORGANIZER_STAFF / ORGANIZER 通常为 null
+  boothId      String?                 @map("booth_id")
+  /// 该展位主账号（创建人）：可管理团队成员与展位配置；普通团队成员为 false
+  isBoothOwner Boolean                 @default(false) @map("is_booth_owner")
   tags         String[]                @default([])
   source       ParticipantSource       @default(SCAN)
   inviteStatus ParticipantInviteStatus @default(NOT_INVITED) @map("invite_status")
   createdAt    DateTime                @default(now()) @map("created_at")
 
   event           Event                     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  booth           ExhibitorBooth?           @relation(fields: [boothId], references: [id], onDelete: SetNull)
   registrations   ParticipantRegistration[]
   boothBookings   BoothBooking[]
   tickets         Ticket[]
@@ -1087,6 +1100,7 @@ model Participant {
   inviteRecords   InviteRecord[]
 
   @@index([eventId, phone])
+  @@index([boothId])
   @@map("participants")
 }
 

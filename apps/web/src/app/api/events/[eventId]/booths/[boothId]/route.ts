@@ -13,6 +13,10 @@ import {
   withLegacyExhibitor,
 } from "@/lib/exhibitor-booth-utils";
 import { getPublicBoothDetail } from "@/lib/mobile-booth-service";
+import {
+  countBoothStaffByEvent,
+  resolveBoothStaffMaxCount,
+} from "@/lib/exhibitor/booth-staff-service";
 
 const positionSchema = z.object({
   x: z.number().min(0).max(100),
@@ -29,6 +33,8 @@ const updateBoothSchema = z.object({
   status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
   positionData: positionSchema.nullable().optional(),
   leadFormConfig: z.record(z.unknown()).optional(),
+  maxStaffCount: z.number().int().min(1).max(99).optional(),
+  hallLabel: z.string().max(64).nullable().optional(),
 });
 
 /** 展位详情（参会者，无需登录） */
@@ -68,6 +74,19 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("展位不存在", ErrorCode.NOT_FOUND, 404);
   }
 
+  if (parsed.data.maxStaffCount != null) {
+    const staffCounts = await countBoothStaffByEvent(eventId);
+    const currentCount = staffCounts.get(boothId) ?? 0;
+    const newMax = parsed.data.maxStaffCount + booth.extraStaffPurchased;
+    if (currentCount > newMax) {
+      return createErrorResponse(
+        `当前已有 ${currentCount} 位工作人员，名额上限不能低于已使用数量`,
+        ErrorCode.VALIDATION_ERROR,
+        400,
+      );
+    }
+  }
+
   let companyOrgId: string | undefined;
   if (parsed.data.exhibitorId) {
     const resolved = await resolveCompanyOrgId(parsed.data.exhibitorId);
@@ -91,6 +110,8 @@ export const PATCH = withErrorHandler(async (request, context) => {
       leadFormConfig: parsed.data.leadFormConfig as
         | Prisma.InputJsonValue
         | undefined,
+      maxStaffCount: parsed.data.maxStaffCount,
+      hallLabel: parsed.data.hallLabel,
     },
     include: {
       companyOrg: { select: { id: true, name: true } },
@@ -98,7 +119,21 @@ export const PATCH = withErrorHandler(async (request, context) => {
     },
   });
 
-  return createSuccessResponse(withLegacyExhibitor(updated));
+  const staffCounts = await countBoothStaffByEvent(eventId);
+  const maxCount = resolveBoothStaffMaxCount(updated);
+  const currentCount = staffCounts.get(boothId) ?? 0;
+
+  return createSuccessResponse({
+    ...withLegacyExhibitor(updated),
+    maxStaffCount: updated.maxStaffCount,
+    extraStaffPurchased: updated.extraStaffPurchased,
+    staffQuota: {
+      currentCount,
+      maxCount,
+      remainingSlots: Math.max(0, maxCount - currentCount),
+      isFull: maxCount > 0 && currentCount >= maxCount,
+    },
+  });
 });
 
 export const DELETE = withErrorHandler(async (_request, context) => {
