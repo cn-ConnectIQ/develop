@@ -9,7 +9,7 @@ import {
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/client";
-import { MOBILE_TEST_PRODUCTION_EVENT_ID } from "./seed-mobile-test-dimensions";
+import { resolveTest1377EventId } from "./seed-mobile-test-dimensions";
 
 const PHONE = "19951984030";
 const NAME = "Milo";
@@ -24,8 +24,9 @@ function phoneToEmail(phone: string) {
 }
 
 async function main() {
+  const eventId = await resolveTest1377EventId();
   const event = await prisma.event.findUnique({
-    where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+    where: { id: eventId },
     select: { id: true, name: true, status: true },
   });
   if (!event) throw new Error("TEST1377 活动不存在");

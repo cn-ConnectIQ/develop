@@ -15,7 +15,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/client";
 import {
   MOBILE_TEST_PRIMARY_EVENT_SLUG,
-  MOBILE_TEST_PRODUCTION_EVENT_ID,
+  resolveTest1377EventId,
 } from "./seed-mobile-test-dimensions";
 
 const PREFIX = "seed-m1377-lottery";
@@ -47,11 +47,12 @@ function pad2(n: number) {
 }
 
 async function resolveTest1377Event() {
-  const byId = await prisma.event.findUnique({
-    where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+  const eventId = await resolveTest1377EventId();
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
     select: { id: true, name: true, status: true },
   });
-  if (byId) return byId;
+  if (event) return event;
 
   const bySlug = await prisma.event.findUnique({
     where: { slug: MOBILE_TEST_PRIMARY_EVENT_SLUG },

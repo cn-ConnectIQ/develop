@@ -801,9 +801,30 @@ async function resolveMobileTestEvent() {
   });
   if (bySlug) return bySlug;
 
+  const byJoinCode = await prisma.eventSetting.findFirst({
+    where: {
+      key: "join_code",
+      value: { path: ["code"], equals: MOBILE_TEST_JOIN_CODE },
+    },
+    select: { eventId: true },
+  });
+  if (byJoinCode) {
+    const event = await prisma.event.findUnique({
+      where: { id: byJoinCode.eventId },
+      select: { id: true, name: true, startDate: true },
+    });
+    if (event) return event;
+  }
+
   throw new Error(
-    `缺少测试活动（ID ${MOBILE_TEST_PRODUCTION_EVENT_ID} 或 slug ${MOBILE_TEST_PRIMARY_EVENT_SLUG}）`,
+    `缺少测试活动（ID ${MOBILE_TEST_PRODUCTION_EVENT_ID}、slug ${MOBILE_TEST_PRIMARY_EVENT_SLUG} 或活动码 ${MOBILE_TEST_JOIN_CODE}）`,
   );
+}
+
+/** 供 TEST1377 补充脚本使用：优先 Supabase 固定 ID，否则按 slug / 活动码解析 */
+export async function resolveTest1377EventId(): Promise<string> {
+  const event = await resolveMobileTestEvent();
+  return event.id;
 }
 
 function stampRallyIdForEvent(eventId: string) {

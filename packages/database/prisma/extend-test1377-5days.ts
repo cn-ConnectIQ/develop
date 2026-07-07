@@ -1,8 +1,8 @@
 import { EventStatus, ReviewStatus } from "@prisma/client";
 import { prisma } from "../src/client";
 import {
-  MOBILE_TEST_PRODUCTION_EVENT_ID,
   MOBILE_TEST_PRIMARY_EVENT_SLUG,
+  resolveTest1377EventId,
 } from "./seed-mobile-test-dimensions";
 
 const FIVE_DAYS_MS = 5 * 86_400_000;
@@ -32,7 +32,8 @@ async function extendEvent(id: string) {
 }
 
 async function main() {
-  const primary = await extendEvent(MOBILE_TEST_PRODUCTION_EVENT_ID);
+  const eventId = await resolveTest1377EventId();
+  const primary = await extendEvent(eventId);
   if (!primary) throw new Error("TEST1377 event not found");
 
   console.log("Extended primary:", JSON.stringify(primary, null, 2));
@@ -49,10 +50,8 @@ async function main() {
 }
 
 main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());

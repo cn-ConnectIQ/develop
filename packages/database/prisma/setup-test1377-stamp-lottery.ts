@@ -14,13 +14,12 @@ import {
 import { prisma } from "../src/client";
 import {
   MOBILE_TEST_JOIN_CODE,
-  MOBILE_TEST_PRODUCTION_EVENT_ID,
+  resolveTest1377EventId,
 } from "./seed-mobile-test-dimensions";
 
 const PREFIX = "seed-m1377";
 const LOTTERY_ID = `${PREFIX}-lottery-live`;
 const SESSION_ID = `${PREFIX}-session-lottery`;
-const RALLY_ID = `${PREFIX}-stamp-rally-${MOBILE_TEST_PRODUCTION_EVENT_ID.slice(-8)}`;
 const STAMP_BOOTH_CODES = ["A-101", "A-102", "T1377-Q"] as const;
 const REQUIRED_STAMPS = 3;
 
@@ -39,12 +38,15 @@ function daysFromNow(days: number, hours = 18) {
 }
 
 async function main() {
+  const eventId = await resolveTest1377EventId();
+  const RALLY_ID = `${PREFIX}-stamp-rally-${eventId.slice(-8)}`;
+
   const event = await prisma.event.findUnique({
-    where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+    where: { id: eventId },
     select: { id: true, name: true, organizerId: true, featureFlags: true },
   });
   if (!event) {
-    throw new Error(`活动不存在: ${MOBILE_TEST_PRODUCTION_EVENT_ID}`);
+    throw new Error(`活动不存在: ${eventId}`);
   }
 
   const flags =

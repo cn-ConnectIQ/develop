@@ -9,14 +9,13 @@ import {
   SignalType,
 } from "@prisma/client";
 import { prisma } from "../src/client";
-import { MOBILE_TEST_PRODUCTION_EVENT_ID } from "./seed-mobile-test-dimensions";
+import { resolveTest1377EventId } from "./seed-mobile-test-dimensions";
 import {
   ensureExhibitorOperator,
   PENDING_BOOTH_OPERATORS,
 } from "./setup-test1377-booth-staff";
 
 const PREFIX = "seed-m1377-admin";
-const EVENT_ID = MOBILE_TEST_PRODUCTION_EVENT_ID;
 const ADMIN_PHONE = "13770626459";
 
 const PENDING_BOOTHS = [
@@ -25,6 +24,7 @@ const PENDING_BOOTHS = [
 ];
 
 async function main() {
+  const EVENT_ID = await resolveTest1377EventId();
   const event = await prisma.event.findUnique({
     where: { id: EVENT_ID },
     select: { id: true, name: true, orgId: true },

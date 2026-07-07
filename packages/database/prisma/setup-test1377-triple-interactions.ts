@@ -10,7 +10,7 @@ import {
   ReviewStatus,
 } from "@prisma/client";
 import { prisma } from "../src/client";
-import { MOBILE_TEST_PRODUCTION_EVENT_ID } from "./seed-mobile-test-dimensions";
+import { resolveTest1377EventId } from "./seed-mobile-test-dimensions";
 
 const PREFIX = "seed-m1377";
 const PRIZE_POLL_ID = `${PREFIX}-poll-prize`;
@@ -23,8 +23,9 @@ const BOOTH_LOTTERY_PRIZES = [
 ];
 
 async function main() {
+  const eventId = await resolveTest1377EventId();
   const event = await prisma.event.findUnique({
-    where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+    where: { id: eventId },
     select: { id: true, name: true, organizerId: true, featureFlags: true },
   });
   if (!event) throw new Error("TEST1377 活动不存在");

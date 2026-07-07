@@ -2,10 +2,11 @@ import { EventStatus, ReviewStatus } from "@prisma/client";
 import { prisma } from "../src/client";
 import {
   MOBILE_TEST_PRIMARY_EVENT_SLUG,
-  MOBILE_TEST_PRODUCTION_EVENT_ID,
+  resolveTest1377EventId,
 } from "./seed-mobile-test-dimensions";
 
 async function main() {
+  const eventId = await resolveTest1377EventId();
   const startDate = new Date(Date.now() - 86_400_000);
   const endDate = new Date(Date.now() + 2 * 86_400_000 + 18 * 3_600_000);
   const data = {
@@ -16,7 +17,7 @@ async function main() {
   };
 
   const updated = await prisma.event.update({
-    where: { id: MOBILE_TEST_PRODUCTION_EVENT_ID },
+    where: { id: eventId },
     data,
     select: {
       id: true,
