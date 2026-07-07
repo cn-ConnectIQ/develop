@@ -37,7 +37,7 @@ export async function isEventHonorTagsManager(
   const participant = await findParticipantForUser(eventId, viewerId);
   if (
     participant?.systemRole === SystemRole.ORGANIZER ||
-    participant?.systemRole === SystemRole.STAFF
+    participant?.systemRole === SystemRole.ORGANIZER_STAFF
   ) {
     return true;
   }

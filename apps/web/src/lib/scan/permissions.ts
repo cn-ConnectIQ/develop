@@ -11,7 +11,7 @@ import { findParticipantForUser } from "@/lib/interaction/participant-user";
 import type { ScanHandlerOutcome } from "@/lib/scan/types";
 
 /** 操作端角色（权限矩阵列） */
-export type ScanOperatorRole = "ORGANIZER" | "STAFF" | "EXHIBITOR" | "NONE";
+export type ScanOperatorRole = "ORGANIZER" | "ORGANIZER_STAFF" | "EXHIBITOR" | "NONE";
 
 export type ActionPermissionInput = {
   eventId: string;
@@ -102,7 +102,7 @@ export async function hasEventBoothStaffAccess(
 
 /**
  * 解析操作人员在当前活动下的角色（权限矩阵）
- * ORGANIZER > STAFF > EXHIBITOR
+ * ORGANIZER > ORGANIZER_STAFF > EXHIBITOR
  */
 export async function resolveScanOperatorRole(
   userId: string,
@@ -116,8 +116,8 @@ export async function resolveScanOperatorRole(
   if (participant?.systemRole === SystemRole.ORGANIZER) {
     return "ORGANIZER";
   }
-  if (participant?.systemRole === SystemRole.STAFF) {
-    return "STAFF";
+  if (participant?.systemRole === SystemRole.ORGANIZER_STAFF) {
+    return "ORGANIZER_STAFF";
   }
 
   if (
@@ -131,13 +131,13 @@ export async function resolveScanOperatorRole(
 }
 
 function isOrganizerOrStaff(role: ScanOperatorRole): boolean {
-  return role === "ORGANIZER" || role === "STAFF";
+  return role === "ORGANIZER" || role === "ORGANIZER_STAFF";
 }
 
 /**
  * dispatch 层统一权限校验
  *
- * | action         | ORGANIZER | STAFF | EXHIBITOR              |
+ * | action         | ORGANIZER | ORGANIZER_STAFF | EXHIBITOR              |
  * | CHECKIN        | ✅        | ✅    | ❌                     |
  * | STAMP          | ✅        | ✅    | ✅ 仅自己展位打卡点     |
  * | LOTTERY_VERIFY | ✅        | ✅    | ✅ 仅自己发起的抽奖     |

@@ -107,7 +107,7 @@ async function loadEventCandidates(eventId: string): Promise<UserCandidate[]> {
   });
 
   const eligibleParticipants = participants.filter(
-    (p) => p.systemRole !== SystemRole.STAFF && !isStaffTagged(p.tags),
+    (p) => p.systemRole !== SystemRole.ORGANIZER_STAFF && !isStaffTagged(p.tags),
   );
 
   const emails = [

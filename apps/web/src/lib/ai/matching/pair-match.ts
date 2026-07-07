@@ -38,7 +38,7 @@ async function loadPeerProfile(
     select: { id: true, systemRole: true, tags: true },
   });
 
-  if (participant?.systemRole === SystemRole.STAFF) return null;
+  if (participant?.systemRole === SystemRole.ORGANIZER_STAFF) return null;
 
   const checkedIn = participant
     ? Boolean(
