@@ -8,6 +8,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { requireExhibitorAdmin } from "@/lib/exhibitor/exhibitor-auth";
+import { buildLeadNotesPayload } from "@/lib/exhibitor/lead-notes";
 import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 import { recordSignal } from "@/lib/signals";
@@ -23,22 +24,6 @@ const postSchema = z.object({
   voice_note_url: z.string().url().optional(),
   form_data: z.record(z.unknown()).optional(),
 });
-
-function buildLeadNotes(input: z.infer<typeof postSchema>): string | null {
-  const payload: Record<string, unknown> = {};
-  if (input.form_data && Object.keys(input.form_data).length > 0) {
-    payload.form_data = input.form_data;
-  }
-  if (input.voice_note_url) payload.voice_note_url = input.voice_note_url;
-  if (input.text_note?.trim()) payload.text_note = input.text_note.trim();
-  if (input.structured_note?.trim()) {
-    payload.structured_note = input.structured_note.trim();
-  }
-  if (input.notes?.trim()) payload.note = input.notes.trim();
-
-  if (Object.keys(payload).length === 0) return null;
-  return JSON.stringify(payload);
-}
 
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -84,12 +69,14 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("无法创建参会者记录", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  const leadNotes = await buildLeadNotesPayload(parsed.data);
+
   const lead = await prisma.lead.create({
     data: {
       boothId: booth.id,
       participantId: participant.id,
       intentGrade: parsed.data.intent_level,
-      notes: buildLeadNotes(parsed.data),
+      notes: leadNotes,
       ...(parsed.data.intent_tag_ids?.length
         ? {
             intentTags: {

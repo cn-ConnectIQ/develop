@@ -13,6 +13,7 @@ import {
   resolveUserIdForParticipant,
   type AiIntentLevel,
 } from "@/lib/exhibitor/lead-intent-service";
+import { parseStoredLeadNotes } from "@/lib/exhibitor/lead-notes";
 
 function dayStart(offsetDays = 0) {
   const d = new Date();
@@ -442,6 +443,13 @@ export type ExhibitorLeadDetail = ExhibitorLeadItem & {
   title: string | null;
   visitor_user_id: string | null;
   note: string | null;
+  text_note: string | null;
+  structured_note: string | null;
+  ai_summary: {
+    requirement: string;
+    budget: string;
+    next_step: string;
+  } | null;
   voice_url: string | null;
   intent_tags: string[];
   ai_grade_reason: string;
@@ -452,42 +460,8 @@ export type ExhibitorLeadDetail = ExhibitorLeadItem & {
   crm_status: string;
 };
 
-function parseLeadNotes(notes: string | null): {
-  note: string | null;
-  voice_url: string | null;
-} {
-  if (!notes?.trim()) {
-    return { note: null, voice_url: null };
-  }
-
-  try {
-    const parsed = JSON.parse(notes) as Record<string, unknown>;
-    if (parsed && typeof parsed === "object") {
-      const voice =
-        typeof parsed.voice_note_url === "string"
-          ? parsed.voice_note_url
-          : typeof parsed.voice_url === "string"
-            ? parsed.voice_url
-            : null;
-      const text =
-        typeof parsed.text_note === "string"
-          ? parsed.text_note
-          : typeof parsed.note === "string"
-            ? parsed.note
-            : typeof parsed.structured_note === "string"
-              ? parsed.structured_note
-              : null;
-      return { note: text, voice_url: voice };
-    }
-  } catch {
-    // plain text notes
-  }
-
-  const voiceMatch = notes.match(/\/uploads\/voice\/[^\s"'<>]+/);
-  return {
-    note: notes,
-    voice_url: voiceMatch?.[0] ?? null,
-  };
+function parseLeadNotes(notes: string | null) {
+  return parseStoredLeadNotes(notes);
 }
 
 function buildAiGradeReason(level: AiIntentLevel): string {
@@ -582,7 +556,7 @@ export async function getExhibitorLeadDetail(
     eventId,
     lead.participant,
   );
-  const { note, voice_url } = parseLeadNotes(lead.notes);
+  const parsedNotes = parseLeadNotes(lead.notes);
 
   return {
     id: lead.id,
@@ -598,8 +572,11 @@ export async function getExhibitorLeadDetail(
     visited_at: lead.createdAt.toISOString(),
     crm_sync_status: lead.crmSyncStatus,
     crm_status: lead.crmSyncStatus,
-    note,
-    voice_url,
+    note: parsedNotes.note,
+    text_note: parsedNotes.text_note,
+    structured_note: parsedNotes.structured_note,
+    ai_summary: parsedNotes.ai_summary,
+    voice_url: parsedNotes.voice_url,
     intent_tags: lead.intentTags.map((row) => row.intentTag.label),
     ai_grade_reason: buildAiGradeReason(aiLevel),
     visitor_user_id: visitorUserId,

@@ -1,9 +1,12 @@
 import { AiGenerationType, IntentTagPool, prisma } from "@connectiq/database";
 import { embedAndSaveUserEventIntent } from "@/lib/ai/embedding";
-import { callLLM, isLLMConfigured, LlmError } from "@/lib/ai/llm";
 import {
-  buildEventIntentParsePrompt,
-  EVENT_INTENT_PARSE_SYSTEM,
+  callLLM,
+  isLLMConfigured,
+  LlmError,
+  parseJSONResponse,
+} from "@/lib/ai/llm";
+import {
   type EventTagLibrary,
   type ParsedEventIntent,
 } from "@/lib/ai/prompts/event-intent-parse";
@@ -12,8 +15,49 @@ import {
   parseIntentConfig,
 } from "@/lib/matchmaking-config";
 
-const PROMPT_VERSION = "event-intent-v1";
+const PROMPT_VERSION = "event-intent-v2";
 const MAX_TAGS_PER_FIELD = 8;
+
+const INTENT_PARSE_SYSTEM = `你是B2B活动现场的意图解析助手。将用户的自由文本意图,
+解析成结构化标签。严格要求:
+1. 标签尽量从提供的活动标签库里选,没有合适的才新建
+2. 只解析用户明确表达的意图,不要推测或编造
+3. 严格按JSON格式返回,不要有多余文字`;
+
+type LlmIntentJson = {
+  supplyTags?: string[];
+  demandTags?: string[];
+  supply_tags?: string[];
+  demand_tags?: string[];
+  role?: string | null;
+  topics?: string[];
+};
+
+function buildIntentParsePrompt(
+  rawText: string,
+  eventTagLibrary: EventTagLibrary,
+): string {
+  return `活动标签库:
+供给标签:${eventTagLibrary.supply.join("、") || "（无）"}
+需求标签:${eventTagLibrary.demand.join("、") || "（无）"}
+角色标签:${eventTagLibrary.roles.join("、") || "（无）"}
+话题标签:${eventTagLibrary.topics.join("、") || "（无）"}
+
+用户填写的意图原文:「${rawText}」
+
+请返回JSON: { "supplyTags": [], "demandTags": [], "role": "", "topics": [] }`;
+}
+
+function mapLlmIntentJson(raw: LlmIntentJson): Partial<ParsedEventIntent> {
+  return {
+    supply_tags: raw.supplyTags ?? raw.supply_tags ?? [],
+    demand_tags: raw.demandTags ?? raw.demand_tags ?? [],
+    role: raw.role?.trim() || null,
+    topics: raw.topics ?? [],
+    industry: null,
+    region: null,
+  };
+}
 
 function normalizeTagList(tags: string[] | undefined | null): string[] {
   if (!tags) return [];
@@ -220,23 +264,22 @@ export async function parseIntent(
   }
 
   const allowCustomTags = options?.allowCustomTags ?? true;
+  const system = allowCustomTags
+    ? INTENT_PARSE_SYSTEM
+    : `${INTENT_PARSE_SYSTEM}\n4. 禁止新建标签，只能从活动标签库中选择`;
 
   try {
-    const result = await callLLM<ParsedEventIntent>({
-      system: EVENT_INTENT_PARSE_SYSTEM,
-      prompt: buildEventIntentParsePrompt({
-        rawText: trimmed,
-        tagLibrary,
-        eventName: options?.eventName,
-        allowCustomTags,
-      }),
+    const result = await callLLM({
+      system,
+      prompt: buildIntentParsePrompt(trimmed, tagLibrary),
       jsonMode: true,
       maxTokens: 768,
-      temperature: 0.1,
+      temperature: 0.2,
     });
 
+    const llmParsed = parseJSONResponse<LlmIntentJson>(result.text);
     const parsed = sanitizeParsedIntent(
-      result.parsed ?? {},
+      mapLlmIntentJson(llmParsed),
       tagLibrary,
       allowCustomTags,
     );
