@@ -48,19 +48,32 @@ function createPool() {
   });
 }
 
-const pool = globalForDb.pgPool ?? createPool();
-if (process.env.NODE_ENV !== "production") {
+function getPool(): pg.Pool {
+  if (globalForDb.pgPool) return globalForDb.pgPool;
+  const pool = createPool();
   globalForDb.pgPool = pool;
+  return pool;
 }
 
-const adapter = new PrismaPg(pool);
-
-export const prisma =
-  globalForDb.prisma ??
-  new PrismaClient({
+function getPrismaClient(): PrismaClient {
+  if (globalForDb.prisma) return globalForDb.prisma;
+  const adapter = new PrismaPg(getPool());
+  const client = new PrismaClient({
     adapter,
     log: process.env.PRISMA_LOG === "1" ? ["error", "warn"] : undefined,
   });
+  globalForDb.prisma = client;
+  return client;
+}
 
-globalForDb.prisma = prisma;
-globalForDb.pgPool = pool;
+/** 延迟连接，避免 next build 收集路由时因缺少 DATABASE_URL 失败 */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, receiver);
+    if (typeof value === "function") {
+      return (value as (...args: unknown[]) => unknown).bind(client);
+    }
+    return value;
+  },
+});

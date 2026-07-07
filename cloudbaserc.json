@@ -1,6 +1,6 @@
 {
   "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
-  "envId": "your-env-id",
+  "envId": "connectiq-d6gc2sul3855abd4e",
   "cloudrun": {
     "name": "connectiq-web"
   }
