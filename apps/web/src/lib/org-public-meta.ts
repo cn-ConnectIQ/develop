@@ -31,20 +31,20 @@ export async function getOrgPublicPageMeta(slug: string) {
   const description =
     org.bio?.trim().slice(0, 160) ||
     [org.name, org.industry, org.headquarters].filter(Boolean).join(" · ") ||
-    `${org.name} 在 ConnectIQ 的官方组织主页`;
+    `${org.name} 在 玖莅 的官方组织主页`;
 
   const image = absoluteAssetUrl(org.coverUrl ?? org.logoUrl);
   const pageUrl = `${APP_BASE.replace(/\/$/, "")}/org/${org.slug}`;
 
   return {
-    title: `${org.name} | ConnectIQ`,
+    title: `${org.name} | 玖莅`,
     description,
     openGraph: {
       title: org.name,
       description,
       url: pageUrl,
       type: "website" as const,
-      siteName: "ConnectIQ",
+      siteName: "玖莅",
       ...(image ? { images: [{ url: image, alt: org.name }] } : {}),
     },
     twitter: {

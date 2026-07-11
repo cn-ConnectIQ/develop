@@ -14,7 +14,7 @@ export default async function ParticipantInvitePage({
       eventId={eventId}
       flag="inviteSystem"
       title="发起邀请"
-      description="邀请参会者下载 ConnectIQ 进行现场社交"
+      description="邀请参会者下载 玖莅 进行现场社交"
     >
       <Suspense
         fallback={

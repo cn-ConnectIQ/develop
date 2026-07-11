@@ -10,7 +10,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const meta = await getOrgPublicPageMeta(slug);
   if (!meta) {
-    return { title: "组织不存在 | ConnectIQ" };
+    return { title: "组织不存在 | 玖莅" };
   }
   return meta;
 }

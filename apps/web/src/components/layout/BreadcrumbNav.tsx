@@ -38,6 +38,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   "data-import": "数据导入",
   "live-ops": "现场指挥中心",
   lottery: "现场抽奖",
+  "big-screen": "大屏抽奖",
+  participant: "参与人抽奖",
   matchmaking: "匹配预热",
   responses: "意图采集结果",
   setup: "会面配置",
@@ -105,11 +107,16 @@ export function BreadcrumbNav() {
     const eventName = currentEvent?.name ?? "当前活动";
     const pageSeg = segments[segments.length - 1];
     const parentSeg = segments[segments.length - 2];
-    const pageLabel = isOpaqueIdSegment(pageSeg)
-      ? "活动工作台"
-      : pageSeg === "invite" && parentSeg === "participants"
-        ? "发起邀请"
-        : (SEGMENT_LABELS[pageSeg] ?? pageSeg);
+    const pageLabel =
+      pageSeg === "new" && SEGMENT_LABELS[parentSeg]
+        ? `新建${SEGMENT_LABELS[parentSeg]}`
+        : isOpaqueIdSegment(pageSeg) &&
+            parentSeg &&
+            SEGMENT_LABELS[parentSeg]
+          ? SEGMENT_LABELS[parentSeg]
+          : pageSeg === "invite" && parentSeg === "participants"
+            ? "发起邀请"
+            : (SEGMENT_LABELS[pageSeg] ?? pageSeg);
 
     return (
       <nav

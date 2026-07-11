@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ShieldOff } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { clearAuthRoleCookies, signOutWithCleanup } from "@/lib/auth-redirect";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 export default function ForbiddenPage() {
@@ -12,7 +13,7 @@ export default function ForbiddenPage() {
     try {
       await signOutWithCleanup("/login");
     } catch {
-      window.location.href = `${window.location.origin}/login`;
+      window.location.href = `${window.location.origin}${withPublicPath("/login")}`;
     }
   }
 
@@ -24,7 +25,7 @@ export default function ForbiddenPage() {
           没有访问权限
         </h1>
         <p className="mt-2 text-text-muted">
-          ConnectIQ 管理后台仅对已审核通过的账号管理员开放
+          玖莅 管理后台仅对已审核通过的账号管理员开放
         </p>
         <p className="mt-1 text-sm text-text-muted">
           如果你是参会者或最终用户，请使用微信小程序

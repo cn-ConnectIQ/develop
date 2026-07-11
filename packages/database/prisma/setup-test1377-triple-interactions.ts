@@ -18,7 +18,7 @@ const BOOTH_LOTTERY_ID = `${PREFIX}-booth-lottery-q`;
 const BOOTH_CODE = "T1377-Q";
 
 const BOOTH_LOTTERY_PRIZES = [
-  { rank: 1, name: "特等奖", prize: "ConnectIQ 限定礼盒", count: 3 },
+  { rank: 1, name: "特等奖", prize: "玖莅 限定礼盒", count: 3 },
   { rank: 2, name: "参与奖", prize: "展会周边一份", count: 20 },
 ];
 

@@ -13,6 +13,7 @@ import {
   getPostLoginRedirectPath,
   setAuthRoleCookies,
 } from "@/lib/auth-redirect";
+import { withPublicPath } from "@/lib/public-path";
 import { SEED_PASSWORD, SEED_TEST_ACCOUNTS } from "@/lib/test-accounts";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,14 +104,16 @@ export function LoginForm() {
           if (res.ok) {
             const json = await res.json();
             if (json.data?.path) {
-              window.location.href = json.data.path as string;
+              window.location.href = withPublicPath(json.data.path as string);
               return;
             }
           }
         } catch {
           // fallback below
         }
-        window.location.href = getPostLoginRedirectPath(session.user);
+        window.location.href = withPublicPath(
+          getPostLoginRedirectPath(session.user),
+        );
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -179,13 +182,17 @@ export function LoginForm() {
     <Card className="w-full max-w-[400px] rounded-2xl border-border-light bg-white p-8 shadow-sm">
       <CardHeader className="items-center p-0 pb-6 text-center">
         <CardTitle className="text-2xl font-bold text-brand-blue">
-          ConnectIQ
+          玖莅
         </CardTitle>
         <CardDescription>管理后台</CardDescription>
         <p className="mt-3 text-center text-sm text-text-muted">
           首次使用？{" "}
+          <Link href="/signup/experience" className="font-medium text-brand-blue hover:underline">
+            一键体验演示展会（7 天）
+          </Link>
+          <span className="mx-2 text-text-tertiary">·</span>
           <Link href="/signup/organizer" className="font-medium text-brand-blue hover:underline">
-            免费试用：办一场活动，体验现场连接
+            免费试用：办一场活动
           </Link>
         </p>
       </CardHeader>

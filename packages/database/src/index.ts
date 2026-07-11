@@ -53,6 +53,8 @@ export {
   OrgStaffRole,
   MemberTier,
   OrgJoinSource,
+  ExperienceAccountStatus,
+  ExperienceAccountRole,
   AiFeedbackType,
   MatchFeedbackSignal,
   AiGenerationType,

@@ -11,8 +11,8 @@ const notoSansSC = Noto_Sans_SC({
 });
 
 export const metadata: Metadata = {
-  title: "ConnectIQ 管理端",
-  description: "ConnectIQ 后台管理系统",
+  title: "玖莅 管理端",
+  description: "玖莅 后台管理系统",
 };
 
 export default function RootLayout({

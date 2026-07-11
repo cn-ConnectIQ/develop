@@ -16,7 +16,7 @@ export async function generateMetadata({
 
   if (data.kind === "invalid") {
     return {
-      title: "邀请链接无效 · ConnectIQ",
+      title: "邀请链接无效 · 玖莅",
       description: "此邀请链接已失效，请联系活动主办方重新发送邀请。",
       robots: { index: false, follow: false },
     };
@@ -25,14 +25,14 @@ export async function generateMetadata({
   const eventName = data.event.name;
   const description =
     data.kind === "activated"
-      ? `你已成功加入 ${eventName}，打开 ConnectIQ 开始现场社交。`
-      : `${data.organizerName} 邀请你参加 ${eventName}，下载 ConnectIQ 开启 AI 商务配对与现场社交。`;
+      ? `你已成功加入 ${eventName}，打开 玖莅 开始现场社交。`
+      : `${data.organizerName} 邀请你参加 ${eventName}，下载 玖莅 开启 AI 商务配对与现场社交。`;
 
   return {
-    title: `${eventName} · ConnectIQ 活动邀请`,
+    title: `${eventName} · 玖莅 活动邀请`,
     description,
     openGraph: {
-      title: `${eventName} · ConnectIQ`,
+      title: `${eventName} · 玖莅`,
       description,
       type: "website",
       ...(data.event.coverUrl ? { images: [{ url: data.event.coverUrl }] } : {}),

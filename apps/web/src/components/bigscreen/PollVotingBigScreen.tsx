@@ -95,7 +95,7 @@ export function PollVotingBigScreen({
             C
           </span>
           <span className="text-[clamp(12px,1.1vw,14px)] font-medium text-white/55">
-            ConnectIQ
+            玖莅
           </span>
         </div>
         <div className="flex items-center gap-2">

@@ -133,7 +133,7 @@ async function getApi(jar: CookieJar, path: string, label: string) {
 }
 
 async function main() {
-  console.log("ConnectIQ 管理端冒烟测试（从首页登录开始）\n");
+  console.log("玖莅 管理端冒烟测试（从首页登录开始）\n");
 
   const event = await prisma.event.findUnique({
     where: { slug: "saas-growth-summit-2025" },
@@ -168,8 +168,8 @@ async function main() {
   }
 
   console.log("\n[1] 管理端首页 & 导航");
-  await getPage(jar, "/", "GET / 重定向", "ConnectIQ");
-  await getPage(jar, "/events", "活动列表 /events", "ConnectIQ");
+  await getPage(jar, "/", "GET / 重定向", "玖莅");
+  await getPage(jar, "/events", "活动列表 /events", "玖莅");
   await getPage(jar, `/events/${event.id}`, "活动工作台", event.name.slice(0, 4));
 
   console.log("\n[2] 参会者 & 邀请管理");
@@ -178,7 +178,7 @@ async function main() {
     jar,
     `/events/${event.id}/participants`,
     "名单管理 · 邀请按钮",
-    "邀请加入 ConnectIQ",
+    "邀请加入 玖莅",
   );
   await getPage(jar, `/events/${event.id}/invite-campaigns`, "邀请管理", "邀请管理");
 
@@ -221,7 +221,7 @@ async function main() {
     console.log("\n浏览器手动验证：");
     console.log(`  1. 打开 ${BASE}/login 登录 ${EMAIL}`);
     console.log(`  2. 进入 ${BASE}/events/${event.id}/participants`);
-    console.log(`  3. 点击「邀请加入 ConnectIQ」→ 创建/发送`);
+    console.log(`  3. 点击「邀请加入 玖莅」→ 创建/发送`);
     console.log(`  4. 进入 ${BASE}/events/${event.id}/invite-campaigns`);
   }
 

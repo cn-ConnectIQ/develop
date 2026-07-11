@@ -1,4 +1,4 @@
--- ConnectIQ：现有数据 user_type 补充（Supabase SQL Editor 执行）
+-- 玖莅：现有数据 user_type 补充（Supabase SQL Editor 执行）
 -- 表名/列名与 Prisma schema 一致（users / user_type）
 
 -- 1. 历史主办方测试账号 → ACCOUNT_ADMIN（排除平台管理员手机号）

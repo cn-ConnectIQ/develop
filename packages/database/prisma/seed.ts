@@ -354,7 +354,7 @@ async function createApprovedAccountAdmin(params: {
 }
 
 async function main() {
-  console.log("🌱 ConnectIQ 三层角色测试数据 seed\n");
+  console.log("🌱 玖莅 三层角色测试数据 seed\n");
 
   await clearSeedData();
   const now = new Date();
@@ -365,7 +365,7 @@ async function main() {
     name: "平台管理员",
     userType: UserType.PLATFORM_ADMIN,
     accountStatus: UserAccountStatus.COMPLETE,
-    company: "ConnectIQ",
+    company: "玖莅",
     industry: "活动科技",
     roles: [UserRole.PLATFORM_ADMIN],
   });
@@ -640,7 +640,7 @@ async function main() {
       phone: "13800000008",
       name: "陈主编",
       org: {
-        name: "ConnectIQ 创新中心",
+        name: "玖莅 创新中心",
         slug: "connectiq-innovation-hub",
         accountType: AccountType.ORGANIZATION,
         bio: "连接会议、展览与参展生态的活动科技组织，支持一站式活动运营",
@@ -693,7 +693,7 @@ async function main() {
       status: EventStatus.LIVE,
       reviewStatus: ReviewStatus.LIVE,
       description:
-        "ConnectIQ 创新中心主办的 B2B 产业展会，覆盖智能制造、企业服务与 MarTech 三大展区",
+        "玖莅 创新中心主办的 B2B 产业展会，覆盖智能制造、企业服务与 MarTech 三大展区",
       location: "上海 · 国家会展中心（虹桥）",
       startDate: daysAgo(1),
       endDate: daysFromNow(2),
@@ -871,7 +871,7 @@ async function main() {
         status: BoothStatus.OCCUPIED,
       },
       create: {
-        name: "ConnectIQ 创新展台",
+        name: "玖莅 创新展台",
         code: "C-18",
         eventId: expoEvent.id,
         hallId: digitalExpoHall.id,
@@ -995,7 +995,7 @@ async function main() {
       contactName: "钱老板",
       phone: "13800000005",
       description:
-        "专注医疗健康行业论坛与峰会，希望使用 ConnectIQ 统一管理会议与展览活动，面向医疗机构与产业伙伴提供全年活动运营服务。",
+        "专注医疗健康行业论坛与峰会，希望使用 玖莅 统一管理会议与展览活动，面向医疗机构与产业伙伴提供全年活动运营服务。",
       submittedAt: daysAgo(2),
     },
     {

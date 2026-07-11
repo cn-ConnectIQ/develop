@@ -37,7 +37,7 @@ export function InviteEmail({
       <Preview>您已受邀参加 {eventName}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Text style={logo}>ConnectIQ</Text>
+          <Text style={logo}>玖莅</Text>
 
           <Heading style={heading}>您已受邀参加 {eventName}</Heading>
 
@@ -54,7 +54,7 @@ export function InviteEmail({
 
           <Section style={buttonSection}>
             <Button style={button} href={activationLink}>
-              立即加入 ConnectIQ →
+              立即加入 玖莅 →
             </Button>
           </Section>
 
@@ -65,7 +65,7 @@ export function InviteEmail({
           <Hr style={hr} />
 
           <Text style={footer}>
-            {organizerName} · 由 ConnectIQ 提供邀请服务
+            {organizerName} · 由 玖莅 提供邀请服务
           </Text>
           <Link href={unsubscribeLink} style={unsubscribe}>
             退订此类邮件

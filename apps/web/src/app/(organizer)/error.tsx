@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { withPublicPath } from "@/lib/public-path";
 
 export default function OrganizerError({
   error,
@@ -30,7 +31,7 @@ export default function OrganizerError({
       )}
       <div className="flex gap-3">
         <Button onClick={() => reset()}>重试</Button>
-        <Button variant="outline" onClick={() => window.location.assign("/login")}>
+        <Button variant="outline" onClick={() => window.location.assign(withPublicPath("/login"))}>
           返回登录
         </Button>
       </div>

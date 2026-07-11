@@ -613,7 +613,7 @@ export function Sidebar({
             <div className="admin-sb-logo">C</div>
             <div className="flex min-w-0 flex-1 flex-col justify-center">
               <span className="truncate text-sm font-semibold leading-tight text-text-primary">
-                ConnectIQ
+                玖莅
               </span>
               <span className="truncate text-xs tracking-wide text-text-tertiary">
                 管理后台

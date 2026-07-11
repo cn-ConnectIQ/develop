@@ -10,4 +10,11 @@
 **/.cursor
 **/terminals
 apps/web/public/uploads
-*.md
+design
+docs
+sites
+**/*.md
+packages/database/prisma/seed*.ts
+packages/database/prisma/setup-*.ts
+packages/database/prisma/smoke-*.ts
+packages/database/scripts

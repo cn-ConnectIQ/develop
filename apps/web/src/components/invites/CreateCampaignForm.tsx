@@ -69,7 +69,7 @@ export type CreateCampaignFormProps = {
 };
 
 const DEFAULT_MESSAGE =
-  "{name}，您好！诚邀您参加 {event_name}（{event_date}）。点击链接下载 ConnectIQ，开启现场社交：{link}";
+  "{name}，您好！诚邀您参加 {event_name}（{event_date}）。点击链接下载 玖莅，开启现场社交：{link}";
 
 const CHANNELS: Array<{
   id: InviteChannel;

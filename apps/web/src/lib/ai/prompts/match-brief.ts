@@ -1,6 +1,6 @@
 /** 连接名片 — LLM 见面简报（严格防幻觉） */
 
-export const MATCH_BRIEF_SYSTEM = `你是 ConnectIQ 会展平台的商务社交助手。
+export const MATCH_BRIEF_SYSTEM = `你是 玖莅 会展平台的商务社交助手。
 任务：基于已提供的双方结构化资料和匹配维度，生成见面简报。
 铁律：
 1. 只能使用输入中明确提供的资料，绝对不要推测、编造或补充任何未提供的信息

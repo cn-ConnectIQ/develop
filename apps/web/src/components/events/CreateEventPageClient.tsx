@@ -275,13 +275,13 @@ export function CreateEventPageClient() {
       ? "创建完成后将引导您导入 Excel 参会名单，无需绑定任何第三方平台。"
       : source === "baige"
         ? "创建完成后可同步百格侧已有报名，百格仅为可选数据来源。"
-        : "填写基本信息即可开始使用 ConnectIQ 的全部现场功能。";
+        : "填写基本信息即可开始使用 玖莅 的全部现场功能。";
 
   return (
     <AdminPageBody>
       <PageHead
         title="创建活动"
-        description="选择数据来源方式，ConnectIQ 支持独立办会与多平台名单导入"
+        description="选择数据来源方式，玖莅 支持独立办会与多平台名单导入"
         actions={
           <Link
             href="/events"

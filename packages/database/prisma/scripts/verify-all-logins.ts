@@ -95,7 +95,7 @@ async function verifyAccount(phone: string, label: string, expectType: PrismaUse
   return ok;
 }
 
-console.log("ConnectIQ 测试账号登录数据校验\n");
+console.log("玖莅 测试账号登录数据校验\n");
 console.log(`密码: ${PASSWORD}\n`);
 
 let allOk = true;

@@ -13,6 +13,7 @@ import { cacheDel, cacheGet } from "@/lib/redis";
 import { smsVerifyKey } from "@/lib/sms";
 import { resolveExhibitorBooth } from "@/lib/exhibitor/exhibitor-auth";
 import { organizerSignupLoginKey } from "@/lib/organizer-signup-service";
+import { experienceSignupLoginKey } from "@/lib/experience/experience-account-service";
 
 type OwnedOrgSummary = NonNullable<Session["user"]["ownedOrgs"]>[number];
 
@@ -116,7 +117,13 @@ async function hydrateAccountAdminToken(userId: string) {
   const staffRoles = await prisma.orgStaff.findMany({
     where: {
       userId,
-      role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+      role: {
+        in: [
+          OrgStaffRole.OWNER,
+          OrgStaffRole.ADMIN,
+          OrgStaffRole.OPERATOR,
+        ],
+      },
       status: InviteStatus.ACCEPTED,
     },
     include: {
@@ -296,6 +303,31 @@ export const authOptions: NextAuthOptions = {
         if (!userId) return null;
 
         await cacheDel(organizerSignupLoginKey(loginToken));
+
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { roleAssignments: true },
+        });
+        if (!user) return null;
+
+        const userType = resolveUserType(user.userType, user.roleAssignments);
+        return toSessionUser(user, userType);
+      },
+    }),
+    CredentialsProvider({
+      id: "experience-signup",
+      name: "experience-signup",
+      credentials: {
+        loginToken: { label: "loginToken", type: "text" },
+      },
+      async authorize(credentials) {
+        const loginToken = credentials?.loginToken?.trim();
+        if (!loginToken) return null;
+
+        const userId = await cacheGet(experienceSignupLoginKey(loginToken));
+        if (!userId) return null;
+
+        await cacheDel(experienceSignupLoginKey(loginToken));
 
         const user = await prisma.user.findUnique({
           where: { id: userId },

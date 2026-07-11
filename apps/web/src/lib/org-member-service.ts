@@ -485,7 +485,7 @@ export async function exportMemberToMarketup(orgId: string, userId: string) {
     company: member.company ?? "",
     jobTitle: member.jobTitle ?? "",
     notes: member.notes ?? "",
-    eventName: member.sourceEventName ?? "ConnectIQ 用户池",
+    eventName: member.sourceEventName ?? "玖莅 用户池",
     intentLevel: member.tier,
     joinSource: JOIN_SOURCE_LABELS[member.joinSource] ?? member.joinSource,
     tags: member.tags.join("、"),

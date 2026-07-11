@@ -329,7 +329,7 @@ export function CreateEventSheet({
                 <Label htmlFor="name">活动名称 *</Label>
                 <Input
                   id="name"
-                  placeholder="例如：ConnectIQ 2026 行业峰会"
+                  placeholder="例如：玖莅 2026 行业峰会"
                   {...step1Form.register("name")}
                 />
                 {step1Form.formState.errors.name && (

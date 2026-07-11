@@ -1,4 +1,4 @@
-# ConnectIQ 小程序 API 契约
+# 玖莅 小程序 API 契约
 
 > **唯一真相源（Single Source of Truth）** — 前后端联调以本文档为准。  
 > 基址：`{NEXT_PUBLIC_APP_URL}/api`（生产示例：`https://marketingprofs.ai/api`）

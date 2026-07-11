@@ -189,7 +189,7 @@ export async function approveApplication(
     await sendNotificationSms(
       updated.contactPhone,
       isFirstOrg
-        ? "审核通过，请登录 ConnectIQ 管理后台"
+        ? "审核通过，请登录 玖莅 管理后台"
         : "新组织审核通过，请登录后在组织切换器查看",
     );
   }

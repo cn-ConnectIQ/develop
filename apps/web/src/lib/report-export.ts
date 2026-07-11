@@ -204,7 +204,7 @@ export function buildPdfHtml(
     <p>${report.event.location ?? ""} · ${report.event.startDate ? new Date(report.event.startDate).toLocaleDateString("zh-CN") : ""}</p>
     <div class="summary">${report.aiSummary}</div>
     ${sections}
-    <p style="margin-top:40px;font-size:11px;color:#888">ConnectIQ · 生成于 ${new Date().toLocaleString("zh-CN")}</p>
+    <p style="margin-top:40px;font-size:11px;color:#888">玖莅 · 生成于 ${new Date().toLocaleString("zh-CN")}</p>
     </body></html>`;
 }
 

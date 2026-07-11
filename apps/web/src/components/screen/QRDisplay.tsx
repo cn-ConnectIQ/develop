@@ -103,7 +103,7 @@ export function QRDisplay({ pairingToken, qrContent }: QRDisplayProps) {
           fontWeight: 500,
         }}
       >
-        打开 ConnectIQ 小程序，发起互动时扫描此码连接大屏
+        打开 玖莅 小程序，发起互动时扫描此码连接大屏
       </p>
     </div>
   );

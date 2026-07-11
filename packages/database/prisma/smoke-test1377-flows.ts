@@ -194,7 +194,7 @@ async function main() {
       body: JSON.stringify({
         name: "联调测试",
         phone: PHONE,
-        company: "ConnectIQ",
+        company: "玖莅",
       }),
     });
     const result = unwrap(body) as Record<string, unknown>;

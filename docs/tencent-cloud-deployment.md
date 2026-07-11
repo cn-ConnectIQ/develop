@@ -1,9 +1,9 @@
-# ConnectIQ 腾讯云部署安装指南
+# 玖莅 腾讯云部署安装指南
 
 > **迁移到 CloudBase？** 若计划使用 **腾讯云 CloudBase（云开发）** 托管 Next.js，请优先阅读 **[CloudBase 部署指南](./cloudbase-deployment.md)**。  
 > 本文档保留 **CVM + Nginx + PM2** 自建方案，适合需要完全自主运维或使用已有 CVM 的场景。
 
-本文档描述如何将 ConnectIQ 全栈系统部署到**腾讯云**体系，覆盖 Web 管理端/API、PostgreSQL 数据库、缓存、对象存储、定时任务与微信小程序发布。
+本文档描述如何将 玖莅 全栈系统部署到**腾讯云**体系，覆盖 Web 管理端/API、PostgreSQL 数据库、缓存、对象存储、定时任务与微信小程序发布。
 
 ---
 
@@ -222,14 +222,14 @@ REDIS_URL="redis://:密码@内网地址:6379/0"
 # 短信（当前代码读取阿里云变量名；接入腾讯云短信前可暂留或做适配）
 ALIYUN_ACCESS_KEY_ID=""
 ALIYUN_ACCESS_KEY_SECRET=""
-ALIYUN_SMS_SIGN_NAME="ConnectIQ"
+ALIYUN_SMS_SIGN_NAME="玖莅"
 ALIYUN_SMS_TEMPLATE_CODE="SMS_..."
 
-# 邮件（SMTP_HOST 未配置时仅打日志）
-SMTP_HOST="smtp.exmail.qq.com"
-SMTP_PORT="465"
-SMTP_USER="noreply@example.com"
-SMTP_PASS="..."
+# 邮件（Mailgun；MAILGUN_API_KEY 未配置时仅打日志）
+MAILGUN_API_KEY="key-..."
+MAILGUN_DOMAIN="email.9li.co"
+MAILGUN_FROM="玖莅 <noreply@email.9li.co>"
+MAILGUN_REGION="us"
 ```
 
 ### 5.3 Supabase（可选）

@@ -2,6 +2,7 @@ import "@/lib/auth-env";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { isOrgAdminUsable } from "@/lib/org-access";
+import { getPublicBasePath, withPublicPath } from "@/lib/public-path";
 import {
   ROLE_COOKIE_ADMIN_STATUS,
   ROLE_COOKIE_USER_TYPE,
@@ -64,22 +65,57 @@ function syncRoleCookies(
   response.cookies.set(ROLE_COOKIE_ADMIN_STATUS, adminStatus, cookieOptions);
 }
 
+function redirectTo(request: NextRequest, path: string) {
+  return NextResponse.redirect(new URL(withPublicPath(path), request.url));
+}
+
+function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
+  const basePath = getPublicBasePath();
+  if (!basePath) return null;
+
+  const { pathname } = request.nextUrl;
+  if (pathname === basePath || pathname.startsWith(`${basePath}/`)) {
+    return null;
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname =
+    pathname === "/" ? `${basePath}/` : `${basePath}${pathname}`;
+  return NextResponse.rewrite(url);
+}
+
+function finish(request: NextRequest, response: NextResponse) {
+  const rewrite = rewriteStrippedBasePath(request);
+  if (!rewrite) return response;
+
+  response.headers.forEach((value, key) => {
+    rewrite.headers.set(key, value);
+  });
+  for (const cookie of response.cookies.getAll()) {
+    rewrite.cookies.set(cookie);
+  }
+  return rewrite;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/api")) {
     if (request.method === "OPTIONS") {
-      return new NextResponse(null, { status: 204, headers: corsHeaders() });
+      return finish(
+        request,
+        new NextResponse(null, { status: 204, headers: corsHeaders() }),
+      );
     }
     const response = NextResponse.next();
     for (const [key, value] of Object.entries(corsHeaders())) {
       response.headers.set(key, value);
     }
-    return response;
+    return finish(request, response);
   }
 
   if (isPublicPath(pathname)) {
-    return NextResponse.next();
+    return finish(request, NextResponse.next());
   }
 
   const token = await getToken({
@@ -111,29 +147,23 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith(PLATFORM_PREFIX)) {
     if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return redirectTo(request, "/login");
     }
     if (userType !== "PLATFORM_ADMIN") {
-      return applyCookieSync(
-        NextResponse.redirect(new URL("/403", request.url)),
-      );
+      return applyCookieSync(redirectTo(request, "/403"));
     }
-    return applyCookieSync(NextResponse.next());
+    return finish(request, applyCookieSync(NextResponse.next()));
   }
 
   if (isAccountAdminRoute(pathname)) {
     if (!token) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return redirectTo(request, "/login");
     }
     if (userType !== "ACCOUNT_ADMIN") {
-      return applyCookieSync(
-        NextResponse.redirect(new URL("/403", request.url)),
-      );
+      return applyCookieSync(redirectTo(request, "/403"));
     }
     if (adminStatus === "SUSPENDED") {
-      return applyCookieSync(
-        NextResponse.redirect(new URL("/account-suspended", request.url)),
-      );
+      return applyCookieSync(redirectTo(request, "/account-suspended"));
     }
     if (!isOrgAdminUsable(adminStatus)) {
       const pendingPath =
@@ -142,39 +172,20 @@ export async function middleware(request: NextRequest) {
           : adminStatus === "PENDING_REVIEW"
             ? "/register/pending"
             : "/login";
-      return applyCookieSync(
-        NextResponse.redirect(new URL(pendingPath, request.url)),
-      );
+      return applyCookieSync(redirectTo(request, pendingPath));
     }
-    return applyCookieSync(NextResponse.next());
+    return finish(request, applyCookieSync(NextResponse.next()));
   }
 
   if (token?.userType) {
-    return applyCookieSync(NextResponse.next());
+    return finish(request, applyCookieSync(NextResponse.next()));
   }
 
-  return NextResponse.next();
+  return finish(request, NextResponse.next());
 }
 
 export const config = {
   matcher: [
-    "/platform",
-    "/platform/:path*",
-    "/organizer/:path*",
-    "/expo/:path*",
-    "/exhibitor/:path*",
-    "/events",
-    "/events/:path*",
-    "/expos",
-    "/expos/:path*",
-    "/booths",
-    "/booths/:path*",
-    "/members",
-    "/members/:path*",
-    "/org-profile",
-    "/org-profile/:path*",
-    "/integrations",
-    "/integrations/:path*",
-    "/api/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

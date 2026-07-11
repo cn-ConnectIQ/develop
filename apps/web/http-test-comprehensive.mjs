@@ -1,4 +1,4 @@
-﻿const BASE = "http://localhost:3000";
+const BASE = "http://localhost:3000";
 
 class CookieJar {
   constructor() {
@@ -245,7 +245,7 @@ async function testExpo() {
 }
 
 (async () => {
-  console.log("ConnectIQ HTTP Test Report");
+  console.log("玖莅 HTTP Test Report");
   console.log("Base URL:", BASE);
   console.log("Time:", new Date().toISOString());
   console.log("");

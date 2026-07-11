@@ -142,7 +142,7 @@ export function BigscreenProjection() {
 
       {currentMode === "idle" && (
         <div className="flex h-full flex-col items-center justify-center">
-          <p className="text-4xl font-black text-white">ConnectIQ</p>
+          <p className="text-4xl font-black text-white">玖莅</p>
           <p className="mt-4 text-2xl font-bold text-white">扫码加入</p>
           <div className="mt-6 flex size-[200px] items-center justify-center rounded-xl bg-white p-3">
             {joinQrUrl ? (

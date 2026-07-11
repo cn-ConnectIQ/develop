@@ -17,6 +17,10 @@ import {
   assertTrialCanCreateEvent,
   recordTrialSignal,
 } from "@/lib/organizer-trial-service";
+import {
+  assertExperienceCanCreateEvent,
+  ExperienceAccountError,
+} from "@/lib/experience/experience-account-service";
 import { listAccountAdminEvents } from "@/lib/event-list-service";
 import {
   categoryToDbType,
@@ -189,8 +193,12 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   try {
+    await assertExperienceCanCreateEvent(organizerId);
     await assertTrialCanCreateEvent(resolvedOrgId);
   } catch (error) {
+    if (error instanceof ExperienceAccountError) {
+      return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
+    }
     return createErrorResponse(
       error instanceof Error ? error.message : "试用额度已用尽",
       ErrorCode.VALIDATION_ERROR,

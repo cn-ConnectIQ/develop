@@ -1,8 +1,9 @@
-# ConnectIQ Web — CloudBase 云托管 / Docker 部署
+# 玖莅 Web — CloudBase 云托管 / Docker 部署
 # 构建上下文：仓库根目录 (connectiq/)
 
 FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@11.6.0 --activate
+RUN apk add --no-cache libc6-compat openssl
 
 # ── 依赖 ──
 FROM base AS deps
@@ -19,8 +20,15 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+ARG NEXT_PUBLIC_APP_URL=https://9li.co/uc
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXTAUTH_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_TELEMETRY_DISABLED=1
-# prisma generate 不依赖真实数据库连接
+# prisma generate 不依赖真实数据库；build 阶段占位即可
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+
 RUN pnpm db:generate
 RUN pnpm --filter @connectiq/web build
 
@@ -33,7 +41,8 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 nextjs \
+  && apk add --no-cache openssl
 
 COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./

@@ -90,7 +90,8 @@ export async function sendEmail(
   });
   return {
     success: result.sent,
-    messageId: result.sent ? `email-${Date.now()}` : undefined,
+    messageId: result.messageId,
+    error: result.error,
   };
 }
 

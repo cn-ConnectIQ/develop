@@ -101,7 +101,7 @@ export function BigscreenController({
     <aside className="relative flex flex-[0_0_28%] flex-col overflow-y-auto bg-[#0D1117] pb-20 text-white">
       <div className="border-b border-white/10 p-4">
         <p className="truncate text-sm font-medium">{eventName}</p>
-        <p className="mt-0.5 text-xs text-white/40">ConnectIQ 控制台</p>
+        <p className="mt-0.5 text-xs text-white/40">玖莅 控制台</p>
       </div>
 
       {!isLotteryMode && (

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         const reply = buildWechatTextReply({
           toUser: fromUser,
           fromUser: toUser,
-          content: "欢迎关注 ConnectIQ，进入小程序即可参与活动现场互动。",
+          content: "欢迎关注 玖莅，进入小程序即可参与活动现场互动。",
         });
         return new NextResponse(reply, {
           status: 200,

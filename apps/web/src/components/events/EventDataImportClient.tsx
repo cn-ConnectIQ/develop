@@ -194,7 +194,7 @@ export function EventDataImportClient({ eventId }: { eventId: string }) {
               从百格同步报名
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-text-muted">
-              若您使用百格办会，可在此一键同步报名名单至 ConnectIQ。未使用百格的主办方可跳过此步骤，改用
+              若您使用百格办会，可在此一键同步报名名单至 玖莅。未使用百格的主办方可跳过此步骤，改用
               Excel 导入或手动添加。
             </p>
 

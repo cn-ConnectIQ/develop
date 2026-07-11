@@ -51,7 +51,7 @@ export default async function StampScanLandingPage({
         {valid && (
           <>
             <p className="mt-4 text-sm text-text-muted">
-              请使用 ConnectIQ 小程序扫描此码完成集章
+              请使用 玖莅 小程序扫描此码完成集章
             </p>
             <p className="mt-2 text-xs text-brand-gold">
               完成集章可兑换：{stamp.rally.prize}
@@ -60,7 +60,7 @@ export default async function StampScanLandingPage({
         )}
         <div className="mt-6 flex items-center justify-center gap-1 text-xs text-text-tertiary">
           <MapPin className="size-3.5" />
-          ConnectIQ 集章打卡
+          玖莅 集章打卡
         </div>
       </div>
     </main>

@@ -11,6 +11,10 @@ import {
   prepareCampaignSend,
 } from "@/lib/invite/service";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import {
+  assertExperienceCanSendInvite,
+  ExperienceAccountError,
+} from "@/lib/experience/experience-account-service";
 
 export const POST = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -20,13 +24,22 @@ export const POST = withErrorHandler(async (_request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  const { session } = await requireEventAccess(eventId);
   const disabled = await guardEventFeature(eventId, "inviteSystem");
   if (disabled) return disabled;
 
   const existing = await getCampaignForEvent(eventId, campaignId);
   if (!existing) {
     return createErrorResponse("邀请活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  try {
+    await assertExperienceCanSendInvite(session.user.id, existing.channel);
+  } catch (error) {
+    if (error instanceof ExperienceAccountError) {
+      return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
+    }
+    throw error;
   }
 
   try {

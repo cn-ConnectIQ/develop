@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createSuccessResponse, withErrorHandler } from "@/lib/api-auth";
 
-/** 会后 AI 跟进（AI-07）已停用：会后触达由微信小程序负责，ConnectIQ 不再跑留存序列。 */
+/** 会后 AI 跟进（AI-07）已停用：会后触达由微信小程序负责，玖莅 不再跑留存序列。 */
 const DISABLED = {
   enabled: false,
   reason: "post_event_followup_disabled",

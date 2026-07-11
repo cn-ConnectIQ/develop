@@ -1,6 +1,6 @@
-# ConnectIQ CloudBase 部署指南
+# 玖莅 CloudBase 部署指南
 
-本文档描述如何将 ConnectIQ **从 Vercel 迁移到 [腾讯云 CloudBase（云开发）](https://cloud.tencent.com/product/tcb)**，并完成 Web 管理端、API、定时任务与微信小程序的联调上线。
+本文档描述如何将 玖莅 **从 Vercel 迁移到 [腾讯云 CloudBase（云开发）](https://cloud.tencent.com/product/tcb)**，并完成 Web 管理端、API、定时任务与微信小程序的联调上线。
 
 > **推荐架构：** Next.js 16 全栈应用走 **CloudBase 云托管（CloudRun）**；数据库用 **TencentDB PostgreSQL**；文件走 **CloudBase 云存储 / COS**；定时任务用 **云函数定时触发器** 调用现有 `/api/cron/*`。
 
@@ -38,7 +38,7 @@
 
 ### 1.1 为什么选云托管而不是静态托管 / HTTP 云函数？
 
-| 方案 | 是否适用 ConnectIQ | 原因 |
+| 方案 | 是否适用 玖莅 | 原因 |
 |------|-------------------|------|
 | **云托管 CloudRun** | ✅ **推荐** | 完整支持 App Router、SSR、流式响应、长连接；Prisma + PostgreSQL 长驻连接更稳定 |
 | 静态网站托管 | ❌ | 仅适合 `output: 'export'` 纯静态站；无法运行 `/api/*` 与 NextAuth |
@@ -222,7 +222,7 @@ SUPABASE_SERVICE_ROLE_KEY="..."
 # 短信（当前代码读阿里云变量名）
 ALIYUN_ACCESS_KEY_ID=""
 ALIYUN_ACCESS_KEY_SECRET="..."
-ALIYUN_SMS_SIGN_NAME="ConnectIQ"
+ALIYUN_SMS_SIGN_NAME="玖莅"
 ALIYUN_SMS_TEMPLATE_CODE="SMS_..."
 
 # 订阅消息模板
@@ -531,6 +531,29 @@ Client Component 不得直接 import 含 `prisma` 的模块；UI 只引用 `*-sh
 ### Q7：AI 接口 503
 
 云托管未配置 `DEEPSEEK_API_KEY`；配置后 **重启/发布新版本**。
+
+### Q8：部署日志停在 `check_eks_virtual_service: succ` 不动
+
+这通常表示 **镜像还在构建** 或 **平台调度卡住**，不是应用已在运行。
+
+**控制台必查（版本配置 → 运行配置）：**
+
+| 配置项 | 错误默认值 | 应改为 |
+|--------|-----------|--------|
+| 监听端口 | 80 | **3000** |
+| InitialDelaySeconds | 2 | **120**（Next.js 冷启动慢） |
+| CPU / 内存 | 0.25C / 0.5G | **1C / 2G**（build + 运行都不够会 OOM） |
+| 最小副本 | 0 | 首次部署建议 **1** |
+
+**排查步骤：**
+
+1. 打开 **构建日志**（不是部署日志），确认 `pnpm build` 是否成功（本地约 3–5 分钟，云端可能 10–20 分钟）。
+2. 若版本状态「部署中」超过 **30 分钟** → **取消该版本**，回滚到上一正常版本。
+3. 仍卡住 → **删除卡住版本** 后重新发布；或改用 CLI：`.\scripts\deploy-cloudbase.ps1`。
+4. 若构建日志报 `lookup *tencentcloudcr.com: no such host` → VPC/DNS 问题，需提工单（附环境 ID `connectiq-d6gc2sul3855abd4e`）。
+5. 存活探针可访问 `GET /api/live`（不连数据库），完整检查用 `GET /api/health`。
+
+仓库内 `cloudbaserc.json` 已写入推荐规格（端口 3000、延迟 120s、1C2G）。
 
 ---
 

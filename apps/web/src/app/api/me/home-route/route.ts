@@ -7,6 +7,7 @@ import {
 import { getPostLoginRedirectPath } from "@/lib/auth-redirect";
 import { isOrgAdminUsable } from "@/lib/org-access";
 import { resolveOrgHomeRoute } from "@/lib/org-home-route";
+import { getActiveExperienceAccount } from "@/lib/experience/experience-account-service";
 
 export const GET = withErrorHandler(async () => {
   const { session } = await requireAuth();
@@ -17,6 +18,14 @@ export const GET = withErrorHandler(async () => {
   }
 
   if (user.userType === "ACCOUNT_ADMIN") {
+    const experience = await getActiveExperienceAccount(user.id);
+    if (experience?.status === "ACTIVE") {
+      return createSuccessResponse({ path: `/events/${experience.eventId}` });
+    }
+    if (experience?.status === "EXPIRED") {
+      return createSuccessResponse({ path: "/experience/expired" });
+    }
+
     if (!isOrgAdminUsable(user.activeAdminStatus)) {
       return createSuccessResponse({ path: getPostLoginRedirectPath(user) });
     }

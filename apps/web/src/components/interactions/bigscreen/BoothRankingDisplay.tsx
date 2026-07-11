@@ -251,7 +251,7 @@ export function BoothRankingDisplay({ eventId }: { eventId: string }) {
       </div>
 
       <footer className="fixed bottom-0 left-0 w-[72%] py-3 text-center text-sm text-white/30">
-        数据每 60 秒自动刷新 · 数据来源：ConnectIQ 签到系统
+        数据每 60 秒自动刷新 · 数据来源：玖莅 签到系统
       </footer>
     </div>
   );

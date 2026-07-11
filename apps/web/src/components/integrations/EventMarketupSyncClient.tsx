@@ -178,7 +178,7 @@ export function EventMarketupSyncClient({
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b text-left text-text-muted">
-                  <th className="pb-2">ConnectIQ</th>
+                  <th className="pb-2">玖莅</th>
                   <th className="pb-2">MarketUP</th>
                 </tr>
               </thead>

@@ -6,6 +6,8 @@ import { getServerSession } from "next-auth/next";
 import type { Session } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "./auth";
+import { ExperienceAccountStatus } from "@connectiq/database";
+import { getActiveExperienceAccount } from "@/lib/experience/experience-account-service";
 
 export type UserType = Session["user"]["userType"];
 export type AuthSession = Session;
@@ -75,6 +77,20 @@ export async function requireAccountAdmin(
   if (session.user.userType !== "ACCOUNT_ADMIN") {
     return { error: forbidden("仅账号管理员可访问") };
   }
+
+  const experience = await getActiveExperienceAccount(session.user.id);
+  if (experience?.status === ExperienceAccountStatus.EXPIRED) {
+    return {
+      error: NextResponse.json(
+        {
+          error: "体验账号已过期，请联系平台管理员延期或转为正式账号",
+          code: "EXPERIENCE_EXPIRED",
+        },
+        { status: 403 },
+      ),
+    };
+  }
+
   if (!isOrgAdminUsable(session.user.activeAdminStatus)) {
     return {
       error: NextResponse.json(

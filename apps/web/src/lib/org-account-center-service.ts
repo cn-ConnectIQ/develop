@@ -232,7 +232,7 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
     dataPolicy: {
       scope: "b2b_account",
       summary:
-        "ConnectIQ「连接完交给微信、不留存」仅适用于参会者（C 端）。主办方/展商账号保留活动历史与跨活动累计数据，用于持续办会与商业转化，不构成参会者之间的持久社交关系。",
+        "玖莅「连接完交给微信、不留存」仅适用于参会者（C 端）。主办方/展商账号保留活动历史与跨活动累计数据，用于持续办会与商业转化，不构成参会者之间的持久社交关系。",
     },
   };
 }
@@ -245,7 +245,7 @@ function buildValueSummary(org: {
   if (org.totalEvents === 0) {
     return "完成第一场活动后，连接与线索数据将在此持续累积，方便您对比每场 ROI。";
   }
-  return `已在 ConnectIQ 积累 ${org.totalEvents} 场活动、${org.totalConnections} 次连接、${org.totalLeads} 条线索——数据随账号保留，下次办会可一键复用配置并对比历史。`;
+  return `已在 玖莅 积累 ${org.totalEvents} 场活动、${org.totalConnections} 次连接、${org.totalLeads} 条线索——数据随账号保留，下次办会可一键复用配置并对比历史。`;
 }
 
 function buildRetentionHints(

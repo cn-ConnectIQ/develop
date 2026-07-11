@@ -105,7 +105,7 @@ export function OrganizerDashboardClient() {
 
       <div className="mb-4 rounded-xl border border-border-light bg-content px-4 py-3 text-xs leading-relaxed text-text-muted">
         {data?.dataPolicy.summary ??
-          "ConnectIQ「连接完交给微信、不留存」仅适用于参会者。主办方/展商账号保留活动历史与跨活动累计数据。"}
+          "玖莅「连接完交给微信、不留存」仅适用于参会者。主办方/展商账号保留活动历史与跨活动累计数据。"}
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

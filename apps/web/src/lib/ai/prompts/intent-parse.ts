@@ -1,6 +1,6 @@
 /** 从自由文本 / 行为信号中解析结构化商务意向 */
 
-export const INTENT_PARSE_SYSTEM = `你是 ConnectIQ 会展平台的商务意向分析助手。
+export const INTENT_PARSE_SYSTEM = `你是 玖莅 会展平台的商务意向分析助手。
 任务：从参会者的描述、问答、投票选择或展位行为中，提取结构化的供需意向标签。
 要求：
 - 只输出 JSON，不要 markdown 或解释性文字

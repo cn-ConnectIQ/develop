@@ -1,6 +1,6 @@
 /**
  * @deprecated MVP 不做独立 B2B 社区 / LinkedIn 式社交后台。
- * 客户关系沉淀走「现场线索 → MarketUP CRM」，不在 ConnectIQ 维护粉丝/关注体系。
+ * 客户关系沉淀走「现场线索 → MarketUP CRM」，不在 玖莅 维护粉丝/关注体系。
  *
  * 保留但不再维护的脚手架：
  * - POST/DELETE /api/org/[slug]/follow

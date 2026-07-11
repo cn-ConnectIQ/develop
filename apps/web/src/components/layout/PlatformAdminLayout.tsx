@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   Shield,
+  Sparkles,
   Tag,
   UserPlus,
   Users,
@@ -28,7 +29,7 @@ type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  badgeKey?: "applications" | "eventReviews";
+  badgeKey?: "applications" | "eventReviews" | "experienceAccounts";
 };
 
 type NavGroup = {
@@ -51,6 +52,12 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/platform/applications",
         icon: UserPlus,
         badgeKey: "applications",
+      },
+      {
+        label: "体验账号管理",
+        href: "/platform/experience-accounts",
+        icon: Sparkles,
+        badgeKey: "experienceAccounts",
       },
       {
         label: "活动审核（遗留）",
@@ -77,12 +84,23 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 async function fetchBadgeCounts() {
-  const res = await fetch("/api/platform/overview-stats");
-  if (!res.ok) return { applications: 0, eventReviews: 0 };
-  const json = await res.json();
+  const [statsRes, experienceRes] = await Promise.all([
+    fetch("/api/platform/overview-stats"),
+    fetch("/api/platform/experience-accounts?status=ACTIVE&pageSize=1"),
+  ]);
+  if (!statsRes.ok) {
+    return { applications: 0, eventReviews: 0, experienceAccounts: 0 };
+  }
+  const json = await statsRes.json();
+  let experienceAccounts = 0;
+  if (experienceRes.ok) {
+    const expJson = await experienceRes.json();
+    experienceAccounts = expJson.data?.counts?.active ?? 0;
+  }
   return {
     applications: json.data?.users?.pending_applications ?? 0,
     eventReviews: json.data?.events?.pending_review ?? 0,
+    experienceAccounts,
   };
 }
 
@@ -128,7 +146,7 @@ function PlatformSidebar({
           <div className="flex items-start gap-2">
             <div className="admin-sb-logo">C</div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-text-primary">ConnectIQ Platform</p>
+              <p className="text-sm font-semibold text-text-primary">玖莅 Platform</p>
               <span className="mt-0.5 inline-block text-xs text-text-tertiary">超级管理员</span>
             </div>
             <Button
@@ -160,7 +178,9 @@ function PlatformSidebar({
                     ? badges?.applications
                     : item.badgeKey === "eventReviews"
                       ? badges?.eventReviews
-                      : 0;
+                      : item.badgeKey === "experienceAccounts"
+                        ? badges?.experienceAccounts
+                        : 0;
 
                 return (
                   <li key={item.href}>

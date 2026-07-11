@@ -213,7 +213,7 @@ async function testHttpEndpoints(eventId: string, token: string) {
     const joinRes = await fetch(joinUrl);
     if (joinRes.ok) {
       const html = await joinRes.text();
-      html.includes("ConnectIQ") &&
+      html.includes("玖莅") &&
       (html.includes("立即加入") ||
         html.includes("你已经加入了") ||
         html.includes("集成测试"))
@@ -245,7 +245,7 @@ async function testHttpEndpoints(eventId: string, token: string) {
 }
 
 async function main() {
-  console.log("ConnectIQ 邀请功能集成测试\n");
+  console.log("玖莅 邀请功能集成测试\n");
 
   const { event, campaign, record } = await ensureTestCampaign();
   console.log(`  活动: ${event.name}`);

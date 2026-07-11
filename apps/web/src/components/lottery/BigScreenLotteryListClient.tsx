@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { AdminContent, AdminPage } from "@/components/admin/admin-header";
+import { AdminContent, AdminHeader, AdminPage } from "@/components/admin/admin-header";
 import { BigScreenLotteryCard } from "@/components/lottery/BigScreenLotteryCard";
 import { BigScreenLotteryEmptyState } from "@/components/lottery/BigScreenLotteryEmptyState";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -51,6 +51,7 @@ async function deleteDraftLottery(eventId: string, lotteryId: string) {
 
 export function BigScreenLotteryListClient({
   eventId,
+  eventName,
 }: {
   eventId: string;
   eventName?: string;
@@ -99,22 +100,20 @@ export function BigScreenLotteryListClient({
 
   return (
     <AdminPage>
-      <header className="admin-header flex flex-wrap items-start justify-between gap-4 border-b border-border bg-surface px-6 py-5">
-        <div className="min-w-0">
-          <p className="mb-1 text-xs text-text-tertiary">互动管理 / 大屏抽奖</p>
-          <h1 className="text-2xl font-bold text-text-primary">大屏抽奖</h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            活动收尾仪式、多等级奖品的奖池抽奖
-          </p>
-        </div>
-        <Link
-          href={`/events/${eventId}/lottery/big-screen/new`}
-          className={buttonVariants({ variant: "default", className: "shadow-sm" })}
-        >
-          <Plus data-icon="inline-start" />
-          新建大屏抽奖
-        </Link>
-      </header>
+      <AdminHeader
+        title="大屏抽奖"
+        description={eventName}
+        breadcrumb={["互动管理", "大屏抽奖"]}
+        actions={
+          <Link
+            href={`/events/${eventId}/lottery/big-screen/new`}
+            className={buttonVariants({ variant: "default", className: "shadow-sm" })}
+          >
+            <Plus data-icon="inline-start" />
+            新建大屏抽奖
+          </Link>
+        }
+      />
 
       <AdminContent className="space-y-4">
         {!isLoading && !isError && lotteries.length > 0 && (

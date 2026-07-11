@@ -27,7 +27,7 @@ enum ActivityType {
 
 /// 活动数据来源
 enum DataSource {
-  NATIVE // ConnectIQ 原生创建
+  NATIVE // 玖莅 原生创建
   BAGEVENT // 百格导入
   MARKETUP // MarketUP 导入
 }
@@ -464,7 +464,7 @@ enum InteractionType {
 enum UserType {
   END_USER // 移动端最终用户（参会者/买家/B2B专业人士）
   ACCOUNT_ADMIN // 账号管理员（主办方/展会方/参展商，需审核）
-  PLATFORM_ADMIN // 平台超级管理员（ConnectIQ 内部运营）
+  PLATFORM_ADMIN // 平台超级管理员（玖莅 内部运营）
 }
 
 // 账号管理员的审核状态
@@ -609,6 +609,10 @@ model User {
   submittedApplications OrganizerApplication[]
   reviewedApplications  OrganizerApplication[] @relation("ApplicationReviewer")
   organizerTrialProfiles OrganizerTrialProfile[]
+  experienceAccount      ExperienceAccount?     @relation("ExperienceAccountUser")
+  invitedExperienceAccounts ExperienceAccount[] @relation("ExperienceInviter")
+  convertedExperienceAccounts ExperienceAccount[] @relation("ExperienceConverter")
+  extendedExperienceAccounts ExperienceAccount[] @relation("ExperienceExtender")
   submittedEventReviews EventReview[]          @relation("EventReviewSubmitter")
   reviewedEventReviews  EventReview[]          @relation("EventReviewer")
   operatedBooths        ExhibitorBooth[]       @relation("BoothOperator")
@@ -673,6 +677,7 @@ model Organization {
   application     OrganizerApplication?
   exhibitorBooths ExhibitorBooth[]      @relation("BoothOrg")
   trialProfile    OrganizerTrialProfile?
+  experienceAccounts ExperienceAccount[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -775,6 +780,67 @@ model OrganizerTrialProfile {
   @@index([userId])
   @@index([trialStartedAt])
   @@map("organizer_trial_profiles")
+}
+
+enum ExperienceAccountStatus {
+  ACTIVE
+  EXPIRED
+  CONVERTED
+  REVOKED
+}
+
+enum ExperienceAccountRole {
+  PRIMARY
+  COLLEAGUE
+}
+
+/// 演示展会体验账号（TEST1377 · 7 天试用，平台可延期/转正式）
+model ExperienceAccount {
+  id     String @id @default(cuid())
+  userId String @unique @map("user_id")
+  user   User   @relation("ExperienceAccountUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  orgId   String @map("org_id")
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  eventId String @map("event_id")
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  orgStaffId    String? @map("org_staff_id")
+  participantId String? @map("participant_id")
+
+  role            ExperienceAccountRole @default(PRIMARY)
+  invitedByUserId String?               @map("invited_by_user_id")
+  inviter         User?                 @relation("ExperienceInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  status    ExperienceAccountStatus @default(ACTIVE)
+  startedAt DateTime                @default(now()) @map("started_at")
+  expiresAt DateTime                @map("expires_at")
+
+  contactName String? @map("contact_name")
+  companyName String? @map("company_name")
+  phone       String
+
+  convertedAt         DateTime? @map("converted_at")
+  convertedByUserId   String?   @map("converted_by_user_id")
+  convertedBy         User?     @relation("ExperienceConverter", fields: [convertedByUserId], references: [id], onDelete: SetNull)
+  convertedOrgId      String?   @map("converted_org_id")
+
+  extendedCount        Int       @default(0) @map("extended_count")
+  lastExtendedAt       DateTime? @map("last_extended_at")
+  lastExtendedByUserId String?   @map("last_extended_by_user_id")
+  lastExtendedBy       User?     @relation("ExperienceExtender", fields: [lastExtendedByUserId], references: [id], onDelete: SetNull)
+
+  platformNotes String? @map("platform_notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([eventId])
+  @@index([orgId])
+  @@index([invitedByUserId])
+  @@map("experience_accounts")
 }
 
 /// 向上转化钩子展示/点击/关闭追踪（BAGEVENT / MARKETUP）
@@ -928,6 +994,7 @@ model Event {
   codeScanLogs        CodeScanLog[]
   screenPairings      ScreenPairing[]
   announcements       Announcement[]
+  experienceAccounts  ExperienceAccount[]
 
   @@map("events")
 }

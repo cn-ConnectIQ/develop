@@ -9,6 +9,10 @@ import {
 import { createInviteCampaignSchema } from "@/lib/invite/schemas";
 import { listCampaigns } from "@/lib/invite/service";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
+import {
+  assertExperienceCanSendInvite,
+  ExperienceAccountError,
+} from "@/lib/experience/experience-account-service";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -40,6 +44,15 @@ export const POST = withErrorHandler(async (request, context) => {
       ErrorCode.VALIDATION_ERROR,
       400,
     );
+  }
+
+  try {
+    await assertExperienceCanSendInvite(session.user.id, parsed.data.channel);
+  } catch (error) {
+    if (error instanceof ExperienceAccountError) {
+      return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
+    }
+    throw error;
   }
 
   const scheduledAt = parsed.data.scheduled_at

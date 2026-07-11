@@ -141,7 +141,7 @@ export function OrganizerSignupForm() {
       return;
     }
 
-    toast.success("欢迎加入 ConnectIQ 试用！");
+    toast.success("欢迎加入 玖莅 试用！");
     await redirectAfterSignup();
   });
 

@@ -236,7 +236,7 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
               onClick={() => openInvitePage()}
             >
               <Bot className="mr-1 size-4" />
-              邀请加入 ConnectIQ
+              邀请加入 玖莅
             </Button>
           )}
         </div>

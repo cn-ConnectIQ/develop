@@ -99,7 +99,7 @@ export function CheckinBigscreenClient({ eventId }: { eventId: string }) {
       </aside>
 
       <footer className="absolute bottom-6 left-1/2 -translate-x-1/2 text-sm text-white/40">
-        ConnectIQ
+        玖莅
       </footer>
     </div>
   );

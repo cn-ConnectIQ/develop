@@ -81,7 +81,7 @@ function getPlatformConnectionsFallback() {
         userA: { name: "张伟", company: "未来科技" },
         userB: { name: "李娜", company: "云端互动" },
         source: "AI 推荐",
-        event: "ConnectIQ 峰会 2026",
+        event: "玖莅 峰会 2026",
         depth: 4,
         aiScore: 92,
         createdAt: new Date().toISOString(),

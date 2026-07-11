@@ -26,7 +26,7 @@ const REQUIRED_STAMPS = 3;
 const LOTTERY_PRIZES = [
   { rank: 1, name: "一等奖", prize: "MacBook Air", count: 1 },
   { rank: 2, name: "二等奖", prize: "iPad", count: 2 },
-  { rank: 3, name: "三等奖", prize: "ConnectIQ 限定礼盒", count: 5 },
+  { rank: 3, name: "三等奖", prize: "玖莅 限定礼盒", count: 5 },
 ];
 
 function daysAgo(days: number, hours = 0) {

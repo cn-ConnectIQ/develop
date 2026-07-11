@@ -1,4 +1,5 @@
 import type { Session } from "next-auth";
+import { withPublicPath } from "@/lib/public-path";
 
 const ROLE_COOKIE_USER_TYPE = "next-auth.user-type";
 const ROLE_COOKIE_ADMIN_STATUS = "next-auth.admin-status";
@@ -66,7 +67,9 @@ export function clearAuthRoleCookies() {
 export async function signOutWithCleanup(callbackUrl = "/login") {
   clearAuthRoleCookies();
   const { signOut } = await import("next-auth/react");
-  const path = callbackUrl.startsWith("/") ? callbackUrl : `/${callbackUrl}`;
+  const path = callbackUrl.startsWith("/")
+    ? withPublicPath(callbackUrl)
+    : withPublicPath(`/${callbackUrl}`);
   const target =
     typeof window !== "undefined" && !callbackUrl.startsWith("http")
       ? `${window.location.origin}${path}`

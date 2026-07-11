@@ -36,7 +36,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
       <div className="admin-sb-brand border-b border-border">
         <div className="admin-sb-logo">C</div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-text-primary">ConnectIQ</p>
+          <p className="truncate text-sm font-semibold text-text-primary">玖莅</p>
           <p className="truncate text-xs text-text-tertiary">管理后台</p>
         </div>
       </div>

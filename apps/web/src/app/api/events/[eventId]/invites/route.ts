@@ -12,6 +12,10 @@ import { mergeParticipantByPhone } from "@/lib/participant-merge";
 import { normalizeParticipantTags } from "@/lib/participant-tags";
 import { triggerInviteProcessing } from "@/lib/invite/queue";
 import { prepareCampaignSend } from "@/lib/invite/service";
+import {
+  assertExperienceCanSendInvite,
+  ExperienceAccountError,
+} from "@/lib/experience/experience-account-service";
 import { prisma } from "@connectiq/database";
 
 const contactSchema = z.object({
@@ -47,6 +51,15 @@ export const POST = withErrorHandler(async (request, context) => {
       ErrorCode.VALIDATION_ERROR,
       400,
     );
+  }
+
+  try {
+    await assertExperienceCanSendInvite(session.user.id, parsed.data.channel);
+  } catch (error) {
+    if (error instanceof ExperienceAccountError) {
+      return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
+    }
+    throw error;
   }
 
   const defaultTags = normalizeParticipantTags(parsed.data.tags);

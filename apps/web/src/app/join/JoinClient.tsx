@@ -95,7 +95,7 @@ function JoinShell({
 function JoinHeader() {
   return (
     <header className="px-4 pt-8 pb-2 text-center">
-      <p className="text-2xl font-bold text-brand-blue">ConnectIQ</p>
+      <p className="text-2xl font-bold text-brand-blue">玖莅</p>
       <p className="mt-1 text-xs text-text-muted">× 商务社交平台</p>
     </header>
   );
@@ -245,7 +245,7 @@ function InvalidState() {
         href={OFFICIAL_SITE}
         className="mt-8 text-sm font-medium text-brand-blue hover:underline"
       >
-        前往官网了解 ConnectIQ
+        前往官网了解 玖莅
       </Link>
     </div>
   );
@@ -277,7 +277,7 @@ function ActivatedState({
         你已经加入了！
       </h1>
       <p className="mt-3 max-w-[300px] text-sm leading-relaxed text-text-muted">
-        打开 ConnectIQ App 查看 {eventName} 的参会者
+        打开 玖莅 App 查看 {eventName} 的参会者
       </p>
       <Button
         type="button"

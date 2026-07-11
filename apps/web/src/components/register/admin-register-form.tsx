@@ -305,7 +305,7 @@ export function AdminRegisterForm() {
     <div className="mx-auto max-w-[560px] px-4 py-12">
       <div className="mb-8 text-center">
         <Link href="/" className="text-2xl font-bold text-brand-blue">
-          ConnectIQ
+          玖莅
         </Link>
         <h1 className="mt-2 text-lg font-semibold text-[var(--admin-ink)]">
           {isAddMode ? "申请新组织" : "申请组织账号"}
@@ -473,7 +473,7 @@ export function AdminRegisterForm() {
               </Label>
               <div className="relative">
                 <Textarea
-                  placeholder="请简要说明贵组织的背景，以及希望如何使用 ConnectIQ（100-500字）"
+                  placeholder="请简要说明贵组织的背景，以及希望如何使用 玖莅（100-500字）"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="min-h-[100px] rounded-xl border-border-light px-4 py-3 text-sm"

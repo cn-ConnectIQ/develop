@@ -77,7 +77,7 @@ const SEED_INT_HOSTED = {
 const TEST1377_LOTTERY_PRIZES = [
   { rank: 1, name: "一等奖", prize: "MacBook Air", count: 1 },
   { rank: 2, name: "二等奖", prize: "iPad", count: 2 },
-  { rank: 3, name: "三等奖", prize: "ConnectIQ 限定礼盒", count: 5 },
+  { rank: 3, name: "三等奖", prize: "玖莅 限定礼盒", count: 5 },
 ];
 
 /** 集章任务：扫 3 个指定展位即可兑奖并衔接抽奖 */
@@ -600,7 +600,7 @@ async function ensurePublicEventPresentation(eventId: string, orgId: string | nu
     where: { id: eventId },
     data: {
       description:
-        "ConnectIQ 创新中心主办的 B2B 产业展会，覆盖智能制造、企业服务与 MarTech 三大展区。现场含主论坛、SN 速配、集章互动与 AI 商务引荐。",
+        "玖莅 创新中心主办的 B2B 产业展会，覆盖智能制造、企业服务与 MarTech 三大展区。现场含主论坛、SN 速配、集章互动与 AI 商务引荐。",
       location: "上海 · 国家会展中心（虹桥）",
     },
   });
@@ -699,7 +699,7 @@ async function ensureEventSpeakers(eventId: string) {
     {
       id: `${PREFIX}-speaker-3`,
       name: "李明远",
-      title: "ConnectIQ 产品总监",
+      title: "玖莅 产品总监",
       bio: "负责 AI 商务匹配与 SN 速配产品，现场演示 Connect Card 与引荐引擎。",
       seed: "speaker-lmy",
     },
@@ -1125,7 +1125,7 @@ async function ensureMobileTestInteractions(
       where: { id: `${PREFIX}-lottery-win-finished` },
       update: {
         prizeRank: 2,
-        prizeName: "二等奖 · ConnectIQ 限定礼盒",
+        prizeName: "二等奖 · 玖莅 限定礼盒",
         notified: true,
       },
       create: {
@@ -1133,7 +1133,7 @@ async function ensureMobileTestInteractions(
         lotteryId: H.lotteryFinished,
         userId,
         prizeRank: 2,
-        prizeName: "二等奖 · ConnectIQ 限定礼盒",
+        prizeName: "二等奖 · 玖莅 限定礼盒",
         drawnAt: daysAgo(1, 2),
         notified: true,
       },
@@ -1347,7 +1347,7 @@ export async function seedMobileTestAttendeeDimensions(
         userAId: user.id,
         userBId: peerA.id,
         userAName: MOBILE_TEST_NAME,
-        userACompany: "ConnectIQ 测试",
+        userACompany: "玖莅 测试",
         userBName: peerA.name,
         userBCompany: peerA.profile?.company ?? undefined,
         source: ConnectionSource.SCAN,
@@ -1530,7 +1530,7 @@ export async function seedMobileTestAttendeeDimensions(
       userId: user.id,
       pointsBalance,
       accountStatus: UserAccountStatus.COMPLETE,
-      company: "ConnectIQ 测试",
+      company: "玖莅 测试",
     },
   });
   dimensions.push(`积分(${pointsBalance})`);
@@ -1546,7 +1546,7 @@ export async function seedMobileTestAttendeeDimensions(
         userAId: user.id,
         userBId: peerB.id,
         userAName: MOBILE_TEST_NAME,
-        userACompany: "ConnectIQ 测试",
+        userACompany: "玖莅 测试",
         userATitle: "产品经理",
         userBName: peerB.name,
         userBCompany: peerB.profile?.company ?? undefined,
@@ -1574,7 +1574,7 @@ export async function seedMobileTestAttendeeDimensions(
         userAName: peerC.name,
         userACompany: peerC.profile?.company ?? undefined,
         userBName: MOBILE_TEST_NAME,
-        userBCompany: "ConnectIQ 测试",
+        userBCompany: "玖莅 测试",
         userBTitle: "产品经理",
         status: ReferralStatus.ACCEPTED,
         message: "王强推荐你认识，主题很匹配",
@@ -1620,7 +1620,7 @@ export async function seedMobileTestAttendeeDimensions(
     {
       id: `${PREFIX}-notif-lottery-win`,
       title: "恭喜中奖！",
-      body: "您在「昨日预热抽奖」中获得二等奖 · ConnectIQ 限定礼盒，请至服务台领取。\n<!--lottery:seed-int-hosted-lottery-done-->",
+      body: "您在「昨日预热抽奖」中获得二等奖 · 玖莅 限定礼盒，请至服务台领取。\n<!--lottery:seed-int-hosted-lottery-done-->",
       read: false,
     },
     {
@@ -1745,7 +1745,7 @@ export async function seedMobileTestAttendeeDimensions(
         userAId: user.id,
         userBId: peerA.id,
         userAName: MOBILE_TEST_NAME,
-        userACompany: "ConnectIQ 测试",
+        userACompany: "玖莅 测试",
         userBName: peerA.name,
         userBCompany: peerA.profile?.company ?? undefined,
         source: ConnectionSource.SPEED_NETWORKING,

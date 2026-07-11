@@ -85,7 +85,7 @@ export function CreateCampaignPageClient({ eventId }: { eventId: string }) {
   return (
     <AdminPage>
       <AdminHeader
-        title="邀请参会者加入 ConnectIQ"
+        title="邀请参会者加入 玖莅"
         description={eventName}
         breadcrumb={["参与人员管理", "发起邀请"]}
         actions={

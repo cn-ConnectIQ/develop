@@ -60,7 +60,7 @@ export function MarketupConfigPanel({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-gray-50 text-left text-xs text-text-muted">
-                  <th className="p-3">ConnectIQ 字段</th>
+                  <th className="p-3">玖莅 字段</th>
                   <th className="p-3">MarketUP 字段</th>
                 </tr>
               </thead>

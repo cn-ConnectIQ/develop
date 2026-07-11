@@ -387,10 +387,10 @@ async function seedAgenda(ctx: SeedEventFeaturesContext) {
       sessions: [
         { id: `${FEAT_PREFIX}-session-innovation-1`, title: "开幕 keynote：活动科技新趋势", room: "主会场 A", offsetHours: -2, duration: 1.5 },
         { id: `${FEAT_PREFIX}-session-innovation-2`, title: "圆桌：会议 × 展览融合运营", room: "分会场 B", offsetHours: 1, duration: 1 },
-        { id: `${FEAT_PREFIX}-session-innovation-3`, title: "案例分享：ConnectIQ 最佳实践", room: "主会场 A", offsetHours: 3, duration: 1 },
+        { id: `${FEAT_PREFIX}-session-innovation-3`, title: "案例分享：玖莅 最佳实践", room: "主会场 A", offsetHours: 3, duration: 1 },
       ],
       speakers: [
-        { id: `${FEAT_PREFIX}-speaker-innovation-1`, name: "陈主编", title: "ConnectIQ 创新中心 · 主编", sessionId: `${FEAT_PREFIX}-session-innovation-1` },
+        { id: `${FEAT_PREFIX}-speaker-innovation-1`, name: "陈主编", title: "玖莅 创新中心 · 主编", sessionId: `${FEAT_PREFIX}-session-innovation-1` },
         { id: `${FEAT_PREFIX}-speaker-innovation-2`, name: "Dr. Lin", title: "活动科技研究院 · 首席分析师", sessionId: `${FEAT_PREFIX}-session-innovation-1` },
         { id: `${FEAT_PREFIX}-speaker-innovation-3`, name: "程远", title: "智链科技 · CTO", sessionId: `${FEAT_PREFIX}-session-innovation-2` },
         { id: `${FEAT_PREFIX}-speaker-innovation-4`, name: "沈悦", title: "未来会展 · 运营总监", sessionId: `${FEAT_PREFIX}-session-innovation-3` },
@@ -659,7 +659,7 @@ async function seedInviteCampaigns(ctx: SeedEventFeaturesContext) {
 
 async function seedSponsors(ctx: SeedEventFeaturesContext) {
   const items = [
-    { id: `${FEAT_PREFIX}-sponsor-innovation-1`, eventId: ctx.innovationSummitEventId, name: "ConnectIQ", level: "钻石赞助" },
+    { id: `${FEAT_PREFIX}-sponsor-innovation-1`, eventId: ctx.innovationSummitEventId, name: "玖莅", level: "钻石赞助" },
     { id: `${FEAT_PREFIX}-sponsor-innovation-2`, eventId: ctx.innovationSummitEventId, name: "智链产业基金", level: "金牌赞助" },
     { id: `${FEAT_PREFIX}-sponsor-hosted-1`, eventId: ctx.hostedExpoEventId, name: "华为云", level: "战略伙伴" },
     { id: `${FEAT_PREFIX}-sponsor-hosted-2`, eventId: ctx.hostedExpoEventId, name: "阿里云", level: "钻石展商" },
@@ -713,8 +713,8 @@ async function seedHostedExpoExtras(ctx: SeedEventFeaturesContext) {
         eventId: ctx.hostedExpoEventId,
         createdById: ctx.unifiedAdminId,
         name: "智链博览会集章之旅",
-        description: "逛遍三大精品展位，集章兑换 ConnectIQ 周边",
-        prize: "ConnectIQ 限定礼盒",
+        description: "逛遍三大精品展位，集章兑换 玖莅 周边",
+        prize: "玖莅 限定礼盒",
         requiredCount: 2,
         totalBooths: ctx.hostedBoothIds.length,
         boothIds: ctx.hostedBoothIds,
@@ -902,7 +902,7 @@ async function seedNetworking(ctx: SeedEventFeaturesContext) {
       eventId: ctx.digitalExpoEventId,
       userAName: "马晨",
       userACompany: "华东智造",
-      userBName: "ConnectIQ",
+      userBName: "玖莅",
       userBCompany: "C-18 展台",
       score: 85,
       reason: "你寻找 数字化方案 ↔ TA 提供 活动科技",

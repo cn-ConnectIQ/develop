@@ -58,7 +58,7 @@ export function MessagePreview({
   return (
     <div className={cn("overflow-hidden rounded-xl border border-border-light bg-white", className)}>
       <div className="bg-brand-blue px-4 py-3 text-sm font-semibold text-white">
-        ConnectIQ
+        玖莅
       </div>
       <div className="space-y-3 p-4">
         <p className="text-base font-semibold">
@@ -73,7 +73,7 @@ export function MessagePreview({
         <p className="whitespace-pre-wrap text-sm text-text-muted">{message}</p>
         <div className="pt-2">
           <span className="inline-block rounded-lg bg-brand-blue px-4 py-2 text-sm text-white">
-            立即加入 ConnectIQ →
+            立即加入 玖莅 →
           </span>
         </div>
         <p className="text-[11px] text-text-muted">

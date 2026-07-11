@@ -8,7 +8,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── ConnectIQ design tokens v2（浅色为主，品牌色收窄为强调色）── */
+/* ── 玖莅 design tokens v2（浅色为主，品牌色收窄为强调色）── */
 :root {
   /* 颜色 */
   --background: #fafaf9;
@@ -147,7 +147,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* ConnectIQ 管理端深色侧栏（区别于 shadcn 浅色 --sidebar） */
+  /* 玖莅 管理端深色侧栏（区别于 shadcn 浅色 --sidebar） */
   --color-sidebar-shell: var(--admin-sidebar-bg);
 
   /* 向后兼容别名 */

@@ -216,7 +216,7 @@ const ALL_SEED_SESSION_IDS = [
 const DEFAULT_PRIZES = [
   { rank: 1, name: "一等奖", prize: "iPad Air", count: 1 },
   { rank: 2, name: "二等奖", prize: "AirPods Pro", count: 2 },
-  { rank: 3, name: "三等奖", prize: "ConnectIQ 周边礼包", count: 5 },
+  { rank: 3, name: "三等奖", prize: "玖莅 周边礼包", count: 5 },
 ];
 
 export type SeedInteractionsContext = {
@@ -507,7 +507,7 @@ async function seedHostedExpoInteractions(ctx: SeedInteractionsContext) {
     eventId,
     createdById: creatorId,
     type: PollType.SINGLE_CHOICE,
-    title: "【答题抽奖】ConnectIQ 支持几种现场互动类型？",
+    title: "【答题抽奖】玖莅 支持几种现场互动类型？",
     status: PollStatus.LIVE,
     displayOrder: 7,
     options: [
@@ -650,7 +650,7 @@ async function seedHostedExpoInteractions(ctx: SeedInteractionsContext) {
       eventId,
       createdById: creatorId,
       title: "【随机抽奖】开幕幸运奖",
-      description: "扫码参与，现场随机抽取 ConnectIQ 周边",
+      description: "扫码参与，现场随机抽取 玖莅 周边",
       type: LotteryType.RANDOM,
       status: LotteryStatus.OPEN,
       prizes: DEFAULT_PRIZES,
@@ -1049,7 +1049,7 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       eventId,
       createdById: ctx.unifiedAdminId,
       type: PollType.QNA,
-      title: "【ConnectIQ 展台】向产品团队提问",
+      title: "【玖莅 展台】向产品团队提问",
       status: PollStatus.LIVE,
     });
 
@@ -1058,7 +1058,7 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       eventId,
       createdById: ctx.unifiedAdminId,
       type: PollType.RATING,
-      title: "【ConnectIQ 展台】产品演示满意度",
+      title: "【玖莅 展台】产品演示满意度",
       status: PollStatus.LIVE,
     });
 
@@ -1073,7 +1073,7 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
         title: "【C-18 展台】现场幸运抽奖",
         type: LotteryType.RANDOM,
         status: LotteryStatus.OPEN,
-        prizes: [{ rank: 1, name: "一等奖", prize: "ConnectIQ 周边礼包", count: 3 }],
+        prizes: [{ rank: 1, name: "一等奖", prize: "玖莅 周边礼包", count: 3 }],
         winnerCount: 1,
         entryCount: 2,
       },
@@ -1097,7 +1097,7 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       participants.slice(0, 4),
       "seed-int-res-expo-booth-qna",
       [
-        "ConnectIQ 支持哪些 CRM 对接？",
+        "玖莅 支持哪些 CRM 对接？",
         "小程序端互动有哪些类型？",
         "如何导出线索数据？",
         "是否支持私有化部署？",
@@ -1108,7 +1108,7 @@ async function seedExpoInteractions(ctx: SeedInteractionsContext) {
       id: "seed-int-expo-booth-session",
       eventId,
       createdById: ctx.unifiedAdminId,
-      name: "C-18 ConnectIQ 展台互动",
+      name: "C-18 玖莅 展台互动",
       sessionCode: "SEEDC18",
       interactions: [
         { type: "poll", id: "seed-int-expo-booth-poll" },
@@ -1427,7 +1427,7 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
     eventId,
     createdById: creatorId,
     type: PollType.WORD_CLOUD,
-    title: "【词云】用一个词形容 ConnectIQ",
+    title: "【词云】用一个词形容 玖莅",
     status: PollStatus.LIVE,
     displayOrder: 3,
   });
@@ -1481,7 +1481,7 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
     eventId,
     createdById: creatorId,
     type: PollType.MULTI_CHOICE,
-    title: "【问卷】您最希望 ConnectIQ 优先上线哪些能力？",
+    title: "【问卷】您最希望 玖莅 优先上线哪些能力？",
     status: PollStatus.LIVE,
     displayOrder: 8,
     options: [
@@ -1540,7 +1540,7 @@ async function seedInnovationSummitInteractions(ctx: SeedInteractionsContext) {
   );
 
   const innovationQna = [
-    { id: "seed-int-res-innovation-qna-1", text: "ConnectIQ 是否支持私有化部署？", idx: 0 },
+    { id: "seed-int-res-innovation-qna-1", text: "玖莅 是否支持私有化部署？", idx: 0 },
     { id: "seed-int-res-innovation-qna-2", text: "如何与现有 CRM 对接？", idx: 1 },
     { id: "seed-int-res-innovation-qna-3", text: "小程序端有哪些互动能力？", idx: 2 },
   ];
@@ -1812,7 +1812,7 @@ export async function seedInteractionDemoData(ctx: SeedInteractionsContext) {
 }
 
 async function main() {
-  console.log("🎯 ConnectIQ 互动演示数据 seed\n");
+  console.log("🎯 玖莅 互动演示数据 seed\n");
 
   const [hostedExpo, expo, summit, unifiedAdmin, expoAdmin, confAdmin] =
     await Promise.all([

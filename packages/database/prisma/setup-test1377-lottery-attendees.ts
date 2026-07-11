@@ -31,7 +31,7 @@ const COMPANIES = [
   "企服优选",
   "MarTech 创新",
   "百格活动",
-  "ConnectIQ 测试",
+  "玖莅 测试",
   "未来智造",
   "数智会展",
 ];

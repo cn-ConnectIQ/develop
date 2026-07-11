@@ -11,6 +11,10 @@ import {
   getMeetingConfig,
   updateMeetingConfig,
 } from "@/lib/meeting-config-service";
+import {
+  assertExperienceCanManageMeetings,
+  ExperienceAccountError,
+} from "@/lib/experience/experience-account-service";
 
 const timeWindowSchema = z.object({
   start: z.string().regex(/^\d{2}:\d{2}$/),
@@ -61,7 +65,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  const access = await requireEventAccess(eventId);
   const forbidden = await assertMeetingHostEvent(eventId);
   if (forbidden) return forbidden;
 
@@ -69,6 +73,21 @@ export const PATCH = withErrorHandler(async (request, context) => {
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
     return createErrorResponse("参数错误", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  if (
+    parsed.data.meeting_enabled === true ||
+    parsed.data.meeting_open_at !== undefined ||
+    (parsed.data.time_windows && parsed.data.time_windows.length > 0)
+  ) {
+    try {
+      await assertExperienceCanManageMeetings(access.session.user.id);
+    } catch (error) {
+      if (error instanceof ExperienceAccountError) {
+        return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
+      }
+      throw error;
+    }
   }
 
   const config = await updateMeetingConfig(eventId, parsed.data);

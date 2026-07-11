@@ -107,7 +107,7 @@ export async function triggerAutomation(
   return { ok: true };
 }
 
-/** ConnectIQ 源字段 → MarketUP 目标字段名 */
+/** 玖莅 源字段 → MarketUP 目标字段名 */
 export function mapFieldsToMarketup(
   source: Record<string, unknown>,
   fieldMap: MarketupFieldMap,

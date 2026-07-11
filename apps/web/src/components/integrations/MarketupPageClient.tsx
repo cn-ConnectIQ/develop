@@ -175,7 +175,7 @@ export function MarketupPageClient() {
     <AdminContent>
       <h1 className="text-xl font-bold">MarketUP CRM 集成</h1>
       <p className="mb-6 text-sm text-text-muted">
-        配置 ConnectIQ 与 MarketUP 之间的字段映射、写入策略与同步监控
+        配置 玖莅 与 MarketUP 之间的字段映射、写入策略与同步监控
       </p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -186,13 +186,13 @@ export function MarketupPageClient() {
             字段映射规则
           </h2>
           <p className="mb-4 text-xs text-text-muted">
-            ConnectIQ 采集的数据写入 MarketUP 的哪个字段
+            玖莅 采集的数据写入 MarketUP 的哪个字段
           </p>
 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-text-muted">
-                <th className="pb-2 font-medium">ConnectIQ 字段</th>
+                <th className="pb-2 font-medium">玖莅 字段</th>
                 <th className="pb-2 font-medium">MarketUP 字段</th>
                 <th className="pb-2 text-right font-medium">操作</th>
               </tr>
@@ -286,7 +286,7 @@ export function MarketupPageClient() {
               <div className="space-y-2">
                 <RadioOption
                   checked={config.conflictPolicy === "connectiq"}
-                  label="以 ConnectIQ 为准"
+                  label="以 玖莅 为准"
                   onSelect={() =>
                     updateConfig({ ...config, conflictPolicy: "connectiq" })
                   }

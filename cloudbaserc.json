@@ -3,5 +3,38 @@
   "envId": "connectiq-d6gc2sul3855abd4e",
   "cloudrun": {
     "name": "connectiq-web"
+  },
+  "framework": {
+    "name": "connectiq-web",
+    "plugins": {
+      "connectiq-web": {
+        "use": "@cloudbase/framework-plugin-container",
+        "inputs": {
+          "serviceName": "connectiq-web",
+          "servicePath": "/",
+          "localPath": "./",
+          "uploadType": "package",
+          "dockerfilePath": "./Dockerfile",
+          "buildDir": "./",
+          "containerPort": 3000,
+          "initialDelaySeconds": 120,
+          "cpu": 1,
+          "mem": 2,
+          "minNum": 1,
+          "maxNum": 5,
+          "mode": "high-availability",
+          "isPublic": true,
+          "flowRatio": 100,
+          "bumpVersion": true,
+          "envVariables": {
+            "NODE_ENV": "production",
+            "PORT": "3000",
+            "HOSTNAME": "0.0.0.0",
+            "NEXT_PUBLIC_APP_URL": "https://9li.co/uc",
+            "NEXTAUTH_URL": "https://9li.co/uc"
+          }
+        }
+      }
+    }
   }
 }
