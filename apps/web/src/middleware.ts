@@ -69,18 +69,45 @@ function redirectTo(request: NextRequest, path: string) {
   return NextResponse.redirect(new URL(withPublicPath(path), request.url));
 }
 
+function getIncomingPathname(request: NextRequest): string {
+  return new URL(request.url).pathname;
+}
+
+function isGatewayStrippedHost(host: string): boolean {
+  return host.includes("9li.co");
+}
+
+/**
+ * CloudBase 自定义域名会在网关剥 /uc 前缀；next.config 已设 basePath=/uc 时，
+ * middleware 看到的 pathname 不含 /uc，不能再 rewrite 到 /uc/xxx（会变成 /uc/uc/xxx）。
+ */
 function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
   const basePath = getPublicBasePath();
   if (!basePath) return null;
 
-  const { pathname } = request.nextUrl;
-  if (pathname === basePath || pathname.startsWith(`${basePath}/`)) {
+  const incomingPath = getIncomingPathname(request);
+
+  // 请求 URL 已带 /uc（如云托管默认域名 /uc/login）——交给 Next.js basePath 处理
+  if (incomingPath === basePath || incomingPath.startsWith(`${basePath}/`)) {
     return null;
   }
 
+  const host = request.headers.get("host") ?? "";
+
+  // 非 9li.co 网关：缺 /uc 前缀时重定向到带前缀的 URL（默认 *.run.tcloudbase.com）
+  if (!isGatewayStrippedHost(host)) {
+    const target = new URL(request.url);
+    target.pathname =
+      incomingPath === "/"
+        ? `${basePath}/`
+        : `${basePath}${incomingPath}`;
+    return NextResponse.redirect(target);
+  }
+
+  // 9li.co 网关已剥前缀：rewrite 到内部 pathname，勿再拼 /uc
+  const { pathname } = request.nextUrl;
   const url = request.nextUrl.clone();
-  url.pathname =
-    pathname === "/" ? `${basePath}/` : `${basePath}${pathname}`;
+  url.pathname = pathname === "/" ? "/" : pathname;
   return NextResponse.rewrite(url);
 }
 
