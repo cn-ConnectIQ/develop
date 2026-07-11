@@ -3,35 +3,1281 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>玖莅</title>
+    <meta
+      name="description"
+      content="玖莅 — AI 驱动的活动现场连接引擎。让每一场活动，连接对的人，谈成对的事。"
+    />
+    <title>玖莅 · 活动现场连接引擎</title>
     <style>
-      body {
+      :root {
+        --green: #0f6e56;
+        --green-light: #e8f5f0;
+        --green-dark: #0a5240;
+        --purple: #534ab7;
+        --purple-light: #eeecfa;
+        --gold: #ef9f27;
+        --gold-light: #fef6e8;
+        --bg: #ffffff;
+        --bg-muted: #f4f4f2;
+        --text: #1a1a1a;
+        --text-muted: #6b6b6b;
+        --border: #e8e8e6;
+        --shadow: 0 4px 24px rgba(15, 110, 86, 0.08);
+        --shadow-hover: 0 12px 40px rgba(15, 110, 86, 0.14);
+        --radius: 14px;
+        --nav-h: 72px;
+        --max: 1120px;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
         margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: #f7f8fa;
-        color: #111827;
+        padding: 0;
       }
-      main {
-        text-align: center;
-        padding: 2rem;
+
+      html {
+        scroll-behavior: smooth;
       }
+
+      body {
+        font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+          -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
       a {
-        color: #2563eb;
+        color: inherit;
         text-decoration: none;
       }
-      a:hover {
-        text-decoration: underline;
+
+      img,
+      svg {
+        display: block;
+        max-width: 100%;
+      }
+
+      .container {
+        width: min(var(--max), calc(100% - 48px));
+        margin-inline: auto;
+      }
+
+      /* ── Nav ── */
+      .nav {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 100;
+        height: var(--nav-h);
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .nav.scrolled {
+        border-color: var(--border);
+        box-shadow: 0 1px 12px rgba(0, 0, 0, 0.04);
+      }
+
+      .nav-inner {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: 0.02em;
+      }
+
+      .logo-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--green), #1fad7e);
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 800;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        font-size: 0.925rem;
+        color: var(--text-muted);
+      }
+
+      .nav-links a:hover {
+        color: var(--green);
+      }
+
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0.65rem 1.25rem;
+        border-radius: 10px;
+        font-size: 0.925rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn-primary {
+        background: var(--green);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(15, 110, 86, 0.28);
+      }
+
+      .btn-primary:hover {
+        background: var(--green-dark);
+        box-shadow: 0 6px 20px rgba(15, 110, 86, 0.32);
+      }
+
+      .btn-outline {
+        background: transparent;
+        color: var(--green);
+        border: 1.5px solid var(--green);
+      }
+
+      .btn-outline:hover {
+        background: var(--green-light);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-muted);
+        padding-inline: 0.75rem;
+      }
+
+      .btn-ghost:hover {
+        color: var(--green);
+      }
+
+      .btn-lg {
+        padding: 0.85rem 1.6rem;
+        font-size: 1rem;
+      }
+
+      .menu-toggle {
+        display: none;
+        background: none;
+        border: none;
+        padding: 8px;
+        cursor: pointer;
+      }
+
+      /* ── Hero ── */
+      .hero {
+        padding: calc(var(--nav-h) + 64px) 0 80px;
+        background: radial-gradient(
+            ellipse 80% 60% at 70% 20%,
+            rgba(83, 74, 183, 0.06),
+            transparent
+          ),
+          radial-gradient(
+            ellipse 60% 50% at 20% 80%,
+            rgba(15, 110, 86, 0.07),
+            transparent
+          ),
+          var(--bg);
+        overflow: hidden;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: center;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: var(--green-light);
+        color: var(--green);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+
+      .eyebrow-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+        animation: pulse 2s ease infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+
+      .hero h1 {
+        font-size: clamp(1.75rem, 3.2vw, 2.65rem);
+        line-height: 1.25;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 20px;
+      }
+
+      .hero h1 em {
+        font-style: normal;
+        color: var(--green);
+      }
+
+      .hero-lead {
+        font-size: 1.0625rem;
+        color: var(--text-muted);
+        max-width: 34em;
+        margin-bottom: 32px;
+      }
+
+      .hero-cta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+
+      .hero-note {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      .hero-visual {
+        position: relative;
+        aspect-ratio: 1;
+        max-width: 480px;
+        margin-inline: auto;
+      }
+
+      .network-svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .float-card {
+        position: absolute;
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px 16px;
+        box-shadow: var(--shadow);
+        font-size: 0.8125rem;
+        animation: float 4s ease-in-out infinite;
+      }
+
+      .float-card.purple {
+        border-left: 3px solid var(--purple);
+        bottom: 18%;
+        left: -4%;
+        animation-delay: -1s;
+      }
+
+      .float-card.green {
+        border-left: 3px solid var(--green);
+        top: 12%;
+        right: -2%;
+        animation-delay: -2s;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+
+      /* ── Sections ── */
+      section {
+        padding: 88px 0;
+      }
+
+      .section-muted {
+        background: var(--bg-muted);
+      }
+
+      .section-header {
+        text-align: center;
+        max-width: 640px;
+        margin: 0 auto 52px;
+      }
+
+      .section-header h2 {
+        font-size: clamp(1.5rem, 2.5vw, 2rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 14px;
+      }
+
+      .section-header p {
+        color: var(--text-muted);
+        font-size: 1.025rem;
+      }
+
+      .tag {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+
+      .tag-green {
+        color: var(--green);
+      }
+      .tag-purple {
+        color: var(--purple);
+      }
+      .tag-gold {
+        color: var(--gold);
+      }
+
+      /* ── Cards ── */
+      .card-grid {
+        display: grid;
+        gap: 20px;
+      }
+
+      .card-grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .card-grid-4 {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px 24px;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-hover);
+      }
+
+      .card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 1.25rem;
+        margin-bottom: 16px;
+      }
+
+      .card-icon.green {
+        background: var(--green-light);
+      }
+      .card-icon.purple {
+        background: var(--purple-light);
+      }
+      .card-icon.gold {
+        background: var(--gold-light);
+      }
+
+      .card h3 {
+        font-size: 1.0625rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+
+      .card p {
+        font-size: 0.925rem;
+        color: var(--text-muted);
+      }
+
+      .card-metric {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--green);
+      }
+
+      .card-metric.purple {
+        color: var(--purple);
+      }
+      .card-metric.gold {
+        color: var(--gold);
+      }
+
+      /* ── Pain ── */
+      .pain-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+      }
+
+      .pain-item {
+        display: flex;
+        gap: 14px;
+        padding: 20px 22px;
+        background: #fff;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+      }
+
+      .pain-x {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: #fdecea;
+        color: #c0392b;
+        display: grid;
+        place-items: center;
+        font-size: 0.875rem;
+        font-weight: 700;
+      }
+
+      .pain-item strong {
+        display: block;
+        font-size: 0.975rem;
+        margin-bottom: 4px;
+      }
+
+      .pain-item span {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+      }
+
+      /* ── AI section ── */
+      .ai-section {
+        background: linear-gradient(135deg, #3d3689 0%, var(--purple) 50%, #6b5fd4 100%);
+        color: #fff;
+      }
+
+      .ai-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: center;
+      }
+
+      .ai-section h2 {
+        font-size: clamp(1.5rem, 2.5vw, 2rem);
+        font-weight: 700;
+        margin-bottom: 16px;
+      }
+
+      .ai-section p {
+        opacity: 0.88;
+        margin-bottom: 24px;
+      }
+
+      .ai-list {
+        list-style: none;
+        display: grid;
+        gap: 14px;
+      }
+
+      .ai-list li {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        font-size: 0.9375rem;
+      }
+
+      .ai-list li::before {
+        content: "✦";
+        color: #c4bfff;
+        font-size: 0.75rem;
+        margin-top: 4px;
+      }
+
+      .phone-mock {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 24px;
+        backdrop-filter: blur(8px);
+      }
+
+      .phone-screen {
+        background: #fff;
+        border-radius: 16px;
+        padding: 20px;
+        color: var(--text);
+      }
+
+      .match-score {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--purple-light);
+        color: var(--purple);
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+      }
+
+      .match-brief {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        line-height: 1.55;
+      }
+
+      /* ── Flow ── */
+      .flow {
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        overflow-x: auto;
+        padding-bottom: 8px;
+      }
+
+      .flow-step {
+        flex: 1;
+        min-width: 180px;
+        text-align: center;
+        position: relative;
+        padding: 0 12px;
+      }
+
+      .flow-step:not(:last-child)::after {
+        content: "→";
+        position: absolute;
+        right: -6px;
+        top: 28px;
+        color: var(--green);
+        font-size: 1.25rem;
+        font-weight: 700;
+      }
+
+      .flow-num {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 14px;
+        border-radius: 50%;
+        background: var(--green-light);
+        color: var(--green);
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 1.125rem;
+      }
+
+      .flow-step h4 {
+        font-size: 0.975rem;
+        margin-bottom: 6px;
+      }
+
+      .flow-step p {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      /* ── Ecosystem ── */
+      .eco-chain {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 12px 8px;
+        margin: 36px 0 28px;
+      }
+
+      .eco-node {
+        padding: 14px 22px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        font-weight: 600;
+        font-size: 0.9375rem;
+      }
+
+      .eco-node.highlight {
+        background: var(--green);
+        color: #fff;
+        border-color: var(--green);
+        box-shadow: 0 8px 24px rgba(15, 110, 86, 0.25);
+      }
+
+      .eco-arrow {
+        color: var(--text-muted);
+        font-size: 1.25rem;
+      }
+
+      /* ── Journey ── */
+      .journey {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+
+      .journey-step {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 22px 20px;
+      }
+
+      .journey-num {
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: var(--purple);
+        margin-bottom: 10px;
+      }
+
+      .journey-step h4 {
+        font-size: 0.975rem;
+        margin-bottom: 8px;
+      }
+
+      .journey-step p {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      /* ── CTA ── */
+      .cta-band {
+        background: linear-gradient(135deg, var(--green-dark), var(--green));
+        color: #fff;
+        text-align: center;
+        padding: 72px 24px;
+        border-radius: 20px;
+        margin: 0 auto;
+        max-width: var(--max);
+        width: calc(100% - 48px);
+      }
+
+      .cta-band h2 {
+        font-size: clamp(1.5rem, 2.5vw, 2rem);
+        margin-bottom: 14px;
+      }
+
+      .cta-band p {
+        opacity: 0.9;
+        margin-bottom: 28px;
+        max-width: 520px;
+        margin-inline: auto;
+      }
+
+      .cta-band .btn-outline {
+        border-color: rgba(255, 255, 255, 0.7);
+        color: #fff;
+      }
+
+      .cta-band .btn-outline:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .cta-band .btn-white {
+        background: #fff;
+        color: var(--green);
+      }
+
+      /* ── Footer ── */
+      footer {
+        padding: 56px 0 32px;
+        border-top: 1px solid var(--border);
+        margin-top: 88px;
+      }
+
+      .footer-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: 40px;
+        margin-bottom: 40px;
+      }
+
+      .footer-brand p {
+        color: var(--text-muted);
+        font-size: 0.875rem;
+        margin-top: 12px;
+        max-width: 280px;
+      }
+
+      .footer-col h4 {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+        color: var(--text);
+      }
+
+      .footer-col ul {
+        list-style: none;
+        display: grid;
+        gap: 10px;
+      }
+
+      .footer-col a {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+      }
+
+      .footer-col a:hover {
+        color: var(--green);
+      }
+
+      .footer-bottom {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 12px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      /* ── Mobile ── */
+      @media (max-width: 960px) {
+        .hero-grid,
+        .ai-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-visual {
+          order: -1;
+          max-width: 320px;
+        }
+
+        .card-grid-3,
+        .card-grid-4,
+        .journey {
+          grid-template-columns: 1fr;
+        }
+
+        .pain-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .nav-links,
+        .nav-actions .btn-ghost {
+          display: none;
+        }
+
+        .menu-toggle {
+          display: block;
+        }
+
+        .nav.open .nav-links,
+        .nav.open .nav-actions {
+          display: flex;
+        }
+
+        .nav.open .nav-inner {
+          flex-wrap: wrap;
+          height: auto;
+          padding: 16px 0;
+        }
+
+        .nav.open {
+          height: auto;
+          background: #fff;
+          border-bottom-color: var(--border);
+        }
+
+        .nav.open .nav-links {
+          flex-direction: column;
+          width: 100%;
+          align-items: flex-start;
+          padding: 12px 0;
+        }
+
+        .nav.open .nav-actions {
+          width: 100%;
+          flex-direction: column;
+        }
+
+        .nav.open .nav-actions .btn {
+          width: 100%;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .container {
+          width: calc(100% - 32px);
+        }
+
+        section {
+          padding: 64px 0;
+        }
+
+        .footer-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .flow-step:not(:last-child)::after {
+          display: none;
+        }
       }
     </style>
   </head>
   <body>
+    <header class="nav" id="nav">
+      <div class="container nav-inner">
+        <a href="#" class="logo">
+          <span class="logo-mark">玖</span>
+          <span>玖莅</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#value">产品价值</a>
+          <a href="#capabilities">核心能力</a>
+          <a href="#ai">AI 配对</a>
+          <a href="#ecosystem">生态</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="/uc/login">管理后台</a>
+          <a class="btn btn-primary" href="#contact">预约演示</a>
+        </div>
+        <button class="menu-toggle" id="menuToggle" aria-label="菜单">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
     <main>
-      <h1>玖莅</h1>
-      <p>官网建设中</p>
-      <p><a href="/uc/login">进入管理后台</a></p>
+      <!-- Hero -->
+      <section class="hero">
+        <div class="container hero-grid">
+          <div>
+            <div class="eyebrow">
+              <span class="eyebrow-dot"></span>
+              AI 驱动 · 现场连接 · 数据闭环
+            </div>
+            <h1>
+              活动结束了，<em>连接和商机</em>也跟着散场了？
+            </h1>
+            <p class="hero-lead">
+              玖莅用 AI 重新定义活动现场的连接——让对的人相遇、让商机被发现、
+              让每场活动的价值可追踪。从报名到成交，不再断在活动当天。
+            </p>
+            <div class="hero-cta">
+              <a class="btn btn-primary btn-lg" href="#contact">预约演示</a>
+              <a class="btn btn-outline btn-lg" href="/uc/signup/experience">一键体验演示展会</a>
+            </div>
+            <p class="hero-note">7 天免费体验 · 无需审核 · 即刻进入 TEST1377 演示环境</p>
+          </div>
+          <div class="hero-visual">
+            <svg class="network-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#0F6E56" stop-opacity="0.3" />
+                  <stop offset="100%" stop-color="#534AB7" stop-opacity="0.6" />
+                </linearGradient>
+              </defs>
+              <line x1="200" y1="200" x2="80" y2="100" stroke="url(#lineGrad)" stroke-width="2" />
+              <line x1="200" y1="200" x2="320" y2="90" stroke="url(#lineGrad)" stroke-width="2" />
+              <line x1="200" y1="200" x2="340" y2="240" stroke="url(#lineGrad)" stroke-width="2" />
+              <line x1="200" y1="200" x2="260" y2="340" stroke="url(#lineGrad)" stroke-width="2" />
+              <line x1="200" y1="200" x2="90" y2="280" stroke="url(#lineGrad)" stroke-width="2" />
+              <line x1="200" y1="200" x2="160" y2="60" stroke="#534AB7" stroke-width="2" stroke-dasharray="6 4" opacity="0.7" />
+              <circle cx="200" cy="200" r="36" fill="#0F6E56" opacity="0.12" />
+              <circle cx="200" cy="200" r="22" fill="#0F6E56" />
+              <text x="200" y="206" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">玖莅</text>
+              <circle cx="80" cy="100" r="18" fill="#fff" stroke="#0F6E56" stroke-width="2" />
+              <circle cx="320" cy="90" r="18" fill="#fff" stroke="#534AB7" stroke-width="2" />
+              <circle cx="340" cy="240" r="16" fill="#fff" stroke="#EF9F27" stroke-width="2" />
+              <circle cx="260" cy="340" r="16" fill="#fff" stroke="#0F6E56" stroke-width="2" />
+              <circle cx="90" cy="280" r="16" fill="#fff" stroke="#534AB7" stroke-width="2" />
+              <circle cx="160" cy="60" r="14" fill="#534AB7" opacity="0.85" />
+            </svg>
+            <div class="float-card purple">
+              <strong>AI 匹配度 92%</strong><br />建议优先认识
+            </div>
+            <div class="float-card green">
+              <strong>+128</strong> 现场连接
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Triple value -->
+      <section id="value" class="section-muted">
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-green">三方价值</span>
+            <h2>一场活动，三种价值</h2>
+            <p>无论你是谁，这场活动都该为你留下点什么</p>
+          </div>
+          <div class="card-grid card-grid-3">
+            <article class="card">
+              <div class="card-icon green">👤</div>
+              <h3>参会者 · 认识对的人</h3>
+              <p>
+                现场认识的人太多，真正值得深聊的太少。AI 从全场参会者里筛出最值得连接的人，扫码即知对方是谁、为什么该认识。
+              </p>
+              <div class="card-metric">AI 推荐匹配度可达 90%+</div>
+            </article>
+            <article class="card">
+              <div class="card-icon purple">🏢</div>
+              <h3>展商 · 每一次互动都是线索</h3>
+              <p>
+                不再是「扫码加微信就结束」。访客信息自动采集、AI 意向评级，现场谁值得优先跟进，一目了然。
+              </p>
+              <div class="card-metric purple">线索自动分级 A / B / C</div>
+            </article>
+            <article class="card">
+              <div class="card-icon gold">📊</div>
+              <h3>主办方 · 价值看得见</h3>
+              <p>
+                签到率、连接数、展位热度、参会者画像——全场数据实时可见，活动结束后还能拿出一份效果报告。
+              </p>
+              <div class="card-metric gold">全场热度实时可见</div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pain points -->
+      <section>
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-green">为什么需要玖莅</span>
+            <h2>活动办完了，然后呢？</h2>
+            <p>这些痛点，本不该是办活动的代价</p>
+          </div>
+          <div class="pain-grid">
+            <div class="pain-item">
+              <span class="pain-x">✕</span>
+              <div>
+                <strong>现场认识不到对的人</strong>
+                <span>靠运气社交，高价值连接被淹没在人流里</span>
+              </div>
+            </div>
+            <div class="pain-item">
+              <span class="pain-x">✕</span>
+              <div>
+                <strong>展位冷热不均</strong>
+                <span>人流和商机被浪费，展商投入难以衡量</span>
+              </div>
+            </div>
+            <div class="pain-item">
+              <span class="pain-x">✕</span>
+              <div>
+                <strong>线索散落名片和微信里</strong>
+                <span>会后无人跟进，商机在 Excel 里沉睡</span>
+              </div>
+            </div>
+            <div class="pain-item">
+              <span class="pain-x">✕</span>
+              <div>
+                <strong>数据断在活动当天</strong>
+                <span>ROI 算不清，下一届无法复用经验</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Capabilities -->
+      <section id="capabilities" class="section-muted">
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-green">核心能力</span>
+            <h2>三方连接，一个引擎</h2>
+            <p>人↔人、人↔展位、人↔主办方，现场价值最大化</p>
+          </div>
+          <div class="card-grid card-grid-3">
+            <article class="card">
+              <div class="card-icon green">🔗</div>
+              <h3>人 ↔ 人</h3>
+              <p>
+                AI 智能配对、扫码识别 + AI 见面简报、一键交换微信。连接发生在现场，关系顺势交给微信。
+              </p>
+            </article>
+            <article class="card">
+              <div class="card-icon purple">🎯</div>
+              <h3>人 ↔ 展位</h3>
+              <p>
+                展位互动、集章引流、扫码采集线索 + AI 评级。每一次驻足都变成可跟进的商机。
+              </p>
+            </article>
+            <article class="card">
+              <div class="card-icon gold">📡</div>
+              <h3>人 ↔ 主办方</h3>
+              <p>
+                现场投票 / 问答 / 抽奖、实时数据大屏、全场推送。让活动本身更有参与感与可衡量性。
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Attendee journey -->
+      <section>
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-purple">参会者体验</span>
+            <h2>现场，连接是这样发生的</h2>
+            <p>用产品体验本身证明价值——精致、清晰、符合中国用户的社交习惯</p>
+          </div>
+          <div class="journey">
+            <div class="journey-step">
+              <div class="journey-num">01</div>
+              <h4>扫码识别</h4>
+              <p>嘈杂现场，扫一下就知道对方是谁、来自哪家公司</p>
+            </div>
+            <div class="journey-step">
+              <div class="journey-num">02</div>
+              <h4>AI 见面简报</h4>
+              <p>AI 告诉你为什么该认识 TA、聊什么——连接不再盲目</p>
+            </div>
+            <div class="journey-step">
+              <div class="journey-num">03</div>
+              <h4>交换微信</h4>
+              <p>连接在现场完成，关系顺势交给微信，不打断社交习惯</p>
+            </div>
+            <div class="journey-step">
+              <div class="journey-num">04</div>
+              <h4>逛展位互动</h4>
+              <p>集章、抽奖让逛展更有参与感，展位热度实时可见</p>
+            </div>
+            <div class="journey-step">
+              <div class="journey-num">05</div>
+              <h4>预约会面</h4>
+              <p>想正式洽谈？系统自动安排时段与会面桌</p>
+            </div>
+            <div class="journey-step">
+              <div class="journey-num">06</div>
+              <h4>现场互动</h4>
+              <p>投票、问答、大屏抽奖——与主办方和全场实时互动</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI -->
+      <section id="ai" class="ai-section">
+        <div class="container ai-grid">
+          <div>
+            <span class="tag" style="color: #c4bfff">AI 配对引擎</span>
+            <h2>不止是连接，是 AI 帮你找到对的人</h2>
+            <p>
+              意图理解 + 智能推荐 + 见面简报，让每一次扫码都有上下文，
+              让展商和参会者不再「加了微信不知道聊什么」。
+            </p>
+            <ul class="ai-list">
+              <li>AI 见面简报：为什么该认识、建议聊什么</li>
+              <li>智能意图匹配：从报名意向到现场推荐</li>
+              <li>线索 AI 评级：A / B / C 优先级一目了然</li>
+            </ul>
+          </div>
+          <div class="phone-mock">
+            <div class="phone-screen">
+              <div class="match-score">✦ AI 匹配 92%</div>
+              <strong style="display: block; margin-bottom: 6px">张明 · 某智能制造公司 · BD 总监</strong>
+              <p class="match-brief">
+                你们都在寻找工业 IoT 解决方案的合作伙伴。对方近期参与过 3 场同类展会，
+                意向标签与您的「供应链数字化」高度重合。建议从产线数据采集场景切入。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data loop -->
+      <section class="section-muted">
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-green">数据闭环</span>
+            <h2>让每场活动的价值看得见</h2>
+            <p>玖莅不止产生连接，更能追踪到最终成交</p>
+          </div>
+          <div class="flow">
+            <div class="flow-step">
+              <div class="flow-num">1</div>
+              <h4>现场连接</h4>
+              <p>扫码、配对、微信交换</p>
+            </div>
+            <div class="flow-step">
+              <div class="flow-num">2</div>
+              <h4>线索采集</h4>
+              <p>自动采集 + AI 评级</p>
+            </div>
+            <div class="flow-step">
+              <div class="flow-num">3</div>
+              <h4>CRM 培育</h4>
+              <p>同步 MarketUP 跟进</p>
+            </div>
+            <div class="flow-step">
+              <div class="flow-num">4</div>
+              <h4>成交归因</h4>
+              <p>回答「活动带来多少营收」</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scenarios -->
+      <section>
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-green">适用场景</span>
+            <h2>无论哪种活动，连接都该被认真对待</h2>
+          </div>
+          <div class="card-grid card-grid-4">
+            <article class="card">
+              <div class="card-icon green">🎤</div>
+              <h3>会议论坛</h3>
+              <p>嘉宾与观众精准配对，会后关系不断档</p>
+            </article>
+            <article class="card">
+              <div class="card-icon purple">🏛️</div>
+              <h3>展览展会</h3>
+              <p>展位引流、集章互动、展商线索一站式采集</p>
+            </article>
+            <article class="card">
+              <div class="card-icon gold">🏢</div>
+              <h3>企业自办会</h3>
+              <p>客户峰会、渠道大会，连接质量可量化</p>
+            </article>
+            <article class="card">
+              <div class="card-icon green">🚀</div>
+              <h3>企业参展</h3>
+              <p>参展获客不再靠名片，线索直达 CRM</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ecosystem -->
+      <section id="ecosystem" class="section-muted">
+        <div class="container">
+          <div class="section-header">
+            <span class="tag tag-green">为什么是我们</span>
+            <h2>我们不是第一次做活动，也不是第一次做连接</h2>
+            <p>
+              玖莅来自同时运营百格活动（报名票务）和 MarketUP（营销 CRM）的团队——
+              做活动报名的人 + 做客户经营的人，造了中间最关键的一环。
+            </p>
+          </div>
+          <div class="eco-chain">
+            <span class="eco-node">百格活动</span>
+            <span class="eco-arrow">→</span>
+            <span class="eco-node highlight">玖莅 · 现场连接</span>
+            <span class="eco-arrow">→</span>
+            <span class="eco-node">MarketUP</span>
+          </div>
+          <p style="text-align: center; color: var(--text-muted); max-width: 560px; margin: 0 auto; font-size: 0.9375rem">
+            报名数据 → 现场连接 → 线索经营，完整闭环。我们比任何人都懂活动数据怎么从报名走到成交。
+          </p>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section id="contact">
+        <div class="cta-band">
+          <h2>让你的下一场活动，产生真正的连接</h2>
+          <p>玖莅正在开放早期合作。预约演示，或立即体验 TEST1377 演示展会。</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center">
+            <a class="btn btn-white btn-lg" href="mailto:hello@9li.co?subject=预约玖莅演示">预约演示</a>
+            <a class="btn btn-outline btn-lg" href="/uc/signup/experience">7 天免费体验</a>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <footer>
+      <div class="container">
+        <div class="footer-grid">
+          <div class="footer-brand">
+            <a href="#" class="logo">
+              <span class="logo-mark">玖</span>
+              <span>玖莅</span>
+            </a>
+            <p>AI 驱动的活动现场连接引擎。让每一场活动，连接对的人，谈成对的事。</p>
+          </div>
+          <div class="footer-col">
+            <h4>产品</h4>
+            <ul>
+              <li><a href="#capabilities">核心能力</a></li>
+              <li><a href="#ai">AI 配对</a></li>
+              <li><a href="/uc/signup/experience">免费体验</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>解决方案</h4>
+            <ul>
+              <li><a href="#value">主办方</a></li>
+              <li><a href="#value">参展商</a></li>
+              <li><a href="#value">参会者</a></li>
+            </ul>
+          </div>
+          <div class="footer-col">
+            <h4>联系</h4>
+            <ul>
+              <li><a href="mailto:hello@9li.co">hello@9li.co</a></li>
+              <li><a href="/uc/login">管理后台</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© 2026 玖莅 · 9li.co</span>
+          <span>沪 ICP 备 xxxxxxxx 号</span>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const nav = document.getElementById("nav");
+      const menuToggle = document.getElementById("menuToggle");
+
+      window.addEventListener("scroll", () => {
+        nav.classList.toggle("scrolled", window.scrollY > 8);
+      });
+
+      menuToggle.addEventListener("click", () => {
+        nav.classList.toggle("open");
+      });
+
+      nav.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => nav.classList.remove("open"));
+      });
+    </script>
   </body>
 </html>
