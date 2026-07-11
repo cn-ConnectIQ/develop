@@ -8,6 +8,7 @@ import {
 describe("getPublicBasePath", () => {
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_BASE_PATH;
+    delete process.env.NEXT_BASE_PATH;
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 
@@ -26,11 +27,18 @@ describe("getPublicBasePath", () => {
     process.env.NEXT_PUBLIC_BASE_PATH = "/custom";
     expect(getPublicBasePath()).toBe("/custom");
   });
+
+  it("NEXT_BASE_PATH 供服务端 middleware 使用", () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_BASE_PATH = "/uc";
+    expect(getPublicBasePath()).toBe("/uc");
+  });
 });
 
 describe("withPublicPath", () => {
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_BASE_PATH;
+    delete process.env.NEXT_BASE_PATH;
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 

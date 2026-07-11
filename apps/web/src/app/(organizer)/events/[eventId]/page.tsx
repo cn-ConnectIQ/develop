@@ -1,4 +1,5 @@
 import { EventDashboardClient } from "./event-dashboard-client";
+import { loadEventDashboardPayload } from "@/lib/event-dashboard-server";
 
 export default async function EventPage({
   params,
@@ -6,5 +7,9 @@ export default async function EventPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  return <EventDashboardClient eventId={eventId} />;
+  const initialData = await loadEventDashboardPayload(eventId);
+
+  return (
+    <EventDashboardClient eventId={eventId} initialData={initialData ?? undefined} />
+  );
 }

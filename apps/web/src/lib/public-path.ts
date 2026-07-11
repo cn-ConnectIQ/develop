@@ -14,7 +14,9 @@ function deriveBasePathFromAppUrl(appUrl: string | undefined): string {
 }
 
 export function getPublicBasePath(): string {
-  const explicit = process.env.NEXT_PUBLIC_BASE_PATH?.trim();
+  const explicit =
+    process.env.NEXT_PUBLIC_BASE_PATH?.trim() ||
+    process.env.NEXT_BASE_PATH?.trim();
   if (explicit !== undefined && explicit !== "") {
     return explicit.replace(/\/$/, "");
   }

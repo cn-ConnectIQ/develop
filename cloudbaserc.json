@@ -31,7 +31,8 @@
             "PORT": "3000",
             "HOSTNAME": "0.0.0.0",
             "NEXT_PUBLIC_APP_URL": "https://9li.co/uc",
-            "NEXTAUTH_URL": "https://9li.co/uc"
+            "NEXTAUTH_URL": "https://9li.co/uc",
+            "NEXT_BASE_PATH": "/uc"
           }
         }
       }

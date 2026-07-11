@@ -94,6 +94,16 @@ function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
 
   const host = request.headers.get("host") ?? "";
 
+  // 缺 /uc 前缀的 /api/*：必须 rewrite/redirect，否则 Next basePath 下会 404
+  if (incomingPath === "/api" || incomingPath.startsWith("/api/")) {
+    const target = new URL(request.url);
+    target.pathname = `${basePath}${incomingPath}`;
+    if (!isGatewayStrippedHost(host)) {
+      return NextResponse.redirect(target);
+    }
+    return NextResponse.rewrite(target);
+  }
+
   // 非 9li.co 网关：缺 /uc 前缀时重定向到带前缀的 URL（默认 *.run.tcloudbase.com）
   if (!isGatewayStrippedHost(host)) {
     const target = new URL(request.url);

@@ -24,6 +24,7 @@ COPY . .
 ARG NEXT_PUBLIC_APP_URL=https://9li.co/uc
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXTAUTH_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_BASE_PATH=/uc
 ENV NEXT_TELEMETRY_DISABLED=1
 # prisma generate 不依赖真实数据库；build 阶段占位即可
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
@@ -39,6 +40,11 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+
+ARG NEXT_PUBLIC_APP_URL=https://9li.co/uc
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXTAUTH_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_BASE_PATH=/uc
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs \
