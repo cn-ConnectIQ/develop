@@ -34,6 +34,21 @@ export function withPublicPath(path: string): string {
   return `${base}${normalized}`;
 }
 
+/** 服务端 middleware 兜底：运行阶段未注入 env 时，按域名推断 /uc */
+export function getPublicBasePathWithFallback(host?: string): string {
+  const configured = getPublicBasePath();
+  if (configured) return configured;
+  if (
+    host &&
+    (host.includes(".run.tcloudbase.com") ||
+      host.includes("tcloudbase.com") ||
+      host.includes("9li.co"))
+  ) {
+    return "/uc";
+  }
+  return "";
+}
+
 /** NextAuth SessionProvider / signOut 等使用的 API 基路径 */
 export function getAuthApiBasePath(): string {
   const base = getPublicBasePath();

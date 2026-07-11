@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getAuthApiBasePath,
   getPublicBasePath,
+  getPublicBasePathWithFallback,
   withPublicPath,
 } from "./public-path";
 
@@ -32,6 +33,16 @@ describe("getPublicBasePath", () => {
     delete process.env.NEXT_PUBLIC_APP_URL;
     process.env.NEXT_BASE_PATH = "/uc";
     expect(getPublicBasePath()).toBe("/uc");
+  });
+
+  it("CloudBase 域名兜底", () => {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    delete process.env.NEXT_BASE_PATH;
+    expect(
+      getPublicBasePathWithFallback(
+        "connectiq-web-279067-5-1251792805.sh.run.tcloudbase.com",
+      ),
+    ).toBe("/uc");
   });
 });
 

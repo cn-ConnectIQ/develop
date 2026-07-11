@@ -2,7 +2,7 @@ import "@/lib/auth-env";
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { isOrgAdminUsable } from "@/lib/org-access";
-import { getPublicBasePath, withPublicPath } from "@/lib/public-path";
+import { getPublicBasePathWithFallback } from "@/lib/public-path";
 import {
   ROLE_COOKIE_ADMIN_STATUS,
   ROLE_COOKIE_USER_TYPE,
@@ -66,7 +66,14 @@ function syncRoleCookies(
 }
 
 function redirectTo(request: NextRequest, path: string) {
-  return NextResponse.redirect(new URL(withPublicPath(path), request.url));
+  const host = request.headers.get("host") ?? "";
+  const base = getPublicBasePathWithFallback(host);
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const targetPath =
+    !base || normalized === base || normalized.startsWith(`${base}/`)
+      ? normalized
+      : `${base}${normalized}`;
+  return NextResponse.redirect(new URL(targetPath, request.url));
 }
 
 function getIncomingPathname(request: NextRequest): string {
@@ -82,7 +89,8 @@ function isGatewayStrippedHost(host: string): boolean {
  * middleware 看到的 pathname 不含 /uc，不能再 rewrite 到 /uc/xxx（会变成 /uc/uc/xxx）。
  */
 function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
-  const basePath = getPublicBasePath();
+  const host = request.headers.get("host") ?? "";
+  const basePath = getPublicBasePathWithFallback(host);
   if (!basePath) return null;
 
   const incomingPath = getIncomingPathname(request);
@@ -91,8 +99,6 @@ function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
   if (incomingPath === basePath || incomingPath.startsWith(`${basePath}/`)) {
     return null;
   }
-
-  const host = request.headers.get("host") ?? "";
 
   // 缺 /uc 前缀的 /api/*：必须 rewrite/redirect，否则 Next basePath 下会 404
   if (incomingPath === "/api" || incomingPath.startsWith("/api/")) {
