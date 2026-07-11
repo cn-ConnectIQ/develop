@@ -499,6 +499,22 @@ Dockerfile 未复制 `.next/static`。确认存在：
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 ```
 
+### Q9：部署后活动页「页面加载失败」/ digest 错误
+
+新版本含 **体验账号** 等 schema 变更时，生产库需同步表结构，否则 Prisma 查询 `experience_accounts` 等表会失败。
+
+在能访问 TencentDB 的机器上（本地 VPN 或 CloudBase Web 终端）：
+
+```bash
+cd connectiq
+# 设置 DATABASE_URL 指向生产库（勿提交到 Git）
+export DATABASE_URL="postgresql://..."
+pnpm db:generate
+pnpm db:push
+```
+
+执行完成后重启云托管版本或等待自动恢复，再访问 `/uc/events/{eventId}`。
+
 ### Q2：容器启动后外网 503
 
 Next.js 监听 `localhost`。Dockerfile 需：

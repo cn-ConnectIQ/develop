@@ -25,6 +25,7 @@ import {
   EXPERIENCE_MAX_COLLEAGUES,
   EXPERIENCE_TRIAL_DAYS,
 } from "@/lib/experience/experience-config";
+import { isPrismaSchemaDriftError } from "@/lib/prisma-errors";
 
 export class ExperienceAccountError extends Error {
   constructor(
@@ -93,14 +94,19 @@ async function resolveDemoContext() {
 }
 
 export async function getExperienceAccountByUserId(userId: string) {
-  return prisma.experienceAccount.findUnique({
-    where: { userId },
-    include: {
-      org: { select: { id: true, name: true, slug: true, adminStatus: true } },
-      event: { select: { id: true, name: true, slug: true } },
-      user: { select: { id: true, name: true, phone: true, email: true } },
-    },
-  });
+  try {
+    return await prisma.experienceAccount.findUnique({
+      where: { userId },
+      include: {
+        org: { select: { id: true, name: true, slug: true, adminStatus: true } },
+        event: { select: { id: true, name: true, slug: true } },
+        user: { select: { id: true, name: true, phone: true, email: true } },
+      },
+    });
+  } catch (error) {
+    if (isPrismaSchemaDriftError(error)) return null;
+    throw error;
+  }
 }
 
 export async function refreshExperienceAccountStatus(
