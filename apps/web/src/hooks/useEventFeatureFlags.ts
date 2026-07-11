@@ -6,9 +6,10 @@ import {
   DEFAULT_EVENT_FEATURE_FLAGS,
   type EventFeatureFlags,
 } from "@/lib/event-feature-flags";
+import { withPublicPath } from "@/lib/public-path";
 
 async function fetchFeatureFlags(eventId: string): Promise<EventFeatureFlags> {
-  const res = await fetch(`/api/events/${eventId}/feature-flags`);
+  const res = await fetch(withPublicPath(`/api/events/${eventId}/feature-flags`));
   if (!res.ok) return DEFAULT_EVENT_FEATURE_FLAGS;
   const json = await res.json();
   return (json.data?.feature_flags ?? DEFAULT_EVENT_FEATURE_FLAGS) as EventFeatureFlags;

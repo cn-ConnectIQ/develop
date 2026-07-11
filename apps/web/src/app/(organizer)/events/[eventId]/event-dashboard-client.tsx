@@ -28,12 +28,13 @@ import { useRealtimeCheckin } from "@/hooks/useRealtimeCheckin";
 import type { DashboardAlert, DashboardInsights } from "@/lib/dashboard-types";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { formatElapsed, formatTimeRemaining } from "@/lib/event-utils";
+import { withPublicPath } from "@/lib/public-path";
 import { LockedOverlay } from "@/components/events/EventReviewBanner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 async function fetchDashboard(eventId: string) {
-  const res = await fetch(`/api/events/${eventId}/dashboard`);
+  const res = await fetch(withPublicPath(`/api/events/${eventId}/dashboard`));
   if (!res.ok) throw new Error("加载失败");
   const json = await res.json();
   return json.data;
@@ -138,7 +139,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
     showSpeedNetworking || showAiReferral || showAiBoothRoute || showBuyerPush;
   const showOnsiteTab = showLottery || showStampRally || showBoothRanking;
 
-  const { data, isLoading, refetch, isFetching } = useQuery<DashboardData>({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<DashboardData>({
     queryKey: ["event-dashboard", eventId],
     queryFn: () => fetchDashboard(eventId),
     ...backgroundPoll(30_000),
@@ -210,7 +211,7 @@ export function EventDashboardClient({ eventId }: { eventId: string }) {
         </div>
       )}
 
-      <RealtimeStats stats={data?.stats} isLoading={isLoading} />
+      <RealtimeStats stats={data?.stats} isLoading={isLoading} isError={isError} onRetry={() => void refetch()} />
 
       {insights?.peakInsight && (
         <div className="rounded-xl border border-border-light bg-white p-5">

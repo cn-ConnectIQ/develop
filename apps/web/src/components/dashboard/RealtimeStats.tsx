@@ -11,15 +11,39 @@ import type { DashboardStats } from "@/lib/dashboard-types";
 type RealtimeStatsProps = {
   stats?: DashboardStats;
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 };
 
-export function RealtimeStats({ stats, isLoading }: RealtimeStatsProps) {
-  if (isLoading || !stats) {
+export function RealtimeStats({
+  stats,
+  isLoading,
+  isError,
+  onRetry,
+}: RealtimeStatsProps) {
+  if (isLoading) {
     return (
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-[132px] rounded-lg" />
         ))}
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="mb-6 rounded-lg border border-border-light bg-white p-6 text-center text-sm text-text-muted">
+        {isError ? "实时数据加载失败" : "暂无统计数据"}
+        {onRetry && (
+          <button
+            type="button"
+            className="ml-2 text-brand-blue hover:underline"
+            onClick={onRetry}
+          >
+            重试
+          </button>
+        )}
       </div>
     );
   }
