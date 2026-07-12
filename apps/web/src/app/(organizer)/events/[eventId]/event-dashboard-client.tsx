@@ -28,7 +28,7 @@ import { useRealtimeCheckin } from "@/hooks/useRealtimeCheckin";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import { formatElapsed, formatTimeRemaining } from "@/lib/event-utils";
 import { withPublicPath } from "@/lib/public-path";
-import type { EventDashboardPayload } from "@/lib/event-dashboard-server";
+import type { EventDashboardPayload } from "@/lib/event-dashboard-types";
 import { LockedOverlay } from "@/components/events/EventReviewBanner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

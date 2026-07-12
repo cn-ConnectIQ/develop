@@ -3,6 +3,7 @@ import { requireEventAccessCheck } from "@/lib/api-auth";
 import { getEventManageOverview } from "@/lib/account-manage-overview-service";
 import { getEventDashboardData } from "@/lib/dashboard";
 import type { DashboardAlert, DashboardInsights } from "@/lib/dashboard-types";
+import type { EventDashboardPayload } from "@/lib/event-dashboard-types";
 import { getEventPhase } from "@/lib/event-utils";
 
 async function loadDashboardInsights(
@@ -29,7 +30,9 @@ async function loadDashboardInsights(
   return null;
 }
 
-export async function loadEventDashboardPayload(eventId: string) {
+export async function loadEventDashboardPayload(
+  eventId: string,
+): Promise<EventDashboardPayload | null> {
   const access = await requireEventAccessCheck(eventId);
   if ("error" in access) return null;
 
@@ -55,7 +58,7 @@ export async function loadEventDashboardPayload(eventId: string) {
       id: event.id,
       name: event.name,
       phase,
-      reviewStatus: event.reviewStatus,
+      reviewStatus: event.reviewStatus ?? null,
       review: review
         ? {
             status: review.status,
@@ -77,9 +80,7 @@ export async function loadEventDashboardPayload(eventId: string) {
       isVip: item.isVip,
     })),
     alerts: mergedAlerts,
-  };
+  } satisfies EventDashboardPayload;
 }
 
-export type EventDashboardPayload = NonNullable<
-  Awaited<ReturnType<typeof loadEventDashboardPayload>>
->;
+export type { EventDashboardPayload } from "@/lib/event-dashboard-types";

@@ -1,8 +1,6 @@
 import { EventDashboardClient } from "./event-dashboard-client";
-import {
-  loadEventDashboardPayload,
-  type EventDashboardPayload,
-} from "@/lib/event-dashboard-server";
+import { loadEventDashboardPayload } from "@/lib/event-dashboard-server";
+import type { EventDashboardPayload } from "@/lib/event-dashboard-types";
 
 export default async function EventPage({
   params,
