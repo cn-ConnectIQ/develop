@@ -235,6 +235,25 @@ WX_TMPL_LOTTERY_RESULT=""
 
 完整模板见 `apps/web/.env.example`。
 
+### 5.1 邮件（Mailgun）生产必配
+
+云托管控制台 → `connectiq-web` → 环境变量，加入：
+
+```bash
+MAILGUN_API_KEY="（Private API Key，勿提交 Git）"
+MAILGUN_DOMAIN="email.9li.co"
+MAILGUN_FROM="玖莅 <noreply@email.9li.co>"
+MAILGUN_REGION="us"
+```
+
+配置后**重新发布/重启版本**才会生效。本地联调：
+
+```bash
+node apps/web/scripts/send-test-email.mjs you@example.com
+```
+
+未配置时组织审核/活动审核/邀请邮件只会打日志，不会真发。
+
 ---
 
 ## 6. 数据库初始化

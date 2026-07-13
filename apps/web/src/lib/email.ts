@@ -1,4 +1,6 @@
+import { render } from "@react-email/render";
 import { sendMailViaMailgun, type MailgunSendResult } from "@/lib/mailgun";
+import { InviteEmail } from "@/lib/email-templates/invite";
 
 export type EmailSendResult = MailgunSendResult;
 
@@ -6,8 +8,15 @@ async function sendEmail(
   to: string,
   subject: string,
   body: string,
+  html?: string,
 ): Promise<EmailSendResult> {
-  return sendMailViaMailgun({ to, subject, text: body });
+  const result = await sendMailViaMailgun({ to, subject, text: body, html });
+  if (!result.sent) {
+    console.error(`[EMAIL] Failed to=${to} subject=${subject}: ${result.error}`);
+  } else if (result.dev) {
+    console.warn(`[EMAIL] Dev-mode only (MAILGUN 未配置), to=${to} subject=${subject}`);
+  }
+  return result;
 }
 
 export async function sendApplicationConfirmationEmail(
@@ -98,5 +107,37 @@ ${params.organizerName} 邀请您参加「${params.eventName}」。
 ${params.activationLink}
 
 玖莅 团队`;
-  return sendEmail(params.to, params.subject, body);
+
+  let html: string | undefined;
+  try {
+    html = await render(
+      InviteEmail({
+        participantName: params.participantName,
+        eventName: params.eventName,
+        eventDate: params.eventDate,
+        eventLocation: params.eventLocation,
+        organizerName: params.organizerName,
+        activationLink: params.activationLink,
+      }),
+    );
+  } catch (error) {
+    console.error("[EMAIL] InviteEmail HTML render failed, fallback plain:", error);
+  }
+
+  return sendEmail(params.to, params.subject, body, html);
+}
+
+/** 运维/联调用：发送一封测试邮件 */
+export async function sendTestEmail(to: string) {
+  const subject = "玖莅 Mailgun 联调测试";
+  const body = `您好，
+
+这是一封来自玖莅的 Mailgun 联调测试邮件。
+
+若你收到此信，说明邮件发送通道已打通。
+
+发送时间：${new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
+
+玖莅 团队`;
+  return sendEmail(to, subject, body);
 }
