@@ -21,6 +21,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Header } from "@/components/layout/Header";
 import { EventProvider } from "@/hooks/useCurrentEvent";
 import { cn } from "@/lib/utils";
@@ -130,7 +131,7 @@ function PlatformSidebar({
       <div className="shrink-0 border-b border-border px-3 pb-3 pt-6">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
-            <div className="admin-sb-logo">C</div>
+            <BrandLogo size={32} priority />
             <Button
               type="button"
               variant="ghost"
@@ -144,7 +145,7 @@ function PlatformSidebar({
           </div>
         ) : (
           <div className="flex items-start gap-2">
-            <div className="admin-sb-logo">C</div>
+            <BrandLogo size={32} priority />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-text-primary">玖莅 Platform</p>
               <span className="mt-0.5 inline-block text-xs text-text-tertiary">超级管理员</span>

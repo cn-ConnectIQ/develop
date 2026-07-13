@@ -11,12 +11,13 @@
 }
 
 .admin-sidebar {
-  background: var(--surface-secondary);
+  background: #fff;
   color: var(--text-secondary);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 0.5px solid var(--border);
+  border-right: 1px solid var(--admin-border);
+  box-shadow: 1px 0 0 rgba(15, 110, 86, 0.04);
 }
 
 .admin-sidebar nav {
@@ -47,7 +48,8 @@
 .admin-header {
   height: 56px;
   background: #fff;
-  border-bottom: 0.5px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
   display: flex;
   align-items: center;
   padding: 0 24px;
@@ -126,8 +128,9 @@
 /* ---- cards ---- */
 .admin-card {
   background: #fff;
-  border: 0.5px solid var(--admin-border);
+  border: 1px solid var(--admin-border-soft);
   border-radius: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 .admin-card-pad {
@@ -175,7 +178,8 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-secondary);
   margin-bottom: 1px;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;

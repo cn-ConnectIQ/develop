@@ -67,7 +67,7 @@ export function Header({
           : "bg-brand-blue-light text-brand-blue";
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border-light bg-white px-4">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-white px-4 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
       {session?.user?.userType === "ACCOUNT_ADMIN" && currentOrg && (
         <OrgSwitcher
           currentOrgId={session.user.activeOrgId ?? currentOrg.id}

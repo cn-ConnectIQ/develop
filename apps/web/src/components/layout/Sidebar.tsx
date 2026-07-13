@@ -32,6 +32,7 @@ import {
 } from "@/lib/org-switcher-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import type { AdminUser } from "@/components/admin/admin-sidebar";
 import { SidebarEventSwitcher } from "@/components/layout/SidebarEventSwitcher";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
@@ -596,7 +597,7 @@ export function Sidebar({
       <div className="shrink-0 border-b border-border px-3 pb-3 pt-6">
         {collapsed ? (
           <div className="flex w-full flex-col items-center gap-2">
-            <div className="admin-sb-logo">C</div>
+            <BrandLogo size={32} priority />
             <Button
               type="button"
               variant="ghost"
@@ -610,7 +611,7 @@ export function Sidebar({
           </div>
         ) : (
           <div className="flex items-start gap-2">
-            <div className="admin-sb-logo">C</div>
+            <BrandLogo size={32} priority />
             <div className="flex min-w-0 flex-1 flex-col justify-center">
               <span className="truncate text-sm font-semibold leading-tight text-text-primary">
                 玖莅

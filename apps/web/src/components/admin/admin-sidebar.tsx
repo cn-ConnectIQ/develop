@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import type { UserRole } from "@connectiq/types";
 import { getNavigation, getRoleLabel } from "@/config/navigation";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Button } from "@/components/ui/button";
 
 export type AdminUser = {
@@ -34,7 +35,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
   return (
     <aside className="admin-sidebar">
       <div className="admin-sb-brand border-b border-border">
-        <div className="admin-sb-logo">C</div>
+        <BrandLogo size={32} priority />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-text-primary">玖莅</p>
           <p className="truncate text-xs text-text-tertiary">管理后台</p>

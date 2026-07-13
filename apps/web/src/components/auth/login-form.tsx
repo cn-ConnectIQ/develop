@@ -16,6 +16,7 @@ import {
 import { withPublicPath } from "@/lib/public-path";
 import { SEED_PASSWORD, SEED_TEST_ACCOUNTS } from "@/lib/test-accounts";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import {
   Card,
   CardContent,
@@ -181,7 +182,8 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-[400px] rounded-2xl border-border-light bg-white p-8 shadow-sm">
       <CardHeader className="items-center p-0 pb-6 text-center">
-        <CardTitle className="text-2xl font-bold text-brand-blue">
+        <BrandLogo size={56} priority className="mb-4 rounded-[14px] shadow-sm" />
+        <CardTitle className="text-2xl font-bold text-brand-green">
           玖莅
         </CardTitle>
         <CardDescription>管理后台</CardDescription>
