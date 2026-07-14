@@ -69,6 +69,11 @@ export {
   StampPointType,
   PairingStatus,
   InteractionType,
+  BillingPlanKind,
+  BillingOrderStatus,
+  BillingPaymentChannel,
+  BillingLedgerType,
+  BillingLedgerResource,
 } from "@prisma/client";
 /** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
 export { UserRole as PrismaUserRole } from "@prisma/client";
@@ -92,6 +97,10 @@ export type {
   UserStamp,
   UserStampProgress,
   ScreenPairing,
+  BillingPlan,
+  BillingOrder,
+  OrgWallet,
+  BillingLedger,
 } from "@prisma/client";
 /** @deprecated 使用 ExhibitorBooth */
 export type { ExhibitorBooth as Booth } from "@prisma/client";

@@ -14,6 +14,7 @@
     "db:migrate-user-event-code": "tsx prisma/migrate-user-event-code.ts",
     "db:migrate-system-role-staff": "tsx prisma/migrate-system-role-staff.ts",
     "db:seed": "prisma db seed",
+    "db:seed:billing-plans": "tsx prisma/seed-billing-plans.ts",
     "db:seed:expo-mock": "tsx prisma/seed-expo-mock.ts",
     "db:seed:mobile-test": "tsx prisma/seed-mobile-test-attendee.ts",
     "db:seed:mobile-test-dimensions": "tsx prisma/seed-mobile-test-dimensions.ts",

@@ -476,6 +476,46 @@ enum AdminStatus {
   SUSPENDED // 已暂停（违规或其他原因）
 }
 
+/// 计费套餐类型
+enum BillingPlanKind {
+  EVENT_USAGE // 按场办会套餐
+  SMS_PACK // 短信充值包
+  EMAIL_PACK // 邮件充值包
+  INTERACTION_TOPUP // 互动点超额包
+}
+
+/// 订单状态
+enum BillingOrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+/// 支付渠道（阶段一先支持人工开通，后续接微信/支付宝）
+enum BillingPaymentChannel {
+  MANUAL
+  WECHAT
+  ALIPAY
+  OTHER
+}
+
+/// 钱包流水方向
+enum BillingLedgerType {
+  CREDIT // 充值 / 开通赠送 / 退款回补
+  DEBIT // 消耗
+  ADJUST // 运营调账
+  REFUND // 退款冲减
+}
+
+/// 钱包资源类型
+enum BillingLedgerResource {
+  SMS
+  EMAIL
+  INTERACTION_POINT
+}
+
 // 账号类型（历史字段，Organization.account_type 保留兼容，新逻辑不再读取）
 enum AccountType {
   ORGANIZATION
@@ -616,6 +656,8 @@ model User {
   submittedEventReviews EventReview[]          @relation("EventReviewSubmitter")
   reviewedEventReviews  EventReview[]          @relation("EventReviewer")
   operatedBooths        ExhibitorBooth[]       @relation("BoothOperator")
+  billingOrdersCreated  BillingOrder[]         @relation("BillingOrderCreator")
+  billingLedgersCreated BillingLedger[]        @relation("BillingLedgerCreator")
 
   @@map("users")
 }
@@ -678,6 +720,9 @@ model Organization {
   exhibitorBooths ExhibitorBooth[]      @relation("BoothOrg")
   trialProfile    OrganizerTrialProfile?
   experienceAccounts ExperienceAccount[]
+  wallet          OrgWallet?
+  billingOrders   BillingOrder[]
+  billingLedgers  BillingLedger[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -995,6 +1040,8 @@ model Event {
   screenPairings      ScreenPairing[]
   announcements       Announcement[]
   experienceAccounts  ExperienceAccount[]
+  billingOrders       BillingOrder[]
+  billingLedgers      BillingLedger[]
 
   @@map("events")
 }
@@ -2399,4 +2446,131 @@ model StampRallyWinner {
 
   @@unique([rallyId, userId])
   @@map("stamp_rally_winners")
+}
+
+// ── 计费 / 额度（阶段一：数据模型）──
+
+/// 可售套餐（办会包 / 短信包 / 邮件包 / 互动点包）
+model BillingPlan {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  kind        BillingPlanKind
+  name        String
+  description String?
+
+  /// 标价（分）
+  priceCents Int    @default(0) @map("price_cents")
+  currency   String @default("CNY")
+
+  /// 购买后入账额度
+  includesSms               Int @default(0) @map("includes_sms")
+  includesEmail             Int @default(0) @map("includes_email")
+  includesInteractionPoints Int @default(0) @map("includes_interaction_points")
+
+  /// 按场套餐：人数上限（null = 不限）
+  maxAttendees Int? @map("max_attendees")
+
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+  metadata  Json?
+
+  orders BillingOrder[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([kind, isActive])
+  @@map("billing_plans")
+}
+
+/// 订单（阶段一可人工标 PAID；后续接支付回调）
+model BillingOrder {
+  id     String       @id @default(cuid())
+  orgId  String       @map("org_id")
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  planId String?      @map("plan_id")
+  plan   BillingPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  /// 下单人（可为空：运营代开）
+  createdByUserId String? @map("created_by_user_id")
+  createdBy       User?   @relation("BillingOrderCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  /// 绑到某场活动（办会套餐时使用）
+  eventId String? @map("event_id")
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  status         BillingOrderStatus    @default(PENDING)
+  paymentChannel BillingPaymentChannel @default(MANUAL) @map("payment_channel")
+
+  amountCents Int    @map("amount_cents")
+  currency    String @default("CNY")
+  title       String
+
+  /// 第三方支付单号
+  externalPaymentId String? @map("external_payment_id")
+  paidAt            DateTime? @map("paid_at")
+  metadata          Json?
+
+  ledgers BillingLedger[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([orgId, status])
+  @@index([eventId])
+  @@index([externalPaymentId])
+  @@map("billing_orders")
+}
+
+/// 组织额度钱包（短信 / 邮件 / 互动点）
+model OrgWallet {
+  id    String       @id @default(cuid())
+  orgId String       @unique @map("org_id")
+  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  smsBalance               Int @default(0) @map("sms_balance")
+  emailBalance             Int @default(0) @map("email_balance")
+  interactionPointsBalance Int @default(0) @map("interaction_points_balance")
+
+  ledgers BillingLedger[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("org_wallets")
+}
+
+/// 额度流水账本
+model BillingLedger {
+  id     String       @id @default(cuid())
+  orgId  String       @map("org_id")
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  walletId String?    @map("wallet_id")
+  wallet   OrgWallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  orderId String?       @map("order_id")
+  order   BillingOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  eventId String? @map("event_id")
+  event   Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  type     BillingLedgerType
+  resource BillingLedgerResource
+
+  /// 变动量：CREDIT 为正数，DEBIT/REFUND 冲减时用正数表示数量，由 type 决定加减
+  amount       Int
+  balanceAfter Int    @map("balance_after")
+  remark       String?
+
+  createdByUserId String? @map("created_by_user_id")
+  createdBy       User?   @relation("BillingLedgerCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orgId, resource, createdAt])
+  @@index([orderId])
+  @@index([walletId])
+  @@map("billing_ledgers")
 }
