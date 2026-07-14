@@ -58,17 +58,29 @@ function buildMessageContext(record: RecordWithRelations) {
 export async function sendSMS(
   destination: string,
   message: string,
+  templateParam?: Record<string, string>,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  if (
-    process.env.NODE_ENV === "development" ||
-    !process.env.ALIYUN_SMS_ACCESS_KEY
-  ) {
+  const { isAliyunSmsConfigured, sendAliyunSms } = await import(
+    "@/lib/aliyun-sms"
+  );
+  if (!isAliyunSmsConfigured("ALIYUN_SMS_INVITE_TEMPLATE_CODE") &&
+      !isAliyunSmsConfigured()) {
     console.info("[SMS DEV]", { destination, message });
     return { success: true, messageId: `dev-sms-${Date.now()}` };
   }
 
-  console.info(`[SMS] 已向 ${destination} 发送邀请短信`);
-  return { success: true, messageId: `sms-${Date.now()}` };
+  const inviteTemplate = process.env.ALIYUN_SMS_INVITE_TEMPLATE_CODE?.trim();
+  return sendAliyunSms({
+    phone: destination,
+    templateEnv: inviteTemplate
+      ? "ALIYUN_SMS_INVITE_TEMPLATE_CODE"
+      : undefined,
+    templateCode: inviteTemplate || undefined,
+    templateParam: templateParam ?? {
+      name: "嘉宾",
+      event: message.slice(0, 20),
+    },
+  });
 }
 
 export async function sendEmail(
@@ -119,7 +131,10 @@ async function dispatchRecord(record: RecordWithRelations) {
 
   switch (record.channel) {
     case InviteChannel.SMS:
-      return sendSMS(record.destination, message);
+      return sendSMS(record.destination, message, {
+        name: ctx.name.slice(0, 20),
+        event: ctx.eventName.slice(0, 20),
+      });
     case InviteChannel.EMAIL:
       return sendEmail(
         record,
@@ -185,11 +200,63 @@ export async function processSendQueue(campaignId: string) {
 
   let batch = await loadPendingBatch(campaignId);
 
+  const eventOrg = await prisma.event.findUnique({
+    where: { id: campaign.eventId },
+    select: { orgId: true },
+  });
+
   while (batch.length > 0) {
     for (const record of batch) {
       try {
+        if (
+          eventOrg?.orgId &&
+          (record.channel === InviteChannel.SMS ||
+            record.channel === InviteChannel.EMAIL)
+        ) {
+          const { tryDebitInviteCredit } = await import(
+            "@/lib/billing/billing-guards"
+          );
+          const debit = await tryDebitInviteCredit({
+            orgId: eventOrg.orgId,
+            channel: record.channel,
+            eventId: campaign.eventId,
+          });
+          if (!debit.ok) {
+            await markRecordSent(record.id, record.participantId, {
+              success: false,
+              error: debit.error,
+            });
+            continue;
+          }
+        }
+
         const result = await dispatchRecord(record);
         await markRecordSent(record.id, record.participantId, result);
+
+        // 发送失败时退回额度
+        if (
+          !result.success &&
+          eventOrg?.orgId &&
+          (record.channel === InviteChannel.SMS ||
+            record.channel === InviteChannel.EMAIL)
+        ) {
+          const { creditOrgWallet } = await import(
+            "@/lib/billing/wallet-service"
+          );
+          const { BillingLedgerResource } = await import("@connectiq/database");
+          await creditOrgWallet({
+            orgId: eventOrg.orgId,
+            resource:
+              record.channel === InviteChannel.SMS
+                ? BillingLedgerResource.SMS
+                : BillingLedgerResource.EMAIL,
+            amount: 1,
+            eventId: campaign.eventId,
+            remark: "邀请发送失败退回额度",
+          }).catch((err) =>
+            console.warn("[invite] refund credit failed", err),
+          );
+        }
       } catch (error) {
         await prisma.inviteRecord.update({
           where: { id: record.id },

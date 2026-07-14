@@ -12,6 +12,7 @@ import {
   Bot,
   CalendarDays,
   ClipboardList,
+  Coins,
   FileDown,
   Gift,
   Handshake,
@@ -159,6 +160,7 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
         items: [
           { label: "账号管理中心", href: "/organizer/dashboard", icon: LayoutDashboard },
           { label: "活动列表", href: "/events", icon: CalendarDays },
+          { label: "计费与充值", href: "/organizer/billing", icon: Coins },
           { label: "用户池", href: "/members", icon: Users },
           { label: "信誉展示页", href: "/org-profile", icon: Settings },
         ],

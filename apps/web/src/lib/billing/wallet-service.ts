@@ -129,8 +129,22 @@ export async function debitOrgWallet(input: CreditInput) {
   });
 }
 
+export type MarkOrderPaidOptions = {
+  paidByUserId?: string;
+  paymentChannel?: BillingPaymentChannel;
+  externalPaymentId?: string;
+};
+
 /** 订单标为已支付，并按套餐入账（幂等：已 PAID 则跳过入账） */
-export async function markOrderPaidAndFulfill(orderId: string, paidByUserId?: string) {
+export async function markOrderPaidAndFulfill(
+  orderId: string,
+  paidByUserIdOrOptions?: string | MarkOrderPaidOptions,
+) {
+  const options: MarkOrderPaidOptions =
+    typeof paidByUserIdOrOptions === "string"
+      ? { paidByUserId: paidByUserIdOrOptions }
+      : (paidByUserIdOrOptions ?? {});
+
   return prisma.$transaction(async (tx) => {
     const order = await tx.billingOrder.findUnique({
       where: { id: orderId },
@@ -149,7 +163,13 @@ export async function markOrderPaidAndFulfill(orderId: string, paidByUserId?: st
       data: {
         status: BillingOrderStatus.PAID,
         paidAt: new Date(),
-        paymentChannel: order.paymentChannel ?? BillingPaymentChannel.MANUAL,
+        paymentChannel:
+          options.paymentChannel ??
+          order.paymentChannel ??
+          BillingPaymentChannel.MANUAL,
+        ...(options.externalPaymentId
+          ? { externalPaymentId: options.externalPaymentId }
+          : {}),
       },
       include: { plan: true },
     });
@@ -159,7 +179,8 @@ export async function markOrderPaidAndFulfill(orderId: string, paidByUserId?: st
         orgId: paid.orgId,
         orderId: paid.id,
         eventId: paid.eventId,
-        createdByUserId: paidByUserId ?? paid.createdByUserId ?? undefined,
+        createdByUserId:
+          options.paidByUserId ?? paid.createdByUserId ?? undefined,
         sms: paid.plan.includesSms,
         email: paid.plan.includesEmail,
         interactionPoints: paid.plan.includesInteractionPoints,

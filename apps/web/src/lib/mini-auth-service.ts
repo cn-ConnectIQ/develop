@@ -361,8 +361,14 @@ export async function miniWxLogin(
 }
 
 async function verifyMiniSmsCode(phone: string, code: string) {
+  const smsConfigured = Boolean(
+    (process.env.ALIYUN_ACCESS_KEY_ID?.trim() ||
+      process.env.ALIYUN_SMS_ACCESS_KEY?.trim()) &&
+      (process.env.ALIYUN_ACCESS_KEY_SECRET?.trim() ||
+        process.env.ALIYUN_SMS_ACCESS_KEY_SECRET?.trim()),
+  );
   const allowDevBypass =
-    !process.env.ALIYUN_SMS_ACCESS_KEY?.trim() &&
+    !smsConfigured &&
     (MINI_DEV_TEST_PHONES as readonly string[]).includes(phone) &&
     code === MINI_DEV_TEST_SMS_CODE;
 

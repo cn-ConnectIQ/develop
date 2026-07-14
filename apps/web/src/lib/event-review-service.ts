@@ -178,6 +178,10 @@ export async function publishEvent(eventId: string) {
 
   if (event.orgId) {
     await assertTrialCanPublishEvent(event.orgId, eventId);
+    const { assertEventPackagePaidForPublish } = await import(
+      "@/lib/billing/billing-guards"
+    );
+    await assertEventPackagePaidForPublish(event.orgId, eventId);
   }
 
   await prisma.event.update({

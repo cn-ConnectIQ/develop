@@ -188,6 +188,40 @@ export async function prepareCampaignSend(campaignId: string) {
   const isScheduled =
     campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now();
 
+  if (
+    queued > 0 &&
+    (campaign.channel === InviteChannel.SMS ||
+      campaign.channel === InviteChannel.EMAIL)
+  ) {
+    const eventOrg = await prisma.event.findUnique({
+      where: { id: campaign.eventId },
+      select: { orgId: true },
+    });
+    if (eventOrg?.orgId) {
+      const { assertInviteChannelBalance } = await import(
+        "@/lib/billing/billing-guards"
+      );
+      try {
+        await assertInviteChannelBalance({
+          orgId: eventOrg.orgId,
+          channel: campaign.channel,
+          count: queued,
+        });
+      } catch (err) {
+        // 预检失败：已写入的 PENDING 记录改为 SKIPPED，避免队列空跑
+        await prisma.inviteRecord.updateMany({
+          where: { campaignId, status: InviteRecordStatus.PENDING },
+          data: {
+            status: InviteRecordStatus.SKIPPED,
+            errorMessage:
+              err instanceof Error ? err.message : "额度不足",
+          },
+        });
+        throw err;
+      }
+    }
+  }
+
   await prisma.inviteCampaign.update({
     where: { id: campaignId },
     data: {

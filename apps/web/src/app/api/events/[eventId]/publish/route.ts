@@ -39,6 +39,9 @@ export const POST = withErrorHandler(async (_request, context) => {
             : 409;
       return createErrorResponse(error.message, ErrorCode.VALIDATION_ERROR, status);
     }
+    if (error instanceof Error && error.message.includes("办会套餐")) {
+      return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 402);
+    }
     throw error;
   }
 });

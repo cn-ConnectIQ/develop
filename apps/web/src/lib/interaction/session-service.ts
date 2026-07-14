@@ -46,6 +46,29 @@ export async function createInteractionSession(input: {
   channelType?: "QR_CODE" | "LINK" | "APP_PUSH";
   settings?: Record<string, unknown>;
 }) {
+  const event = await prisma.event.findUnique({
+    where: { id: input.eventId },
+    select: { orgId: true },
+  });
+  if (event?.orgId) {
+    const { assertAndDebitInteractionPoint } = await import(
+      "@/lib/billing/billing-guards"
+    );
+    try {
+      await assertAndDebitInteractionPoint({
+        orgId: event.orgId,
+        eventId: input.eventId,
+        createdByUserId: input.createdById,
+      });
+    } catch (err) {
+      throw new ApiError(
+        err instanceof Error ? err.message : "互动点不足",
+        ErrorCode.FORBIDDEN,
+        402,
+      );
+    }
+  }
+
   const sessionCode = await generateUniqueSessionCode();
   const qrUrl = await generateInteractionQR(sessionCode);
   const isExhibitor = Boolean(input.boothId);
