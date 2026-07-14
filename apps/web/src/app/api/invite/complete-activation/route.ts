@@ -88,6 +88,30 @@ export const POST = withErrorHandler(async (request) => {
     });
   });
 
+  // 激活类通知转化归因
+  try {
+    const eventId = await prisma.inviteCampaign
+      .findUnique({
+        where: { id: record.campaignId },
+        select: { eventId: true },
+      })
+      .then((c) => c?.eventId);
+    if (eventId) {
+      const now = new Date();
+      await prisma.notificationRecord.updateMany({
+        where: {
+          eventId,
+          userId,
+          convertedAt: null,
+          templateCode: { in: ["ATT-01", "ATT-02", "ATT-03", "ATT-05"] },
+        },
+        data: { convertedAt: now },
+      });
+    }
+  } catch {
+    /* ignore attribution errors */
+  }
+
   return createSuccessResponse({
     activated: true,
     userId,

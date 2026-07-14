@@ -3,6 +3,10 @@ import { InviteChannel } from "@connectiq/database";
 import { createSuccessResponse, withErrorHandler } from "@/lib/api-auth";
 import { applyInviteDeliveryEvent } from "@/lib/invite/delivery";
 import { upsertInviteBlock } from "@/lib/invite/blocklist";
+import {
+  applyNotificationDeliveryEvent,
+  handleSmsOptOutReply,
+} from "@/lib/notification/delivery-webhook";
 
 /**
  * 赛邮 SUBHOOK 回调。
@@ -55,6 +59,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       vendorMessageId: sendId || null,
       event: "delivered",
     });
+    await applyNotificationDeliveryEvent({
+      recordId: tag || null,
+      providerMsgId: sendId || null,
+      event: "delivered",
+    });
     return createSuccessResponse({ events, result });
   }
 
@@ -66,6 +75,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       vendorMessageId: sendId || null,
       event: "failed",
       errorMessage,
+    });
+    await applyNotificationDeliveryEvent({
+      recordId: tag || null,
+      providerMsgId: sendId || null,
+      event: "failed",
+      errorCode: errorMessage,
     });
     if (
       phone &&
@@ -91,7 +106,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         reason: "UNSUBSCRIBE",
         note: content,
       });
-      return createSuccessResponse({ events, unsubscribed: true, phone });
+    }
+    if (phone) {
+      const opted = await handleSmsOptOutReply(phone, content);
+      if (opted) {
+        return createSuccessResponse({ events, unsubscribed: true, phone });
+      }
     }
     return createSuccessResponse({ events, ignored: true, content });
   }

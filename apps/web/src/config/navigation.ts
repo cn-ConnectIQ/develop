@@ -237,6 +237,13 @@ function getEventNavigationGroups(
                 menuKey: "invite",
               },
               {
+                label: "通知发送",
+                href: `/events/${eventId}/notifications`,
+                icon: Bell,
+                isNew: true,
+                menuKey: "notifications",
+              },
+              {
                 label: "会面配置",
                 href: `/events/${eventId}/meetings/setup`,
                 icon: CalendarDays,

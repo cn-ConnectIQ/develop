@@ -63,7 +63,7 @@ export async function getOrgIdForEvent(eventId: string): Promise<string | null> 
   return event?.orgId ?? null;
 }
 
-/** 正式组织创建互动会话扣 1 互动点；试用跳过 */
+/** 正式组织创建互动会话扣 1 互动点；试用跳过。overdraft_limit 默认 0（耗尽即停） */
 export async function assertAndDebitInteractionPoint(input: {
   orgId: string;
   eventId: string;
@@ -71,11 +71,18 @@ export async function assertAndDebitInteractionPoint(input: {
 }) {
   const org = await prisma.organization.findUnique({
     where: { id: input.orgId },
-    select: { adminStatus: true },
+    select: { adminStatus: true, overdraftLimit: true },
   });
   if (!org || org.adminStatus === "TRIAL") return;
 
-  await getOrCreateOrgWallet(input.orgId);
+  const wallet = await getOrCreateOrgWallet(input.orgId);
+  const overdraft = org.overdraftLimit ?? 0;
+  if (wallet.interactionPointsBalance + overdraft < 1) {
+    throw new Error(
+      "互动点不足，请先在「计费与充值」购买办会套餐或互动点后再发起互动。",
+    );
+  }
+
   try {
     await debitOrgWallet({
       orgId: input.orgId,
@@ -86,6 +93,26 @@ export async function assertAndDebitInteractionPoint(input: {
       remark: "创建现场互动会话",
     });
   } catch {
+    // 透支额度 >0 时允许余额为 0 仍扣减（通过临时加点再扣——简化：若透支配置>0且余额为0则 credit 1 再 debit）
+    if (overdraft > 0 && wallet.interactionPointsBalance <= 0) {
+      const { creditOrgWallet } = await import("@/lib/billing/wallet-service");
+      await creditOrgWallet({
+        orgId: input.orgId,
+        resource: BillingLedgerResource.INTERACTION_POINT,
+        amount: 1,
+        eventId: input.eventId,
+        remark: "透支额度临时入账",
+      });
+      await debitOrgWallet({
+        orgId: input.orgId,
+        resource: BillingLedgerResource.INTERACTION_POINT,
+        amount: 1,
+        eventId: input.eventId,
+        createdByUserId: input.createdByUserId,
+        remark: "创建现场互动会话(透支)",
+      });
+      return;
+    }
     throw new Error(
       "互动点不足，请先在「计费与充值」购买办会套餐或互动点后再发起互动。",
     );

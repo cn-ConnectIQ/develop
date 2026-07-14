@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest } from "next/server";
 import { createSuccessResponse, withErrorHandler } from "@/lib/api-auth";
 import { applyInviteDeliveryEvent } from "@/lib/invite/delivery";
+import { applyNotificationDeliveryEvent } from "@/lib/notification/delivery-webhook";
+import { addOptOut } from "@/lib/notification/compliance";
 
 /**
  * Mailgun 事件 Webhook。
@@ -125,6 +127,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const recordId =
     userVariables.invite_record_id ||
     String(payload["v:invite_record_id"] ?? "");
+  const notificationRecordId =
+    userVariables.notification_record_id ||
+    String(payload["v:notification_record_id"] ?? "");
 
   const message = (eventData.message ?? {}) as {
     headers?: { "message-id"?: string };
@@ -156,6 +161,43 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         : mapped,
     errorMessage,
   });
+
+  if (notificationRecordId || vendorMessageId) {
+    const nEvent =
+      mapped === "delivered"
+        ? "delivered"
+        : mapped === "clicked"
+          ? "clicked"
+          : mapped === "failed" || mapped === "permanently_failed"
+            ? "failed"
+            : mapped === "complained"
+              ? "bounced"
+              : null;
+    if (nEvent) {
+      await applyNotificationDeliveryEvent({
+        recordId: notificationRecordId || null,
+        providerMsgId: vendorMessageId || null,
+        event: nEvent,
+        errorCode: errorMessage,
+      });
+    }
+  }
+
+  if (mapped === "complained") {
+    const recipient = String(
+      (eventData.recipient as string) ||
+        userVariables.email ||
+        "",
+    );
+    if (recipient.includes("@")) {
+      await addOptOut({
+        identityType: "email",
+        identityValue: recipient,
+        scope: "GLOBAL",
+        source: "EMAIL_LINK",
+      }).catch(() => undefined);
+    }
+  }
 
   return createSuccessResponse(result);
 });

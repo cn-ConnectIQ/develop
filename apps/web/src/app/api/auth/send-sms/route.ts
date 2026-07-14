@@ -1,17 +1,15 @@
 import { z } from "zod";
-import {
-  cacheGet,
-  cacheSet,
-  cacheTtl,
-} from "@/lib/redis";
+import { cacheSet, cacheTtl } from "@/lib/redis";
 import {
   generateSmsCode,
-  sendVerificationSms,
+  isSmsConfigured,
+  resolveSmsProvider,
   smsRateKey,
   smsVerifyKey,
   SMS_CODE_TTL,
   SMS_RATE_LIMIT,
 } from "@/lib/sms";
+import { notifyVerificationSms } from "@/lib/notification/notification-service";
 import { createErrorResponse, createSuccessResponse } from "@/lib/api-auth";
 import { ErrorCode } from "@connectiq/types";
 
@@ -46,9 +44,38 @@ export async function POST(request: Request) {
     const code = generateSmsCode();
     await cacheSet(smsVerifyKey(phone), code, SMS_CODE_TTL);
     await cacheSet(smsRateKey(phone), "1", SMS_RATE_LIMIT);
-    await sendVerificationSms(phone, code);
 
-    const { isSmsConfigured } = await import("@/lib/sms");
+    // SYS-01：经 Notification SmsAdapter；有赛邮验证码模板则走 XSend 通道
+    const project = process.env.SUBMAIL_PROJECT_CODE?.trim();
+    if (resolveSmsProvider() === "submail" && project) {
+      const { sendSubmailXSend } = await import("@/lib/submail-sms");
+      const result = await sendSubmailXSend({
+        phone,
+        project,
+        vars: { code },
+      });
+      if (!result.success) {
+        return createErrorResponse(
+          result.error ?? "发送验证码失败",
+          ErrorCode.INTERNAL_ERROR,
+          500,
+        );
+      }
+    } else {
+      const result = await notifyVerificationSms({
+        phone,
+        code,
+        eventId: "system",
+      });
+      if (!result.success) {
+        return createErrorResponse(
+          result.error ?? "发送验证码失败",
+          ErrorCode.INTERNAL_ERROR,
+          500,
+        );
+      }
+    }
+
     const exposeDevCode = !isSmsConfigured();
     return createSuccessResponse({
       sent: true,

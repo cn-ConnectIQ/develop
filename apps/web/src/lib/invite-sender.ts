@@ -5,7 +5,6 @@ import {
   ParticipantInviteStatus,
   prisma,
 } from "@connectiq/database";
-import { sendInviteEmail } from "@/lib/email";
 import {
   buildActivationLink,
   formatEventDate,
@@ -126,10 +125,11 @@ export async function sendSMS(
   templateParam?: Record<string, string>,
   options?: { tag?: string },
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { sendSmsContent, resolveSmsProvider } = await import("@/lib/sms");
+  // 经统一 ChannelAdapter；可选赛邮邀请 XSend 模板仍保留（验证/邀请专用通道）
+  const { resolveSmsProvider } = await import("@/lib/sms");
   const { sendSubmailXSend } = await import("@/lib/submail-sms");
+  const { smsAdapterSend } = await import("@/lib/notification/sms-adapter");
 
-  // 可选：赛邮邀请专用模板（XSend）；否则走正文 SMS/Send
   const inviteProject = process.env.SUBMAIL_PROJECT_INVITE?.trim();
   if (resolveSmsProvider() === "submail" && inviteProject && templateParam) {
     return sendSubmailXSend({
@@ -140,7 +140,7 @@ export async function sendSMS(
     });
   }
 
-  return sendSmsContent({
+  return smsAdapterSend({
     phone: destination,
     content: message,
     tag: options?.tag,
@@ -160,23 +160,26 @@ export async function sendEmail(
   plainText: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const ctx = buildMessageContext(record);
-  const result = await sendInviteEmail({
+  const { emailAdapterSend } = await import("@/lib/notification/email-adapter");
+  const result = await emailAdapterSend({
     to: record.destination,
     subject,
-    participantName: ctx.name,
-    eventName: ctx.eventName,
-    eventDate: ctx.eventDate,
-    eventLocation: ctx.location,
-    organizerName: ctx.organizer,
-    activationLink: ctx.link,
-    plainText,
+    text: plainText,
+    fromDisplayName: `${ctx.eventName}组委会 (via 玖莅)`,
     variables: {
       invite_record_id: record.id,
       campaign_id: record.campaignId,
+      activation_link: ctx.link,
+      participant_name: ctx.name,
+      event_name: ctx.eventName,
+      event_date: ctx.eventDate,
+      event_location: ctx.location,
+      organizer_name: ctx.organizer,
     },
+    tags: ["invite", record.campaignId],
   });
   return {
-    success: result.sent,
+    success: result.success,
     messageId: result.messageId,
     error: result.error,
   };

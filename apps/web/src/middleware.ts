@@ -29,6 +29,11 @@ const PUBLIC_PATHS = [
   "/register",
   "/join",
   "/i/",
+  "/a/",
+  "/b/",
+  "/o/",
+  "/j/",
+  "/optout",
 ] as const;
 
 function isPublicPath(pathname: string) {

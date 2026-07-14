@@ -75,6 +75,14 @@ export {
   BillingPaymentChannel,
   BillingLedgerType,
   BillingLedgerResource,
+  OutboundChannel,
+  NotificationCategory,
+  NotificationAudience,
+  NotificationJobStatus,
+  NotificationRecordStatus,
+  OptOutScope,
+  OptOutSource,
+  ShortLinkScene,
 } from "@prisma/client";
 /** Prisma 枚举别名，避免 Turbopack 与 @prisma/client 重复导出冲突 */
 export { UserRole as PrismaUserRole } from "@prisma/client";

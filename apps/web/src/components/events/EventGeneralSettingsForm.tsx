@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 type EventDetail = {
   id: string;
   name: string;
+  shortName?: string | null;
   description: string | null;
   location: string | null;
   startDate: string | null;
@@ -55,6 +56,7 @@ export function EventGeneralSettingsForm({ eventId }: { eventId: string }) {
   });
 
   const [name, setName] = useState("");
+  const [shortName, setShortName] = useState("");
   const [category, setCategory] = useState<EventCategory>("SUMMIT");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -68,6 +70,7 @@ export function EventGeneralSettingsForm({ eventId }: { eventId: string }) {
     if (!data) return;
     const loc = parseLocation(data.location);
     setName(data.name);
+    setShortName(data.shortName ?? "");
     setCategory(data.category ?? "SUMMIT");
     setStartDate(toDatetimeLocal(data.startDate));
     setEndDate(toDatetimeLocal(data.endDate));
@@ -95,6 +98,11 @@ export function EventGeneralSettingsForm({ eventId }: { eventId: string }) {
       return;
     }
 
+    if (![...shortName.trim()].length || [...shortName.trim()].length > 8) {
+      toast.error("请填写活动简称（1–8 个汉字，短信专用）");
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await fetch(`/api/events/${eventId}`, {
@@ -102,6 +110,7 @@ export function EventGeneralSettingsForm({ eventId }: { eventId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          shortName: shortName.trim(),
           category,
           startDate: new Date(startDate).toISOString(),
           endDate: new Date(endDate).toISOString(),
@@ -155,6 +164,24 @@ export function EventGeneralSettingsForm({ eventId }: { eventId: string }) {
               markDirty();
             }}
           />
+        </div>
+
+        <div>
+          <Label htmlFor="event-short-name">活动简称（短信必填，≤8 汉字）</Label>
+          <Input
+            id="event-short-name"
+            value={shortName}
+            maxLength={24}
+            disabled={isLocked}
+            placeholder="如：工业自动化展"
+            onChange={(e) => {
+              setShortName(e.target.value);
+              markDirty();
+            }}
+          />
+          <p className="mt-1 text-xs text-text-muted">
+            所有短信模板使用简称，避免活动全称撑爆 70 字限制。
+          </p>
         </div>
 
         <div>

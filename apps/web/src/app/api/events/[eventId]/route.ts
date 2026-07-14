@@ -24,6 +24,14 @@ const updateSchema = z.object({
   venue: z.string().optional(),
   location: z.string().optional(),
   description: z.string().optional(),
+  shortName: z
+    .string()
+    .max(24)
+    .optional()
+    .refine(
+      (v) => v === undefined || [...v.trim()].length <= 8,
+      "活动简称不能超过 8 个汉字",
+    ),
 });
 
 export const GET = withErrorHandler(async (_request, context) => {
@@ -46,6 +54,7 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createSuccessResponse({
       id: event.id,
       name: event.name,
+      shortName: event.shortName ?? null,
       slug: event.slug,
       type: event.type,
       status: event.status,
@@ -123,6 +132,9 @@ export const PATCH = withErrorHandler(async (request, context) => {
       ...(data.description !== undefined
         ? { description: data.description }
         : {}),
+      ...(data.shortName !== undefined
+        ? { shortName: data.shortName.trim() || null }
+        : {}),
       ...(location !== undefined ? { location } : {}),
       ...(data.startDate ? { startDate: new Date(data.startDate) } : {}),
       ...(data.endDate ? { endDate: new Date(data.endDate) } : {}),
@@ -148,6 +160,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
   return createSuccessResponse({
     id: updated.id,
     name: updated.name,
+    shortName: updated.shortName ?? null,
     status: updated.status,
     reviewStatus: updated.reviewStatus,
     startDate: updated.startDate?.toISOString() ?? null,
