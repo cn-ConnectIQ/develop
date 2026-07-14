@@ -1,5 +1,6 @@
 import {
   InviteChannel,
+  InviteCampaignStatus,
   InviteRecordStatus,
   ParticipantInviteStatus,
   prisma,
@@ -13,16 +14,28 @@ import {
 import { refreshCampaignStats } from "@/lib/invite/service";
 import { sendWechatTemplate } from "@/lib/wechat-template";
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 30;
+const MAX_BATCHES_PER_RUN = 40;
+/** SENDING 超过此时长未落终态则回收为 PENDING，避免卡死 */
+const STUCK_SENDING_MS = 5 * 60 * 1000;
+const DELAY_MS: Record<InviteChannel, number> = {
+  SMS: 80,
+  EMAIL: 30,
+  WECHAT: 50,
+};
 
 type RecordWithRelations = Awaited<
-  ReturnType<typeof loadPendingBatch>
+  ReturnType<typeof loadRecordsByIds>
 >[number];
 
-async function loadPendingBatch(campaignId: string) {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadRecordsByIds(ids: string[]) {
+  if (ids.length === 0) return [];
   return prisma.inviteRecord.findMany({
-    where: { campaignId, status: InviteRecordStatus.PENDING },
-    take: BATCH_SIZE,
+    where: { id: { in: ids }, status: InviteRecordStatus.SENDING },
     include: {
       participant: true,
       campaign: {
@@ -40,6 +53,48 @@ async function loadPendingBatch(campaignId: string) {
       },
     },
   });
+}
+
+/** 回收超时的 SENDING，防止进程崩溃导致永久卡住 */
+export async function recoverStuckSendingRecords(campaignId?: string) {
+  const cutoff = new Date(Date.now() - STUCK_SENDING_MS);
+  const result = await prisma.inviteRecord.updateMany({
+    where: {
+      status: InviteRecordStatus.SENDING,
+      updatedAt: { lt: cutoff },
+      ...(campaignId ? { campaignId } : {}),
+    },
+    data: {
+      status: InviteRecordStatus.PENDING,
+      errorMessage: "发送超时已回收，等待重试",
+    },
+  });
+  return result.count;
+}
+
+/**
+ * 乐观锁 claim：逐条 PENDING → SENDING，只有 update 成功的才发送。
+ */
+async function claimPendingBatch(campaignId: string): Promise<string[]> {
+  const candidates = await prisma.inviteRecord.findMany({
+    where: { campaignId, status: InviteRecordStatus.PENDING },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+    take: BATCH_SIZE,
+  });
+
+  const claimed: string[] = [];
+  for (const row of candidates) {
+    const updated = await prisma.inviteRecord.updateMany({
+      where: { id: row.id, status: InviteRecordStatus.PENDING },
+      data: {
+        status: InviteRecordStatus.SENDING,
+        errorMessage: null,
+      },
+    });
+    if (updated.count === 1) claimed.push(row.id);
+  }
+  return claimed;
 }
 
 function buildMessageContext(record: RecordWithRelations) {
@@ -63,8 +118,10 @@ export async function sendSMS(
   const { isAliyunSmsConfigured, sendAliyunSms } = await import(
     "@/lib/aliyun-sms"
   );
-  if (!isAliyunSmsConfigured("ALIYUN_SMS_INVITE_TEMPLATE_CODE") &&
-      !isAliyunSmsConfigured()) {
+  if (
+    !isAliyunSmsConfigured("ALIYUN_SMS_INVITE_TEMPLATE_CODE") &&
+    !isAliyunSmsConfigured()
+  ) {
     console.info("[SMS DEV]", { destination, message });
     return { success: true, messageId: `dev-sms-${Date.now()}` };
   }
@@ -99,6 +156,10 @@ export async function sendEmail(
     organizerName: ctx.organizer,
     activationLink: ctx.link,
     plainText,
+    variables: {
+      invite_record_id: record.id,
+      campaign_id: record.campaignId,
+    },
   });
   return {
     success: result.sent,
@@ -151,7 +212,7 @@ async function dispatchRecord(record: RecordWithRelations) {
   }
 }
 
-async function markRecordSent(
+async function markRecordResult(
   recordId: string,
   participantId: string,
   result: { success: boolean; messageId?: string; error?: string },
@@ -163,7 +224,9 @@ async function markRecordSent(
         data: {
           status: InviteRecordStatus.SENT,
           sentAt: new Date(),
-          vendorMessageId: result.messageId,
+          vendorMessageId: result.messageId
+            ? result.messageId.replace(/^<|>$/g, "")
+            : undefined,
           errorMessage: null,
         },
       }),
@@ -187,91 +250,150 @@ async function markRecordSent(
   });
 }
 
+async function processClaimedRecords(
+  records: RecordWithRelations[],
+  orgId: string | null | undefined,
+  eventId: string,
+) {
+  for (const record of records) {
+    try {
+      if (
+        orgId &&
+        (record.channel === InviteChannel.SMS ||
+          record.channel === InviteChannel.EMAIL)
+      ) {
+        const { tryDebitInviteCredit } = await import(
+          "@/lib/billing/billing-guards"
+        );
+        const debit = await tryDebitInviteCredit({
+          orgId,
+          channel: record.channel,
+          eventId,
+        });
+        if (!debit.ok) {
+          await markRecordResult(record.id, record.participantId, {
+            success: false,
+            error: debit.error,
+          });
+          continue;
+        }
+      }
+
+      const result = await dispatchRecord(record);
+      await markRecordResult(record.id, record.participantId, result);
+
+      if (
+        !result.success &&
+        orgId &&
+        (record.channel === InviteChannel.SMS ||
+          record.channel === InviteChannel.EMAIL)
+      ) {
+        const { creditOrgWallet } = await import(
+          "@/lib/billing/wallet-service"
+        );
+        const { BillingLedgerResource } = await import("@connectiq/database");
+        await creditOrgWallet({
+          orgId,
+          resource:
+            record.channel === InviteChannel.SMS
+              ? BillingLedgerResource.SMS
+              : BillingLedgerResource.EMAIL,
+          amount: 1,
+          eventId,
+          remark: "邀请发送失败退回额度",
+        }).catch((err) => console.warn("[invite] refund credit failed", err));
+      }
+
+      await sleep(DELAY_MS[record.channel] ?? 30);
+    } catch (error) {
+      await prisma.inviteRecord.update({
+        where: { id: record.id },
+        data: {
+          status: InviteRecordStatus.FAILED,
+          errorMessage:
+            error instanceof Error ? error.message : "发送异常",
+        },
+      });
+    }
+  }
+}
+
+/** 处理单个 campaign 的待发队列（可被 API 立即触发，也可被 Cron 调用） */
 export async function processSendQueue(campaignId: string) {
   const campaign = await prisma.inviteCampaign.findUnique({
     where: { id: campaignId },
   });
-
-  if (!campaign) return;
+  if (!campaign) return { processed: 0 };
 
   if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
-    return;
+    return { processed: 0, scheduled: true as const };
   }
 
-  let batch = await loadPendingBatch(campaignId);
+  if (
+    campaign.status === InviteCampaignStatus.SCHEDULED &&
+    (!campaign.scheduledAt || campaign.scheduledAt.getTime() <= Date.now())
+  ) {
+    await prisma.inviteCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: InviteCampaignStatus.SENDING,
+        startedAt: campaign.startedAt ?? new Date(),
+      },
+    });
+  }
+
+  await recoverStuckSendingRecords(campaignId);
 
   const eventOrg = await prisma.event.findUnique({
     where: { id: campaign.eventId },
     select: { orgId: true },
   });
 
-  while (batch.length > 0) {
-    for (const record of batch) {
-      try {
-        if (
-          eventOrg?.orgId &&
-          (record.channel === InviteChannel.SMS ||
-            record.channel === InviteChannel.EMAIL)
-        ) {
-          const { tryDebitInviteCredit } = await import(
-            "@/lib/billing/billing-guards"
-          );
-          const debit = await tryDebitInviteCredit({
-            orgId: eventOrg.orgId,
-            channel: record.channel,
-            eventId: campaign.eventId,
-          });
-          if (!debit.ok) {
-            await markRecordSent(record.id, record.participantId, {
-              success: false,
-              error: debit.error,
-            });
-            continue;
-          }
-        }
+  let processed = 0;
+  for (let i = 0; i < MAX_BATCHES_PER_RUN; i += 1) {
+    const claimedIds = await claimPendingBatch(campaignId);
+    if (claimedIds.length === 0) break;
 
-        const result = await dispatchRecord(record);
-        await markRecordSent(record.id, record.participantId, result);
-
-        // 发送失败时退回额度
-        if (
-          !result.success &&
-          eventOrg?.orgId &&
-          (record.channel === InviteChannel.SMS ||
-            record.channel === InviteChannel.EMAIL)
-        ) {
-          const { creditOrgWallet } = await import(
-            "@/lib/billing/wallet-service"
-          );
-          const { BillingLedgerResource } = await import("@connectiq/database");
-          await creditOrgWallet({
-            orgId: eventOrg.orgId,
-            resource:
-              record.channel === InviteChannel.SMS
-                ? BillingLedgerResource.SMS
-                : BillingLedgerResource.EMAIL,
-            amount: 1,
-            eventId: campaign.eventId,
-            remark: "邀请发送失败退回额度",
-          }).catch((err) =>
-            console.warn("[invite] refund credit failed", err),
-          );
-        }
-      } catch (error) {
-        await prisma.inviteRecord.update({
-          where: { id: record.id },
-          data: {
-            status: InviteRecordStatus.FAILED,
-            errorMessage:
-              error instanceof Error ? error.message : "发送异常",
-          },
-        });
-      }
-    }
-
+    const records = await loadRecordsByIds(claimedIds);
+    await processClaimedRecords(records, eventOrg?.orgId, campaign.eventId);
+    processed += records.length;
     await refreshCampaignStats(campaignId);
-    batch = await loadPendingBatch(campaignId);
   }
 
   await refreshCampaignStats(campaignId);
+  return { processed };
+}
+
+/**
+ * Cron 入口：回收卡住的 SENDING，并推进所有到期/进行中的 campaign。
+ */
+export async function processDueInviteCampaigns(options?: {
+  maxCampaigns?: number;
+}) {
+  const maxCampaigns = options?.maxCampaigns ?? 20;
+  const recovered = await recoverStuckSendingRecords();
+  const now = new Date();
+
+  const campaigns = await prisma.inviteCampaign.findMany({
+    where: {
+      OR: [
+        { status: InviteCampaignStatus.SENDING },
+        {
+          status: InviteCampaignStatus.SCHEDULED,
+          scheduledAt: { lte: now },
+        },
+      ],
+    },
+    select: { id: true },
+    orderBy: { updatedAt: "asc" },
+    take: maxCampaigns,
+  });
+
+  const results: { campaignId: string; processed: number }[] = [];
+  for (const c of campaigns) {
+    const r = await processSendQueue(c.id);
+    results.push({ campaignId: c.id, processed: r.processed });
+  }
+
+  return { recovered, campaigns: results.length, results };
 }

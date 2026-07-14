@@ -161,6 +161,13 @@ pnpm --filter @connectiq/database db:seed:billing-plans
 | 发布活动 | 须已支付绑定该场的 **办会套餐**（`EVENT_USAGE`）；也可先买未绑场订单，发布时自动绑定 |
 | 短信邀请发送成功 | 短信余额 −1（失败退回） |
 | 邮件邀请发送成功 | 邮件余额 −1（失败退回） |
+
+### 邀请批量发送引擎（简）
+
+- 明细状态：`PENDING → SENDING → SENT`（送达回调可进 `DELIVERED`/`CLICKED`/`FAILED`）
+- 发送入口：创建后立即 `triggerInviteProcessing`；兜底 Cron：`GET /api/cron/invite-send`（建议每 1～2 分钟）
+- Mailgun 回调：`POST /api/webhooks/mailgun`（自定义变量 `invite_record_id`）
+- 阿里云短信报告：`POST /api/webhooks/aliyun-sms`（按 `BizId` 关联）
 | 创建互动会话 | 互动点 −1 |
 
 管理端 UI：`/organizer/billing`（侧栏「计费与充值」）。

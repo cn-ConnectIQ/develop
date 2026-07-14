@@ -375,6 +375,7 @@ jobs:
 | `/api/cron/daily` | 日终任务 | 每天 09:00 |
 | `/api/cron/update-matching` | AI 配对更新 | 每天 10:00 |
 | `/api/cron/post-event-followup` | 会后跟进 | 每天 11:00 |
+| `/api/cron/invite-send` | 邀请批量发送续跑 | **每 1～2 分钟** |
 
 接口鉴权：请求头 `Authorization: Bearer ${CRON_SECRET}`。
 
@@ -393,6 +394,7 @@ exports.main = async () => {
     "/api/cron/daily",
     "/api/cron/update-matching",
     "/api/cron/post-event-followup",
+    // 邀请发送建议拆成独立触发器，每 1～2 分钟调 /api/cron/invite-send
   ];
 
   for (const path of paths) {

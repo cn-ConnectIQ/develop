@@ -63,13 +63,16 @@ export async function sendMailViaMailgun(params: {
   subject: string;
   text: string;
   html?: string;
+  /** 自定义变量，Webhook 会原样回传（如 invite_record_id） */
+  variables?: Record<string, string>;
+  tags?: string[];
 }): Promise<MailgunSendResult> {
   const config = getMailgunConfig();
   if (!config) {
     console.info(
       `[EMAIL DEV] To: ${params.to}\nSubject: ${params.subject}\n${params.text}`,
     );
-    return { sent: true, dev: true };
+    return { sent: true, dev: true, messageId: `dev-mail-${Date.now()}` };
   }
 
   const url = `${getMailgunApiBase(config.region)}/v3/${config.domain}/messages`;
@@ -80,6 +83,16 @@ export async function sendMailViaMailgun(params: {
     text: params.text,
     html: params.html ?? plainTextToHtml(params.text),
   });
+  if (params.variables) {
+    for (const [key, value] of Object.entries(params.variables)) {
+      if (value) body.append(`v:${key}`, value);
+    }
+  }
+  if (params.tags?.length) {
+    for (const tag of params.tags) {
+      if (tag) body.append("o:tag", tag);
+    }
+  }
 
   const auth = Buffer.from(`api:${config.apiKey}`).toString("base64");
 

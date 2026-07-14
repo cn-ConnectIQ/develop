@@ -331,6 +331,8 @@ enum InviteChannel {
 
 enum InviteRecordStatus {
   PENDING
+  /// 已被 Worker claim，发送中（防并发重复发送）
+  SENDING
   SENT
   DELIVERED
   CLICKED
@@ -2317,6 +2319,8 @@ model InviteRecord {
   @@unique([campaignId, participantId])
   @@index([campaignId, status])
   @@index([activationToken])
+  @@index([vendorMessageId])
+  @@index([status, updatedAt])
   @@map("invite_records")
 }
 

@@ -9,8 +9,19 @@ async function sendEmail(
   subject: string,
   body: string,
   html?: string,
+  extras?: {
+    variables?: Record<string, string>;
+    tags?: string[];
+  },
 ): Promise<EmailSendResult> {
-  const result = await sendMailViaMailgun({ to, subject, text: body, html });
+  const result = await sendMailViaMailgun({
+    to,
+    subject,
+    text: body,
+    html,
+    variables: extras?.variables,
+    tags: extras?.tags,
+  });
   if (!result.sent) {
     console.error(`[EMAIL] Failed to=${to} subject=${subject}: ${result.error}`);
   } else if (result.dev) {
@@ -93,6 +104,8 @@ export async function sendInviteEmail(params: {
   organizerName: string;
   activationLink: string;
   plainText: string;
+  /** Mailgun 自定义变量，用于送达/打开/失败 Webhook 回写 */
+  variables?: Record<string, string>;
 }) {
   const body =
     params.plainText ||
@@ -124,7 +137,10 @@ ${params.activationLink}
     console.error("[EMAIL] InviteEmail HTML render failed, fallback plain:", error);
   }
 
-  return sendEmail(params.to, params.subject, body, html);
+  return sendEmail(params.to, params.subject, body, html, {
+    variables: params.variables,
+    tags: ["invite"],
+  });
 }
 
 /** 运维/联调用：发送一封测试邮件 */

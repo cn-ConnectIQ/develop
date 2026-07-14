@@ -260,7 +260,7 @@ export async function retryFailedRecords(campaignId: string) {
 }
 
 export async function refreshCampaignStats(campaignId: string) {
-  const [sent, delivered, clicked, activated, failed, skipped, pending] =
+  const [sent, delivered, clicked, activated, failed, skipped, pending, sending] =
     await Promise.all([
       prisma.inviteRecord.count({
         where: {
@@ -307,8 +307,12 @@ export async function refreshCampaignStats(campaignId: string) {
       prisma.inviteRecord.count({
         where: { campaignId, status: InviteRecordStatus.PENDING },
       }),
+      prisma.inviteRecord.count({
+        where: { campaignId, status: InviteRecordStatus.SENDING },
+      }),
     ]);
 
+  const inFlight = pending + sending;
   const campaign = await prisma.inviteCampaign.update({
     where: { id: campaignId },
     data: {
@@ -317,7 +321,7 @@ export async function refreshCampaignStats(campaignId: string) {
       clickedCount: clicked,
       activatedCount: activated,
       failedCount: failed,
-      ...(pending === 0
+      ...(inFlight === 0
         ? {
             status: InviteCampaignStatus.SENT,
             completedAt: new Date(),
@@ -326,7 +330,7 @@ export async function refreshCampaignStats(campaignId: string) {
     },
   });
 
-  return { campaign, pending, skipped };
+  return { campaign, pending: inFlight, skipped };
 }
 
 export async function listInviteRecords(

@@ -14,6 +14,10 @@ export async function enqueueInviteCampaign(campaignId: string) {
   }
 }
 
+/**
+ * 入队并触发发送。生产环境不阻塞 HTTP；开发环境同步跑完便于联调。
+ * Cron `/api/cron/invite-send` 会兜底扫库，即使本进程未跑完也能续发。
+ */
 export async function triggerInviteProcessing(campaignId: string) {
   await enqueueInviteCampaign(campaignId);
 
@@ -25,6 +29,8 @@ export async function triggerInviteProcessing(campaignId: string) {
   }
 
   setImmediate(() => {
-    void processSendQueue(campaignId);
+    void processSendQueue(campaignId).catch((err) =>
+      console.error("[invite] processSendQueue failed", campaignId, err),
+    );
   });
 }
