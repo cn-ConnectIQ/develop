@@ -50,9 +50,10 @@ RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs \
   && apk add --no-cache openssl
 
-COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+# public 必须在 standalone 之后再拷，避免目录合并时丢失静态资源
+COPY --from=builder /app/apps/web/public ./apps/web/public
 
 USER nextjs
 EXPOSE 3000
