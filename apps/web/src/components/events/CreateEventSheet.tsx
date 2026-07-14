@@ -279,7 +279,13 @@ export function CreateEventSheet({
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "发布失败");
+        const msg = json.error ?? "发布失败";
+        toast.error(msg);
+        if (res.status === 402 || String(msg).includes("办会套餐")) {
+          window.setTimeout(() => {
+            window.location.href = "/organizer/billing";
+          }, 1200);
+        }
         return;
       }
 

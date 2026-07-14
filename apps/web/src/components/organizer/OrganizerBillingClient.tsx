@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -76,8 +77,11 @@ const STATUS_LABEL: Record<string, string> = {
   REFUNDED: "已退款",
 };
 
+type EventOption = { id: string; name: string; reviewStatus?: string };
+
 export function OrganizerBillingClient() {
   const qc = useQueryClient();
+  const [eventIdForPackage, setEventIdForPackage] = useState("");
 
   const walletQuery = useQuery({
     queryKey: ["billing-wallet"],
@@ -94,6 +98,16 @@ export function OrganizerBillingClient() {
     queryFn: () => fetchJson<Order[]>("/api/billing/orders"),
   });
 
+  const eventsQuery = useQuery({
+    queryKey: ["billing-events"],
+    queryFn: async () => {
+      const data = await fetchJson<{ events: EventOption[] }>(
+        "/api/events?limit=100",
+      );
+      return data.events ?? [];
+    },
+  });
+
   const channelsQuery = useQuery({
     queryKey: ["billing-channels"],
     queryFn: () =>
@@ -104,11 +118,15 @@ export function OrganizerBillingClient() {
   });
 
   const payMutation = useMutation({
-    mutationFn: async (planId: string) => {
+    mutationFn: async (input: { planId: string; eventId?: string }) => {
       const order = await fetchJson<Order>("/api/billing/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, paymentChannel: "ALIPAY" }),
+        body: JSON.stringify({
+          planId: input.planId,
+          eventId: input.eventId || undefined,
+          paymentChannel: "ALIPAY",
+        }),
       });
       const pay = await fetchJson<{ payUrl: string }>(
         `/api/billing/orders/${order.id}/pay`,
@@ -131,6 +149,7 @@ export function OrganizerBillingClient() {
 
   const balances = walletQuery.data?.balances;
   const alipayReady = channelsQuery.data?.alipay.configured ?? false;
+  const events = eventsQuery.data ?? [];
 
   return (
     <AdminPageBody>
@@ -171,9 +190,26 @@ export function OrganizerBillingClient() {
       )}
 
       <section className="mb-10">
-        <h2 className="mb-3 text-base font-semibold text-[var(--admin-ink)]">
-          可购套餐
-        </h2>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-base font-semibold text-[var(--admin-ink)]">
+            可购套餐
+          </h2>
+          <label className="flex flex-col gap-1 text-xs text-text-muted">
+            办会套餐绑定活动（发布前必需）
+            <select
+              className="h-9 min-w-[220px] rounded-md border border-border-strong bg-white px-2 text-sm text-[var(--admin-ink)]"
+              value={eventIdForPackage}
+              onChange={(e) => setEventIdForPackage(e.target.value)}
+            >
+              <option value="">稍后绑定（发布时自动占用未绑订单）</option>
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(plansQuery.data ?? []).map((plan) => (
             <div
@@ -203,7 +239,15 @@ export function OrganizerBillingClient() {
                 <Button
                   size="sm"
                   disabled={!alipayReady || payMutation.isPending}
-                  onClick={() => payMutation.mutate(plan.id)}
+                  onClick={() =>
+                    payMutation.mutate({
+                      planId: plan.id,
+                      eventId:
+                        plan.kind === "EVENT_USAGE"
+                          ? eventIdForPackage || undefined
+                          : undefined,
+                    })
+                  }
                 >
                   支付宝购买
                 </Button>
