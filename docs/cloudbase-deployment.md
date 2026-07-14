@@ -106,18 +106,21 @@ REDIS_URL="redis://:密码@10.x.x.x:6379/0"
 
 未配置时降级为进程内内存缓存，**云托管多实例下缓存不一致**。
 
-### 3.3 云存储 / COS（上传与二维码）
+### 3.3 对象存储 / CDN（上传与二维码）
 
-当前 `/api/upload` 默认写容器本地 `public/uploads/`，**云托管重建/扩缩容会丢文件**。
+**已接入七牛云**：配置下列环境变量后，`/api/upload`、语音备注、互动/集章二维码均上传到七牛，公网访问走 CDN `https://cdn.9li.cn/...`。
 
-迁移路径（二选一）：
+```bash
+QINIU_ACCESS_KEY=...
+QINIU_SECRET_KEY=...
+QINIU_BUCKET=...
+QINIU_CDN_DOMAIN=cdn.9li.cn
+# 可选
+# QINIU_REGION=z0
+# NEXT_PUBLIC_CDN_URL=https://cdn.9li.cn
+```
 
-| 方案 | 说明 |
-|------|------|
-| **CloudBase 云存储** | 与 CloudBase 环境一体，SDK 接入简单 |
-| **COS + CDN** | 与现有腾讯云文档一致，适合大流量 |
-
-集章二维码等若仍依赖 Supabase Storage，需同步改造或暂时保留 Supabase 仅作 Storage/Realtime。
+未配置七牛时仍会写容器本地 `public/uploads/`（仅开发兜底；云托管重建/扩缩容会丢文件）。二维码在无七牛时可降级到 Supabase Storage / data URL。
 
 ---
 

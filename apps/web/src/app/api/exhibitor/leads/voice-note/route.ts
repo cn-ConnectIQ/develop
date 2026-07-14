@@ -1,6 +1,3 @@
-import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
@@ -8,6 +5,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
+import { storeUploadBuffer } from "@/lib/storage/upload";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -38,16 +36,32 @@ export const POST = withErrorHandler(async (request) => {
   }
 
   if (file.size > MAX_BYTES) {
-    return createErrorResponse("语音文件不能超过 10MB", ErrorCode.VALIDATION_ERROR, 400);
+    return createErrorResponse(
+      "语音文件不能超过 10MB",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase() || "mp3";
-  const filename = `voice-${randomUUID()}.${ext}`;
-  const uploadsDir = path.join(process.cwd(), "public", "uploads", "voice");
-  await mkdir(uploadsDir, { recursive: true });
-
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(uploadsDir, filename), buffer);
-
-  return createSuccessResponse({ url: `/uploads/voice/${filename}` });
+  try {
+    const stored = await storeUploadBuffer({
+      buffer,
+      contentType: file.type || "audio/mpeg",
+      filename: file.name || "voice.mp3",
+      prefix: "uploads/voice",
+    });
+    return createSuccessResponse({
+      url: stored.url,
+      key: stored.key,
+      storage: stored.storage,
+    });
+  } catch (err) {
+    console.error("[voice-note upload]", err);
+    return createErrorResponse(
+      err instanceof Error ? err.message : "上传失败",
+      ErrorCode.INTERNAL_ERROR,
+      500,
+    );
+  }
 });

@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
     "@connectiq/types",
     "@connectiq/utils",
   ],
-  serverExternalPackages: ["pg", "@prisma/adapter-pg", "bcryptjs"],
+  serverExternalPackages: ["pg", "@prisma/adapter-pg", "bcryptjs", "qiniu"],
 };
 
 export default nextConfig;

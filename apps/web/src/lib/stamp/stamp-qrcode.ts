@@ -1,5 +1,7 @@
 import QRCode from "qrcode";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { isQiniuConfigured } from "@/lib/storage/qiniu";
+import { storeUploadBuffer } from "@/lib/storage/upload";
 
 const QR_BUCKET = "stamp-qrcodes";
 const QR_SIZE = 400;
@@ -38,6 +40,20 @@ export async function generateStampQR(
 ): Promise<string> {
   const scanUrl = getStampScanUrl(stampId, scanCode);
   const pngBuffer = await generateStampQRBuffer(stampId, scanCode);
+
+  if (isQiniuConfigured()) {
+    try {
+      const stored = await storeUploadBuffer({
+        buffer: pngBuffer,
+        contentType: "image/png",
+        filename: `${stampId}.png`,
+        key: `qr/stamp/${stampId}.png`,
+      });
+      return stored.url;
+    } catch (err) {
+      console.warn("[stamp-qrcode] 七牛上传失败，尝试降级:", err);
+    }
+  }
 
   const supabase = getSupabaseAdminClient();
   if (!supabase) {

@@ -1516,7 +1516,8 @@ Query：`limit`（默认 8，最大 50）
 
 请求：`multipart/form-data`，字段 `file`（≤5MB，png/jpg/webp/gif）
 
-响应 `data`：`{ url: string }` 相对路径 `/uploads/...`
+响应 `data`：`{ url: string; key?: string; storage?: "qiniu" | "local" }`  
+生产（已配七牛）：绝对 CDN URL，如 `https://cdn.9li.cn/uploads/...`；未配七牛时为相对路径 `/uploads/...`。
 
 ---
 

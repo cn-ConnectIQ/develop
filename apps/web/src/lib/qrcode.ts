@@ -1,5 +1,7 @@
 import QRCode from "qrcode";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { isQiniuConfigured } from "@/lib/storage/qiniu";
+import { storeUploadBuffer } from "@/lib/storage/upload";
 
 const QR_BUCKET = "interaction-qrcodes";
 const QR_SIZE = 400;
@@ -26,14 +28,27 @@ export async function generateInteractionQRBuffer(
 }
 
 /**
- * 生成互动二维码并上传到 Supabase Storage，返回公开 URL。
- * 若 Storage 未配置则降级为 data URL。
+ * 生成互动二维码并上传（优先七牛 CDN，其次 Supabase，最后 data URL）。
  */
 export async function generateInteractionQR(
   sessionCode: string,
 ): Promise<string> {
   const scanUrl = getInteractionScanUrl(sessionCode);
   const pngBuffer = await generateInteractionQRBuffer(sessionCode);
+
+  if (isQiniuConfigured()) {
+    try {
+      const stored = await storeUploadBuffer({
+        buffer: pngBuffer,
+        contentType: "image/png",
+        filename: `${sessionCode}.png`,
+        key: `qr/interaction/${sessionCode}.png`,
+      });
+      return stored.url;
+    } catch (err) {
+      console.warn("[qrcode] 七牛上传失败，尝试降级:", err);
+    }
+  }
 
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
