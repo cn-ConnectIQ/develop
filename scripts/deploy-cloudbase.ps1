@@ -9,13 +9,8 @@ $service = "connectiq-web"
 
 Write-Host "==> 部署 $service 到 CloudBase ($envId)" -ForegroundColor Cyan
 
-# 灰度部署选「否」
-"否" | tcb cloudrun deploy `
-  --serviceName $service `
-  --port 3000 `
-  --env-id $envId `
-  --force
-
+# PowerShell 管道对 tcb 交互提示不稳定，用 cmd echo 自动选「否」（非灰度）
+cmd /c "echo 否| tcb cloudrun deploy --serviceName $service --port 3000 --env-id $envId --force"
 if ($LASTEXITCODE -ne 0) {
   Write-Host "部署失败，退出码 $LASTEXITCODE" -ForegroundColor Red
   exit $LASTEXITCODE

@@ -1,6 +1,20 @@
 {
   "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
   "envId": "connectiq-d6gc2sul3855abd4e",
+  "functionRoot": "scripts",
+  "functions": [
+    {
+      "name": "cron-invite-send",
+      "timeout": 30,
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "installDependency": false,
+      "ignore": ["node_modules", ".git"],
+      "envVariables": {
+        "CRON_TARGET_BASE": "https://9li.co/uc"
+      }
+    }
+  ],
   "cloudrun": {
     "name": "connectiq-web"
   },
