@@ -9,6 +9,7 @@ type PreviewContext = {
   eventDate: string;
   link: string;
   organizer: string;
+  location?: string;
 };
 
 type MessagePreviewProps = {
@@ -26,13 +27,17 @@ export function MessagePreview({
   context,
   className,
 }: MessagePreviewProps) {
-  const message = resolveInviteMessage(template, context);
+  const resolved = resolveInviteMessage(template, context);
+  const message =
+    channel === "SMS" && !resolved.includes("拒收请回复")
+      ? `${resolved.trim()} 拒收请回复R`
+      : resolved;
 
   if (channel === "SMS") {
     return (
       <div className={cn("rounded-xl bg-gray-100 p-4", className)}>
         <div className="mx-auto max-w-[280px] rounded-2xl bg-white p-3 shadow-sm">
-          <p className="mb-1 text-[10px] text-text-muted">短信 · 预览</p>
+          <p className="mb-1 text-[10px] text-text-muted">短信 · 预览（含合规后缀）</p>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--admin-ink)]">
             {message}
           </p>
@@ -88,6 +93,7 @@ export const INVITE_VARIABLES = [
   { key: "{name}", label: "姓名" },
   { key: "{event_name}", label: "活动名" },
   { key: "{event_date}", label: "日期" },
+  { key: "{location}", label: "地点" },
   { key: "{link}", label: "激活链接" },
   { key: "{organizer}", label: "主办方" },
 ] as const;

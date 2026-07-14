@@ -145,8 +145,16 @@ export function useInviteCampaignProgress(
   return useQuery({
     queryKey: ["invite-campaign-progress", eventId, campaignId],
     queryFn: () => fetchCampaignProgress(eventId, campaignId),
-    refetchInterval: (query) =>
-      query.state.data?.status === InviteCampaignStatus.SENDING ? 3000 : false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (
+        status === InviteCampaignStatus.SENDING ||
+        status === InviteCampaignStatus.CREATING
+      ) {
+        return 3000;
+      }
+      return false;
+    },
   });
 }
 
@@ -193,7 +201,11 @@ export function useSendInviteCampaign(eventId: string) {
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "发送失败");
-      return json.data as { queued: number };
+      return json.data as {
+        queued: number;
+        building?: boolean;
+        total_target?: number;
+      };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invite-campaigns", eventId] });
@@ -221,6 +233,51 @@ export function useRetryInviteCampaign(eventId: string) {
       });
       void queryClient.invalidateQueries({
         queryKey: ["invite-campaign-progress", eventId, campaignId],
+      });
+    },
+  });
+}
+
+export function usePauseInviteCampaign(eventId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (campaignId: string) => {
+      const res = await fetch(
+        `/api/events/${eventId}/invite-campaigns/${campaignId}/pause`,
+        { method: "POST" },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "暂停失败");
+      return json.data as { status: string };
+    },
+    onSuccess: (_data, campaignId) => {
+      void queryClient.invalidateQueries({ queryKey: ["invite-campaigns", eventId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["invite-campaign-progress", eventId, campaignId],
+      });
+    },
+  });
+}
+
+export function useResumeInviteCampaign(eventId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (campaignId: string) => {
+      const res = await fetch(
+        `/api/events/${eventId}/invite-campaigns/${campaignId}/resume`,
+        { method: "POST" },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "继续发送失败");
+      return json.data as { status: string };
+    },
+    onSuccess: (_data, campaignId) => {
+      void queryClient.invalidateQueries({ queryKey: ["invite-campaigns", eventId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["invite-campaign-progress", eventId, campaignId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["invite-records", eventId, campaignId],
       });
     },
   });

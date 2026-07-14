@@ -1,6 +1,8 @@
 import {
   AccountType,
   AdminStatus,
+  ApplicationSource,
+  ApplicationStatus,
   ExperienceAccountRole,
   ExperienceAccountStatus,
   InviteChannel,
@@ -15,7 +17,7 @@ import {
 } from "@connectiq/database";
 import bcrypt from "bcryptjs";
 import { grantOrgAdminRoles } from "@/lib/org-admin-roles";
-import { generateOrgSlug } from "@/lib/platform-application-service";
+import { approveApplication } from "@/lib/platform-application-service";
 import { generateBadgeQr } from "@/lib/participants";
 import { cacheDel, cacheGet, cacheSet } from "@/lib/redis";
 import { smsVerifyKey } from "@/lib/sms";
@@ -50,19 +52,6 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
-}
-
-async function resolveUniqueOrgSlug(
-  tx: Prisma.TransactionClient,
-  name: string,
-): Promise<string> {
-  const baseSlug = generateOrgSlug(name);
-  let slug = baseSlug;
-  let suffix = 1000;
-  while (await tx.organization.findUnique({ where: { slug } })) {
-    slug = `${baseSlug}-${suffix++}`;
-  }
-  return slug;
 }
 
 async function verifySmsCode(phone: string, code: string) {
@@ -192,7 +181,12 @@ async function assertCanCreateExperience(phone: string) {
   }
 
   const pendingApp = await prisma.organizerApplication.findFirst({
-    where: { userId: existingUser.id, status: "PENDING" },
+    where: {
+      userId: existingUser.id,
+      status: ApplicationStatus.PENDING,
+      // Demo 潜客待审不阻断重新进入体验；正式自助申请仍需等待
+      NOT: { source: ApplicationSource.EXPERIENCE_DEMO },
+    },
   });
   if (pendingApp) {
     throw new ExperienceAccountError(
@@ -202,6 +196,67 @@ async function assertCanCreateExperience(phone: string) {
   }
 
   return existingUser;
+}
+
+async function upsertExperienceProspectApplication(
+  tx: Pick<Prisma.TransactionClient, "organizerApplication">,
+  input: {
+    userId: string;
+    experienceAccountId: string;
+    contactName: string;
+    companyName: string | null;
+    phone: string;
+    email: string;
+  },
+) {
+  const orgName = input.companyName || `${input.contactName}的组织`;
+  const description =
+    "Demo 展会工作人员体验注册（潜客）。审核通过后解锁创建活动与付费能力。";
+
+  const existing =
+    (await tx.organizerApplication.findUnique({
+      where: { experienceAccountId: input.experienceAccountId },
+    })) ??
+    (await tx.organizerApplication.findFirst({
+      where: {
+        userId: input.userId,
+        source: ApplicationSource.EXPERIENCE_DEMO,
+        status: {
+          in: [ApplicationStatus.PENDING, ApplicationStatus.REJECTED],
+        },
+      },
+      orderBy: { submittedAt: "desc" },
+    }));
+
+  const payload = {
+    accountType: AccountType.ORGANIZATION,
+    orgName,
+    orgCreditCode: null as string | null,
+    orgWebsite: null as string | null,
+    contactName: input.contactName,
+    contactEmail: input.email,
+    contactPhone: input.phone,
+    description,
+    source: ApplicationSource.EXPERIENCE_DEMO,
+    experienceAccountId: input.experienceAccountId,
+    status: ApplicationStatus.PENDING,
+    rejectionReason: null as string | null,
+    submittedAt: new Date(),
+  };
+
+  if (existing) {
+    return tx.organizerApplication.update({
+      where: { id: existing.id },
+      data: payload,
+    });
+  }
+
+  return tx.organizerApplication.create({
+    data: {
+      userId: input.userId,
+      ...payload,
+    },
+  });
 }
 
 async function ensureParticipantForExperience(
@@ -406,7 +461,17 @@ export async function createExperienceSignup(input: CreateExperienceSignupInput)
       },
     });
 
-    return { user, experienceAccount, event };
+    // 主账号进入潜客池：创建/刷新待审正式申请（与直接注册同审）
+    const application = await upsertExperienceProspectApplication(tx, {
+      userId: user.id,
+      experienceAccountId: experienceAccount.id,
+      contactName,
+      companyName,
+      phone,
+      email,
+    });
+
+    return { user, experienceAccount, application, event };
   });
 
   const loginToken = crypto.randomUUID();
@@ -419,6 +484,7 @@ export async function createExperienceSignup(input: CreateExperienceSignupInput)
   return {
     userId: result.user.id,
     experienceAccountId: result.experienceAccount.id,
+    applicationId: result.application.id,
     eventId: result.event.id,
     eventName: result.event.name,
     expiresAt: result.experienceAccount.expiresAt.toISOString(),
@@ -655,6 +721,10 @@ export async function extendExperienceAccount(
   });
 }
 
+/**
+ * 体验转正：收敛到组织申请「审核通过」同一出口（创建正式组织 + 邮件/短信通知）。
+ * 不再绕过审核直建组织。
+ */
 export async function convertExperienceAccountToFormal(
   experienceAccountId: string,
   reviewerId: string,
@@ -667,7 +737,10 @@ export async function convertExperienceAccountToFormal(
 
   const record = await prisma.experienceAccount.findUnique({
     where: { id: experienceAccountId },
-    include: { user: true },
+    include: {
+      user: true,
+      application: true,
+    },
   });
   if (!record) {
     throw new ExperienceAccountError("体验账号不存在", "NOT_FOUND");
@@ -676,66 +749,54 @@ export async function convertExperienceAccountToFormal(
     throw new ExperienceAccountError("该体验账号已转为正式账号", "ALREADY_CONVERTED");
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const slug = await resolveUniqueOrgSlug(tx, orgName);
-
-    const org = await tx.organization.create({
-      data: {
-        name: orgName,
-        slug,
-        accountType: AccountType.ORGANIZATION,
-        contactEmail: record.user.email,
-        adminStatus: AdminStatus.APPROVED,
-        ownerId: record.userId,
-      },
-    });
-
-    await tx.orgStaff.create({
-      data: {
-        orgId: org.id,
-        userId: record.userId,
-        role: OrgStaffRole.OWNER,
-        status: InviteStatus.ACCEPTED,
-        acceptedAt: new Date(),
-      },
-    });
-
-    await tx.orgStaff.deleteMany({
+  let application =
+    record.application ??
+    (await prisma.organizerApplication.findFirst({
       where: {
         userId: record.userId,
-        orgId: record.orgId,
+        source: ApplicationSource.EXPERIENCE_DEMO,
+        status: ApplicationStatus.PENDING,
       },
-    });
+      orderBy: { submittedAt: "desc" },
+    }));
 
-    await tx.user.update({
-      where: { id: record.userId },
+  if (!application) {
+    application = await upsertExperienceProspectApplication(prisma, {
+      userId: record.userId,
+      experienceAccountId: record.id,
+      contactName: record.contactName || record.user.name,
+      companyName: orgName,
+      phone: record.phone,
+      email: record.user.email,
+    });
+  } else if (application.status !== ApplicationStatus.PENDING) {
+    throw new ExperienceAccountError(
+      "关联申请不在待审状态，请在「组织申请」中处理",
+      "INVALID_APPLICATION",
+    );
+  } else {
+    application = await prisma.organizerApplication.update({
+      where: { id: application.id },
       data: {
-        userType: UserType.ACCOUNT_ADMIN,
-        orgId: org.id,
+        orgName,
+        experienceAccountId: record.id,
+        source: ApplicationSource.EXPERIENCE_DEMO,
       },
     });
+  }
 
-    await grantOrgAdminRoles(tx, record.userId);
-
-    const updated = await tx.experienceAccount.update({
-      where: { id: record.id },
-      data: {
-        status: ExperienceAccountStatus.CONVERTED,
-        convertedAt: new Date(),
-        convertedByUserId: reviewerId,
-        convertedOrgId: org.id,
-        platformNotes: input.notes?.trim() || record.platformNotes,
-      },
-    });
-
-    return { org, experienceAccount: updated };
-  });
+  const approved = await approveApplication(
+    application.id,
+    reviewerId,
+    input.notes,
+  );
 
   return {
-    orgId: result.org.id,
-    orgName: result.org.name,
-    orgSlug: result.org.slug,
-    experienceAccountId: result.experienceAccount.id,
+    orgId: approved.orgId,
+    orgName: approved.orgName,
+    orgSlug: approved.orgSlug,
+    experienceAccountId: record.id,
+    applicationId: approved.applicationId,
   };
 }
 

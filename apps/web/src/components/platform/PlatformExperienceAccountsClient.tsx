@@ -359,12 +359,13 @@ export function PlatformExperienceAccountsClient() {
       <Dialog open={!!convertTarget} onOpenChange={() => setConvertTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>转为正式账号</DialogTitle>
+            <DialogTitle>审核通过并转正</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-text-muted">
-              将为 {convertTarget?.contactName ?? convertTarget?.user.name}{" "}
-              创建正式组织并移除演示环境权限。
+              将按「组织申请」同一流程审核通过：为{" "}
+              {convertTarget?.contactName ?? convertTarget?.user.name}{" "}
+              创建正式组织、移除 Demo 权限，并发送邮件/短信通知。
             </p>
             <div className="space-y-2">
               <Label htmlFor="org-name">正式组织名称</Label>

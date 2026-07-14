@@ -126,7 +126,7 @@ export function ExperienceSignupForm() {
       return;
     }
 
-    toast.success("体验账号已开通，正在进入演示展会…");
+    toast.success("体验已开通并进入潜客待审，正在进入演示展会…");
     await redirectAfterLogin(json.data.eventId as string);
   });
 
@@ -192,7 +192,7 @@ export function ExperienceSignupForm() {
           </Link>
         </p>
         <p className="mt-2 text-center text-xs text-text-tertiary">
-          体验账号不支持批量邮件/短信邀请与发布活动；可邀请同事一起测试展位功能
+          体验不支持批量邀请与创建/发布活动；已同步进入平台潜客待审，审核通过后转正并可付费使用
         </p>
       </CardContent>
     </Card>

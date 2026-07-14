@@ -110,30 +110,44 @@ function buildMessageContext(record: RecordWithRelations) {
   };
 }
 
+function getInviteTemplateId(record: RecordWithRelations) {
+  const fromCampaign = record.campaign.templateId?.trim();
+  if (fromCampaign) return fromCampaign;
+  return (
+    process.env.WX_TMPL_INVITE?.trim() ||
+    process.env.WX_TMPL_MEETING_INVITE?.trim() ||
+    ""
+  );
+}
+
 export async function sendSMS(
   destination: string,
   message: string,
   templateParam?: Record<string, string>,
+  options?: { tag?: string },
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { isAliyunSmsConfigured, sendAliyunSms } = await import(
-    "@/lib/aliyun-sms"
-  );
-  if (
-    !isAliyunSmsConfigured("ALIYUN_SMS_INVITE_TEMPLATE_CODE") &&
-    !isAliyunSmsConfigured()
-  ) {
-    console.info("[SMS DEV]", { destination, message });
-    return { success: true, messageId: `dev-sms-${Date.now()}` };
+  const { sendSmsContent, resolveSmsProvider } = await import("@/lib/sms");
+  const { sendSubmailXSend } = await import("@/lib/submail-sms");
+
+  // 可选：赛邮邀请专用模板（XSend）；否则走正文 SMS/Send
+  const inviteProject = process.env.SUBMAIL_PROJECT_INVITE?.trim();
+  if (resolveSmsProvider() === "submail" && inviteProject && templateParam) {
+    return sendSubmailXSend({
+      phone: destination,
+      project: inviteProject,
+      vars: templateParam,
+      tag: options?.tag,
+    });
   }
 
-  const inviteTemplate = process.env.ALIYUN_SMS_INVITE_TEMPLATE_CODE?.trim();
-  return sendAliyunSms({
+  return sendSmsContent({
     phone: destination,
-    templateEnv: inviteTemplate
+    content: message,
+    tag: options?.tag,
+    aliyunTemplateEnv: process.env.ALIYUN_SMS_INVITE_TEMPLATE_CODE?.trim()
       ? "ALIYUN_SMS_INVITE_TEMPLATE_CODE"
       : undefined,
-    templateCode: inviteTemplate || undefined,
-    templateParam: templateParam ?? {
+    aliyunTemplateParam: templateParam ?? {
       name: "嘉宾",
       event: message.slice(0, 20),
     },
@@ -188,25 +202,52 @@ export async function sendWechatTemplateMessage(
 async function dispatchRecord(record: RecordWithRelations) {
   const template = record.campaign.customMessage ?? "";
   const ctx = buildMessageContext(record);
-  const message = resolveInviteMessage(template, ctx);
+  let message = resolveInviteMessage(template, ctx);
 
   switch (record.channel) {
-    case InviteChannel.SMS:
-      return sendSMS(record.destination, message, {
-        name: ctx.name.slice(0, 20),
-        event: ctx.eventName.slice(0, 20),
-      });
+    case InviteChannel.SMS: {
+      const { appendMarketingSmsSuffix, isInviteDestinationBlocked } =
+        await import("@/lib/invite/blocklist");
+      const orgId = await prisma.event
+        .findUnique({
+          where: { id: record.campaign.eventId },
+          select: { orgId: true },
+        })
+        .then((e) => e?.orgId);
+      if (
+        await isInviteDestinationBlocked({
+          destination: record.destination,
+          channel: InviteChannel.SMS,
+          eventId: record.campaign.eventId,
+          orgId,
+        })
+      ) {
+        return { success: false, error: "已退订或在黑名单中" };
+      }
+      message = appendMarketingSmsSuffix(message);
+      return sendSMS(
+        record.destination,
+        message,
+        {
+          name: ctx.name.slice(0, 20),
+          event: ctx.eventName.slice(0, 20),
+        },
+        { tag: record.id },
+      );
+    }
     case InviteChannel.EMAIL:
       return sendEmail(
         record,
         record.campaign.subject ?? `您已受邀参加 ${ctx.eventName}`,
         message,
       );
-    case InviteChannel.WECHAT:
-      return sendWechatTemplateMessage(
-        record,
-        record.campaign.templateId ?? "default_invite",
-      );
+    case InviteChannel.WECHAT: {
+      const tmpl = getInviteTemplateId(record);
+      if (!tmpl) {
+        return { success: false, error: "未配置微信模板 ID" };
+      }
+      return sendWechatTemplateMessage(record, tmpl);
+    }
     default:
       return { success: false, error: "未知渠道" };
   }
@@ -320,20 +361,29 @@ async function processClaimedRecords(
 
 /** 处理单个 campaign 的待发队列（可被 API 立即触发，也可被 Cron 调用） */
 export async function processSendQueue(campaignId: string) {
-  const campaign = await prisma.inviteCampaign.findUnique({
+  let campaign = await prisma.inviteCampaign.findUnique({
     where: { id: campaignId },
   });
   if (!campaign) return { processed: 0 };
 
+  if (
+    campaign.status === InviteCampaignStatus.PAUSED ||
+    campaign.status === InviteCampaignStatus.CREATING ||
+    campaign.status === InviteCampaignStatus.DRAFT ||
+    campaign.status === InviteCampaignStatus.SENT
+  ) {
+    return { processed: 0, skipped: true as const };
+  }
+
   if (campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now()) {
-    return { processed: 0, scheduled: true as const };
+    return { processed: 0, skipped: true as const };
   }
 
   if (
     campaign.status === InviteCampaignStatus.SCHEDULED &&
     (!campaign.scheduledAt || campaign.scheduledAt.getTime() <= Date.now())
   ) {
-    await prisma.inviteCampaign.update({
+    campaign = await prisma.inviteCampaign.update({
       where: { id: campaignId },
       data: {
         status: InviteCampaignStatus.SENDING,
@@ -351,6 +401,12 @@ export async function processSendQueue(campaignId: string) {
 
   let processed = 0;
   for (let i = 0; i < MAX_BATCHES_PER_RUN; i += 1) {
+    const latest = await prisma.inviteCampaign.findUnique({
+      where: { id: campaignId },
+      select: { status: true },
+    });
+    if (latest?.status === InviteCampaignStatus.PAUSED) break;
+
     const claimedIds = await claimPendingBatch(campaignId);
     if (claimedIds.length === 0) break;
 
@@ -382,6 +438,7 @@ export async function processDueInviteCampaigns(options?: {
           status: InviteCampaignStatus.SCHEDULED,
           scheduledAt: { lte: now },
         },
+        // CREATING 卡住兜底：由 prepare 异步构建，Cron 不强行发送
       ],
     },
     select: { id: true },

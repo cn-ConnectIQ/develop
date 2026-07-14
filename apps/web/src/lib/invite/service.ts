@@ -3,13 +3,21 @@ import {
   InviteChannel,
   InviteRecordStatus,
   ParticipantInviteStatus,
+  ParticipantSource,
   prisma,
   type Prisma,
 } from "@connectiq/database";
-import type { TargetFilterInput } from "@/lib/invite/schemas";
+import type {
+  ImportContactInput,
+  TargetFilterInput,
+} from "@/lib/invite/schemas";
 import { computeTokenExpiresAt } from "@/lib/invite/message";
+import { isInviteDestinationBlocked } from "@/lib/invite/blocklist";
 
 export type TargetFilter = TargetFilterInput;
+
+/** 超过此人数走异步 CREATING，避免卡住 HTTP */
+export const INVITE_ASYNC_BUILD_THRESHOLD = 80;
 
 export function parseTargetFilter(value: unknown): TargetFilter {
   if (!value || typeof value !== "object") return { exclude_activated: true };
@@ -59,6 +67,7 @@ export async function findTargetParticipants(
       ? { id: { in: filter.participant_ids } }
       : {}),
     ...(filter.roles?.length ? { role: { in: filter.roles } } : {}),
+    ...(filter.tags?.length ? { tags: { hasSome: filter.tags } } : {}),
     ...(filter.invite_status?.length
       ? { inviteStatus: { in: filter.invite_status } }
       : excludeActivated
@@ -87,6 +96,48 @@ export async function findTargetParticipants(
   });
 }
 
+/** Excel 导入联系人 → 按手机/邮箱匹配或新建 Participant */
+export async function ensureImportParticipants(
+  eventId: string,
+  contacts: ImportContactInput[],
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (const row of contacts) {
+    const phone = row.phone?.trim() || null;
+    const email = row.email?.trim() || null;
+    if (!phone && !email) continue;
+
+    const existing = await prisma.participant.findFirst({
+      where: {
+        eventId,
+        OR: [
+          ...(phone ? [{ phone }] : []),
+          ...(email ? [{ email }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      ids.push(existing.id);
+      continue;
+    }
+
+    const created = await prisma.participant.create({
+      data: {
+        eventId,
+        name: row.name?.trim() || phone || email || "导入联系人",
+        phone,
+        email,
+        company: row.company?.trim() || null,
+        source: ParticipantSource.IMPORT,
+      },
+      select: { id: true },
+    });
+    ids.push(created.id);
+  }
+  return ids;
+}
+
 export async function resolveDestination(
   participant: { id: string; phone: string | null; email: string | null },
   channel: InviteChannel,
@@ -98,55 +149,75 @@ export async function resolveDestination(
     return participant.email?.trim() || null;
   }
   if (channel === InviteChannel.WECHAT) {
-    if (!participant.phone) return null;
-    const user = await prisma.user.findFirst({
-      where: { phone: participant.phone },
-      include: {
-        identities: {
-          where: { provider: "wechat", verified: true },
-          take: 1,
+    const providers = ["wechat", "wechat_mp", "wechat_oa", "wx_mp"];
+    if (participant.phone) {
+      const byPhone = await prisma.user.findFirst({
+        where: { phone: participant.phone },
+        include: {
+          identities: {
+            where: { provider: { in: providers }, verified: true },
+            take: 1,
+          },
         },
-      },
-    });
-    return user?.identities[0]?.value ?? null;
+      });
+      if (byPhone?.identities[0]?.value) return byPhone.identities[0].value;
+    }
+    if (participant.email) {
+      const byEmail = await prisma.user.findFirst({
+        where: { email: participant.email },
+        include: {
+          identities: {
+            where: { provider: { in: providers }, verified: true },
+            take: 1,
+          },
+        },
+      });
+      if (byEmail?.identities[0]?.value) return byEmail.identities[0].value;
+    }
+    return null;
   }
   return null;
 }
 
-export async function prepareCampaignSend(campaignId: string) {
+type BuildResult = {
+  queued: number;
+  skipped: number;
+  totalTarget: number;
+  isScheduled: boolean;
+  building?: boolean;
+};
+
+async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
   const campaign = await prisma.inviteCampaign.findUnique({
     where: { id: campaignId },
     include: {
       event: {
-        select: {
-          id: true,
-          endDate: true,
-        },
+        select: { id: true, endDate: true, orgId: true },
       },
     },
   });
-
-  if (!campaign) {
-    throw new Error("CAMPAIGN_NOT_FOUND");
-  }
-
-  if (
-    campaign.status === InviteCampaignStatus.SENDING ||
-    campaign.status === InviteCampaignStatus.SENT
-  ) {
-    throw new Error("CAMPAIGN_ALREADY_SENT");
-  }
+  if (!campaign) throw new Error("CAMPAIGN_NOT_FOUND");
 
   const filter = parseTargetFilter(campaign.targetFilter);
-  const participants = await findTargetParticipants(campaign.eventId, filter);
 
+  if (filter.import_contacts?.length) {
+    const importedIds = await ensureImportParticipants(
+      campaign.eventId,
+      filter.import_contacts,
+    );
+    filter.participant_ids = [
+      ...new Set([...(filter.participant_ids ?? []), ...importedIds]),
+    ];
+  }
+
+  const participants = await findTargetParticipants(campaign.eventId, filter);
   const existingRecords = await prisma.inviteRecord.findMany({
     where: { campaignId },
     select: { participantId: true },
   });
   const existingSet = new Set(existingRecords.map((r) => r.participantId));
-
   const tokenExpiresAt = computeTokenExpiresAt(campaign.event.endDate);
+
   let queued = 0;
   let skipped = 0;
 
@@ -154,7 +225,6 @@ export async function prepareCampaignSend(campaignId: string) {
     if (existingSet.has(participant.id)) continue;
 
     const destination = await resolveDestination(participant, campaign.channel);
-
     if (!destination) {
       await prisma.inviteRecord.create({
         data: {
@@ -164,7 +234,32 @@ export async function prepareCampaignSend(campaignId: string) {
           destination: "",
           tokenExpiresAt,
           status: InviteRecordStatus.SKIPPED,
-          errorMessage: "缺少有效联系方式",
+          errorMessage:
+            campaign.channel === InviteChannel.WECHAT
+              ? "缺少微信 OpenID"
+              : "缺少有效联系方式",
+        },
+      });
+      skipped += 1;
+      continue;
+    }
+
+    const blocked = await isInviteDestinationBlocked({
+      destination,
+      channel: campaign.channel,
+      eventId: campaign.eventId,
+      orgId: campaign.event.orgId,
+    });
+    if (blocked) {
+      await prisma.inviteRecord.create({
+        data: {
+          campaignId,
+          participantId: participant.id,
+          channel: campaign.channel,
+          destination,
+          tokenExpiresAt,
+          status: InviteRecordStatus.SKIPPED,
+          errorMessage: "已退订或在黑名单中",
         },
       });
       skipped += 1;
@@ -185,40 +280,38 @@ export async function prepareCampaignSend(campaignId: string) {
   }
 
   const totalTarget = queued + skipped;
-  const isScheduled =
-    campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now();
+  const isScheduled = Boolean(
+    campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now(),
+  );
 
   if (
     queued > 0 &&
     (campaign.channel === InviteChannel.SMS ||
-      campaign.channel === InviteChannel.EMAIL)
+      campaign.channel === InviteChannel.EMAIL) &&
+    campaign.event.orgId
   ) {
-    const eventOrg = await prisma.event.findUnique({
-      where: { id: campaign.eventId },
-      select: { orgId: true },
-    });
-    if (eventOrg?.orgId) {
-      const { assertInviteChannelBalance } = await import(
-        "@/lib/billing/billing-guards"
-      );
-      try {
-        await assertInviteChannelBalance({
-          orgId: eventOrg.orgId,
-          channel: campaign.channel,
-          count: queued,
-        });
-      } catch (err) {
-        // 预检失败：已写入的 PENDING 记录改为 SKIPPED，避免队列空跑
-        await prisma.inviteRecord.updateMany({
-          where: { campaignId, status: InviteRecordStatus.PENDING },
-          data: {
-            status: InviteRecordStatus.SKIPPED,
-            errorMessage:
-              err instanceof Error ? err.message : "额度不足",
-          },
-        });
-        throw err;
-      }
+    const { assertInviteChannelBalance } = await import(
+      "@/lib/billing/billing-guards"
+    );
+    try {
+      await assertInviteChannelBalance({
+        orgId: campaign.event.orgId,
+        channel: campaign.channel,
+        count: queued,
+      });
+    } catch (err) {
+      await prisma.inviteRecord.updateMany({
+        where: { campaignId, status: InviteRecordStatus.PENDING },
+        data: {
+          status: InviteRecordStatus.SKIPPED,
+          errorMessage: err instanceof Error ? err.message : "额度不足",
+        },
+      });
+      await prisma.inviteCampaign.update({
+        where: { id: campaignId },
+        data: { status: InviteCampaignStatus.FAILED, totalTarget },
+      });
+      throw err;
     }
   }
 
@@ -233,7 +326,138 @@ export async function prepareCampaignSend(campaignId: string) {
     },
   });
 
-  return { queued, skipped, totalTarget, isScheduled: !!isScheduled };
+  return { queued, skipped, totalTarget, isScheduled };
+}
+
+/**
+ * 准备发送：小批量同步建明细；大批量先标 CREATING 再异步展开。
+ */
+export async function prepareCampaignSend(
+  campaignId: string,
+): Promise<BuildResult> {
+  const campaign = await prisma.inviteCampaign.findUnique({
+    where: { id: campaignId },
+  });
+  if (!campaign) throw new Error("CAMPAIGN_NOT_FOUND");
+
+  if (
+    campaign.status === InviteCampaignStatus.SENDING ||
+    campaign.status === InviteCampaignStatus.SENT ||
+    campaign.status === InviteCampaignStatus.CREATING
+  ) {
+    throw new Error(
+      campaign.status === InviteCampaignStatus.CREATING
+        ? "CAMPAIGN_BUILDING"
+        : "CAMPAIGN_ALREADY_SENT",
+    );
+  }
+
+  if (campaign.status === InviteCampaignStatus.PAUSED) {
+    throw new Error("CAMPAIGN_PAUSED");
+  }
+
+  const filter = parseTargetFilter(campaign.targetFilter);
+  let estimate = 0;
+  if (filter.import_contacts?.length) {
+    estimate += filter.import_contacts.length;
+  }
+  if (filter.participant_ids?.length) {
+    estimate = Math.max(estimate, filter.participant_ids.length);
+  }
+  if (estimate < INVITE_ASYNC_BUILD_THRESHOLD) {
+    const quick = await findTargetParticipants(campaign.eventId, filter);
+    estimate = Math.max(estimate, quick.length);
+  }
+
+  if (estimate >= INVITE_ASYNC_BUILD_THRESHOLD) {
+    await prisma.inviteCampaign.update({
+      where: { id: campaignId },
+      data: {
+        status: InviteCampaignStatus.CREATING,
+        totalTarget: estimate,
+      },
+    });
+
+    setImmediate(() => {
+      void buildCampaignRecords(campaignId)
+        .then(async (result) => {
+          if (!result.isScheduled && result.queued > 0) {
+            const { triggerInviteProcessing } = await import(
+              "@/lib/invite/queue"
+            );
+            await triggerInviteProcessing(campaignId);
+          }
+        })
+        .catch(async (err) => {
+          console.error("[invite] async build failed", campaignId, err);
+          await prisma.inviteCampaign
+            .update({
+              where: { id: campaignId },
+              data: { status: InviteCampaignStatus.FAILED },
+            })
+            .catch(() => undefined);
+        });
+    });
+
+    return {
+      queued: 0,
+      skipped: 0,
+      totalTarget: estimate,
+      isScheduled: Boolean(
+        campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now(),
+      ),
+      building: true,
+    };
+  }
+
+  return buildCampaignRecords(campaignId);
+}
+
+export async function pauseInviteCampaign(campaignId: string) {
+  const campaign = await prisma.inviteCampaign.findUnique({
+    where: { id: campaignId },
+  });
+  if (!campaign) throw new Error("CAMPAIGN_NOT_FOUND");
+  if (
+    campaign.status !== InviteCampaignStatus.SENDING &&
+    campaign.status !== InviteCampaignStatus.SCHEDULED &&
+    campaign.status !== InviteCampaignStatus.CREATING
+  ) {
+    throw new Error("CAMPAIGN_NOT_PAUSABLE");
+  }
+  return prisma.inviteCampaign.update({
+    where: { id: campaignId },
+    data: { status: InviteCampaignStatus.PAUSED },
+  });
+}
+
+export async function resumeInviteCampaign(campaignId: string) {
+  const campaign = await prisma.inviteCampaign.findUnique({
+    where: { id: campaignId },
+  });
+  if (!campaign) throw new Error("CAMPAIGN_NOT_FOUND");
+  if (campaign.status !== InviteCampaignStatus.PAUSED) {
+    throw new Error("CAMPAIGN_NOT_PAUSED");
+  }
+
+  const isScheduled = Boolean(
+    campaign.scheduledAt && campaign.scheduledAt.getTime() > Date.now(),
+  );
+  const updated = await prisma.inviteCampaign.update({
+    where: { id: campaignId },
+    data: {
+      status: isScheduled
+        ? InviteCampaignStatus.SCHEDULED
+        : InviteCampaignStatus.SENDING,
+      startedAt: campaign.startedAt ?? new Date(),
+    },
+  });
+
+  if (!isScheduled) {
+    const { triggerInviteProcessing } = await import("@/lib/invite/queue");
+    await triggerInviteProcessing(campaignId);
+  }
+  return updated;
 }
 
 export async function retryFailedRecords(campaignId: string) {
@@ -313,6 +537,18 @@ export async function refreshCampaignStats(campaignId: string) {
     ]);
 
   const inFlight = pending + sending;
+  const current = await prisma.inviteCampaign.findUnique({
+    where: { id: campaignId },
+    select: { status: true },
+  });
+  const canComplete =
+    inFlight === 0 &&
+    current &&
+    current.status !== InviteCampaignStatus.PAUSED &&
+    current.status !== InviteCampaignStatus.DRAFT &&
+    current.status !== InviteCampaignStatus.CREATING &&
+    current.status !== InviteCampaignStatus.SCHEDULED;
+
   const campaign = await prisma.inviteCampaign.update({
     where: { id: campaignId },
     data: {
@@ -321,7 +557,7 @@ export async function refreshCampaignStats(campaignId: string) {
       clickedCount: clicked,
       activatedCount: activated,
       failedCount: failed,
-      ...(inFlight === 0
+      ...(canComplete
         ? {
             status: InviteCampaignStatus.SENT,
             completedAt: new Date(),
@@ -392,7 +628,11 @@ export async function getCampaignProgress(eventId: string, campaignId: string) {
   let campaign = await getCampaignForEvent(eventId, campaignId);
   if (!campaign) return null;
 
-  if (campaign.status === InviteCampaignStatus.SENDING) {
+  if (
+    campaign.status === InviteCampaignStatus.SENDING ||
+    campaign.status === InviteCampaignStatus.CREATING ||
+    campaign.status === InviteCampaignStatus.PAUSED
+  ) {
     await refreshCampaignStats(campaignId);
     campaign = await getCampaignForEvent(eventId, campaignId);
     if (!campaign) return null;
@@ -403,7 +643,12 @@ export async function getCampaignProgress(eventId: string, campaignId: string) {
   });
 
   const pendingCount = await prisma.inviteRecord.count({
-    where: { campaignId, status: InviteRecordStatus.PENDING },
+    where: {
+      campaignId,
+      status: {
+        in: [InviteRecordStatus.PENDING, InviteRecordStatus.SENDING],
+      },
+    },
   });
 
   let estimatedCompletion: Date | null = null;

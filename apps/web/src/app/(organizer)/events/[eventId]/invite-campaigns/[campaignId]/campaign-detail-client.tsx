@@ -32,6 +32,8 @@ import {
 import {
   useInviteCampaignProgress,
   useInviteRecords,
+  usePauseInviteCampaign,
+  useResumeInviteCampaign,
   useRetryInviteCampaign,
   type InviteCampaignProgress,
 } from "@/hooks/useInviteCampaigns";
@@ -51,7 +53,9 @@ const CHANNEL_CLASS: Record<InviteChannel, string> = {
 
 const STATUS_LABEL: Record<InviteCampaignStatus, string> = {
   DRAFT: "草稿",
+  CREATING: "准备中",
   SENDING: "发送中",
+  PAUSED: "已暂停",
   SENT: "已完成",
   FAILED: "失败",
   SCHEDULED: "已定时",
@@ -59,7 +63,9 @@ const STATUS_LABEL: Record<InviteCampaignStatus, string> = {
 
 const STATUS_CLASS: Record<InviteCampaignStatus, string> = {
   DRAFT: "bg-gray-100 text-text-muted",
+  CREATING: "bg-brand-amber-light text-brand-amber",
   SENDING: "bg-brand-blue-light text-brand-blue",
+  PAUSED: "bg-brand-purple-light text-brand-purple",
   SENT: "bg-brand-green-light text-brand-green",
   FAILED: "bg-brand-red-light text-brand-red",
   SCHEDULED: "bg-brand-purple-light text-brand-purple",
@@ -74,6 +80,7 @@ const RECORD_TABS = [
 
 const RECORD_STATUS: Record<string, { label: string; className: string }> = {
   PENDING: { label: "待发送", className: "bg-gray-100 text-text-muted" },
+  SENDING: { label: "发送中", className: "bg-brand-amber-light text-brand-amber" },
   SENT: { label: "已发送", className: "bg-brand-blue-light text-brand-blue" },
   DELIVERED: { label: "已送达", className: "bg-brand-blue-light text-brand-blue" },
   CLICKED: { label: "已点击", className: "bg-brand-green-light text-brand-green" },
@@ -122,7 +129,9 @@ export function CampaignDetailClient({
     eventId,
     campaignId,
   );
-  const isSending = progress?.status === InviteCampaignStatus.SENDING;
+  const isSending =
+    progress?.status === InviteCampaignStatus.SENDING ||
+    progress?.status === InviteCampaignStatus.CREATING;
 
   const { data: recordsData, isLoading: recordsLoading } = useInviteRecords(
     eventId,
@@ -132,6 +141,8 @@ export function CampaignDetailClient({
   );
 
   const retryMutation = useRetryInviteCampaign(eventId);
+  const pauseMutation = usePauseInviteCampaign(eventId);
+  const resumeMutation = useResumeInviteCampaign(eventId);
 
   async function handleRetryAll() {
     try {
@@ -139,6 +150,24 @@ export function CampaignDetailClient({
       toast.success(`已重试 ${result.retried} 条失败记录`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "重试失败");
+    }
+  }
+
+  async function handlePause() {
+    try {
+      await pauseMutation.mutateAsync(campaignId);
+      toast.success("已暂停发送");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "暂停失败");
+    }
+  }
+
+  async function handleResume() {
+    try {
+      await resumeMutation.mutateAsync(campaignId);
+      toast.success("已继续发送");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "继续发送失败");
     }
   }
 
@@ -165,16 +194,52 @@ export function CampaignDetailClient({
         >
           ← 邀请管理
         </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-bold text-[var(--admin-ink)]">
-            {progress.name}
-          </h1>
-          <Badge className={CHANNEL_CLASS[progress.channel]}>
-            {CHANNEL_LABEL[progress.channel]}
-          </Badge>
-          <Badge className={STATUS_CLASS[progress.status]}>
-            {STATUS_LABEL[progress.status]}
-          </Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold text-[var(--admin-ink)]">
+              {progress.name}
+            </h1>
+            <Badge className={CHANNEL_CLASS[progress.channel]}>
+              {CHANNEL_LABEL[progress.channel]}
+            </Badge>
+            <Badge className={STATUS_CLASS[progress.status]}>
+              {STATUS_LABEL[progress.status]}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(progress.status === InviteCampaignStatus.SENDING ||
+              progress.status === InviteCampaignStatus.CREATING ||
+              progress.status === InviteCampaignStatus.SCHEDULED) && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pauseMutation.isPending}
+                onClick={() => void handlePause()}
+              >
+                暂停
+              </Button>
+            )}
+            {progress.status === InviteCampaignStatus.PAUSED && (
+              <Button
+                size="sm"
+                disabled={resumeMutation.isPending}
+                onClick={() => void handleResume()}
+              >
+                继续发送
+              </Button>
+            )}
+            {(progress.failed_count ?? 0) > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={retryMutation.isPending}
+                onClick={() => void handleRetryAll()}
+              >
+                <RotateCcw className="mr-1 size-3.5" />
+                重试失败
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 

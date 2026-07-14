@@ -37,7 +37,9 @@ const CHANNEL_CLASS: Record<InviteChannel, string> = {
 
 const STATUS_LABEL: Record<InviteCampaignStatus, string> = {
   DRAFT: "草稿",
+  CREATING: "准备中",
   SENDING: "发送中",
+  PAUSED: "已暂停",
   SENT: "已完成",
   FAILED: "失败",
   SCHEDULED: "已定时",
@@ -45,7 +47,9 @@ const STATUS_LABEL: Record<InviteCampaignStatus, string> = {
 
 const STATUS_CLASS: Record<InviteCampaignStatus, string> = {
   DRAFT: "bg-gray-100 text-text-muted",
+  CREATING: "bg-brand-amber-light text-brand-amber",
   SENDING: "bg-brand-blue-light text-brand-blue",
+  PAUSED: "bg-brand-purple-light text-brand-purple",
   SENT: "bg-brand-green-light text-brand-green",
   FAILED: "bg-brand-red-light text-brand-red",
   SCHEDULED: "bg-brand-purple-light text-brand-purple",

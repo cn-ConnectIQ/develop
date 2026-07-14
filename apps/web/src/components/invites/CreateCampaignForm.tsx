@@ -41,7 +41,14 @@ import {
 import { formatEventDate } from "@/lib/invite/message";
 import { cn } from "@/lib/utils";
 
-type TargetMode = "all" | "not_invited" | "custom";
+type TargetMode = "all" | "not_invited" | "custom" | "import";
+
+type ImportContactRow = {
+  name?: string;
+  phone?: string;
+  email?: string;
+  company?: string;
+};
 
 export type CreateCampaignCloneFrom = {
   name: string;
@@ -130,9 +137,48 @@ export function CreateCampaignForm({
   const [previewChannel, setPreviewChannel] = useState<InviteChannel>(
     InviteChannel.SMS,
   );
+  const [importContacts, setImportContacts] = useState<ImportContactRow[]>([]);
+  const [tagFilterText, setTagFilterText] = useState("");
 
   const createMutation = useCreateInviteCampaign(eventId);
   const sendMutation = useSendInviteCampaign(eventId);
+
+  async function handleImportFile(file: File | null) {
+    if (!file) return;
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]!];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+        defval: "",
+      });
+      const mapped: ImportContactRow[] = rows
+        .map((row) => {
+          const get = (...keys: string[]) => {
+            for (const k of keys) {
+              const hit = Object.entries(row).find(
+                ([key]) => key.trim().toLowerCase() === k.toLowerCase(),
+              );
+              if (hit && String(hit[1]).trim()) return String(hit[1]).trim();
+            }
+            return undefined;
+          };
+          return {
+            name: get("name", "姓名", "名字"),
+            phone: get("phone", "mobile", "手机", "手机号", "电话"),
+            email: get("email", "邮箱", "邮件"),
+            company: get("company", "公司", "单位"),
+          };
+        })
+        .filter((r) => r.phone || r.email);
+      setImportContacts(mapped);
+      setTargetMode("import");
+      toast.success(`已解析 ${mapped.length} 条联系人`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Excel 解析失败");
+    }
+  }
 
   useEffect(() => {
     if (initialParticipantIds?.length) {
@@ -153,6 +199,7 @@ export function CreateCampaignForm({
   }, [cloneFrom]);
 
   const estimatedCount = useMemo(() => {
+    if (importContacts.length) return importContacts.length;
     if (initialParticipantIds?.length) return initialParticipantIds.length;
     if (targetMode === "not_invited") return stats.notInvited;
     if (targetMode === "all") {
@@ -164,7 +211,13 @@ export function CreateCampaignForm({
       excludeActivated ? stats.total - stats.activated : stats.total,
       0,
     );
-  }, [initialParticipantIds, targetMode, stats, excludeActivated]);
+  }, [
+    importContacts.length,
+    initialParticipantIds,
+    targetMode,
+    stats,
+    excludeActivated,
+  ]);
 
   const previewContext = {
     name: "张三",
@@ -172,9 +225,24 @@ export function CreateCampaignForm({
     eventDate,
     link: "https://app.connectiq.cn/join?token=preview",
     organizer: organizerName,
+    location: "活动现场",
   };
 
+  function parseTagFilter() {
+    return tagFilterText
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+
   function buildTargetFilter() {
+    const tags = parseTagFilter();
+    if (targetMode === "import" || importContacts.length) {
+      return {
+        import_contacts: importContacts,
+        exclude_activated: excludeActivated,
+      };
+    }
     if (initialParticipantIds?.length) {
       return {
         participant_ids: initialParticipantIds,
@@ -182,12 +250,16 @@ export function CreateCampaignForm({
       };
     }
     if (targetMode === "all") {
-      return { exclude_activated: excludeActivated };
+      return {
+        exclude_activated: excludeActivated,
+        ...(tags.length ? { tags } : {}),
+      };
     }
     if (targetMode === "not_invited") {
       return {
         invite_status: [ParticipantInviteStatus.NOT_INVITED],
         exclude_activated: excludeActivated,
+        ...(tags.length ? { tags } : {}),
       };
     }
     return {
@@ -195,6 +267,7 @@ export function CreateCampaignForm({
         ? { ticket_types: selectedTicketTypes }
         : {}),
       ...(selectedRoles.length ? { roles: selectedRoles } : {}),
+      ...(tags.length ? { tags } : {}),
       exclude_activated: excludeActivated,
     };
   }
@@ -236,8 +309,17 @@ export function CreateCampaignForm({
             : null,
       });
       if (sendMode === "now") {
-        await sendMutation.mutateAsync(campaign.id);
-        toast.success(`已向 ${estimatedCount} 位参会者发送邀请`);
+        const sendResult = await sendMutation.mutateAsync(campaign.id);
+        if (
+          sendResult &&
+          typeof sendResult === "object" &&
+          "building" in sendResult &&
+          (sendResult as { building?: boolean }).building
+        ) {
+          toast.success("正在后台准备收件人，准备完成后将自动发送");
+        } else {
+          toast.success(`已向约 ${estimatedCount} 位参会者发起邀请`);
+        }
       } else {
         toast.success("定时发送已安排");
       }
@@ -421,6 +503,17 @@ export function CreateCampaignForm({
 
         <section className="space-y-4 rounded-xl border border-border-light bg-white p-6">
           <h4 className="text-sm font-semibold">发送目标</h4>
+          {targetMode !== "import" && (
+            <div className="space-y-2">
+              <Label htmlFor="tag-filter">按标签筛选（可选）</Label>
+              <Input
+                id="tag-filter"
+                placeholder="VIP, 媒体（逗号分隔，命中任一）"
+                value={tagFilterText}
+                onChange={(e) => setTagFilterText(e.target.value)}
+              />
+            </div>
+          )}
           <div className="space-y-2">
             {(
               [
@@ -436,6 +529,12 @@ export function CreateCampaignForm({
                 {
                   id: "custom" as const,
                   label: "自定义筛选",
+                },
+                {
+                  id: "import" as const,
+                  label: importContacts.length
+                    ? `Excel 导入（${importContacts.length} 人）`
+                    : "Excel 导入联系人",
                 },
               ] as const
             ).map((opt) => (
@@ -462,6 +561,31 @@ export function CreateCampaignForm({
               </label>
             ))}
           </div>
+
+          {targetMode === "import" && (
+            <div className="space-y-3 rounded-lg border border-border-light p-3">
+              <div className="space-y-2">
+                <Label htmlFor="invite-import-file">上传 Excel / CSV</Label>
+                <Input
+                  id="invite-import-file"
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="cursor-pointer text-xs"
+                  onChange={(e) =>
+                    void handleImportFile(e.target.files?.[0] ?? null)
+                  }
+                />
+                <p className="text-[11px] text-text-muted">
+                  表头支持：姓名/name、手机/phone、邮箱/email、公司/company
+                </p>
+              </div>
+              {importContacts.length > 0 && (
+                <p className="text-xs text-brand-green">
+                  已载入 {importContacts.length} 条，发送时会自动匹配或新建参会者
+                </p>
+              )}
+            </div>
+          )}
 
           {targetMode === "custom" && !initialParticipantIds?.length && (
             <div className="space-y-3 rounded-lg border border-border-light p-3">

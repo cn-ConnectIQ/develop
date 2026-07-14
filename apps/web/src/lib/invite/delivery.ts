@@ -130,6 +130,30 @@ export async function applyInviteDeliveryEvent(input: {
     });
   }
 
+  if (
+    (input.event === "permanently_failed" || input.event === "complained") &&
+    record.destination
+  ) {
+    const campaign = await prisma.inviteCampaign.findUnique({
+      where: { id: record.campaignId },
+      select: { eventId: true, event: { select: { orgId: true } } },
+    });
+    if (campaign) {
+      const { upsertInviteBlock } = await import("@/lib/invite/blocklist");
+      await upsertInviteBlock({
+        destination: record.destination,
+        channel: record.channel,
+        eventId: campaign.eventId,
+        orgId: campaign.event.orgId,
+        reason:
+          input.event === "complained" ? "COMPLAINED" : "HARD_BOUNCE",
+        note: input.errorMessage,
+      }).catch((err) =>
+        console.warn("[invite] blocklist upsert failed", err),
+      );
+    }
+  }
+
   await refreshCampaignStats(record.campaignId);
   return { updated: true as const, recordId: record.id, status: nextStatus };
 }

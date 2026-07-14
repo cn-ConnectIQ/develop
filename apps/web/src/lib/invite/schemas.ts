@@ -5,11 +5,22 @@ import {
 } from "@connectiq/database";
 import { z } from "zod";
 
+export const importContactSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  phone: z.string().max(32).optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  company: z.string().max(100).optional(),
+});
+
 export const targetFilterSchema = z.object({
   ticket_types: z.array(z.string()).optional(),
   roles: z.nativeEnum(ParticipantRole).array().optional(),
   invite_status: z.nativeEnum(ParticipantInviteStatus).array().optional(),
   participant_ids: z.array(z.string()).optional(),
+  /** 参会者 tags 命中任一即可 */
+  tags: z.array(z.string()).optional(),
+  /** Excel/CSV 导入的联系人（发送前会 upsert 为 Participant） */
+  import_contacts: z.array(importContactSchema).max(20000).optional(),
   exclude_activated: z.boolean().optional().default(true),
 });
 
@@ -25,6 +36,7 @@ export const createInviteCampaignSchema = z.object({
 
 export type TargetFilterInput = z.infer<typeof targetFilterSchema>;
 export type CreateInviteCampaignInput = z.infer<typeof createInviteCampaignSchema>;
+export type ImportContactInput = z.infer<typeof importContactSchema>;
 
 export const completeActivationSchema = z.object({
   token: z.string().min(1),

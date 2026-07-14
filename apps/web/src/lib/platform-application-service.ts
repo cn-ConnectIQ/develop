@@ -1,7 +1,9 @@
 import {
   AccountType,
   AdminStatus,
+  ApplicationSource,
   ApplicationStatus,
+  ExperienceAccountStatus,
   InviteStatus,
   OrgStaffRole,
   prisma,
@@ -19,6 +21,11 @@ import {
 } from "@/lib/mask-utils";
 import { grantOrgAdminRoles } from "@/lib/org-admin-roles";
 import { sendNotificationSms } from "@/lib/sms";
+
+const APPLICATION_SOURCE_LABELS: Record<ApplicationSource, string> = {
+  SELF_REGISTER: "直接注册",
+  EXPERIENCE_DEMO: "Demo 体验潜客",
+};
 
 export class PlatformApplicationError extends Error {
   constructor(
@@ -94,7 +101,12 @@ export async function approveApplication(
 ) {
   await loadApplicationForReview(applicationId);
 
-  const { application: updated, org, isFirstOrg } = await prisma.$transaction(
+  const {
+    application: updated,
+    org,
+    isFirstOrg,
+    isExperienceProspect,
+  } = await prisma.$transaction(
     async (tx) => {
       const application = await tx.organizerApplication.update({
         where: { id: applicationId },
@@ -140,11 +152,26 @@ export async function approveApplication(
         select: { orgId: true },
       });
 
+      const experienceAccount = application.experienceAccountId
+        ? await tx.experienceAccount.findUnique({
+            where: { id: application.experienceAccountId },
+          })
+        : null;
+
+      const isExperienceProspect =
+        application.source === ApplicationSource.EXPERIENCE_DEMO ||
+        !!experienceAccount;
+
+      // Demo 潜客转正时强制切到正式组织；普通用户保留已有 orgId
+      const nextOrgId = isExperienceProspect
+        ? orgRecord.id
+        : (currentUser?.orgId ?? orgRecord.id);
+
       await tx.user.update({
         where: { id: application.userId },
         data: {
           userType: UserType.ACCOUNT_ADMIN,
-          orgId: currentUser?.orgId ?? orgRecord.id,
+          orgId: nextOrgId,
         },
       });
 
@@ -158,17 +185,46 @@ export async function approveApplication(
         },
       });
 
+      if (experienceAccount) {
+        await tx.orgStaff.deleteMany({
+          where: {
+            userId: application.userId,
+            orgId: experienceAccount.orgId,
+          },
+        });
+
+        if (experienceAccount.status !== ExperienceAccountStatus.CONVERTED) {
+          await tx.experienceAccount.update({
+            where: { id: experienceAccount.id },
+            data: {
+              status: ExperienceAccountStatus.CONVERTED,
+              convertedAt: new Date(),
+              convertedByUserId: reviewerId,
+              convertedOrgId: orgRecord.id,
+              platformNotes:
+                notes?.trim() || experienceAccount.platformNotes,
+            },
+          });
+        }
+      }
+
       await grantOrgAdminRoles(tx, application.userId);
 
-      const isFirstOrg = !currentUser?.orgId;
-      const notificationBody = isFirstOrg
-        ? `恭喜！组织「${orgRecord.name}」已审核通过。你现在可以发布会议/展览活动，并以参展商身份管理展位。`
-        : `组织「${orgRecord.name}」已审核通过，已添加到你的账号。登录后可在组织切换器中找到它。`;
+      const isFirstOrg = isExperienceProspect || !currentUser?.orgId;
+      const notificationBody = isExperienceProspect
+        ? `恭喜！体验账号已审核转正，组织「${orgRecord.name}」已开通。你现在可以创建活动并使用付费能力。`
+        : isFirstOrg
+          ? `恭喜！组织「${orgRecord.name}」已审核通过。你现在可以发布会议/展览活动，并以参展商身份管理展位。`
+          : `组织「${orgRecord.name}」已审核通过，已添加到你的账号。登录后可在组织切换器中找到它。`;
 
       await tx.notification.create({
         data: {
           userId: application.userId,
-          title: isFirstOrg ? "🎉 组织申请已通过审核" : "✅ 新组织审核通过",
+          title: isExperienceProspect
+            ? "🎉 体验账号已转正"
+            : isFirstOrg
+              ? "🎉 组织申请已通过审核"
+              : "✅ 新组织审核通过",
           body: notificationBody,
         },
       });
@@ -177,20 +233,29 @@ export async function approveApplication(
         application: { ...application, orgId: orgRecord.id },
         org: orgRecord,
         isFirstOrg,
+        isExperienceProspect,
       };
     },
   );
 
-  await sendApplicationApprovedEmail(
-    updated.contactEmail,
-    updated.orgName,
-  );
+  // 手机占位邮箱不发邮件
+  const emailLooksReal =
+    updated.contactEmail &&
+    !updated.contactEmail.endsWith("@phone.connectiq.local");
+  if (emailLooksReal) {
+    await sendApplicationApprovedEmail(
+      updated.contactEmail,
+      updated.orgName,
+    );
+  }
   if (updated.contactPhone) {
     await sendNotificationSms(
       updated.contactPhone,
-      isFirstOrg
-        ? "审核通过，请登录 玖莅 管理后台"
-        : "新组织审核通过，请登录后在组织切换器查看",
+      isExperienceProspect
+        ? "体验账号已转正，请登录 玖莅 管理后台"
+        : isFirstOrg
+          ? "审核通过，请登录 玖莅 管理后台"
+          : "新组织审核通过，请登录后在组织切换器查看",
     );
   }
 
@@ -202,6 +267,7 @@ export async function approveApplication(
     applicationId: updated.id,
     userId: updated.userId,
     isFirstOrg,
+    isExperienceProspect,
   };
 }
 
@@ -322,6 +388,8 @@ export async function fetchPlatformApplications(params: {
     items: items.map((item) => ({
       id: item.id,
       status: item.status,
+      source: item.source,
+      sourceLabel: APPLICATION_SOURCE_LABELS[item.source],
       accountType: item.accountType,
       accountTypeLabel: ACCOUNT_TYPE_LABELS[item.accountType],
       orgName: item.orgName,
@@ -331,6 +399,7 @@ export async function fetchPlatformApplications(params: {
       contactEmail: item.contactEmail,
       contactPhone: item.contactPhone,
       description: item.description,
+      experienceAccountId: item.experienceAccountId,
       rejectionReason: item.rejectionReason,
       reviewerNotes: item.reviewerNotes,
       submittedAt: item.submittedAt.toISOString(),

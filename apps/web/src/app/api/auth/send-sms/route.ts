@@ -48,8 +48,8 @@ export async function POST(request: Request) {
     await cacheSet(smsRateKey(phone), "1", SMS_RATE_LIMIT);
     await sendVerificationSms(phone, code);
 
-    const { isAliyunSmsConfigured } = await import("@/lib/aliyun-sms");
-    const exposeDevCode = !isAliyunSmsConfigured();
+    const { isSmsConfigured } = await import("@/lib/sms");
+    const exposeDevCode = !isSmsConfigured();
     return createSuccessResponse({
       sent: true,
       ...(exposeDevCode ? { devCode: code } : {}),

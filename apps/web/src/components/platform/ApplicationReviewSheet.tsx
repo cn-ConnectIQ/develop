@@ -19,6 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 export type ApplicationRow = {
   id: string;
   status: string;
+  source?: "SELF_REGISTER" | "EXPERIENCE_DEMO";
+  sourceLabel?: string;
   accountType: AccountType;
   accountTypeLabel: string;
   orgName: string;
@@ -28,6 +30,7 @@ export type ApplicationRow = {
   contactEmail: string;
   contactPhone: string;
   description: string;
+  experienceAccountId?: string | null;
   submittedAt: string;
   user: {
     id: string;
@@ -140,10 +143,20 @@ export function ApplicationReviewSheet({
             <p className="mt-3 text-sm font-medium text-[var(--admin-ink)]">
               申请组织：{application.orgName}
             </p>
+            {application.source === "EXPERIENCE_DEMO" && (
+              <p className="mt-2 rounded-lg bg-brand-amber-light px-2.5 py-1.5 text-xs font-medium text-brand-amber">
+                来源：Demo 体验潜客
+                {application.experienceAccountId
+                  ? ` · 体验账号 ${application.experienceAccountId.slice(0, 8)}…`
+                  : ""}
+                。通过后将转正并解锁创建活动与付费。
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             {[
+              ["来源", application.sourceLabel ?? "直接注册"],
               ["组织名", application.orgName],
               ["信用代码", application.orgCreditCode ?? "—"],
               ["官网", application.orgWebsite ?? "—"],

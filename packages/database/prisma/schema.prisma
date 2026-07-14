@@ -317,7 +317,11 @@ enum StampPointType {
 
 enum InviteCampaignStatus {
   DRAFT
+  /// 异步展开收件人中（大批量）
+  CREATING
   SENDING
+  /// 人工暂停，Worker 不再 claim
+  PAUSED
   SENT
   FAILED
   SCHEDULED
@@ -531,6 +535,12 @@ enum ApplicationStatus {
   PENDING // 待审核
   APPROVED // 通过
   REJECTED // 拒绝
+}
+
+// 组织申请来源（双通道入驻）
+enum ApplicationSource {
+  SELF_REGISTER // 直接注册正式账号 → 平台审核
+  EXPERIENCE_DEMO // Demo 工作人员体验注册潜客 → 平台审核后转正
 }
 
 // 活动发布状态（账号已审核，活动无需平台再审）
@@ -879,6 +889,8 @@ model ExperienceAccount {
 
   platformNotes String? @map("platform_notes")
 
+  application OrganizerApplication? @relation("ExperienceApplication")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -930,6 +942,11 @@ model OrganizerApplication {
   contactPhone  String      @map("contact_phone")
   description   String
 
+  // 入驻通道
+  source              ApplicationSource @default(SELF_REGISTER)
+  experienceAccountId String?           @unique @map("experience_account_id")
+  experienceAccount   ExperienceAccount? @relation("ExperienceApplication", fields: [experienceAccountId], references: [id], onDelete: SetNull)
+
   // 审核
   status          ApplicationStatus @default(PENDING)
   rejectionReason String?           @map("rejection_reason")
@@ -945,6 +962,7 @@ model OrganizerApplication {
   @@index([userId])
   @@index([status])
   @@index([accountType, status])
+  @@index([source, status])
   @@map("organizer_applications")
 }
 
@@ -2322,6 +2340,24 @@ model InviteRecord {
   @@index([vendorMessageId])
   @@index([status, updatedAt])
   @@map("invite_records")
+}
+
+/// 邀请渠道黑名单 / 退订（按手机号或邮箱）
+model InviteContactBlock {
+  id          String         @id @default(cuid())
+  orgId       String?        @map("org_id")
+  eventId     String?        @map("event_id")
+  /// SMS / EMAIL；空=全渠道
+  channel     InviteChannel?
+  destination String
+  reason      String         @default("BLACKLIST")
+  note        String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  @@index([destination, channel])
+  @@index([orgId, destination])
+  @@index([eventId, destination])
+  @@map("invite_contact_blocks")
 }
 
 model StampRally {

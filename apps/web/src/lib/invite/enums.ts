@@ -9,7 +9,9 @@ export type InviteChannel = (typeof InviteChannel)[keyof typeof InviteChannel];
 
 export const InviteCampaignStatus = {
   DRAFT: "DRAFT",
+  CREATING: "CREATING",
   SENDING: "SENDING",
+  PAUSED: "PAUSED",
   SENT: "SENT",
   FAILED: "FAILED",
   SCHEDULED: "SCHEDULED",
@@ -19,6 +21,7 @@ export type InviteCampaignStatus =
 
 export const InviteRecordStatus = {
   PENDING: "PENDING",
+  SENDING: "SENDING",
   SENT: "SENT",
   DELIVERED: "DELIVERED",
   CLICKED: "CLICKED",

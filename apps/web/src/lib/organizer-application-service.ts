@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import {
   AccountType,
+  ApplicationSource,
   ApplicationStatus,
   InviteStatus,
   OrgStaffRole,
@@ -175,6 +176,7 @@ export async function submitOrganizerApplication(input: SubmitApplicationInput) 
     contactEmail: input.contactEmail.trim().toLowerCase(),
     contactPhone: input.contactPhone.trim(),
     description: input.description.trim(),
+    source: ApplicationSource.SELF_REGISTER,
     status: ApplicationStatus.PENDING,
     rejectionReason: null,
     submittedAt: new Date(),

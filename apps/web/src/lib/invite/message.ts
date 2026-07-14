@@ -7,6 +7,7 @@ export type InviteMessageContext = {
   eventDate: string;
   link: string;
   organizer: string;
+  location?: string;
 };
 
 export function buildActivationLink(token: string, eventId?: string) {
@@ -25,16 +26,35 @@ export function formatEventDate(date: Date | null | undefined) {
   return format(date, "M月d日", { locale: zhCN });
 }
 
+/**
+ * 统一占位符（三通道共用）。
+ * 支持 `{name}` / `{{name}}`，以及 camelCase / snake_case 别名。
+ */
 export function resolveInviteMessage(
   template: string,
   ctx: InviteMessageContext,
 ): string {
-  return template
-    .replaceAll("{name}", ctx.name)
-    .replaceAll("{event_name}", ctx.eventName)
-    .replaceAll("{event_date}", ctx.eventDate)
-    .replaceAll("{link}", ctx.link)
-    .replaceAll("{organizer}", ctx.organizer);
+  const location = ctx.location ?? "";
+  const pairs: Array<[string, string]> = [
+    ["name", ctx.name],
+    ["event_name", ctx.eventName],
+    ["eventName", ctx.eventName],
+    ["event_date", ctx.eventDate],
+    ["eventDate", ctx.eventDate],
+    ["link", ctx.link],
+    ["activation_link", ctx.link],
+    ["organizer", ctx.organizer],
+    ["location", location],
+    ["event_location", location],
+    ["eventLocation", location],
+  ];
+
+  let out = template;
+  for (const [key, value] of pairs) {
+    out = out.replaceAll(`{${key}}`, value);
+    out = out.replaceAll(`{{${key}}}`, value);
+  }
+  return out;
 }
 
 export function computeTokenExpiresAt(eventEndDate: Date | null | undefined) {

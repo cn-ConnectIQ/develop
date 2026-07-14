@@ -45,7 +45,7 @@ export const POST = withErrorHandler(async (_request, context) => {
   try {
     const result = await prepareCampaignSend(campaignId);
 
-    if (!result.isScheduled && result.queued > 0) {
+    if (!result.building && !result.isScheduled && result.queued > 0) {
       await triggerInviteProcessing(campaignId);
     }
 
@@ -54,6 +54,7 @@ export const POST = withErrorHandler(async (_request, context) => {
       skipped: result.skipped,
       total_target: result.totalTarget,
       scheduled: result.isScheduled,
+      building: Boolean(result.building),
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -63,6 +64,20 @@ export const POST = withErrorHandler(async (_request, context) => {
       if (error.message === "CAMPAIGN_ALREADY_SENT") {
         return createErrorResponse(
           "邀请活动已发送或正在发送中",
+          ErrorCode.VALIDATION_ERROR,
+          409,
+        );
+      }
+      if (error.message === "CAMPAIGN_BUILDING") {
+        return createErrorResponse(
+          "正在准备收件人列表，请稍后再试",
+          ErrorCode.VALIDATION_ERROR,
+          409,
+        );
+      }
+      if (error.message === "CAMPAIGN_PAUSED") {
+        return createErrorResponse(
+          "活动已暂停，请先继续发送",
           ErrorCode.VALIDATION_ERROR,
           409,
         );

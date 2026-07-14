@@ -174,5 +174,17 @@ pnpm --filter @connectiq/database db:seed:billing-plans
 
 ## 短信
 
-生产需配置 `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` / `ALIYUN_SMS_SIGN_NAME` / `ALIYUN_SMS_TEMPLATE_CODE`。  
+**优先赛邮 Submail**（与 MarketUp 一致）：
+
+```bash
+SUBMAIL_APP_ID=...
+SUBMAIL_APP_KEY=...
+SUBMAIL_SIGN_NAME=玖莅
+# 可选模板 XSend
+# SUBMAIL_PROJECT_CODE=...
+# SUBMAIL_PROJECT_INVITE=...
+```
+
+回调：`POST /api/webhooks/submail-sms`（delivered / dropped / mo 退订）。  
+未配 Submail 时回退阿里云 `ALIYUN_*`。可用 `SMS_PROVIDER=submail|aliyun|auto` 强制选择。 
 实现：`lib/aliyun-sms.ts`（HTTP RPC，无额外 SDK）。

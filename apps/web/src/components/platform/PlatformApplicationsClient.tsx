@@ -83,7 +83,18 @@ export function PlatformApplicationsClient() {
         accessorKey: "orgName",
         header: "组织名称",
         cell: ({ row }) => (
-          <span className="font-medium">{row.original.orgName}</span>
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">{row.original.orgName}</span>
+            {row.original.source === "EXPERIENCE_DEMO" ? (
+              <span className="w-fit rounded-full bg-brand-amber-light px-2 py-0.5 text-[11px] font-medium text-brand-amber">
+                Demo 潜客
+              </span>
+            ) : (
+              <span className="w-fit rounded-full bg-content-bg px-2 py-0.5 text-[11px] text-text-muted">
+                直接注册
+              </span>
+            )}
+          </div>
         ),
       },
       {
