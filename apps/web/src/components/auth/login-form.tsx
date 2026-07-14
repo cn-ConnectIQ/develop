@@ -14,7 +14,11 @@ import {
   setAuthRoleCookies,
 } from "@/lib/auth-redirect";
 import { withPublicPath } from "@/lib/public-path";
-import { SEED_PASSWORD, SEED_TEST_ACCOUNTS } from "@/lib/test-accounts";
+import {
+  PLATFORM_ADMIN_EMAIL,
+  SEED_PASSWORD,
+  SEED_TEST_ACCOUNTS,
+} from "@/lib/test-accounts";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import {
@@ -39,13 +43,19 @@ const phoneSchema = z.object({
   code: z.string().length(6, "请输入 6 位验证码"),
 });
 
-const emailSchema = z.object({
+const emailPasswordSchema = z.object({
   email: z.string().email("请输入有效邮箱"),
   password: z.string().min(6, "密码至少 6 位"),
 });
 
+const emailCodeSchema = z.object({
+  email: z.string().email("请输入有效邮箱"),
+  code: z.string().length(6, "请输入 6 位验证码"),
+});
+
 type PhoneFormValues = z.infer<typeof phoneSchema>;
-type EmailFormValues = z.infer<typeof emailSchema>;
+type EmailPasswordFormValues = z.infer<typeof emailPasswordSchema>;
+type EmailCodeFormValues = z.infer<typeof emailCodeSchema>;
 
 const TEST_ACCOUNT_OPTIONS = [
   {
@@ -63,19 +73,28 @@ const TEST_ACCOUNT_OPTIONS = [
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [emailCountdown, setEmailCountdown] = useState(0);
   const [selectedAccount, setSelectedAccount] =
-    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("accountAdmin");
+    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("platformAdmin");
 
   const phoneForm = useForm<PhoneFormValues>({
     resolver: zodResolver(phoneSchema),
-    defaultValues: { phone: SEED_TEST_ACCOUNTS.accountAdmin.phone, code: "" },
+    defaultValues: { phone: SEED_TEST_ACCOUNTS.platformAdmin.phone, code: "" },
   });
 
-  const emailForm = useForm<EmailFormValues>({
-    resolver: zodResolver(emailSchema),
+  const emailPasswordForm = useForm<EmailPasswordFormValues>({
+    resolver: zodResolver(emailPasswordSchema),
     defaultValues: {
-      email: SEED_TEST_ACCOUNTS.accountAdmin.email,
+      email: PLATFORM_ADMIN_EMAIL,
       password: SEED_PASSWORD,
+    },
+  });
+
+  const emailCodeForm = useForm<EmailCodeFormValues>({
+    resolver: zodResolver(emailCodeSchema),
+    defaultValues: {
+      email: PLATFORM_ADMIN_EMAIL,
+      code: "",
     },
   });
 
@@ -84,8 +103,10 @@ export function LoginForm() {
     if (!option) return;
     setSelectedAccount(key);
     phoneForm.setValue("phone", option.account.phone);
-    emailForm.setValue("email", option.account.email);
-    emailForm.setValue("password", SEED_PASSWORD);
+    emailPasswordForm.setValue("email", option.account.email);
+    emailPasswordForm.setValue("password", SEED_PASSWORD);
+    emailCodeForm.setValue("email", option.account.email);
+    emailCodeForm.setValue("code", "");
     setError(null);
   }
 
@@ -94,6 +115,12 @@ export function LoginForm() {
     const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
   }, [countdown]);
+
+  useEffect(() => {
+    if (emailCountdown <= 0) return;
+    const timer = setTimeout(() => setEmailCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [emailCountdown]);
 
   async function redirectAfterLogin() {
     for (let attempt = 0; attempt < 15; attempt++) {
@@ -122,7 +149,7 @@ export function LoginForm() {
     setError("登录会话未就绪，请刷新页面后重试");
   }
 
-  async function sendCode() {
+  async function sendSmsCode() {
     const phone = phoneForm.getValues("phone");
     const valid = await phoneForm.trigger("phone");
     if (!valid) return;
@@ -145,6 +172,31 @@ export function LoginForm() {
     setCountdown(60);
   }
 
+  async function sendEmailCode() {
+    const email = emailCodeForm.getValues("email");
+    const valid = await emailCodeForm.trigger("email");
+    if (!valid) return;
+
+    setError(null);
+    const res = await fetch("/api/auth/send-email-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setError(json.error ?? "发送失败");
+      return;
+    }
+    if (json.data?.devCode) {
+      emailCodeForm.setValue("code", json.data.devCode);
+      toast.info(`测试验证码：${json.data.devCode}`, { duration: 8000 });
+    } else {
+      toast.success("验证码已发送到邮箱");
+    }
+    setEmailCountdown(60);
+  }
+
   const onPhoneSubmit = phoneForm.handleSubmit(async (values) => {
     setError(null);
     clearAuthRoleCookies();
@@ -160,7 +212,7 @@ export function LoginForm() {
     await redirectAfterLogin();
   });
 
-  const onEmailSubmit = emailForm.handleSubmit(async (values) => {
+  const onEmailPasswordSubmit = emailPasswordForm.handleSubmit(async (values) => {
     setError(null);
     clearAuthRoleCookies();
     const result = await signIn("credentials", {
@@ -171,9 +223,24 @@ export function LoginForm() {
     if (result?.error) {
       setError(
         result.error === "CredentialsSignin"
-          ? "邮箱或密码错误（请确认已运行 pnpm db:seed 写入测试账号）"
+          ? "邮箱或密码错误"
           : "登录失败，请稍后重试",
       );
+      return;
+    }
+    await redirectAfterLogin();
+  });
+
+  const onEmailCodeSubmit = emailCodeForm.handleSubmit(async (values) => {
+    setError(null);
+    clearAuthRoleCookies();
+    const result = await signIn("email-code", {
+      email: values.email.trim().toLowerCase(),
+      code: values.code,
+      redirect: false,
+    });
+    if (result?.error) {
+      setError("验证码错误或已过期");
       return;
     }
     await redirectAfterLogin();
@@ -196,13 +263,18 @@ export function LoginForm() {
           <Link href="/signup/organizer" className="font-medium text-brand-blue hover:underline">
             免费试用：办一场活动
           </Link>
+          <span className="mx-2 text-text-tertiary">·</span>
+          <Link href="/register/admin" className="font-medium text-brand-blue hover:underline">
+            申请正式账号
+          </Link>
         </p>
       </CardHeader>
       <CardContent className="p-0">
-        <Tabs defaultValue="email">
-          <TabsList className="mb-4 grid w-full grid-cols-2">
+        <Tabs defaultValue="email-code">
+          <TabsList className="mb-4 grid w-full grid-cols-3">
+            <TabsTrigger value="email-code">邮箱验证码</TabsTrigger>
             <TabsTrigger value="email">账号密码</TabsTrigger>
-            <TabsTrigger value="phone">手机号登录</TabsTrigger>
+            <TabsTrigger value="phone">手机号</TabsTrigger>
           </TabsList>
 
           <div className="mb-4 space-y-2">
@@ -224,19 +296,63 @@ export function LoginForm() {
               ))}
             </select>
             <p className="text-xs text-text-tertiary">
-              线上环境请优先使用「账号密码」；密码均为 {SEED_PASSWORD}
+              平台管理员推荐「邮箱验证码」：{PLATFORM_ADMIN_EMAIL}；密码 {SEED_PASSWORD}
             </p>
           </div>
 
+          <TabsContent value="email-code">
+            <form onSubmit={onEmailCodeSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email-code-email">邮箱</Label>
+                <Input
+                  id="email-code-email"
+                  type="email"
+                  autoComplete="email"
+                  {...emailCodeForm.register("email")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email-code">验证码</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="email-code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6 位验证码"
+                    className="text-center text-lg tracking-widest"
+                    {...emailCodeForm.register("code")}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={emailCountdown > 0}
+                    onClick={sendEmailCode}
+                  >
+                    {emailCountdown > 0 ? `${emailCountdown}s` : "获取验证码"}
+                  </Button>
+                </div>
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button
+                type="submit"
+                className="w-full bg-brand-blue hover:bg-brand-blue/90"
+                disabled={emailCodeForm.formState.isSubmitting}
+              >
+                {emailCodeForm.formState.isSubmitting ? "登录中..." : "登录"}
+              </Button>
+            </form>
+          </TabsContent>
+
           <TabsContent value="email">
-            <form onSubmit={onEmailSubmit} className="space-y-4">
+            <form onSubmit={onEmailPasswordSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">邮箱</Label>
                 <Input
                   id="email"
                   type="email"
                   autoComplete="email"
-                  {...emailForm.register("email")}
+                  {...emailPasswordForm.register("email")}
                 />
               </div>
               <div className="space-y-2">
@@ -245,16 +361,16 @@ export function LoginForm() {
                   id="password"
                   type="password"
                   autoComplete="current-password"
-                  {...emailForm.register("password")}
+                  {...emailPasswordForm.register("password")}
                 />
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button
                 type="submit"
                 className="w-full bg-brand-blue hover:bg-brand-blue/90"
-                disabled={emailForm.formState.isSubmitting}
+                disabled={emailPasswordForm.formState.isSubmitting}
               >
-                {emailForm.formState.isSubmitting ? "登录中..." : "登录"}
+                {emailPasswordForm.formState.isSubmitting ? "登录中..." : "登录"}
               </Button>
             </form>
           </TabsContent>
@@ -294,7 +410,7 @@ export function LoginForm() {
                     variant="outline"
                     className="shrink-0"
                     disabled={countdown > 0}
-                    onClick={sendCode}
+                    onClick={sendSmsCode}
                   >
                     {countdown > 0 ? `${countdown}s` : "获取验证码"}
                   </Button>
@@ -308,9 +424,6 @@ export function LoginForm() {
               >
                 {phoneForm.formState.isSubmitting ? "登录中..." : "登录"}
               </Button>
-              <p className="text-center text-xs text-text-tertiary">
-                未配置短信服务时，获取验证码后会在页面提示 6 位码
-              </p>
             </form>
           </TabsContent>
         </Tabs>

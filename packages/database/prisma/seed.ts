@@ -35,7 +35,8 @@ import {
   seedMobileTestAttendeeDimensions,
 } from "./seed-mobile-test-dimensions";
 
-const SEED_PASSWORD = "ConnectIQ2024!";
+const SEED_PASSWORD = "BagEvent1001";
+const PLATFORM_ADMIN_EMAIL = "milo@bagevent.cn";
 
 /** 账号管理员 + 平台管理员手机号 */
 const ADMIN_PHONES = [
@@ -188,14 +189,16 @@ async function upsertUser(params: {
   phone: string;
   name: string;
   userType: UserType;
+  email?: string;
+  password?: string;
   accountStatus?: UserAccountStatus;
   company?: string;
   industry?: string;
   jobTitle?: string;
   roles?: UserRole[];
 }) {
-  const passwordHash = await hashPassword(SEED_PASSWORD);
-  const email = phoneToEmail(params.phone);
+  const passwordHash = await hashPassword(params.password ?? SEED_PASSWORD);
+  const email = params.email ?? phoneToEmail(params.phone);
 
   const user = await prisma.user.upsert({
     where: { email },
@@ -359,17 +362,34 @@ async function main() {
   await clearSeedData();
   const now = new Date();
 
-  // ── 平台管理员 ──────────────────────────────────────────────
+  // ── 平台管理员（邮箱验证码 / 密码登录）──────────────────────
+  // 旧 seed 用 13800000001@phone…，迁移到真实邮箱避免残留双账号
+  const legacyPlatformEmail = phoneToEmail("13800000001");
+  const legacyPlatform = await prisma.user.findUnique({
+    where: { email: legacyPlatformEmail },
+  });
+  if (legacyPlatform && legacyPlatformEmail !== PLATFORM_ADMIN_EMAIL) {
+    const taken = await prisma.user.findUnique({
+      where: { email: PLATFORM_ADMIN_EMAIL },
+    });
+    if (!taken) {
+      await prisma.user.update({
+        where: { id: legacyPlatform.id },
+        data: { email: PLATFORM_ADMIN_EMAIL, name: "Milo" },
+      });
+    }
+  }
   const platformAdmin = await upsertUser({
     phone: "13800000001",
-    name: "平台管理员",
+    email: PLATFORM_ADMIN_EMAIL,
+    name: "Milo",
     userType: UserType.PLATFORM_ADMIN,
     accountStatus: UserAccountStatus.COMPLETE,
     company: "玖莅",
     industry: "活动科技",
     roles: [UserRole.PLATFORM_ADMIN],
   });
-  console.log("✓ 平台管理员 13800000001");
+  console.log(`✓ 平台管理员 ${PLATFORM_ADMIN_EMAIL}`);
 
   // ── ① 会议主办方 ────────────────────────────────────────────
   const { admin: confAdmin, org: confOrg } = await createApprovedAccountAdmin({
@@ -1369,8 +1389,8 @@ async function main() {
   console.log("\n✅ Seed 完成\n");
   console.log("── 账号密码登录（推荐）──");
   console.log(`  密码（全部账号）: ${SEED_PASSWORD}`);
-  console.log("  邮箱格式: {手机号}@phone.connectiq.local");
-  console.log("  平台管理员:     13800000001@phone.connectiq.local");
+  console.log(`  平台管理员邮箱: ${PLATFORM_ADMIN_EMAIL}（推荐邮箱验证码登录）`);
+  console.log("  其他邮箱格式: {手机号}@phone.connectiq.local");
   console.log("  会议主办方:     13800000002@phone.connectiq.local");
   console.log("  展览主办方:     13800000003@phone.connectiq.local");
   console.log("  参展商:         13800000004@phone.connectiq.local");

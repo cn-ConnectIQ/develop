@@ -290,6 +290,34 @@ export const authOptions: NextAuthOptions = {
       },
     }),
     CredentialsProvider({
+      id: "email-code",
+      name: "email-code",
+      credentials: {
+        email: { label: "邮箱", type: "email" },
+        code: { label: "验证码", type: "text" },
+      },
+      async authorize(credentials) {
+        const email = credentials?.email?.trim().toLowerCase();
+        const code = credentials?.code?.trim();
+        if (!email || !code || !/^\d{6}$/.test(code)) return null;
+
+        const { emailVerifyKey } = await import("@/lib/email-otp");
+        const stored = await cacheGet(emailVerifyKey(email));
+        if (!stored || stored !== code) return null;
+
+        await cacheDel(emailVerifyKey(email));
+
+        const user = await prisma.user.findUnique({
+          where: { email },
+          include: { roleAssignments: true },
+        });
+        if (!user) return null;
+
+        const userType = resolveUserType(user.userType, user.roleAssignments);
+        return toSessionUser(user, userType);
+      },
+    }),
+    CredentialsProvider({
       id: "organizer-signup",
       name: "organizer-signup",
       credentials: {

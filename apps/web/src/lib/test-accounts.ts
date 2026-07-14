@@ -1,5 +1,7 @@
 /** 与 packages/database/prisma/seed.ts 保持一致 */
-export const SEED_PASSWORD = "ConnectIQ2024!";
+export const SEED_PASSWORD = "BagEvent1001";
+
+export const PLATFORM_ADMIN_EMAIL = "milo@bagevent.cn";
 
 export function seedAccountEmail(phone: string) {
   return `${phone}@phone.connectiq.local`;
@@ -10,7 +12,7 @@ export const SEED_TEST_ACCOUNTS = {
   password: SEED_PASSWORD,
   platformAdmin: {
     phone: "13800000001",
-    email: seedAccountEmail("13800000001"),
+    email: PLATFORM_ADMIN_EMAIL,
     label: "平台管理员",
   },
   accountAdmin: {
