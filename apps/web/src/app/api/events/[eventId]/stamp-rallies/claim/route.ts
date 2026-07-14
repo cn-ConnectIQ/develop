@@ -7,7 +7,7 @@ import {
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 import { claimStampPassportReward } from "@/lib/stamp-rally-service";
 
-/** 小程序集章兑奖 */
+/** 小程序集章路线兑奖（可 ?rallyId=） */
 export const POST = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
@@ -15,15 +15,16 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const userId = await resolveMobileUserId(request);
+  const { searchParams } = new URL(request.url);
   const body = await request.json().catch(() => ({}));
   const rallyId =
-    typeof body?.rallyId === "string"
+    searchParams.get("rallyId") ??
+    (typeof body?.rallyId === "string"
       ? body.rallyId
       : typeof body?.rally_id === "string"
         ? body.rally_id
-        : new URL(request.url).searchParams.get("rallyId");
+        : null);
 
   const passport = await claimStampPassportReward(eventId, userId, rallyId);
   return createSuccessResponse(passport);
 });
-

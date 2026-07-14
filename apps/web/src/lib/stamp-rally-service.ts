@@ -713,12 +713,17 @@ export async function getStampPassportForEvent(
   };
 }
 
-/** 小程序兑奖：标记 reward_claimed */
+/** 小程序兑奖：标记 reward_claimed；可指定 rallyId，否则取当前 ACTIVE 路线 */
 export async function claimStampPassportReward(
   eventId: string,
   userId: string,
+  rallyId?: string | null,
 ): Promise<ApiStampPassport> {
-  const rally = await findActiveStampRallyForEvent(eventId);
+  const rally = rallyId
+    ? await prisma.stampRally.findFirst({
+        where: { id: rallyId, eventId },
+      })
+    : await findActiveStampRallyForEvent(eventId);
   if (!rally) {
     throw new ApiError("暂无进行中的集章活动", ErrorCode.NOT_FOUND, 404);
   }
@@ -743,16 +748,35 @@ export async function claimStampPassportReward(
   }
 
   const lotteryGrant = await grantStampRallyLotteryEntry(eventId, userId);
-  const passport = await getStampPassportForEvent(eventId, userId);
-
-  if (lotteryGrant) {
-    return {
-      ...passport,
-      linked_lottery_id: lotteryGrant.lottery_id,
-      lottery_entered: lotteryGrant.lottery_entered,
-      pending_draw: lotteryGrant.pending_draw,
-    };
+  // getStampPassportForEvent 始终读 ACTIVE；若兑奖的是指定路线，用该路线进度拼响应
+  const linkedLotteryId = await resolveStampRallyLinkedLotteryId(eventId);
+  let lotteryEntered: boolean | undefined;
+  if (progress.completed && linkedLotteryId) {
+    const entry = await prisma.lotteryEntry.findUnique({
+      where: {
+        lotteryId_userId: { lotteryId: linkedLotteryId, userId },
+      },
+    });
+    lotteryEntered = Boolean(entry);
   }
+
+  const passport: ApiStampPassport = {
+    event_id: eventId,
+    rally_id: rally.id,
+    required_count: progress.total,
+    stamped_booth_ids: progress.stamps.map((s) => s.booth_id),
+    rally_booth_ids: rally.boothIds,
+    stamped_count: progress.count,
+    reward_title: rally.prize,
+    reward_description: rally.prizeDesc,
+    reward_claimed: true,
+    completed: progress.completed,
+    linked_lottery_id: lotteryGrant?.lottery_id ?? linkedLotteryId,
+    lottery_entered: lotteryGrant?.lottery_entered ?? lotteryEntered,
+    pending_draw:
+      lotteryGrant?.pending_draw ??
+      (progress.completed && linkedLotteryId ? !lotteryEntered : undefined),
+  };
 
   return passport;
 }

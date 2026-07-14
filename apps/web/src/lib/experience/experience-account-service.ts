@@ -204,12 +204,12 @@ async function upsertExperienceProspectApplication(
     userId: string;
     experienceAccountId: string;
     contactName: string;
-    companyName: string | null;
+    companyName: string;
     phone: string;
     email: string;
   },
 ) {
-  const orgName = input.companyName || `${input.contactName}的组织`;
+  const orgName = input.companyName.trim() || `${input.contactName}的组织`;
   const description =
     "Demo 展会工作人员体验注册（潜客）。审核通过后解锁创建活动与付费能力。";
 
@@ -367,24 +367,49 @@ async function provisionExperienceStaff(
 export type CreateExperienceSignupInput = {
   phone: string;
   code: string;
-  contactName?: string;
-  companyName?: string;
+  contactName: string;
+  companyName: string;
+  email: string;
 };
 
 export async function createExperienceSignup(input: CreateExperienceSignupInput) {
   const phone = input.phone.trim();
   const code = input.code.trim();
-  const contactName = input.contactName?.trim() || `体验用户${phone.slice(-4)}`;
-  const companyName = input.companyName?.trim() || null;
+  const contactName = input.contactName.trim();
+  const companyName = input.companyName.trim();
+  const email = input.email.trim().toLowerCase();
 
   if (!/^1[3-9]\d{9}$/.test(phone)) {
     throw new ExperienceAccountError("请输入有效手机号", "INVALID_PHONE");
+  }
+  if (!contactName) {
+    throw new ExperienceAccountError("请输入姓名", "INVALID_NAME");
+  }
+  if (companyName.length < 2) {
+    throw new ExperienceAccountError("请填写公司名称", "INVALID_COMPANY");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ExperienceAccountError("请输入有效邮箱", "INVALID_EMAIL");
+  }
+  if (email.endsWith("@phone.connectiq.local")) {
+    throw new ExperienceAccountError("请使用真实邮箱", "INVALID_EMAIL");
   }
 
   await verifySmsCode(phone, code);
   const { org, event } = await resolveDemoContext();
   const existingUser = await assertCanCreateExperience(phone);
-  const email = phoneToEmail(phone);
+
+  const emailOwner = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, phone: true },
+  });
+  if (emailOwner && emailOwner.id !== existingUser?.id) {
+    throw new ExperienceAccountError(
+      "该邮箱已被其他账号使用，请更换邮箱或直接登录",
+      "EMAIL_TAKEN",
+    );
+  }
+
   const expiresAt = addDays(new Date(), EXPERIENCE_TRIAL_DAYS);
 
   const result = await prisma.$transaction(async (tx) => {
@@ -403,7 +428,11 @@ export async function createExperienceSignup(input: CreateExperienceSignupInput)
     if (existingUser) {
       await tx.user.update({
         where: { id: existingUser.id },
-        data: { name: contactName, userType: UserType.ACCOUNT_ADMIN },
+        data: {
+          name: contactName,
+          email,
+          userType: UserType.ACCOUNT_ADMIN,
+        },
       });
     }
 

@@ -5,16 +5,21 @@ import {
   resolveTest1377EventId,
 } from "./seed-mobile-test-dimensions";
 
-async function main() {
-  const eventId = await resolveTest1377EventId();
-  const startDate = new Date(Date.now() - 86_400_000);
-  const endDate = new Date(Date.now() + 2 * 86_400_000 + 18 * 3_600_000);
-  const data = {
+/** 长期活动：保持 LIVE，结束时间拉到远期，避免联调被「已结束」拦住 */
+function longTermWindow() {
+  const startDate = new Date("2025-01-01T00:00:00.000Z");
+  const endDate = new Date("2099-12-31T23:59:59.000Z");
+  return {
     status: EventStatus.LIVE,
     reviewStatus: ReviewStatus.LIVE,
     startDate,
     endDate,
   };
+}
+
+async function main() {
+  const eventId = await resolveTest1377EventId();
+  const data = longTermWindow();
 
   const updated = await prisma.event.update({
     where: { id: eventId },
@@ -22,6 +27,7 @@ async function main() {
     select: {
       id: true,
       name: true,
+      slug: true,
       status: true,
       reviewStatus: true,
       startDate: true,
@@ -29,7 +35,7 @@ async function main() {
     },
   });
 
-  console.log("✓ TEST1377 活动已设为进行中");
+  console.log("✓ TEST1377 已设为长期进行中活动");
   console.log(JSON.stringify(updated, null, 2));
 
   const bySlug = await prisma.event.findUnique({

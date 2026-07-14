@@ -254,20 +254,31 @@ export function LoginForm() {
           玖莅
         </CardTitle>
         <CardDescription>管理后台</CardDescription>
-        <p className="mt-3 text-center text-sm text-text-muted">
-          首次使用？{" "}
-          <Link href="/signup/experience" className="font-medium text-brand-blue hover:underline">
-            一键体验演示展会（7 天）
+        <div className="mt-4 w-full space-y-2 text-left">
+          <p className="text-center text-xs text-text-muted">还没有账号？选择入驻方式</p>
+          <Link
+            href="/signup/experience"
+            className="flex flex-col rounded-xl border border-brand-blue/25 bg-brand-blue/5 px-3.5 py-3 transition-colors hover:border-brand-blue/50 hover:bg-brand-blue/10"
+          >
+            <span className="text-sm font-semibold text-brand-blue">
+              免费体验演示展会
+            </span>
+            <span className="mt-0.5 text-xs leading-relaxed text-text-muted">
+              7 天试用 Demo 展会后台（含活动码 TEST1377），无需审核即可上手
+            </span>
           </Link>
-          <span className="mx-2 text-text-tertiary">·</span>
-          <Link href="/signup/organizer" className="font-medium text-brand-blue hover:underline">
-            免费试用：办一场活动
+          <Link
+            href="/register/admin"
+            className="flex flex-col rounded-xl border border-border-light bg-white px-3.5 py-3 transition-colors hover:border-brand-green/40 hover:bg-brand-green/5"
+          >
+            <span className="text-sm font-semibold text-[var(--admin-ink,#1a1a1a)]">
+              申请正式主办账号
+            </span>
+            <span className="mt-0.5 text-xs leading-relaxed text-text-muted">
+              提交组织资料，平台审核通过后可创建活动并充值邀约
+            </span>
           </Link>
-          <span className="mx-2 text-text-tertiary">·</span>
-          <Link href="/register/admin" className="font-medium text-brand-blue hover:underline">
-            申请正式账号
-          </Link>
-        </p>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         <Tabs defaultValue="email-code">

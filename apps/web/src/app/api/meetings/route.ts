@@ -7,6 +7,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { bookMeeting } from "@/lib/meetings-service";
+import { listMyMeetings } from "@/lib/mobile-meetings-service";
 import { resolveMobileUserId } from "@/lib/mobile-user-id";
 
 const createSchema = z.object({
@@ -15,6 +16,18 @@ const createSchema = z.object({
   starts_at: z.string().datetime(),
   ends_at: z.string().datetime(),
   message: z.string().max(500).optional(),
+});
+
+/** 我的会面列表（与 /api/me/meetings 对齐） */
+export const GET = withErrorHandler(async (request) => {
+  const userId = await resolveMobileUserId(request);
+  const { searchParams } = new URL(request.url);
+  const eventId =
+    searchParams.get("eventId") ??
+    searchParams.get("event_id") ??
+    undefined;
+  const meetings = await listMyMeetings(userId, eventId);
+  return createSuccessResponse({ meetings });
 });
 
 export const POST = withErrorHandler(async (request) => {

@@ -179,15 +179,13 @@ function daysFromNow(days: number, hours = 18) {
   return new Date(Date.now() + days * 86_400_000 + hours * 3_600_000);
 }
 
-/** TEST1377 活动保持「进行中」：LIVE 状态 + 日期覆盖当前 */
+/** TEST1377 保持长期 LIVE（演示/体验用，结束日拉到远期） */
 async function ensureMobileTestEventLive() {
-  const startDate = daysAgo(1);
-  const endDate = daysFromNow(2);
   const data = {
     status: EventStatus.LIVE,
     reviewStatus: ReviewStatus.LIVE,
-    startDate,
-    endDate,
+    startDate: new Date("2025-01-01T00:00:00.000Z"),
+    endDate: new Date("2099-12-31T23:59:59.000Z"),
   };
 
   const updated: string[] = [];

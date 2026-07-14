@@ -42,7 +42,8 @@ export async function POST(request: Request) {
       select: { id: true },
     });
     if (!user) {
-      // 不暴露是否存在账号
+      // 不暴露是否存在账号；避免前端误以为已发信
+      console.info(`[send-email-code] skip unknown email (no send): ${email}`);
       return createSuccessResponse({ sent: true });
     }
 

@@ -59,8 +59,8 @@ async function main() {
     data: {
       status: EventStatus.LIVE,
       reviewStatus: ReviewStatus.LIVE,
-      startDate: daysAgo(1),
-      endDate: daysFromNow(3),
+      startDate: new Date("2025-01-01T00:00:00.000Z"),
+      endDate: new Date("2099-12-31T23:59:59.000Z"),
       featureFlags: {
         ...flags,
         stampRally: true,

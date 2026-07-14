@@ -35,7 +35,8 @@ const schema = z.object({
   phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效手机号"),
   code: z.string().length(6, "请输入 6 位验证码"),
   contactName: z.string().min(1, "请输入姓名").max(40),
-  companyName: z.string().min(2, "企业名称至少 2 个字符").optional().or(z.literal("")),
+  companyName: z.string().min(2, "请填写公司名称（至少 2 个字符）").max(80),
+  email: z.string().email("请输入有效邮箱"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -52,6 +53,7 @@ export function ExperienceSignupForm() {
       code: "",
       contactName: "",
       companyName: "",
+      email: "",
     },
   });
 
@@ -108,7 +110,8 @@ export function ExperienceSignupForm() {
         phone: values.phone,
         code: values.code,
         contactName: values.contactName,
-        companyName: values.companyName || undefined,
+        companyName: values.companyName,
+        email: values.email.trim().toLowerCase(),
       }),
     });
     const json = await res.json();
@@ -137,10 +140,11 @@ export function ExperienceSignupForm() {
           <Sparkles className="size-6 text-brand-green" />
         </div>
         <CardTitle className="text-2xl font-bold text-brand-blue">
-          一键体验演示展会
+          免费体验演示展会
         </CardTitle>
         <CardDescription className="mt-2 text-sm leading-relaxed">
-          进入「智链未来产业博览会 2026」完整演示环境，含 Web 后台 + 小程序观众端，默认体验 7 天
+          进入「智链未来产业博览会 2026」（活动码 TEST1377）完整演示环境，含
+          Web 后台 + 小程序观众端；默认 7 天，体验即潜客待审
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -148,10 +152,39 @@ export function ExperienceSignupForm() {
           <div className="space-y-2">
             <Label htmlFor="contactName">姓名</Label>
             <Input id="contactName" {...form.register("contactName")} />
+            {form.formState.errors.contactName && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.contactName.message}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="companyName">公司（选填）</Label>
-            <Input id="companyName" {...form.register("companyName")} />
+            <Label htmlFor="companyName">公司</Label>
+            <Input
+              id="companyName"
+              placeholder="与组织申请一致的公司全称"
+              {...form.register("companyName")}
+            />
+            {form.formState.errors.companyName && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.companyName.message}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">邮箱</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="用于审核通知与登录"
+              {...form.register("email")}
+            />
+            {form.formState.errors.email && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.email.message}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">手机号</Label>
@@ -182,7 +215,7 @@ export function ExperienceSignupForm() {
             className="w-full"
             disabled={form.formState.isSubmitting}
           >
-            {form.formState.isSubmitting ? "开通中…" : "开始 7 天体验"}
+            {form.formState.isSubmitting ? "开通中…" : "开始免费体验"}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-text-muted">
