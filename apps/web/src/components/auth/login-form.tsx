@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth-redirect";
 import { withPublicPath } from "@/lib/public-path";
 import {
+  ACCOUNT_ADMIN_EMAIL,
   PLATFORM_ADMIN_EMAIL,
   SEED_PASSWORD,
   SEED_TEST_ACCOUNTS,
@@ -75,17 +76,17 @@ export function LoginForm() {
   const [countdown, setCountdown] = useState(0);
   const [emailCountdown, setEmailCountdown] = useState(0);
   const [selectedAccount, setSelectedAccount] =
-    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("platformAdmin");
+    useState<(typeof TEST_ACCOUNT_OPTIONS)[number]["key"]>("accountAdmin");
 
   const phoneForm = useForm<PhoneFormValues>({
     resolver: zodResolver(phoneSchema),
-    defaultValues: { phone: SEED_TEST_ACCOUNTS.platformAdmin.phone, code: "" },
+    defaultValues: { phone: SEED_TEST_ACCOUNTS.accountAdmin.phone, code: "" },
   });
 
   const emailPasswordForm = useForm<EmailPasswordFormValues>({
     resolver: zodResolver(emailPasswordSchema),
     defaultValues: {
-      email: PLATFORM_ADMIN_EMAIL,
+      email: ACCOUNT_ADMIN_EMAIL,
       password: SEED_PASSWORD,
     },
   });
@@ -93,7 +94,7 @@ export function LoginForm() {
   const emailCodeForm = useForm<EmailCodeFormValues>({
     resolver: zodResolver(emailCodeSchema),
     defaultValues: {
-      email: PLATFORM_ADMIN_EMAIL,
+      email: ACCOUNT_ADMIN_EMAIL,
       code: "",
     },
   });
@@ -282,7 +283,8 @@ export function LoginForm() {
               ))}
             </select>
             <p className="text-xs text-text-tertiary">
-              平台管理员推荐「邮箱验证码」：{PLATFORM_ADMIN_EMAIL}；密码 {SEED_PASSWORD}
+              账号管理员：{ACCOUNT_ADMIN_EMAIL} / {SEED_PASSWORD}；平台管理员：
+              {PLATFORM_ADMIN_EMAIL} / {SEED_PASSWORD}
             </p>
           </div>
 

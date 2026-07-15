@@ -31,7 +31,7 @@ export default function ForbiddenPage() {
           如果你是参会者或最终用户，请使用微信小程序
         </p>
         <p className="mt-3 text-xs text-text-tertiary">
-          请使用账号管理员测试账号重新登录（13800000008 / 密码 BagEvent1001）
+          请使用账号管理员测试账号重新登录（milo@bagevent.cn / 密码 BagEvent1001）
         </p>
         <Link
           href="#"

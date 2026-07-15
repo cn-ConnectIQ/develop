@@ -36,7 +36,10 @@ import {
 } from "./seed-mobile-test-dimensions";
 
 const SEED_PASSWORD = "BagEvent1001";
-const PLATFORM_ADMIN_EMAIL = "milo@bagevent.cn";
+/** 账号管理员（统一组织）测试邮箱 */
+const ACCOUNT_ADMIN_EMAIL = "milo@bagevent.cn";
+/** 平台管理员测试邮箱（与账号管理员邮箱互斥） */
+const PLATFORM_ADMIN_EMAIL = "platform@bagevent.cn";
 
 /** 账号管理员 + 平台管理员手机号 */
 const ADMIN_PHONES = [
@@ -255,6 +258,7 @@ async function upsertUser(params: {
 async function createApprovedAccountAdmin(params: {
   phone: string;
   name: string;
+  email?: string;
   org: {
     name: string;
     slug: string;
@@ -271,6 +275,7 @@ async function createApprovedAccountAdmin(params: {
   const admin = await upsertUser({
     phone: params.phone,
     name: params.name,
+    email: params.email,
     userType: UserType.ACCOUNT_ADMIN,
     accountStatus: UserAccountStatus.COMPLETE,
   });
@@ -659,6 +664,7 @@ async function main() {
     await createApprovedAccountAdmin({
       phone: "13800000008",
       name: "陈主编",
+      email: ACCOUNT_ADMIN_EMAIL,
       org: {
         name: "玖莅 创新中心",
         slug: "connectiq-innovation-hub",
@@ -1389,18 +1395,19 @@ async function main() {
   console.log("\n✅ Seed 完成\n");
   console.log("── 账号密码登录（推荐）──");
   console.log(`  密码（全部账号）: ${SEED_PASSWORD}`);
-  console.log(`  平台管理员邮箱: ${PLATFORM_ADMIN_EMAIL}（推荐邮箱验证码登录）`);
+  console.log(`  账号管理员:     ${ACCOUNT_ADMIN_EMAIL} / ${SEED_PASSWORD}`);
+  console.log(`  平台管理员:     ${PLATFORM_ADMIN_EMAIL} / ${SEED_PASSWORD}`);
   console.log("  其他邮箱格式: {手机号}@phone.connectiq.local");
   console.log("  会议主办方:     13800000002@phone.connectiq.local");
   console.log("  展览主办方:     13800000003@phone.connectiq.local");
   console.log("  参展商:         13800000004@phone.connectiq.local");
-  console.log("  统一组织:       13800000008@phone.connectiq.local");
+  console.log(`  统一组织:       ${ACCOUNT_ADMIN_EMAIL}（手机 13800000008）`);
   console.log("\n── 手机号验证码登录 ──");
   console.log("  平台管理员:     13800000001");
   console.log("  会议主办方:     13800000002  李经理");
   console.log("  展览主办方:     13800000003  王总监");
   console.log("  参展商:         13800000004  张销售");
-  console.log("  统一组织:       13800000008  陈主编  → /org/connectiq-innovation-hub");
+  console.log(`  统一组织:       13800000008  陈主编  → /org/connectiq-innovation-hub`);
   console.log("  待审核:         13800000005 / 13800000006");
   console.log("  已拒绝:         13800000007");
   console.log(`\n── 移动端测试（参会者）──`);

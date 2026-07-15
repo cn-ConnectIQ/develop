@@ -16,6 +16,7 @@
     "db:seed": "prisma db seed",
     "db:seed:billing-plans": "tsx prisma/seed-billing-plans.ts",
     "db:upsert-platform-admin": "tsx prisma/upsert-platform-admin.ts",
+    "db:upsert-account-admin": "tsx prisma/upsert-account-admin.ts",
     "db:seed:expo-mock": "tsx prisma/seed-expo-mock.ts",
     "db:seed:mobile-test": "tsx prisma/seed-mobile-test-attendee.ts",
     "db:seed:mobile-test-dimensions": "tsx prisma/seed-mobile-test-dimensions.ts",
