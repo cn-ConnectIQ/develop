@@ -11,6 +11,8 @@ import { attachToRedemptionCode, ensureEventCodesForUsers } from "@/lib/lottery/
 import {
   loadOrganizerLotteryMeta,
   patchOrganizerLotteryDrawMeta,
+  ensureOrganizerLotteryScanSession,
+  resolveOrganizerLotteryScanJoin,
   syncOrganizerLotteryEntriesFromEligibility,
 } from "@/lib/lottery/organizer-lottery-service";
 import {
@@ -805,6 +807,16 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
     meta.active_draw_tier,
   );
 
+  const scan_join = meta.eligibility.allow_scan_join
+    ? (await resolveOrganizerLotteryScanJoin(eventId, lotteryId)) ??
+      (await ensureOrganizerLotteryScanSession({
+        eventId,
+        lotteryId,
+        title: lottery.title,
+        createdById: lottery.createdById,
+      }).catch(() => null))
+    : null;
+
   return {
     lottery: {
       id: lottery.id,
@@ -815,7 +827,9 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
       animation: bigScreenToLegacyAnimation(meta.big_screen_animation_type),
       big_screen_animation_type: meta.big_screen_animation_type,
       prize_draw_order: meta.prize_draw_order,
+      allow_scan_join: meta.eligibility.allow_scan_join,
     },
+    scan_join,
     winner_quota: winnerQuota,
     revealed_count: winners.length,
     active_tier: meta.active_draw_tier,

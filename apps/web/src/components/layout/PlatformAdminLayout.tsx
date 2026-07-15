@@ -7,12 +7,14 @@ import { signOutWithCleanup } from "@/lib/auth-redirect";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
+  Building2,
   CalendarCheck,
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
   LogOut,
   Shield,
+  ShieldCheck,
   Sparkles,
   Tag,
   UserPlus,
@@ -71,7 +73,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "用户管理",
     items: [
+      { label: "账号台账", href: "/platform/organizations", icon: Building2 },
       { label: "全平台用户", href: "/platform/users", icon: Users },
+      { label: "平台管理员", href: "/platform/admins", icon: ShieldCheck },
       { label: "内容审核", href: "/moderation", icon: Shield },
     ],
   },

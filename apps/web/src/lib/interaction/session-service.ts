@@ -45,12 +45,14 @@ export async function createInteractionSession(input: {
   ownerType?: "ORGANIZER" | "EXHIBITOR";
   channelType?: "QR_CODE" | "LINK" | "APP_PUSH";
   settings?: Record<string, unknown>;
+  /** 大屏抽奖扫码入池：不另扣互动点（主办方大奖池已是产品能力） */
+  skipBilling?: boolean;
 }) {
   const event = await prisma.event.findUnique({
     where: { id: input.eventId },
     select: { orgId: true },
   });
-  if (event?.orgId) {
+  if (event?.orgId && !input.skipBilling) {
     const { assertAndDebitInteractionPoint } = await import(
       "@/lib/billing/billing-guards"
     );
@@ -330,19 +332,21 @@ export async function participateInSession(
     for (const ref of refs) {
       if (ref.type === "lottery") {
         try {
-          const entry = await enterLottery(
-            session.eventId,
-            ref.id,
-            userId,
-          );
-          lotteryEntries.push(entry);
-
           const settings =
             session.settings &&
             typeof session.settings === "object" &&
             !Array.isArray(session.settings)
               ? (session.settings as Record<string, unknown>)
               : {};
+          const viaScan = settings.allow_scan_join === true;
+          const entry = await enterLottery(
+            session.eventId,
+            ref.id,
+            userId,
+            { viaScan },
+          );
+          lotteryEntries.push(entry);
+
           if (settings.requireLeadCapture === true && session.boothId) {
             const participant = await ensureParticipantForUser(
               session.eventId,

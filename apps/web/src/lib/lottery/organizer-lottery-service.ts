@@ -15,11 +15,14 @@ import {
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError, type AuthSession } from "@/lib/api-auth";
+import { createInteractionSession } from "@/lib/interaction/session-service";
+import { getInteractionScanUrl } from "@/lib/qrcode";
 import type {
   CreateOrganizerLotteryInput,
   OrganizerLotteryDto,
   OrganizerLotteryEligibility,
   OrganizerLotteryMeta,
+  OrganizerLotteryScanJoin,
 } from "@/lib/lottery/organizer-lottery-config";
 import {
   defaultOrganizerEligibility,
@@ -68,6 +71,10 @@ export async function loadOrganizerLotteryMeta(
     min_connections:
       typeof eligibilityRaw?.min_connections === "number"
         ? eligibilityRaw.min_connections
+        : undefined,
+    allow_scan_join:
+      typeof eligibilityRaw?.allow_scan_join === "boolean"
+        ? eligibilityRaw.allow_scan_join
         : undefined,
   });
 
@@ -197,6 +204,11 @@ async function mapLotteryDto(
     lottery.bigScreenAnimationType,
   );
 
+  const scan_join =
+    meta.eligibility.allow_scan_join
+      ? await resolveOrganizerLotteryScanJoin(lottery.eventId, lottery.id)
+      : null;
+
   return {
     id: lottery.id,
     title: lottery.title,
@@ -216,6 +228,7 @@ async function mapLotteryDto(
       sort_order: p.sortOrder,
     })),
     meta,
+    scan_join,
     created_at: lottery.createdAt.toISOString(),
   };
 }
@@ -272,6 +285,115 @@ async function resolveActiveOrganizerStampRallyId(eventId: string) {
     select: { id: true },
   });
   return rally?.id ?? null;
+}
+
+function sessionMatchesLotteryScan(
+  interactions: unknown,
+  settings: unknown,
+  lotteryId: string,
+) {
+  const settingsObj =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? (settings as Record<string, unknown>)
+      : {};
+  if (settingsObj.scan_join_lottery_id === lotteryId) return true;
+  if (!Array.isArray(interactions)) return false;
+  return interactions.some(
+    (ref) =>
+      ref &&
+      typeof ref === "object" &&
+      (ref as { type?: string; id?: string }).type === "lottery" &&
+      (ref as { id?: string }).id === lotteryId &&
+      settingsObj.allow_scan_join === true,
+  );
+}
+
+export async function resolveOrganizerLotteryScanJoin(
+  eventId: string,
+  lotteryId: string,
+): Promise<OrganizerLotteryScanJoin | null> {
+  const sessions = await prisma.interactionSession.findMany({
+    where: {
+      eventId,
+      boothId: null,
+      isActive: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 80,
+    select: {
+      id: true,
+      sessionCode: true,
+      qrUrl: true,
+      interactions: true,
+      settings: true,
+    },
+  });
+
+  const hit = sessions.find((s) =>
+    sessionMatchesLotteryScan(s.interactions, s.settings, lotteryId),
+  );
+  if (!hit) return null;
+
+  return {
+    session_id: hit.id,
+    session_code: hit.sessionCode,
+    qr_url: hit.qrUrl,
+    scan_url: getInteractionScanUrl(hit.sessionCode),
+  };
+}
+
+export async function ensureOrganizerLotteryScanSession(input: {
+  eventId: string;
+  lotteryId: string;
+  title: string;
+  createdById: string;
+}): Promise<OrganizerLotteryScanJoin> {
+  const existing = await resolveOrganizerLotteryScanJoin(
+    input.eventId,
+    input.lotteryId,
+  );
+  if (existing) return existing;
+
+  const session = await createInteractionSession({
+    eventId: input.eventId,
+    createdById: input.createdById,
+    name: `${input.title} · 扫码入池`,
+    interactions: [{ type: "lottery", id: input.lotteryId }],
+    ownerType: "ORGANIZER",
+    settings: {
+      allow_scan_join: true,
+      scan_join_lottery_id: input.lotteryId,
+    },
+    skipBilling: true,
+  });
+
+  return {
+    session_id: session.id,
+    session_code: session.sessionCode,
+    qr_url: session.qrUrl,
+    scan_url: getInteractionScanUrl(session.sessionCode),
+  };
+}
+
+async function deactivateOrganizerLotteryScanSessions(
+  eventId: string,
+  lotteryId: string,
+) {
+  const sessions = await prisma.interactionSession.findMany({
+    where: { eventId, boothId: null, isActive: true },
+    select: { id: true, interactions: true, settings: true },
+    take: 80,
+  });
+  const ids = sessions
+    .filter((s) =>
+      sessionMatchesLotteryScan(s.interactions, s.settings, lotteryId),
+    )
+    .map((s) => s.id);
+  if (ids.length === 0) return;
+  await prisma.interactionSession.updateMany({
+    where: { id: { in: ids } },
+    data: { isActive: false },
+  });
 }
 
 export async function upsertOrganizerGrandLottery(
@@ -403,8 +525,19 @@ export async function upsertOrganizerGrandLottery(
 
   await saveOrganizerLotteryMeta(eventId, lotteryId, meta);
 
+  if (eligibility.allow_scan_join && status === LotteryStatus.OPEN) {
+    await ensureOrganizerLotteryScanSession({
+      eventId,
+      lotteryId: lotteryId!,
+      title: input.title.trim(),
+      createdById: session.user.id,
+    });
+  } else {
+    await deactivateOrganizerLotteryScanSessions(eventId, lotteryId!);
+  }
+
   if (status === LotteryStatus.OPEN) {
-    await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId);
+    await syncOrganizerLotteryEntriesFromEligibility(eventId, lotteryId!);
   }
 
   const lottery = await prisma.lottery.findUniqueOrThrow({

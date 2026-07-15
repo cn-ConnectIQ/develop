@@ -32,7 +32,13 @@ type ScreenState = {
     entry_count: number;
     animation: string;
     prize_draw_order: PrizeDrawOrder;
+    allow_scan_join?: boolean;
   };
+  scan_join?: {
+    qr_url: string | null;
+    scan_url: string;
+    session_code: string;
+  } | null;
   winner_quota: number;
   revealed_count: number;
   active_tier: number | null;
@@ -426,6 +432,25 @@ export function LotteryScreenConsole({
                       <span className="ml-1 text-sm font-medium">人</span>
                     </p>
                   </div>
+                  {state?.scan_join?.qr_url && (
+                    <>
+                      <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                      <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={state.scan_join.qr_url}
+                          alt="扫码加入"
+                          className="size-16 rounded-lg bg-white p-1"
+                        />
+                        <div>
+                          <p className="text-sm text-white/50">扫码入池</p>
+                          <p className="font-mono text-sm text-[#7DE0BE]">
+                            {state.scan_join.session_code}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <div className="flex-1" />
                   <div className="inline-flex items-center gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/15 px-4 py-2">
                     <span className="size-2 animate-pulse rounded-full bg-brand-gold shadow-[0_0_8px_#EF9F27]" />

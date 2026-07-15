@@ -51,6 +51,33 @@ export const PATCH = withErrorHandler(async (request, context) => {
         entityId: parsed.data.entityId ?? null,
       },
     });
+    if (parsed.data.role === "PLATFORM_ADMIN") {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { orgId: true },
+      });
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          userType: user?.orgId ? "ACCOUNT_ADMIN" : "END_USER",
+        },
+      });
+    }
+  }
+
+  if (parsed.data.action === "assign" && parsed.data.role === "PLATFORM_ADMIN") {
+    const existing = await prisma.userRoleAssignment.findFirst({
+      where: { userId, role: "PLATFORM_ADMIN" as never },
+    });
+    if (!existing) {
+      await prisma.userRoleAssignment.create({
+        data: { userId, role: "PLATFORM_ADMIN" as never },
+      });
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: { userType: "PLATFORM_ADMIN" },
+    });
   }
 
   return createSuccessResponse({ updated: true });

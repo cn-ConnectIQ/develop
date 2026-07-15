@@ -287,11 +287,39 @@ export function OrganizerLotteryConfigurator({
             editor={
               <>
                 {savedLottery && (
-                  <div className="mb-6 flex flex-wrap items-center gap-2">
-                    {statusBadge}
-                    <span className="text-sm text-text-muted">
-                      已报名 {savedLottery.entry_count} 人
-                    </span>
+                  <div className="mb-6 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {statusBadge}
+                      <span className="text-sm text-text-muted">
+                        已报名 {savedLottery.entry_count} 人
+                      </span>
+                    </div>
+                    {savedLottery.scan_join && (
+                      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-brand-blue/25 bg-brand-blue/5 p-4">
+                        {savedLottery.scan_join.qr_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={savedLottery.scan_join.qr_url}
+                            alt="扫码加入抽奖"
+                            className="size-28 rounded-lg bg-white p-1"
+                          />
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-brand-blue">
+                            扫码加入已开启
+                          </p>
+                          <p className="mt-1 break-all text-xs text-text-muted">
+                            码：{savedLottery.scan_join.session_code}
+                          </p>
+                          <p className="mt-1 break-all text-xs text-text-muted">
+                            {savedLottery.scan_join.scan_url}
+                          </p>
+                          <p className="mt-2 text-xs text-text-muted">
+                            大屏等待开奖时会展示该二维码；观众微信扫码登录后直接入池。
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -382,9 +410,27 @@ export function OrganizerLotteryConfigurator({
 
                 <CreationSection
                   hint="参与门槛"
-                  description="勾选的所有条件须同时满足（AND），驱动参会者完成更多活动行为"
+                  description="勾选的所有条件须同时满足（AND），驱动参会者完成更多活动行为；也可单独开启扫码加入，现场扫大屏二维码即可入池"
                 >
                   <div className="space-y-4">
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-brand-blue/30 bg-brand-blue/5 px-4 py-3">
+                      <Checkbox
+                        checked={eligibility.allow_scan_join}
+                        onCheckedChange={(checked) =>
+                          patchEligibility({ allow_scan_join: checked === true })
+                        }
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-brand-blue">
+                          扫码加入抽奖
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          开启后生成互动二维码，观众扫码即可入池（无需满足下方门槛）。门槛自动入池仍可并行生效。
+                        </p>
+                      </div>
+                    </label>
+
                     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-light px-4 py-3">
                       <Checkbox
                         checked={eligibility.require_checkin}

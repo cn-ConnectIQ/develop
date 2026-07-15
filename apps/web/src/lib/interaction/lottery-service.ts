@@ -566,6 +566,7 @@ export async function enterLottery(
   eventId: string,
   lotteryId: string,
   userId: string,
+  options?: { viaScan?: boolean },
 ) {
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
 
@@ -573,14 +574,31 @@ export async function enterLottery(
     throw new ApiError("抽奖未开放参与", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  if (lottery.requireCheckin) {
+  const viaScan = options?.viaScan === true;
+  let scanJoinAllowed = false;
+  if (viaScan) {
+    const { loadOrganizerLotteryMeta } = await import(
+      "@/lib/lottery/organizer-lottery-service"
+    );
+    const meta = await loadOrganizerLotteryMeta(
+      eventId,
+      lotteryId,
+      lottery.bigScreenAnimationType,
+    );
+    scanJoinAllowed = meta.eligibility.allow_scan_join === true;
+    if (!scanJoinAllowed) {
+      throw new ApiError("该抽奖未开启扫码加入", ErrorCode.FORBIDDEN, 403);
+    }
+  }
+
+  if (lottery.requireCheckin && !scanJoinAllowed) {
     const checkedIn = await hasUserCheckedIn(eventId, userId);
     if (!checkedIn) {
       throw new ApiError("需要先完成签到才能参与", ErrorCode.FORBIDDEN, 403);
     }
   }
 
-  if (lottery.requirePollId) {
+  if (lottery.requirePollId && !scanJoinAllowed) {
     const participated = await hasUserPollParticipation(
       eventId,
       userId,
@@ -591,7 +609,7 @@ export async function enterLottery(
     }
   }
 
-  if (lottery.eligibleRoles.length > 0) {
+  if (lottery.eligibleRoles.length > 0 && !scanJoinAllowed) {
     const participant = await findParticipantForUser(eventId, userId);
     if (
       !participant ||
@@ -601,13 +619,17 @@ export async function enterLottery(
     }
   }
 
+  if (viaScan && scanJoinAllowed) {
+    await ensureParticipantForUser(eventId, userId);
+  }
+
   try {
     const entry = await prisma.$transaction(async (tx) => {
       const created = await tx.lotteryEntry.create({
         data: {
           lotteryId,
           userId,
-          source: "MANUAL",
+          source: viaScan && scanJoinAllowed ? "SCAN" : "MANUAL",
         },
         include: {
           user: { select: { id: true, name: true, email: true } },

@@ -7,6 +7,13 @@
 - 职责：平台运营、账号审核、活动审核、内容审核
 - 登录路由：/platform/
 - 不直接操作具体活动内容
+- **增员**：平台后台 → 用户管理 →「平台管理员」(`/platform/admins`)
+  - 可新建账号或将已有邮箱提升为平台管理员
+  - 不可撤销自己；至少保留 1 名平台管理员
+  - 同步写入 `User.userType` 与 `UserRoleAssignment.PLATFORM_ADMIN`
+- **账号台账**：平台后台 →「账号台账」(`/platform/organizations`)
+  - 查看组织活动数 / 参会数 / 短信·邮件·互动点余额与近 30 天消耗
+  - 代充额度（`ADJUST` 流水）、挂起/恢复、互动点透支额度
 
 ### 层级 2：账号管理员（ACCOUNT_ADMIN）
 - user_type = 'ACCOUNT_ADMIN'

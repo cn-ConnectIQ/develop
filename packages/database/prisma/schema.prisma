@@ -441,6 +441,7 @@ enum LotteryEntrySource {
   MANUAL
   AUTO_CHECKIN
   AUTO_ACTIVITY
+  SCAN /// 扫码加入（大屏 / 互动 Session）
 }
 
 enum InteractionChannelType {

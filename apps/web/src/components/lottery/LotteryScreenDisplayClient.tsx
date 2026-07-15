@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Gift, Trophy } from "lucide-react";
 import {
@@ -13,6 +14,12 @@ export type LotteryScreenDisplayClientProps = {
   eventName: string;
   lotteryId?: string | null;
   embedded?: boolean;
+};
+
+type ScanJoinInfo = {
+  qr_url: string | null;
+  scan_url: string;
+  session_code: string;
 };
 
 export function LotteryScreenDisplayClient({
@@ -67,6 +74,30 @@ function LotteryScreenDisplayInner({
     error,
     dispatchExtras,
   } = useLotteryScreenAnimation(eventId, lotteryId);
+
+  const [scanJoin, setScanJoin] = useState<ScanJoinInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const join = json.data?.scan_join as ScanJoinInfo | null | undefined;
+        if (!cancelled && join?.scan_url) {
+          setScanJoin(join);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, lotteryId]);
 
   if (loading) {
     return (
@@ -147,25 +178,66 @@ function LotteryScreenDisplayInner({
         )}
       >
         {screenPhase === "idle" && (
-          <div className="text-center">
-            <Gift
-              className={cn(
-                "mx-auto text-brand-gold/40",
-                embedded ? "size-10" : "size-20",
-              )}
-            />
-            <p
-              className={cn(
-                "text-white/50",
-                embedded ? "mt-2 text-xs" : "mt-6 text-2xl",
-              )}
-            >
-              等待控制台启动抽奖…
-            </p>
-            {!embedded && (
-              <p className="mt-2 text-sm text-white/30">
-                频道 event:{eventId.slice(-6)}:lottery-screen
-              </p>
+          <div className="flex flex-col items-center text-center">
+            {scanJoin ? (
+              <>
+                {scanJoin.qr_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={scanJoin.qr_url}
+                    alt="扫码加入抽奖"
+                    className={cn(
+                      "rounded-2xl bg-white p-3 shadow-xl",
+                      embedded ? "size-28" : "size-56",
+                    )}
+                  />
+                ) : (
+                  <Gift
+                    className={cn(
+                      "mx-auto text-brand-gold/40",
+                      embedded ? "size-10" : "size-20",
+                    )}
+                  />
+                )}
+                <p
+                  className={cn(
+                    "font-semibold text-white/80",
+                    embedded ? "mt-2 text-xs" : "mt-6 text-2xl",
+                  )}
+                >
+                  微信扫码加入抽奖
+                </p>
+                <p
+                  className={cn(
+                    "text-white/40",
+                    embedded ? "mt-1 text-[10px]" : "mt-2 text-sm",
+                  )}
+                >
+                  码 {scanJoin.session_code} · 等待控制台启动开奖
+                </p>
+              </>
+            ) : (
+              <>
+                <Gift
+                  className={cn(
+                    "mx-auto text-brand-gold/40",
+                    embedded ? "size-10" : "size-20",
+                  )}
+                />
+                <p
+                  className={cn(
+                    "text-white/50",
+                    embedded ? "mt-2 text-xs" : "mt-6 text-2xl",
+                  )}
+                >
+                  等待控制台启动抽奖…
+                </p>
+                {!embedded && (
+                  <p className="mt-2 text-sm text-white/30">
+                    频道 event:{eventId.slice(-6)}:lottery-screen
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}

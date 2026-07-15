@@ -97,6 +97,8 @@ export type OrganizerLotteryEligibility = {
   require_stamp_rally: boolean;
   stamp_rally_id: string | null;
   min_connections: number | null;
+  /** 允许扫码直接加入奖池（无需满足其它门槛） */
+  allow_scan_join: boolean;
 };
 
 /** ASC = 从低等级到高等级依次开奖（先三等奖，压轴一等奖）；ALL_AT_ONCE = 不分级逐步控制 */
@@ -118,6 +120,7 @@ export const defaultOrganizerEligibility = (): OrganizerLotteryEligibility => ({
   require_stamp_rally: false,
   stamp_rally_id: null,
   min_connections: null,
+  allow_scan_join: false,
 });
 
 export function normalizeOrganizerEligibility(
@@ -142,6 +145,7 @@ export function normalizeOrganizerEligibility(
       typeof raw?.min_connections === "number" && raw.min_connections > 0
         ? raw.min_connections
         : null,
+    allow_scan_join: raw?.allow_scan_join ?? defaults.allow_scan_join,
   };
 }
 
@@ -175,6 +179,7 @@ export const organizerEligibilitySchema = z.object({
   require_stamp_rally: z.boolean().optional(),
   stamp_rally_id: optionalNullableCuid,
   min_connections: z.number().int().min(1).max(100).optional().nullable(),
+  allow_scan_join: z.boolean().optional(),
 });
 
 export const createOrganizerLotterySchema = z.object({
@@ -219,6 +224,13 @@ export type CreateOrganizerLotteryInput = z.infer<
   typeof createOrganizerLotterySchema
 >;
 
+export type OrganizerLotteryScanJoin = {
+  session_id: string;
+  session_code: string;
+  qr_url: string | null;
+  scan_url: string;
+};
+
 export type OrganizerLotteryDto = {
   id: string;
   title: string;
@@ -238,6 +250,8 @@ export type OrganizerLotteryDto = {
     sort_order: number;
   }>;
   meta: OrganizerLotteryMeta;
+  /** 开启扫码加入时的互动码 */
+  scan_join: OrganizerLotteryScanJoin | null;
   created_at: string;
 };
 
