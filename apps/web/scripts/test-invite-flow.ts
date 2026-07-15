@@ -101,6 +101,8 @@ async function ensureTestCampaign() {
             participantId: participant.id,
             channel: InviteChannel.SMS,
             destination: participant.phone ?? "13800000001",
+            activationToken: `t${Date.now().toString(36).slice(-7)}`.slice(0, 8),
+            phoneHash: null,
             tokenExpiresAt: computeTokenExpiresAt(event.endDate),
             status: InviteRecordStatus.DELIVERED,
             sentAt: new Date(),
@@ -112,6 +114,8 @@ async function ensureTestCampaign() {
     });
     console.log("  → 已创建测试邀请活动");
   }
+
+  if (!campaign) throw new Error("无法加载邀请活动");
 
   const record =
     campaign.records[0] ??

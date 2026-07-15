@@ -7,6 +7,10 @@ import {
   prisma,
   type Prisma,
 } from "@connectiq/database";
+import {
+  allocateUniqueInviteToken,
+  hashInvitePhone,
+} from "@/lib/invite/token";
 import type {
   ImportContactInput,
   TargetFilterInput,
@@ -232,6 +236,7 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
           participantId: participant.id,
           channel: campaign.channel,
           destination: "",
+          activationToken: await allocateUniqueInviteToken(),
           tokenExpiresAt,
           status: InviteRecordStatus.SKIPPED,
           errorMessage:
@@ -257,6 +262,7 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
           participantId: participant.id,
           channel: campaign.channel,
           destination,
+          activationToken: await allocateUniqueInviteToken(),
           tokenExpiresAt,
           status: InviteRecordStatus.SKIPPED,
           errorMessage: "已退订或在黑名单中",
@@ -266,12 +272,35 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
       continue;
     }
 
+    const phoneHash =
+      campaign.channel === InviteChannel.SMS
+        ? hashInvitePhone(destination)
+        : participant.phone
+          ? hashInvitePhone(participant.phone)
+          : null;
+
+    let linkedUserId: string | null = null;
+    if (campaign.channel === InviteChannel.SMS || participant.phone) {
+      const phone =
+        campaign.channel === InviteChannel.SMS
+          ? destination
+          : participant.phone!;
+      const user = await prisma.user.findFirst({
+        where: { phone },
+        select: { id: true },
+      });
+      linkedUserId = user?.id ?? null;
+    }
+
     await prisma.inviteRecord.create({
       data: {
         campaignId,
         participantId: participant.id,
         channel: campaign.channel,
         destination,
+        activationToken: await allocateUniqueInviteToken(),
+        phoneHash,
+        userId: linkedUserId,
         tokenExpiresAt,
         status: InviteRecordStatus.PENDING,
       },
@@ -748,6 +777,7 @@ export async function recordInviteClick(token: string) {
       campaignId: true,
       participantId: true,
       clickedAt: true,
+      firstUsedAt: true,
       status: true,
       tokenExpiresAt: true,
     },
@@ -756,7 +786,15 @@ export async function recordInviteClick(token: string) {
   if (!record) return null;
 
   const expired = record.tokenExpiresAt.getTime() < Date.now();
+  const now = new Date();
   const isFirstClick = !record.clickedAt && !expired;
+
+  if (!record.firstUsedAt && !expired) {
+    await prisma.inviteRecord.update({
+      where: { id: record.id },
+      data: { firstUsedAt: now },
+    });
+  }
 
   if (
     isFirstClick &&
@@ -774,7 +812,8 @@ export async function recordInviteClick(token: string) {
         where: { id: record.id },
         data: {
           status: nextStatus,
-          clickedAt: new Date(),
+          clickedAt: now,
+          firstUsedAt: record.firstUsedAt ?? now,
         },
       }),
       prisma.participant.updateMany({

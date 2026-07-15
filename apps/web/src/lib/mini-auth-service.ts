@@ -110,6 +110,11 @@ async function exchangeWxCode(code: string): Promise<{
   return { openid: session.openid, unionid: session.unionid };
 }
 
+/** 供邀请认领流程复用 */
+export async function exchangeWxCodeForInvite(code: string) {
+  return exchangeWxCode(code);
+}
+
 async function exchangePhoneCode(phoneCode: string): Promise<string> {
   if (!getWxMiniCredentials()) {
     if (process.env.NODE_ENV === "development") {
@@ -144,6 +149,10 @@ async function exchangePhoneCode(phoneCode: string): Promise<string> {
   }
 
   return phone;
+}
+
+export async function exchangePhoneCodeForInvite(phoneCode: string) {
+  return exchangePhoneCode(phoneCode);
 }
 
 async function bindWechatOpenIdToUser(
@@ -340,6 +349,10 @@ async function buildMiniLoginResult(userId: string): Promise<MiniWxLoginResult> 
     openid_bound: Boolean(identity?.value),
     has_phone: Boolean(dbPhone?.phone),
   };
+}
+
+export async function buildMiniLoginResultForInvite(userId: string) {
+  return buildMiniLoginResult(userId);
 }
 
 /**

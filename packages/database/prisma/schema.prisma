@@ -2516,12 +2516,17 @@ model InviteRecord {
   userId          String?            @map("user_id")
   channel         InviteChannel
   destination     String
-  activationToken String             @unique @default(cuid()) @map("activation_token")
+  /// 8 位 base62 短 token（不可枚举，不含身份信息）；兼容历史 cuid
+  activationToken String             @unique @map("activation_token")
+  /// 名单手机号哈希，用于微信一键授权比对（不存明文依赖）
+  phoneHash       String?            @map("phone_hash")
   tokenExpiresAt  DateTime           @map("token_expires_at")
   status          InviteRecordStatus @default(PENDING)
   sentAt          DateTime?          @map("sent_at")
   deliveredAt     DateTime?          @map("delivered_at")
   clickedAt       DateTime?          @map("clicked_at")
+  /// 首次打开中转页（允许多次打开，不因首次使用失效）
+  firstUsedAt     DateTime?          @map("first_used_at")
   activatedAt     DateTime?          @map("activated_at")
   vendorMessageId String?            @map("vendor_message_id")
   errorMessage    String?            @map("error_message")

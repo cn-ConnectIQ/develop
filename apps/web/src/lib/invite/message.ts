@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { buildInviteShortUrl } from "@/lib/invite/token";
 
 export type InviteMessageContext = {
   name: string;
@@ -10,15 +11,9 @@ export type InviteMessageContext = {
   location?: string;
 };
 
-export function buildActivationLink(token: string, eventId?: string) {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.APP_URL ??
-    "https://app.connectiq.cn";
-  const url = new URL("/join", base.replace(/\/$/, ""));
-  url.searchParams.set("token", token);
-  if (eventId) url.searchParams.set("event", eventId);
-  return url.toString();
+/** 短信/邮件激活链接：自有短链 https://9li.co/a/{token} */
+export function buildActivationLink(token: string, _eventId?: string) {
+  return buildInviteShortUrl(token);
 }
 
 export function formatEventDate(date: Date | null | undefined) {
