@@ -16,6 +16,7 @@ import {
 } from "@/lib/exhibitor/dashboard-service";
 import { computeLeadAiIntentLevel } from "@/lib/exhibitor/lead-intent-service";
 import { resolveExhibitorBooth } from "@/lib/exhibitor/exhibitor-auth";
+import { findParticipantForUser } from "@/lib/interaction/participant-user";
 
 export type MobileBoothDashboard = {
   booth_id: string;
@@ -110,18 +111,13 @@ export async function resolveMobileExhibitorBoothAccess(
     });
     isOperatorOrStaff = !!linked;
 
-    // 展商工作人员：本场 Participant 已绑定该展位
+    // 展商工作人员：本场 Participant 已绑定该展位（通过邮箱/手机号关联 User）
     if (!isOperatorOrStaff) {
-      const boothStaff = await prisma.participant.findFirst({
-        where: {
-          userId,
-          boothId,
-          eventId: booth.eventId,
-          systemRole: SystemRole.EXHIBITOR,
-        },
-        select: { id: true },
-      });
-      isOperatorOrStaff = !!boothStaff;
+      const linked = await findParticipantForUser(booth.eventId, userId);
+      isOperatorOrStaff =
+        !!linked &&
+        linked.systemRole === SystemRole.EXHIBITOR &&
+        linked.boothId === boothId;
     }
   }
 

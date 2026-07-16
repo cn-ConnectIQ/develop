@@ -1,5 +1,19 @@
 import { prisma } from "@connectiq/database";
 
+/** 用于 Prisma Participant where：按 User 邮箱/手机号匹配 */
+export async function buildParticipantContactOrForUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, phone: true },
+  });
+  if (!user) return null;
+
+  const or: Array<{ email?: string; phone?: string }> = [];
+  if (user.email) or.push({ email: user.email });
+  if (user.phone) or.push({ phone: user.phone });
+  return or.length > 0 ? or : null;
+}
+
 /** 通过邮箱/手机号将 User 关联到活动 Participant */
 export async function findParticipantForUser(
   eventId: string,

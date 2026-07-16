@@ -7,6 +7,7 @@ import {
 import { ErrorCode } from "@connectiq/types";
 import type { Session } from "next-auth";
 import { ApiError, requireAccountAdmin } from "@/lib/api-auth";
+import { buildParticipantContactOrForUser } from "@/lib/interaction/participant-user";
 import { requireMobileAccountAdmin } from "@/lib/mobile-user-id";
 
 export type ExhibitorBoothContext = {
@@ -68,6 +69,8 @@ export async function resolveExhibitorBoothForUser(
   const byOrg = await resolveExhibitorBooth(orgId, eventId);
   if (byOrg) return byOrg;
 
+  const participantContactOr = await buildParticipantContactOrForUser(userId);
+
   const booth = await prisma.exhibitorBooth.findFirst({
     where: {
       ...(eventId ? { eventId } : {}),
@@ -84,15 +87,19 @@ export async function resolveExhibitorBoothForUser(
             },
           },
         },
-        {
-          participants: {
-            some: {
-              userId,
-              systemRole: SystemRole.EXHIBITOR,
-              ...(eventId ? { eventId } : {}),
-            },
-          },
-        },
+        ...(participantContactOr
+          ? [
+              {
+                participants: {
+                  some: {
+                    OR: participantContactOr,
+                    systemRole: SystemRole.EXHIBITOR,
+                    ...(eventId ? { eventId } : {}),
+                  },
+                },
+              },
+            ]
+          : []),
       ],
     },
     orderBy: { updatedAt: "desc" },
