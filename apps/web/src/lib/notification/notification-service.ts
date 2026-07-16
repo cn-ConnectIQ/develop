@@ -319,9 +319,9 @@ export async function notifyVerificationSms(input: {
   // SYS-01 不走 user 身份时，用 raw adapter via temporary path
   const { smsAdapterSend } = await import("@/lib/notification/sms-adapter");
   const { renderTemplate } = await import("@/lib/notification/render");
-  const body = renderTemplate(
-    "【玖莅】验证码 {码},5分钟内有效。请勿向他人泄露。",
-    { 码: input.code },
-  );
+  // 与赛邮报备模板一致；签名由通道自动加，正文勿写【签名】
+  const body = renderTemplate("您本次验证码为：{码}，十分钟内有效。", {
+    码: input.code,
+  });
   return smsAdapterSend({ phone: input.phone, content: body, tag: "sys-01" });
 }

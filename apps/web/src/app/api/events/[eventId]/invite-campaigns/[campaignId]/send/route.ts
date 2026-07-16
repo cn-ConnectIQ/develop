@@ -1,5 +1,6 @@
 import { ErrorCode } from "@connectiq/types";
 import {
+  ApiError,
   createErrorResponse,
   createSuccessResponse,
   requireEventAccess,
@@ -57,6 +58,20 @@ export const POST = withErrorHandler(async (_request, context) => {
       building: Boolean(result.building),
     });
   } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 402) {
+        return Response.json(
+          {
+            error: error.message,
+            code: error.code,
+            reason: "INSUFFICIENT_INVITE_CREDIT",
+            redirect_to: "/organizer/billing",
+          },
+          { status: 402 },
+        );
+      }
+      return createErrorResponse(error.message, error.code, error.status);
+    }
     if (error instanceof Error) {
       if (error.message === "CAMPAIGN_NOT_FOUND") {
         return createErrorResponse("邀请活动不存在", ErrorCode.NOT_FOUND, 404);
@@ -80,6 +95,20 @@ export const POST = withErrorHandler(async (_request, context) => {
           "活动已暂停，请先继续发送",
           ErrorCode.VALIDATION_ERROR,
           409,
+        );
+      }
+      if (
+        error.message.includes("额度不足") ||
+        error.message.includes("余额不足")
+      ) {
+        return Response.json(
+          {
+            error: error.message,
+            code: ErrorCode.VALIDATION_ERROR,
+            reason: "INSUFFICIENT_INVITE_CREDIT",
+            redirect_to: "/organizer/billing",
+          },
+          { status: 402 },
         );
       }
     }

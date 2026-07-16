@@ -156,6 +156,7 @@ export async function upsertParticipantsFromRowsWithMerge(
   let updated = 0;
   let skipped = 0;
   let merged = 0;
+  const createdIds: string[] = [];
 
   for (const row of rows) {
     if (!row.phone?.trim()) {
@@ -172,13 +173,15 @@ export async function upsertParticipantsFromRowsWithMerge(
       { skipDuplicateUpdate: options?.skipDuplicates },
     );
 
-    if (result.created) created++;
-    else if (options?.skipDuplicates) skipped++;
+    if (result.created) {
+      created++;
+      createdIds.push(result.participant.id);
+    } else if (options?.skipDuplicates) skipped++;
     else {
       updated++;
       if (result.merged) merged++;
     }
   }
 
-  return { created, updated, skipped, merged };
+  return { created, updated, skipped, merged, createdIds };
 }

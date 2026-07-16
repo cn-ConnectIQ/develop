@@ -23,22 +23,18 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  INVITE_VARIABLES,
-  MessagePreview,
-} from "@/components/invites/MessagePreview";
+import { MessagePreview } from "@/components/invites/MessagePreview";
 import {
   useCreateInviteCampaign,
   useSendInviteCampaign,
 } from "@/hooks/useInviteCampaigns";
-import { formatEventDate } from "@/lib/invite/message";
+import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
+import {
+  FIXED_PARTICIPANT_INVITE_SUBJECT,
+  FIXED_PARTICIPANT_INVITE_TEMPLATE,
+  formatEventDate,
+} from "@/lib/invite/message";
 import { cn } from "@/lib/utils";
 
 type TargetMode = "all" | "not_invited" | "custom" | "import";
@@ -74,9 +70,6 @@ export type CreateCampaignFormProps = {
   cloneFrom?: CreateCampaignCloneFrom;
   onSuccess?: () => void;
 };
-
-const DEFAULT_MESSAGE =
-  "{name}，您好！诚邀您参加 {event_name}（{event_date}）。点击链接下载 玖莅，开启现场社交：{link}";
 
 const CHANNELS: Array<{
   id: InviteChannel;
@@ -122,8 +115,8 @@ export function CreateCampaignForm({
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<InviteChannel>(InviteChannel.SMS);
   const [templateId, setTemplateId] = useState("");
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState(DEFAULT_MESSAGE);
+  const message = FIXED_PARTICIPANT_INVITE_TEMPLATE;
+  const subject = FIXED_PARTICIPANT_INVITE_SUBJECT;
   const [targetMode, setTargetMode] = useState<TargetMode>(
     initialParticipantIds?.length ? "custom" : "not_invited",
   );
@@ -190,8 +183,6 @@ export function CreateCampaignForm({
     if (!cloneFrom) return;
     setName(`${cloneFrom.name} · 第二轮`);
     setChannel(cloneFrom.channel);
-    setMessage(cloneFrom.customMessage || DEFAULT_MESSAGE);
-    setSubject(cloneFrom.subject ?? "");
     setTemplateId(cloneFrom.templateId ?? "");
     setPreviewChannel(cloneFrom.channel);
     setTargetMode("not_invited");
@@ -278,7 +269,7 @@ export function CreateCampaignForm({
         name: name || "未命名邀请活动",
         channel,
         template_id: templateId || undefined,
-        subject: subject || undefined,
+        subject,
         custom_message: message,
         target_filter: buildTargetFilter(),
         scheduled_at:
@@ -300,7 +291,7 @@ export function CreateCampaignForm({
         name: name || "未命名邀请活动",
         channel,
         template_id: templateId || undefined,
-        subject: subject || undefined,
+        subject,
         custom_message: message,
         target_filter: buildTargetFilter(),
         scheduled_at:
@@ -325,12 +316,8 @@ export function CreateCampaignForm({
       }
       onSuccess?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "发送失败");
+      toastInviteSendError(e, "发送失败");
     }
-  }
-
-  function insertVariable(key: string) {
-    setMessage((prev) => `${prev}${key}`);
   }
 
   const isSubmitting = createMutation.isPending || sendMutation.isPending;
@@ -392,13 +379,9 @@ export function CreateCampaignForm({
                         />
                       )}
                       {selected && ch.id === InviteChannel.EMAIL && (
-                        <Input
-                          className="mt-2 h-8 text-xs"
-                          placeholder="邮件主题"
-                          value={subject}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setSubject(e.target.value)}
-                        />
+                        <p className="mt-2 text-xs text-text-muted">
+                          邮件主题（固定）：{FIXED_PARTICIPANT_INVITE_SUBJECT}
+                        </p>
                       )}
                       {selected && ch.id === InviteChannel.WECHAT && (
                         <>
@@ -431,35 +414,15 @@ export function CreateCampaignForm({
         </section>
 
         <section className="space-y-4 rounded-xl border border-border-light bg-white p-6">
-          <div className="flex items-center justify-between">
+          <div>
             <h4 className="text-sm font-semibold">消息内容</h4>
-            <Popover>
-              <PopoverTrigger className="text-xs text-brand-blue hover:underline">
-                插入变量
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-56">
-                <div className="flex flex-wrap gap-1.5">
-                  {INVITE_VARIABLES.map((v) => (
-                    <button
-                      key={v.key}
-                      type="button"
-                      className="rounded-md bg-content px-2 py-1 text-xs hover:bg-brand-blue-light"
-                      onClick={() => insertVariable(v.key)}
-                    >
-                      {v.key}
-                      <span className="ml-1 text-text-muted">({v.label})</span>
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <p className="mt-1 text-xs text-text-muted">
+              短信 / 邮件使用平台固定模板，不可修改
+            </p>
           </div>
-          <Textarea
-            rows={4}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={DEFAULT_MESSAGE}
-          />
+          <p className="whitespace-pre-wrap rounded-lg border border-border-light bg-content/60 p-3 text-sm leading-relaxed">
+            {message}
+          </p>
 
           <Tabs
             value={previewChannel}

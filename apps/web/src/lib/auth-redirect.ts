@@ -10,7 +10,7 @@ export function getAccountAdminHomePath(
   _accountType?: string | null,
   _orgId?: string | null,
 ): string {
-  return "/events";
+  return "/organizer/dashboard";
 }
 
 function resolveActiveAdminStatus(user: Session["user"]): string | null {

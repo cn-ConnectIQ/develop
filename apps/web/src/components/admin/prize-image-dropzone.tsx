@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { resolveMediaUrl, withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 export type PrizeImageDropzoneProps = {
@@ -14,6 +15,13 @@ export type PrizeImageDropzoneProps = {
   className?: string;
   disabled?: boolean;
 };
+
+function uploadErrorMessage(json: unknown, fallback: string): string {
+  if (!json || typeof json !== "object") return fallback;
+  const err = (json as { error?: unknown }).error;
+  if (typeof err === "string" && err.trim()) return err;
+  return fallback;
+}
 
 /** 大号拖拽上传区（奖品 / 封面图） */
 export function PrizeImageDropzone({
@@ -28,6 +36,7 @@ export function PrizeImageDropzone({
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const displayUrl = resolveMediaUrl(imageUrl);
 
   async function uploadFile(file: File) {
     if (disabled) return;
@@ -35,15 +44,24 @@ export function PrizeImageDropzone({
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) throw new Error("上传失败");
-      const json = (await res.json()) as { data?: { url?: string }; url?: string };
-      const url = json.data?.url ?? json.url;
-      if (!url) throw new Error("上传失败");
+      const res = await fetch(withPublicPath("/api/upload"), {
+        method: "POST",
+        body: form,
+      });
+      const json = (await res.json().catch(() => null)) as {
+        data?: { url?: string };
+        url?: string;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        throw new Error(uploadErrorMessage(json, `上传失败（HTTP ${res.status}）`));
+      }
+      const url = json?.data?.url ?? json?.url;
+      if (!url) throw new Error("上传成功但未返回图片地址");
       onUpload(url);
       toast.success("图片已上传");
-    } catch {
-      toast.error("图片上传失败");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "图片上传失败");
     } finally {
       setUploading(false);
     }
@@ -72,15 +90,15 @@ export function PrizeImageDropzone({
           dragOver
             ? "border-brand-blue bg-brand-blue-light/20"
             : "border-border-light bg-gray-50/80 hover:border-brand-blue/40",
-          imageUrl && "border-solid bg-white p-0",
+          displayUrl && "border-solid bg-white p-0",
           disabled && "cursor-not-allowed opacity-60",
           className,
         )}
       >
-        {imageUrl ? (
+        {displayUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={imageUrl}
+            src={displayUrl}
             alt={alt ?? "奖品图片"}
             className="size-full max-h-[220px] object-cover"
           />

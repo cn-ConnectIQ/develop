@@ -9,6 +9,7 @@ import {
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
+import { normalizeInvitePhone } from "@/lib/invite/phone";
 import { getOrCreateContactCard } from "@/lib/contact-card-service";
 import { ensureParticipantForUser } from "@/lib/interaction/participant-user";
 import { cacheDel, cacheGet } from "@/lib/redis";
@@ -33,6 +34,8 @@ export type MiniLoginUserPayload = {
   avatar: string | null;
   company: string | null;
   title: string | null;
+  /** 已绑定手机号（末 11 位）；未绑定为 null */
+  phone: string | null;
   userType: "END_USER" | "ACCOUNT_ADMIN" | "PLATFORM_ADMIN";
   hasProfile: boolean;
   hasWechatQr: boolean;
@@ -48,6 +51,15 @@ export type MiniWxLoginResult = {
   openid_bound: boolean;
   /** 是否已绑定手机号 */
   has_phone: boolean;
+  /** 当请求带 eventId 时：该活动意图；无则为 null */
+  intents: {
+    supplyTags: string[];
+    demandTags: string[];
+    role: string | null;
+    topics: string[];
+  } | null;
+  /** 当请求带 eventId 时：是否还需填意图页 */
+  needs_intent: boolean;
 };
 
 const userSelect = {
@@ -310,6 +322,7 @@ async function buildLoginUserPayload(userId: string): Promise<MiniLoginUserPaylo
     avatar: null,
     company: user.profile?.company ?? null,
     title: user.profile?.valueProposition ?? null,
+    phone: user.phone ? normalizeInvitePhone(user.phone) : null,
     userType: mapUserType(user.userType),
     hasProfile,
     hasWechatQr: Boolean(contactCard?.wechatQrUrl),
@@ -329,8 +342,46 @@ async function linkUserToEvent(userId: string, eventId?: string) {
   await ensureParticipantForUser(eventId, userId);
 }
 
-async function buildMiniLoginResult(userId: string): Promise<MiniWxLoginResult> {
-  const [user, identity, dbPhone] = await Promise.all([
+async function loadEventIntents(userId: string, eventId: string) {
+  const intent = await prisma.userEventIntent.findUnique({
+    where: { userId_eventId: { userId, eventId } },
+    select: {
+      supplyTags: true,
+      demandTags: true,
+      role: true,
+      topics: true,
+      rawIntentText: true,
+    },
+  });
+  if (!intent) {
+    return {
+      intents: null as MiniWxLoginResult["intents"],
+      needs_intent: true,
+    };
+  }
+  const filled = Boolean(
+    intent.role?.trim() ||
+      intent.rawIntentText?.trim() ||
+      intent.supplyTags.length > 0 ||
+      intent.demandTags.length > 0 ||
+      intent.topics.length > 0,
+  );
+  return {
+    intents: {
+      supplyTags: intent.supplyTags,
+      demandTags: intent.demandTags,
+      role: intent.role,
+      topics: intent.topics,
+    },
+    needs_intent: !filled,
+  };
+}
+
+async function buildMiniLoginResult(
+  userId: string,
+  eventId?: string,
+): Promise<MiniWxLoginResult> {
+  const [user, identity, dbPhone, intentBundle] = await Promise.all([
     buildLoginUserPayload(userId),
     prisma.userIdentity.findUnique({
       where: { userId_provider: { userId, provider: "wechat_mini" } },
@@ -340,14 +391,27 @@ async function buildMiniLoginResult(userId: string): Promise<MiniWxLoginResult> 
       where: { id: userId },
       select: { phone: true },
     }),
+    eventId
+      ? loadEventIntents(userId, eventId)
+      : Promise.resolve({
+          intents: null as MiniWxLoginResult["intents"],
+          needs_intent: false,
+        }),
   ]);
   await getOrCreateContactCard(userId);
 
   return {
     token: issueMiniAuthToken(userId),
-    user,
+    user: {
+      ...user,
+      phone:
+        user.phone ??
+        (dbPhone?.phone ? normalizeInvitePhone(dbPhone.phone) : null),
+    },
     openid_bound: Boolean(identity?.value),
-    has_phone: Boolean(dbPhone?.phone),
+    has_phone: Boolean(dbPhone?.phone ?? user.phone),
+    intents: intentBundle.intents,
+    needs_intent: intentBundle.needs_intent,
   };
 }
 
@@ -370,7 +434,7 @@ export async function miniWxLogin(
   await bindWechatOpenIdToUser(user.id, openid, unionid);
   await linkUserToEvent(user.id, eventId);
 
-  return buildMiniLoginResult(user.id);
+  return buildMiniLoginResult(user.id, eventId);
 }
 
 async function verifyMiniSmsCode(phone: string, code: string) {
@@ -416,7 +480,7 @@ export async function miniPhoneLogin(
 
   await linkUserToEvent(user.id, eventId);
 
-  return buildMiniLoginResult(user.id);
+  return buildMiniLoginResult(user.id, eventId);
 }
 
 /**
@@ -444,7 +508,7 @@ export async function miniWxLoginWithPhone(
   await bindWechatOpenIdToUser(user.id, openid, unionid);
   await linkUserToEvent(user.id, eventId);
 
-  return buildMiniLoginResult(user.id);
+  return buildMiniLoginResult(user.id, eventId);
 }
 
 /** @deprecated 使用 MiniLoginUserPayload */

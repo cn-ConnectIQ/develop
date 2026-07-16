@@ -1,5 +1,6 @@
 import { prisma } from "@connectiq/database";
 import type { ImportRow } from "@/lib/participants";
+import { maybeAutoInviteNewParticipants } from "@/lib/invite/send-fixed-invites";
 import { recordTrialSignal } from "@/lib/organizer-trial-service";
 import { upsertParticipantsFromRowsWithMerge } from "@/lib/participant-merge";
 
@@ -8,12 +9,19 @@ export type ParticipantImportResult = {
   updated: number;
   skipped: number;
   merged: number;
+  createdIds: string[];
+  autoInviteQueued?: number;
 };
 
 export async function upsertParticipantsFromRows(
   eventId: string,
   rows: ImportRow[],
-  options?: { skipDuplicates?: boolean },
+  options?: {
+    skipDuplicates?: boolean;
+    createdBy?: string | null;
+    /** 为 true 时跳过自动邀请（例如手工邀请流程内已有发送） */
+    skipAutoInvite?: boolean;
+  },
 ): Promise<ParticipantImportResult> {
   const result = await upsertParticipantsFromRowsWithMerge(
     eventId,
@@ -42,5 +50,19 @@ export async function upsertParticipantsFromRows(
     }
   }
 
-  return result;
+  let autoInviteQueued = 0;
+  if (!options?.skipAutoInvite && result.createdIds.length > 0) {
+    try {
+      const auto = await maybeAutoInviteNewParticipants({
+        eventId,
+        participantIds: result.createdIds,
+        createdBy: options?.createdBy,
+      });
+      autoInviteQueued = auto.queued;
+    } catch (err) {
+      console.error("[participant-import] auto-invite failed", err);
+    }
+  }
+
+  return { ...result, autoInviteQueued };
 }

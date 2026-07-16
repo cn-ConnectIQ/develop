@@ -16,6 +16,7 @@ import {
   countBoothStaffByEvent,
   resolveBoothStaffMaxCount,
 } from "@/lib/exhibitor/booth-staff-service";
+import { requireEventAccessMobileOrWeb } from "@/lib/mobile-event-access";
 import type { MapLabel, MapPoi } from "@/types/booth";
 
 const positionSchema = z.object({
@@ -98,13 +99,13 @@ async function getBoothStats(eventId: string) {
   return statsByBooth;
 }
 
-export const GET = withErrorHandler(async (_request, context) => {
+export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   if (!eventId) {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireEventAccessMobileOrWeb(request, eventId);
 
   const [booths, settings, exhibitors, statsByBooth, staffCountByBooth] =
     await Promise.all([

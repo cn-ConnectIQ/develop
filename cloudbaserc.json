@@ -9,7 +9,10 @@
       "runtime": "Nodejs18.15",
       "handler": "index.main",
       "installDependency": false,
-      "ignore": ["node_modules", ".git"],
+      "ignore": [
+        "node_modules",
+        ".git"
+      ],
       "envVariables": {
         "CRON_TARGET_BASE": "https://9li.co/uc"
       }
@@ -46,7 +49,8 @@
             "HOSTNAME": "0.0.0.0",
             "NEXT_PUBLIC_APP_URL": "https://9li.co/uc",
             "NEXTAUTH_URL": "https://9li.co/uc",
-            "NEXT_BASE_PATH": "/uc"
+            "NEXT_BASE_PATH": "/uc",
+            "NEXT_PUBLIC_BASE_PATH": "/uc"
           }
         }
       }

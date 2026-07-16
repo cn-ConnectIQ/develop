@@ -1,13 +1,15 @@
 import {
   BillingOrderStatus,
   BillingPlanKind,
+  BillingLedgerResource,
   prisma,
 } from "@connectiq/database";
+import { ErrorCode } from "@connectiq/types";
+import { ApiError } from "@/lib/api-auth";
 import {
   debitOrgWallet,
   getOrCreateOrgWallet,
 } from "@/lib/billing/wallet-service";
-import { BillingLedgerResource } from "@connectiq/database";
 
 /** 试用组织不强制办会套餐；正式账号发布前须已为该场支付 EVENT_USAGE 套餐 */
 export async function assertEventPackagePaidForPublish(
@@ -134,13 +136,17 @@ export async function assertInviteChannelBalance(input: {
 
   const wallet = await getOrCreateOrgWallet(input.orgId);
   if (input.channel === "SMS" && wallet.smsBalance < input.count) {
-    throw new Error(
-      `短信额度不足：需要 ${input.count} 条，当前余额 ${wallet.smsBalance}。请先充值。`,
+    throw new ApiError(
+      `短信余额不足（需要 ${input.count} 条，当前 ${wallet.smsBalance}）。请先充值后再发送邀请。`,
+      ErrorCode.VALIDATION_ERROR,
+      402,
     );
   }
   if (input.channel === "EMAIL" && wallet.emailBalance < input.count) {
-    throw new Error(
-      `邮件额度不足：需要 ${input.count} 封，当前余额 ${wallet.emailBalance}。请先充值。`,
+    throw new ApiError(
+      `邮件余额不足（需要 ${input.count} 封，当前 ${wallet.emailBalance}）。请先充值后再发送邀请。`,
+      ErrorCode.VALIDATION_ERROR,
+      402,
     );
   }
 }

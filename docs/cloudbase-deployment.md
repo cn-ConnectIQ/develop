@@ -106,9 +106,9 @@ REDIS_URL="redis://:密码@10.x.x.x:6379/0"
 
 未配置时降级为进程内内存缓存，**云托管多实例下缓存不一致**。
 
-### 3.3 对象存储 / CDN（上传与二维码）
+### 3.3 对象存储 / CDN（上传与二维码）⚠️ 生产必配
 
-**已接入七牛云**：配置下列环境变量后，`/api/upload`、语音备注、互动/集章二维码均上传到七牛，公网访问走 CDN `https://cdn.9li.cn/...`。
+**已接入七牛云**：生产云托管**必须**配置下列环境变量，否则 `/api/upload` 会直接报错（不再静默写容器本地盘，避免管理后台出现破图）。
 
 ```bash
 QINIU_ACCESS_KEY=...
@@ -120,7 +120,17 @@ QINIU_CDN_DOMAIN=cdn.9li.cn
 # NEXT_PUBLIC_CDN_URL=https://cdn.9li.cn
 ```
 
-未配置七牛时仍会写容器本地 `public/uploads/`（仅开发兜底；云托管重建/扩缩容会丢文件）。二维码在无七牛时可降级到 Supabase Storage / data URL。
+**控制台配置步骤（不要把密钥写入 Git / `cloudbaserc.json`）：**
+
+1. 打开 [CloudBase 控制台](https://console.cloud.tencent.com/tcb) → 环境 `connectiq-d6gc2sul3855abd4e`
+2. **云托管 → connectiq-web → 版本管理 / 服务配置 → 环境变量**
+3. 新增上述 `QINIU_*`（与本地 `apps/web/.env.local` 一致即可）
+4. **重新发布/部署新版本**使变量生效（仅改控制台未重启可能不生效）
+5. 验证：`GET https://9li.co/uc/api/health` 响应中 `qiniu.configured` 应为 `true`，`missing` 为空数组
+
+**CDN 域名：** `QINIU_CDN_DOMAIN` 必须是已在七牛绑定且 **DNS 已解析** 的域名。若 `cdn.9li.cn` 无法解析（NXDOMAIN），上传即使用七牛成功，前端仍会破图——请在域名 DNS 添加 CNAME 到七牛给出的记录，或暂时改用七牛测试域名。
+
+未配置七牛时：本地开发仍可写 `public/uploads/`（URL 会带 `/uc` basePath）；**生产禁止本地兜底**。二维码在无七牛时可降级到 Supabase Storage / data URL。
 
 ---
 
@@ -212,7 +222,20 @@ DEEPSEEK_MODEL="deepseek-v4-flash"
 
 服务端密钥（`DEEPSEEK_API_KEY`、`WX_MINI_SECRET`、`DATABASE_URL`）仅服务端可见，可安全放在云托管环境变量。
 
-### 5.3 可选
+### 5.3 上传 / 七牛（生产必配，密钥勿提交 Git）
+
+```bash
+QINIU_ACCESS_KEY="..."
+QINIU_SECRET_KEY="..."
+QINIU_BUCKET="9li"
+QINIU_CDN_DOMAIN="cdn.9li.cn"
+# QINIU_REGION="z0"
+# NEXT_PUBLIC_CDN_URL="https://cdn.9li.cn"
+```
+
+配好后重新发布版本，再访问 `/uc/api/health` 确认 `qiniu.configured === true`。
+
+### 5.4 可选
 
 ```bash
 REDIS_URL="redis://:密码@内网:6379/0"

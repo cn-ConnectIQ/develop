@@ -37,11 +37,38 @@ export async function listEnabledTemplates() {
   });
 }
 
+export async function listNotificationJobs(eventId: string) {
+  return prisma.notificationJob.findMany({
+    where: { eventId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      templateCode: true,
+      status: true,
+      totalCount: true,
+      sentCount: true,
+      failedCount: true,
+      sampleTestedAt: true,
+      complianceConfirmedAt: true,
+      createdAt: true,
+      scheduledAt: true,
+      audienceFilter: true,
+      variableOverrides: true,
+      template: {
+        select: { name: true, channel: true },
+      },
+      createdBy: { select: { id: true, name: true } },
+    },
+  });
+}
+
 export async function previewAudience(input: {
   eventId: string;
   orgId: string;
   filter: AudienceFilter;
   templateCode: string;
+  variableOverrides?: NotifyPayload;
 }) {
   await assertEventOrgAccess(input.eventId, input.orgId);
   const template = await prisma.notificationTemplate.findUnique({
@@ -67,6 +94,13 @@ export async function previewAudience(input: {
     assertShortNameValid(event.shortName);
   }
 
+  const overrides = Object.fromEntries(
+    Object.entries(input.variableOverrides ?? {}).map(([k, v]) => [
+      k,
+      v == null ? "" : String(v),
+    ]),
+  );
+
   const sample = members.slice(0, 3).map((m) => {
     const honorific = buildHonorific(m.name);
     const vars: Record<string, string> = {
@@ -84,6 +118,7 @@ export async function previewAudience(input: {
       短链: "9li.co/a/preview",
       完整链接: "https://9li.co/a/preview",
       已启用人数: String(0),
+      ...overrides,
     };
     const body = renderTemplate(template.body, vars);
     const subject = template.subject

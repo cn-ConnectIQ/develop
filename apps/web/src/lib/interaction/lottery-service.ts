@@ -57,12 +57,25 @@ export async function requireLotteryManageAccess(
 
   if (session.user.role === UserRole.PLATFORM_ADMIN) return;
 
-  if (session.user.role === UserRole.ORGANIZER) {
+  // ORGANIZER / EXPO_ORGANIZER：与 requireEventAccess 对齐——账号管理员按活动 org 归属校验
+  if (
+    session.user.role === UserRole.ORGANIZER ||
+    session.user.role === UserRole.EXPO_ORGANIZER
+  ) {
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { organizerId: true },
+      select: { organizerId: true, orgId: true },
     });
-    if (!event || event.organizerId !== session.user.id) {
+    if (!event) {
+      throw new ApiError("无权管理该活动抽奖", ErrorCode.FORBIDDEN, 403);
+    }
+
+    const activeOrgId = session.user.activeOrgId ?? null;
+    const belongsToActiveOrg =
+      Boolean(activeOrgId) && event.orgId === activeOrgId;
+    const isLegacyOrganizer = event.organizerId === session.user.id;
+
+    if (!belongsToActiveOrg && !isLegacyOrganizer) {
       throw new ApiError("无权管理该活动抽奖", ErrorCode.FORBIDDEN, 403);
     }
     return;
@@ -72,7 +85,7 @@ export async function requireLotteryManageAccess(
     if (!lottery?.boothId) {
       throw new ApiError("展商只能管理自己展位的抽奖", ErrorCode.FORBIDDEN, 403);
     }
-  const booth = await prisma.exhibitorBooth.findFirst({
+    const booth = await prisma.exhibitorBooth.findFirst({
       where: {
         id: lottery.boothId,
         eventId,
@@ -88,8 +101,6 @@ export async function requireLotteryManageAccess(
     }
     return;
   }
-
-  // EXPO_ORGANIZER：已在 requireEventAccess 校验活动权限
 }
 
 export async function assertExhibitorCanCreateLottery(

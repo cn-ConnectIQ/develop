@@ -1,6 +1,8 @@
+"use client";
+
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { InviteResolveResult } from "@/lib/invite/claim-service";
+import type { InviteResolveResult } from "@/lib/invite/claim-types";
 
 type OkData = Extract<InviteResolveResult, { kind: "ok" }>;
 

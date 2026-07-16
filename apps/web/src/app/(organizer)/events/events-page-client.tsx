@@ -100,7 +100,8 @@ export function EventsPageClient() {
               活动列表加载失败
             </p>
             <p className="mt-1 max-w-md text-sm text-text-muted">
-              可能是数据库连接异常或 Preview 环境未配置 DATABASE_URL。请稍后重试，或联系管理员检查部署环境。
+              接口请求失败。请刷新页面后重试；若仍失败，打开开发者工具 Network
+              查看 `/uc/api/events` 是否返回错误。
             </p>
             <Button
               variant="outline"

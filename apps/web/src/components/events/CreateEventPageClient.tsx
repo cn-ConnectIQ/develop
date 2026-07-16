@@ -290,11 +290,11 @@ export function CreateEventPageClient() {
         description="选择数据来源方式，玖莅 支持独立办会与多平台名单导入"
         actions={
           <Link
-            href="/events"
+            href="/organizer/dashboard"
             className={cn(buttonVariants({ variant: "outline" }))}
           >
             <ArrowLeft className="mr-1 size-4" />
-            返回活动列表
+            返回账号中心
           </Link>
         }
       />

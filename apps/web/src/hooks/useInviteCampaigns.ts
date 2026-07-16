@@ -182,7 +182,7 @@ export function useCreateInviteCampaign(eventId: string) {
         body: JSON.stringify(body),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "创建失败");
+      if (!res.ok) throw new Error(json.error ?? json.message ?? "创建失败");
       return json.data as InviteCampaignItem;
     },
     onSuccess: () => {
@@ -200,7 +200,20 @@ export function useSendInviteCampaign(eventId: string) {
         { method: "POST" },
       );
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "发送失败");
+      if (!res.ok) {
+        const msg = json.error ?? json.message ?? "发送失败";
+        const err = new Error(msg) as Error & {
+          status?: number;
+          redirectTo?: string;
+        };
+        err.status = res.status;
+        if (typeof json.redirect_to === "string") {
+          err.redirectTo = json.redirect_to;
+        } else if (res.status === 402 || String(msg).includes("余额不足")) {
+          err.redirectTo = "/organizer/billing";
+        }
+        throw err;
+      }
       return json.data as {
         queued: number;
         building?: boolean;

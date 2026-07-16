@@ -28,7 +28,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  const { session } = await requireEventAccess(eventId);
 
   const body = await request.json();
   const parsed = importSchema.safeParse(body);
@@ -39,7 +39,10 @@ export const POST = withErrorHandler(async (request, context) => {
   const result = await upsertParticipantsFromRows(
     eventId,
     parsed.data.rows,
-    { skipDuplicates: parsed.data.skipDuplicates },
+    {
+      skipDuplicates: parsed.data.skipDuplicates,
+      createdBy: session.user.id,
+    },
   );
 
   return createSuccessResponse(result);

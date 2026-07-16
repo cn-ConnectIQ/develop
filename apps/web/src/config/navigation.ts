@@ -25,7 +25,6 @@ import {
   Monitor,
   Route,
   ScanLine,
-  Send,
   Settings,
   Shield,
   Sparkles,
@@ -231,13 +230,7 @@ function getEventNavigationGroups(
                 menuKey: "intent-results",
               },
               {
-                label: "邀请管理",
-                href: `/events/${eventId}/invite`,
-                icon: Send,
-                menuKey: "invite",
-              },
-              {
-                label: "通知发送",
+                label: "通知管理",
                 href: `/events/${eventId}/notifications`,
                 icon: Bell,
                 isNew: true,

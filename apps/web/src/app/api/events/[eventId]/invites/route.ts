@@ -2,6 +2,7 @@ import { InviteChannel, ParticipantSource } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
+  ApiError,
   createErrorResponse,
   createSuccessResponse,
   requireEventAccess,
@@ -11,6 +12,10 @@ import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import { mergeParticipantByPhone } from "@/lib/participant-merge";
 import { normalizeParticipantTags } from "@/lib/participant-tags";
 import { triggerInviteProcessing } from "@/lib/invite/queue";
+import {
+  FIXED_PARTICIPANT_INVITE_SUBJECT,
+  FIXED_PARTICIPANT_INVITE_TEMPLATE,
+} from "@/lib/invite/message";
 import { prepareCampaignSend } from "@/lib/invite/service";
 import {
   assertExperienceCanSendInvite,
@@ -28,6 +33,7 @@ const contactSchema = z.object({
 const sendInviteSchema = z.object({
   contacts: z.array(contactSchema).min(1),
   channel: z.nativeEnum(InviteChannel),
+  /** 已废弃：服务端始终使用固定模板，传入会被忽略 */
   custom_message: z.string().max(2000).optional(),
   tags: z.array(z.string()).optional(),
   send_now: z.boolean().optional(),
@@ -102,16 +108,49 @@ export const POST = withErrorHandler(async (request, context) => {
       createdBy: session.user.id,
       name: `定向邀请 ${new Date().toLocaleString("zh-CN")}`,
       channel: parsed.data.channel,
-      customMessage: parsed.data.custom_message ?? null,
+      customMessage: FIXED_PARTICIPANT_INVITE_TEMPLATE,
+      subject: FIXED_PARTICIPANT_INVITE_SUBJECT,
       targetFilter: { participant_ids: participantIds },
       totalTarget: participantIds.length,
     },
   });
 
   if (parsed.data.send_now !== false) {
-    const result = await prepareCampaignSend(campaign.id);
-    if (!result.isScheduled && result.queued > 0) {
-      await triggerInviteProcessing(campaign.id);
+    try {
+      const result = await prepareCampaignSend(campaign.id);
+      if (!result.isScheduled && result.queued > 0) {
+        await triggerInviteProcessing(campaign.id);
+      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 402) {
+        return Response.json(
+          {
+            error: error.message,
+            code: error.code,
+            reason: "INSUFFICIENT_INVITE_CREDIT",
+            redirect_to: "/organizer/billing",
+            campaign_id: campaign.id,
+          },
+          { status: 402 },
+        );
+      }
+      if (
+        error instanceof Error &&
+        (error.message.includes("额度不足") ||
+          error.message.includes("余额不足"))
+      ) {
+        return Response.json(
+          {
+            error: error.message,
+            code: ErrorCode.VALIDATION_ERROR,
+            reason: "INSUFFICIENT_INVITE_CREDIT",
+            redirect_to: "/organizer/billing",
+            campaign_id: campaign.id,
+          },
+          { status: 402 },
+        );
+      }
+      throw error;
     }
   }
 

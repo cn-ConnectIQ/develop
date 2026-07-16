@@ -1,0 +1,8 @@
+{
+  "version": "2.0",
+  "envId": "connectiq-d6gc2sul3855abd4e",
+  "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
+  "cloudrun": {
+    "name": "connectiq-web"
+  }
+}

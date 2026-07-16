@@ -1,4 +1,9 @@
-import { InviteStatus, OrgStaffRole, prisma } from "@connectiq/database";
+import {
+  InviteStatus,
+  OrgStaffRole,
+  SystemRole,
+  prisma,
+} from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import type { Session } from "next-auth";
 import { ApiError, requireAccountAdmin } from "@/lib/api-auth";
@@ -24,9 +29,13 @@ function buildBoothScanUrl(eventId: string, boothId: string) {
 
 export async function resolveExhibitorBooth(
   orgId: string,
+  eventId?: string | null,
 ): Promise<ExhibitorBoothContext | null> {
   const booth = await prisma.exhibitorBooth.findFirst({
-    where: { companyOrgId: orgId },
+    where: {
+      companyOrgId: orgId,
+      ...(eventId ? { eventId } : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       event: { select: { id: true, name: true } },
@@ -47,16 +56,21 @@ export async function resolveExhibitorBooth(
   };
 }
 
-/** 按组织或操作员/展商员工身份解析展位（支持同一账号多组织） */
+/**
+ * 按组织或操作员/展商员工身份解析展位。
+ * 传入 eventId 时只解析该活动下的展位，禁止回落到其它活动。
+ */
 export async function resolveExhibitorBoothForUser(
   userId: string,
   orgId: string,
+  eventId?: string | null,
 ): Promise<ExhibitorBoothContext | null> {
-  const byOrg = await resolveExhibitorBooth(orgId);
+  const byOrg = await resolveExhibitorBooth(orgId, eventId);
   if (byOrg) return byOrg;
 
   const booth = await prisma.exhibitorBooth.findFirst({
     where: {
+      ...(eventId ? { eventId } : {}),
       OR: [
         { operatorUserId: userId },
         {
@@ -67,6 +81,15 @@ export async function resolveExhibitorBoothForUser(
                 status: InviteStatus.ACCEPTED,
                 role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
               },
+            },
+          },
+        },
+        {
+          participants: {
+            some: {
+              userId,
+              systemRole: SystemRole.EXHIBITOR,
+              ...(eventId ? { eventId } : {}),
             },
           },
         },
@@ -92,18 +115,32 @@ export async function resolveExhibitorBoothForUser(
   };
 }
 
-export async function requireExhibitorAdmin(request?: Request): Promise<{
+export async function requireExhibitorAdmin(
+  request?: Request,
+  options?: { eventId?: string | null },
+): Promise<{
   session?: Session;
   userId?: string;
   orgId: string;
   booth: ExhibitorBoothContext;
 }> {
+  const eventId = options?.eventId?.trim() || null;
+  const missingMsg = eventId
+    ? "未找到该活动下的关联展位"
+    : "未找到关联展位";
+  const missingCode = eventId ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN;
+  const missingStatus = eventId ? 404 : 403;
+
   const sessionResult = await requireAccountAdmin();
   if (!("error" in sessionResult)) {
     const { session, orgId } = sessionResult;
-    const booth = await resolveExhibitorBoothForUser(session.user.id, orgId);
+    const booth = await resolveExhibitorBoothForUser(
+      session.user.id,
+      orgId,
+      eventId,
+    );
     if (!booth) {
-      throw new ApiError("未找到关联展位", ErrorCode.FORBIDDEN, 403);
+      throw new ApiError(missingMsg, missingCode, missingStatus);
     }
     return { session, orgId, booth };
   }
@@ -113,9 +150,9 @@ export async function requireExhibitorAdmin(request?: Request): Promise<{
   }
 
   const { userId, orgId } = await requireMobileAccountAdmin(request);
-  const booth = await resolveExhibitorBoothForUser(userId, orgId);
+  const booth = await resolveExhibitorBoothForUser(userId, orgId, eventId);
   if (!booth) {
-    throw new ApiError("未找到关联展位", ErrorCode.FORBIDDEN, 403);
+    throw new ApiError(missingMsg, missingCode, missingStatus);
   }
 
   return { userId, orgId, booth };

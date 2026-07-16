@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EventCategory } from "@/lib/event-utils";
 import { EVENTS_QUERY_KEY } from "@/lib/query-options";
 import type { EventFeatureFlags } from "@/lib/event-feature-flags";
+import { withPublicPath } from "@/lib/public-path";
 
 export type EventReviewInfo = {
   status: string;
@@ -73,7 +74,9 @@ async function fetchEvents(params: UseEventsParams = {}) {
   if (params.limit) search.set("limit", String(params.limit));
 
   const qs = search.toString();
-  const res = await fetch(`/api/events${qs ? `?${qs}` : ""}`);
+  const res = await fetch(
+    withPublicPath(`/api/events${qs ? `?${qs}` : ""}`),
+  );
   if (!res.ok) throw new Error("加载活动失败");
   const json = await res.json();
   return {

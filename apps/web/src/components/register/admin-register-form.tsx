@@ -30,6 +30,17 @@ type ApplicationData = {
   rejectionReason: string | null;
 };
 
+/** 手机号登录生成的占位邮箱，不应作为联系邮箱默认值展示 */
+function isSyntheticPhoneEmail(value: string | null | undefined) {
+  return Boolean(value?.endsWith("@phone.connectiq.local"));
+}
+
+function realEmailOrEmpty(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed || isSyntheticPhoneEmail(trimmed)) return "";
+  return trimmed;
+}
+
 const fieldClass =
   "h-11 w-full rounded-xl border border-border-light bg-white px-4 text-sm outline-none transition-colors focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20";
 
@@ -56,7 +67,6 @@ export function AdminRegisterForm() {
   const [email, setEmail] = useState("");
 
   const [orgName, setOrgName] = useState("");
-  const [orgCreditCode, setOrgCreditCode] = useState("");
   const [orgWebsite, setOrgWebsite] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -109,14 +119,14 @@ export function AdminRegisterForm() {
 
       const rejected = apps.find((a) => a.status === "REJECTED");
       if (rejected) {
+        const restoredEmail = realEmailOrEmpty(rejected.contactEmail);
         setOrgName(rejected.orgName);
-        setOrgCreditCode(rejected.orgCreditCode ?? "");
         setOrgWebsite(rejected.orgWebsite ?? "");
         setContactName(rejected.contactName);
-        setContactEmail(rejected.contactEmail);
+        setContactEmail(restoredEmail);
         setContactPhone(rejected.contactPhone);
         setDescription(rejected.description);
-        setEmail(rejected.contactEmail);
+        setEmail(restoredEmail);
         setPhone(rejected.contactPhone);
         if (searchParams.get("step") === "2") {
           setStep(2);
@@ -136,10 +146,11 @@ export function AdminRegisterForm() {
       return;
     }
     if (isLoggedIn) {
-      setEmail(session.user.email ?? "");
+      const sessionEmail = realEmailOrEmpty(session.user.email);
+      setEmail((prev) => prev || sessionEmail);
       setPhone(session.user.phone ?? "");
       setContactName((prev) => session.user.name ?? prev);
-      setContactEmail((prev) => session.user.email ?? prev);
+      setContactEmail((prev) => realEmailOrEmpty(prev) || sessionEmail);
       setContactPhone((prev) => session.user.phone ?? prev);
       void loadExistingApplication();
     }
@@ -179,13 +190,15 @@ export function AdminRegisterForm() {
 
   async function handleStep1Next() {
     setError(null);
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const step1Email = realEmailOrEmpty(email);
+    if (!step1Email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(step1Email)) {
       setError("请输入有效邮箱");
       return;
     }
 
     if (isLoggedIn) {
-      setContactEmail(email);
+      setEmail(step1Email);
+      setContactEmail(step1Email);
       setContactPhone(phone || session?.user?.phone || "");
       setStep(2);
       return;
@@ -210,7 +223,8 @@ export function AdminRegisterForm() {
       return;
     }
 
-    setContactEmail(email);
+    setEmail(step1Email);
+    setContactEmail(step1Email);
     setContactPhone(phone);
     setStep(2);
   }
@@ -226,10 +240,6 @@ export function AdminRegisterForm() {
       setError("请输入组织/公司名称");
       return;
     }
-    if (orgCreditCode && !/^[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}$/.test(orgCreditCode)) {
-      setError("请输入 18 位统一社会信用代码");
-      return;
-    }
     if (orgWebsite && !/^https?:\/\/.+/.test(orgWebsite)) {
       setError("官网地址需以 https:// 开头");
       return;
@@ -238,16 +248,20 @@ export function AdminRegisterForm() {
       setError("请输入联系人姓名");
       return;
     }
-    if (!contactEmail.trim()) {
-      setError("请输入联系邮箱");
+    if (
+      !contactEmail.trim() ||
+      isSyntheticPhoneEmail(contactEmail) ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())
+    ) {
+      setError("请输入有效的联系邮箱");
       return;
     }
     if (!/^1[3-9]\d{9}$/.test(contactPhone)) {
       setError("请输入有效的联系手机");
       return;
     }
-    if (description.length < 100 || description.length > 500) {
-      setError("申请说明需 100-500 字");
+    if (!description.trim()) {
+      setError("请填写申请说明");
       return;
     }
     setStep(3);
@@ -265,15 +279,15 @@ export function AdminRegisterForm() {
       const currentSession = await getSession();
       const hasSession = !!currentSession?.user?.id;
 
+      const notifyEmail = realEmailOrEmpty(email) || contactEmail.trim();
       const payload = {
-        email,
+        email: notifyEmail,
         orgName,
-        orgCreditCode: orgCreditCode || undefined,
         orgWebsite: orgWebsite || undefined,
         contactName,
-        contactEmail,
+        contactEmail: contactEmail.trim(),
         contactPhone,
-        description,
+        description: description.trim(),
         ...(hasSession ? {} : { phone, code }),
       };
 
@@ -414,13 +428,6 @@ export function AdminRegisterForm() {
                 placeholder: "请输入组织/公司名称",
               },
               {
-                label: "统一社会信用代码",
-                required: false,
-                value: orgCreditCode,
-                onChange: setOrgCreditCode,
-                placeholder: "18 位，选填，有则优先审核",
-              },
-              {
                 label: "官网地址",
                 required: false,
                 value: orgWebsite,
@@ -471,17 +478,15 @@ export function AdminRegisterForm() {
               <Label className="mb-1 text-sm font-medium">
                 申请说明<span className="ml-0.5 text-brand-red">*</span>
               </Label>
-              <div className="relative">
-                <Textarea
-                  placeholder="请简要说明贵组织的背景，以及希望如何使用 玖莅（100-500字）"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="min-h-[100px] rounded-xl border-border-light px-4 py-3 text-sm"
-                />
-                <span className="absolute right-3 bottom-2 text-xs text-text-muted">
-                  {description.length}/500
-                </span>
-              </div>
+              <p className="mb-1.5 text-xs text-text-muted">
+                申请提示：请填写展览/会议相关信息（如活动名称、规模、时间地点、办展经历等）
+              </p>
+              <Textarea
+                placeholder="请描述贵组织计划举办或已举办的展览/会议信息"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="min-h-[100px] rounded-xl border-border-light px-4 py-3 text-sm"
+              />
             </div>
           </div>
 
@@ -512,12 +517,11 @@ export function AdminRegisterForm() {
           <div className="space-y-3 rounded-2xl border border-border-light bg-white p-6">
             {[
               ["组织/公司名称", orgName],
-              ["统一社会信用代码", orgCreditCode || "—"],
               ["官网地址", orgWebsite || "—"],
               ["联系人", contactName],
               ["联系邮箱", contactEmail],
               ["联系手机", contactPhone],
-              ["通知邮箱", email],
+              ["通知邮箱", realEmailOrEmpty(email) || contactEmail],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between gap-4 text-sm">
                 <span className="shrink-0 text-text-muted">{label}</span>

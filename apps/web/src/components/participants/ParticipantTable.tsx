@@ -11,15 +11,19 @@ import {
 } from "@tanstack/react-table";
 import {
   CreditCard,
+  Mail,
   MessageSquare,
   MoreHorizontal,
   Pencil,
+  Phone,
   ScanLine,
+  Send,
   Ticket,
   Trash2,
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
+import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -133,6 +137,67 @@ export function ParticipantTable({
   const [notifyTitle, setNotifyTitle] = useState("活动通知");
   const [notifyBody, setNotifyBody] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState<string>("");
+  const [inviteTarget, setInviteTarget] = useState<ParticipantRow | null>(null);
+  const [inviteChannel, setInviteChannel] = useState<"SMS" | "EMAIL">("SMS");
+  const [inviting, setInviting] = useState(false);
+
+  function openInviteDialog(p: ParticipantRow) {
+    if (p.inviteStatus === "ACTIVATED") {
+      toast.message("该参会者已激活，无需再发邀请");
+      return;
+    }
+    const preferSms = Boolean(p.phone?.trim());
+    setInviteChannel(preferSms ? "SMS" : "EMAIL");
+    setInviteTarget(p);
+  }
+
+  async function confirmQuickInvite() {
+    if (!inviteTarget) return;
+    const channel = inviteChannel;
+    if (channel === "SMS" && !inviteTarget.phone?.trim()) {
+      toast.error("该参会者没有手机号，请改用邮件");
+      return;
+    }
+    if (channel === "EMAIL" && !inviteTarget.email?.trim()) {
+      toast.error("该参会者没有邮箱，请改用短信");
+      return;
+    }
+
+    setInviting(true);
+    try {
+      const resend = inviteTarget.inviteStatus !== "NOT_INVITED";
+      const res = await fetch(
+        `/api/events/${eventId}/participants/${inviteTarget.id}/invite`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channel, resend }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        const msg = json.error ?? json.message ?? "邀请失败";
+        const err = new Error(msg) as Error & { redirectTo?: string };
+        if (typeof json.redirect_to === "string") {
+          err.redirectTo = json.redirect_to;
+        } else if (res.status === 402 || String(msg).includes("余额不足")) {
+          err.redirectTo = "/organizer/billing";
+        }
+        throw err;
+      }
+      toast.success(
+        channel === "SMS"
+          ? `已向 ${inviteTarget.name} 发送短信邀请`
+          : `已向 ${inviteTarget.name} 发送邮件邀请`,
+      );
+      setInviteTarget(null);
+      onRefresh();
+    } catch (e) {
+      toastInviteSendError(e, "邀请失败");
+    } finally {
+      setInviting(false);
+    }
+  }
 
   async function saveParticipantTags(participantId: string, tags: string[]) {
     setSavingTags(true);
@@ -368,6 +433,16 @@ export function ParticipantTable({
           const popoverOpen = tagPopoverId === p.id;
           return (
             <div className="flex items-center justify-end gap-1">
+              {p.inviteStatus !== "ACTIVATED" && (
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-brand-purple hover:bg-brand-purple/10"
+                  onClick={() => openInviteDialog(p)}
+                >
+                  <Send className="size-3.5" />
+                  {p.inviteStatus === "NOT_INVITED" ? "邀请" : "再邀请"}
+                </button>
+              )}
               <Popover
                 open={popoverOpen}
                 onOpenChange={(open) => {
@@ -430,6 +505,14 @@ export function ParticipantTable({
                   <CreditCard className="size-4" />
                   查看名片
                 </DropdownMenuItem>
+                {p.inviteStatus !== "ACTIVATED" && (
+                  <DropdownMenuItem onClick={() => openInviteDialog(p)}>
+                    <Send className="size-4" />
+                    {p.inviteStatus === "NOT_INVITED"
+                      ? "邀请加入"
+                      : "重新发送邀请"}
+                  </DropdownMenuItem>
+                )}
                 {!p.checkedInAt && (
                   <DropdownMenuItem onClick={() => onCheckIn(p.id)}>
                     <ScanLine className="size-4" />
@@ -646,6 +729,94 @@ export function ParticipantTable({
           </TableBody>
         </Table>
       </TableShell>
+
+      <Dialog
+        open={!!inviteTarget}
+        onOpenChange={(open) => {
+          if (!open) setInviteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              邀请 {inviteTarget?.name ?? ""} 加入玖莅
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-text-muted">
+              使用固定邀请模板发送。短信/邮件额度按主办方账号统一扣减。
+            </p>
+            {inviteTarget?.inviteStatus !== "NOT_INVITED" && (
+              <p className="text-xs text-brand-amber">
+                该参会者已邀请过，确认将重新发送一条邀请。
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={!inviteTarget?.phone?.trim()}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-colors",
+                  inviteChannel === "SMS"
+                    ? "border-brand-blue bg-brand-blue-light text-brand-blue"
+                    : "border-border-light text-text-muted hover:bg-gray-50",
+                  !inviteTarget?.phone?.trim() && "cursor-not-allowed opacity-40",
+                )}
+                onClick={() => setInviteChannel("SMS")}
+              >
+                <Phone className="size-4 shrink-0" />
+                <span>
+                  短信
+                  <span className="mt-0.5 block text-xs opacity-80">
+                    {inviteTarget?.phone?.trim() || "无手机号"}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={!inviteTarget?.email?.trim()}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm transition-colors",
+                  inviteChannel === "EMAIL"
+                    ? "border-brand-green bg-brand-green-light text-brand-green"
+                    : "border-border-light text-text-muted hover:bg-gray-50",
+                  !inviteTarget?.email?.trim() && "cursor-not-allowed opacity-40",
+                )}
+                onClick={() => setInviteChannel("EMAIL")}
+              >
+                <Mail className="size-4 shrink-0" />
+                <span>
+                  邮件
+                  <span className="mt-0.5 block text-xs opacity-80">
+                    {inviteTarget?.email?.trim() || "无邮箱"}
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={inviting}
+              onClick={() => setInviteTarget(null)}
+            >
+              取消
+            </Button>
+            <Button
+              disabled={
+                inviting ||
+                (inviteChannel === "SMS"
+                  ? !inviteTarget?.phone?.trim()
+                  : !inviteTarget?.email?.trim())
+              }
+              onClick={() => void confirmQuickInvite()}
+            >
+              <Send className="mr-1.5 size-4" />
+              {inviting ? "发送中…" : "确认发送"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!removeId} onOpenChange={() => setRemoveId(null)}>
         <AlertDialogContent>

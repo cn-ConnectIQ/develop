@@ -3,6 +3,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "玖莅 大屏",
   description: "玖莅 现场互动投影大屏",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+      { url: "/icon.png", type: "image/png", sizes: "288x288" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "288x288" }],
+  },
 };
 
 export default function ScreenLayout({

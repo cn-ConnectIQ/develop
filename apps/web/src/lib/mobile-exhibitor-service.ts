@@ -1,6 +1,7 @@
 import {
   InviteStatus,
   OrgStaffRole,
+  SystemRole,
   prisma,
   type Prisma,
 } from "@connectiq/database";
@@ -108,6 +109,20 @@ export async function resolveMobileExhibitorBoothAccess(
       select: { id: true },
     });
     isOperatorOrStaff = !!linked;
+
+    // 展商工作人员：本场 Participant 已绑定该展位
+    if (!isOperatorOrStaff) {
+      const boothStaff = await prisma.participant.findFirst({
+        where: {
+          userId,
+          boothId,
+          eventId: booth.eventId,
+          systemRole: SystemRole.EXHIBITOR,
+        },
+        select: { id: true },
+      });
+      isOperatorOrStaff = !!boothStaff;
+    }
   }
 
   if (!isBoothOrg && !isEventOrganizer && !isOperatorOrStaff) {

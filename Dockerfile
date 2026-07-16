@@ -25,6 +25,7 @@ ARG NEXT_PUBLIC_APP_URL=https://9li.co/uc
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXTAUTH_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_BASE_PATH=/uc
+ENV NEXT_PUBLIC_BASE_PATH=/uc
 ENV NEXT_TELEMETRY_DISABLED=1
 # prisma generate 不依赖真实数据库；build 阶段占位即可
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
@@ -54,7 +55,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 # public 必须在 standalone 之后再拷，避免目录合并时丢失静态资源
 COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/scripts/uc-path-proxy.js ./apps/web/scripts/uc-path-proxy.js
 
 USER nextjs
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+ENV NEXT_INTERNAL_PORT=3001
+CMD ["node", "apps/web/scripts/uc-path-proxy.js"]

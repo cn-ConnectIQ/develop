@@ -13,6 +13,7 @@ import {
 import { CreationNumberStepper } from "@/components/admin/creation-number-stepper";
 import { PrizeImageDropzone } from "@/components/admin/prize-image-dropzone";
 import { InteractionEditLayout } from "@/components/interactions/InteractionEditLayout";
+import { resolveMediaUrl } from "@/lib/public-path";
 import { LotteryCreationFooter } from "@/components/lottery/LotteryCreationFooter";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -81,13 +82,15 @@ function StampPassportPreview({
   stamps: StampPointConfig[];
 }) {
   const collected = Math.min(2, stamps.length);
+  const coverSrc = resolveMediaUrl(coverImage);
+  const prizeSrc = resolveMediaUrl(prizeImageUrl);
 
   return (
     <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-2xl border border-border-light bg-gradient-to-b from-brand-blue-light/40 to-white shadow-lg">
-      {coverImage ? (
+      {coverSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={coverImage}
+          src={coverSrc}
           alt=""
           className="h-28 w-full object-cover"
         />
@@ -108,10 +111,10 @@ function StampPassportPreview({
         )}
 
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-white/80 p-2">
-          {prizeImageUrl ? (
+          {prizeSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={prizeImageUrl}
+              src={prizeSrc}
               alt=""
               className="size-10 rounded-lg object-cover"
             />

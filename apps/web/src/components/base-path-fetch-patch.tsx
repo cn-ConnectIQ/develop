@@ -4,16 +4,28 @@ import { getPublicBasePath } from "@/lib/public-path";
 
 let fetchPatched = false;
 
-function prefixApiUrl(input: string): string {
+function resolveBase(): string {
   const base = getPublicBasePath();
+  if (base) return base;
+  // 双保险：页面已落在 /uc 下时补前缀
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname || "";
+    if (path === "/uc" || path.startsWith("/uc/")) return "/uc";
+  }
+  return "";
+}
+
+function prefixApiUrl(input: string): string {
+  const base = resolveBase();
   if (!base) return input;
+  if (input.startsWith(`${base}/`) || input === base) return input;
   if (input.startsWith("/api/") || input === "/api") {
     return `${base}${input}`;
   }
   return input;
 }
 
-/** 在首屏 React Query 发起请求前同步 patch fetch，避免 /api → 404 */
+/** 在首屏 React Query 发起请求前同步 patch fetch，避免 /api → COS 404 */
 export function installBasePathFetchPatch() {
   if (typeof window === "undefined" || fetchPatched) return;
 
@@ -29,7 +41,12 @@ export function installBasePathFetchPatch() {
     if (input instanceof Request && input.url.startsWith(window.location.origin)) {
       const url = new URL(input.url);
       const prefixed = prefixApiUrl(`${url.pathname}${url.search}`);
-      return originalFetch(new Request(new URL(prefixed, url.origin), input), init);
+      if (prefixed !== `${url.pathname}${url.search}`) {
+        return originalFetch(
+          new Request(new URL(prefixed, url.origin), input),
+          init,
+        );
+      }
     }
     return originalFetch(input, init);
   };

@@ -11,10 +11,12 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Send,
   Trash2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
 import {
   AdminContent,
   AdminHeader,
@@ -172,6 +174,7 @@ export function ExpoBoothsPageClient({
   const [batchMaxStaff, setBatchMaxStaff] = useState(2);
   const [editing, setEditing] = useState<BoothRow | null>(null);
   const [form, setForm] = useState<BoothForm>(emptyForm);
+  const [inviteAllBusy, setInviteAllBusy] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortMode>(
     searchParams.get("sort") === "popularity" ? "popularity" : "code",
@@ -351,6 +354,40 @@ export function ExpoBoothsPageClient({
     setDialogOpen(true);
   }
 
+  async function handleInviteAllExhibitors() {
+    const ok = window.confirm(
+      "将向本场全部未激活的展商工作人员发送固定模板邀请（优先短信，否则邮件）。确认继续？",
+    );
+    if (!ok) return;
+
+    setInviteAllBusy(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}/exhibitors/invite-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "AUTO" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = json.error ?? json.message ?? "邀请失败";
+        const err = new Error(msg) as Error & { redirectTo?: string };
+        if (typeof json.redirect_to === "string") {
+          err.redirectTo = json.redirect_to;
+        } else if (res.status === 402 || String(msg).includes("余额不足")) {
+          err.redirectTo = "/organizer/billing";
+        }
+        throw err;
+      }
+      toast.success(
+        `已排队 ${json.data?.queued ?? 0} 条邀请（展商 ${json.data?.total_exhibitors ?? 0} 人，跳过 ${json.data?.skipped ?? 0}）`,
+      );
+    } catch (e) {
+      toastInviteSendError(e, "邀请失败");
+    } finally {
+      setInviteAllBusy(false);
+    }
+  }
+
   function openBatchDialog() {
     setBatchHallLabel(hallLabelOptions[0] ?? "");
     setBatchMaxStaff(2);
@@ -406,6 +443,15 @@ export function ExpoBoothsPageClient({
                 </a>
               </>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={inviteAllBusy}
+              onClick={() => void handleInviteAllExhibitors()}
+            >
+              <Send className="mr-1 size-4" />
+              {inviteAllBusy ? "邀请中…" : "一键邀请展商"}
+            </Button>
             <Link
               href={`/events/${eventId}/exhibitors/map`}
               className="inline-flex h-9 items-center rounded-lg border border-border-light px-4 text-sm hover:bg-content"

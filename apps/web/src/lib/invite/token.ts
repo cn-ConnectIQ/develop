@@ -40,11 +40,4 @@ export function phonesMatchHash(phone: string, phoneHash: string | null | undefi
   return hashInvitePhone(phone) === phoneHash;
 }
 
-/** 短链公网地址：https://9li.co/a/{token} */
-export function buildInviteShortUrl(token: string): string {
-  const base =
-    process.env.SHORT_LINK_BASE?.replace(/\/$/, "") ||
-    process.env.NEXT_PUBLIC_SHORT_LINK_BASE?.replace(/\/$/, "") ||
-    "https://9li.co";
-  return `${base}/a/${token}`;
-}
+export { buildInviteShortUrl } from "@/lib/invite/invite-url";

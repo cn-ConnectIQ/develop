@@ -416,7 +416,14 @@ export async function getEventDashboardMobile(
 ): Promise<ApiEventDashboardMobile> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      activityType: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      featureFlags: true,
       org: {
         select: {
           name: true,

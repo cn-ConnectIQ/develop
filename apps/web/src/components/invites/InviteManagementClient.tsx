@@ -4,12 +4,19 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { InviteCampaignsPageClient } from "@/app/(organizer)/events/[eventId]/invite-campaigns/invite-campaigns-client";
 import { DirectInvitePanel } from "@/components/invites/DirectInvitePanel";
+import { InviteAutoConfigPanel } from "@/components/invites/InviteAutoConfigPanel";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export function InviteManagementClient({ eventId }: { eventId: string }) {
+export function InviteManagementClient({
+  eventId,
+  embedded = false,
+}: {
+  eventId: string;
+  embedded?: boolean;
+}) {
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
+  const tabParam = searchParams.get("inviteTab");
   const [activeTab, setActiveTab] = useState(
     tabParam === "records" ? "records" : "send",
   );
@@ -18,14 +25,16 @@ export function InviteManagementClient({ eventId }: { eventId: string }) {
     if (tabParam === "records") setActiveTab("records");
   }, [tabParam]);
 
-  return (
-    <AdminPageBody>
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-[var(--admin-ink)]">邀请管理</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          发起邀请、管理邀请状态，支持为参会者打身份标签（VIP / 演讲者等）
-        </p>
-      </div>
+  const body = (
+    <>
+      {!embedded && (
+        <div className="mb-4">
+          <h1 className="text-xl font-bold text-[var(--admin-ink)]">邀请管理</h1>
+          <p className="mt-1 text-sm text-text-muted">
+            一对一 / 批量发送固定模板邀请；新参会者可在开启邀请体系后自动触发
+          </p>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -33,7 +42,8 @@ export function InviteManagementClient({ eventId }: { eventId: string }) {
           <TabsTrigger value="records">邀请记录</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="send" className="mt-4">
+        <TabsContent value="send" className="mt-4 space-y-6">
+          <InviteAutoConfigPanel eventId={eventId} />
           <DirectInvitePanel eventId={eventId} />
         </TabsContent>
 
@@ -41,6 +51,9 @@ export function InviteManagementClient({ eventId }: { eventId: string }) {
           <InviteCampaignsPageClient eventId={eventId} embedded />
         </TabsContent>
       </Tabs>
-    </AdminPageBody>
+    </>
   );
+
+  if (embedded) return <div className="mt-2">{body}</div>;
+  return <AdminPageBody>{body}</AdminPageBody>;
 }

@@ -17,6 +17,7 @@ import {
 import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
 import { attachToRedemptionCode } from "@/lib/lottery/redemption";
 import type { LotteryPrizeConfig } from "@/lib/interaction/schemas";
+import { requireBoothAccessForRequest } from "@/lib/mobile-exhibitor-service";
 
 export type LotteryDashboardEntry = {
   id: string;
@@ -68,7 +69,10 @@ function resolveAvatarSeed(name: string): string {
   return encodeURIComponent(name.slice(0, 1) || "?");
 }
 
-export async function requireLotteryBoothAccess(lotteryId: string) {
+export async function requireLotteryBoothAccess(
+  lotteryId: string,
+  request?: Request,
+) {
   const lottery = await prisma.lottery.findUnique({
     where: { id: lotteryId },
     include: {
@@ -90,6 +94,12 @@ export async function requireLotteryBoothAccess(lotteryId: string) {
   }
   if (!lottery.boothId) {
     throw new ApiError("非展位抽奖", ErrorCode.FORBIDDEN, 403);
+  }
+
+  // API 传入 request 时支持 Web session 与小程序 Bearer（展商/主办方）
+  if (request) {
+    const access = await requireBoothAccessForRequest(request, lottery.boothId);
+    return { lottery, ...access };
   }
 
   const access = await requireBoothAccess(lottery.boothId);
@@ -128,8 +138,9 @@ function resolvePrizePlan(lottery: {
 
 export async function getLotteryDashboard(
   lotteryId: string,
+  request?: Request,
 ): Promise<LotteryDashboardData> {
-  const { lottery } = await requireLotteryBoothAccess(lotteryId);
+  const { lottery } = await requireLotteryBoothAccess(lotteryId, request);
   const boothId = lottery.boothId!;
   const eventId = lottery.eventId;
 

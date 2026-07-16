@@ -39,7 +39,7 @@ export const GET = withErrorHandler(async () => {
       );
       return createSuccessResponse({ path });
     }
-    return createSuccessResponse({ path: "/events" });
+    return createSuccessResponse({ path: "/organizer/dashboard" });
   }
 
   return createSuccessResponse({ path: getPostLoginRedirectPath(user) });

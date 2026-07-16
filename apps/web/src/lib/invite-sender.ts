@@ -203,7 +203,11 @@ export async function sendWechatTemplateMessage(
 }
 
 async function dispatchRecord(record: RecordWithRelations) {
-  const template = record.campaign.customMessage ?? "";
+  const { FIXED_PARTICIPANT_INVITE_TEMPLATE } = await import(
+    "@/lib/invite/message"
+  );
+  const template =
+    record.campaign.customMessage?.trim() || FIXED_PARTICIPANT_INVITE_TEMPLATE;
   const ctx = buildMessageContext(record);
   let message = resolveInviteMessage(template, ctx);
 
@@ -238,12 +242,16 @@ async function dispatchRecord(record: RecordWithRelations) {
         { tag: record.id },
       );
     }
-    case InviteChannel.EMAIL:
-      return sendEmail(
-        record,
-        record.campaign.subject ?? `您已受邀参加 ${ctx.eventName}`,
-        message,
+    case InviteChannel.EMAIL: {
+      const { FIXED_PARTICIPANT_INVITE_SUBJECT } = await import(
+        "@/lib/invite/message"
       );
+      const emailSubject = resolveInviteMessage(
+        record.campaign.subject?.trim() || FIXED_PARTICIPANT_INVITE_SUBJECT,
+        ctx,
+      );
+      return sendEmail(record, emailSubject, message);
+    }
     case InviteChannel.WECHAT: {
       const tmpl = getInviteTemplateId(record);
       if (!tmpl) {

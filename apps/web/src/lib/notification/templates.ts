@@ -20,7 +20,7 @@ export const NOTIFICATION_TEMPLATE_SEEDS: SeedTemplate[] = [
     category: "VERIFY",
     audience: "ATTENDEE",
     subject: null,
-    body: "【玖莅】验证码 {码},5分钟内有效。请勿向他人泄露。",
+    body: "您本次验证码为：{码}，十分钟内有效。",
     variables: ["码"],
     requiresOptOut: false,
   },
@@ -301,6 +301,33 @@ export const NOTIFICATION_TEMPLATE_SEEDS: SeedTemplate[] = [
       "短链",
       "下载链接",
     ],
+    requiresOptOut: false,
+  },
+  {
+    code: "CUSTOM-SMS",
+    name: "自定义短信通知",
+    channel: "SMS",
+    category: "MARKETING",
+    audience: "ATTENDEE",
+    subject: null,
+    body: "【玖莅】{内容} 回T退订",
+    variables: ["内容"],
+    requiresOptOut: true,
+  },
+  {
+    code: "CUSTOM-EMAIL",
+    name: "自定义邮件通知",
+    channel: "EMAIL",
+    category: "MARKETING",
+    audience: "ATTENDEE",
+    subject: "{主题}",
+    body: `{姓氏称谓}，您好。
+
+{内容}
+
+——
+{活动全称}`,
+    variables: ["姓氏称谓", "主题", "内容", "活动全称"],
     requiresOptOut: false,
   },
 ];

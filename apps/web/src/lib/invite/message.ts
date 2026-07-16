@@ -1,6 +1,8 @@
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { buildInviteShortUrl } from "@/lib/invite/token";
+import { buildInviteShortUrl } from "@/lib/invite/invite-url";
+
+export { buildInviteShortUrl };
 
 export type InviteMessageContext = {
   name: string;
@@ -58,3 +60,13 @@ export function computeTokenExpiresAt(eventEndDate: Date | null | undefined) {
   expires.setDate(expires.getDate() + 7);
   return expires;
 }
+
+/**
+ * 参会者邀请固定文案（短信 / 邮件不可在管理端修改）。
+ * 占位符：{name} {event_name} {event_date} {link} {organizer} {location}
+ */
+export const FIXED_PARTICIPANT_INVITE_TEMPLATE =
+  "{name}，您好！诚邀您参加 {event_name}（{event_date}）。点击链接打开玖莅，完成入场激活：{link}";
+
+export const FIXED_PARTICIPANT_INVITE_SUBJECT =
+  "【玖莅】诚邀您参加 {event_name}";

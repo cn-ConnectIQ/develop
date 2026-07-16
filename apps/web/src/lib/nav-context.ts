@@ -1,11 +1,18 @@
 /** 管理端侧栏导航模式：平台级 vs 单活动上下文 */
 export type AdminNavMode = "platform" | "event";
 
-const EVENT_ROUTE =
-  /^\/events\/[^/]+(?:\/|$)|^\/expos\/[^/]+(?:\/|$)|^\/exhibitor\/booths\/[^/]+(?:\/|$)/;
+/** /events/new 等为账号级独立页，不可当作活动 ID */
+const RESERVED_EVENT_PATH_SEGMENTS = new Set(["new"]);
 
 export function getAdminNavMode(pathname: string): AdminNavMode {
-  return EVENT_ROUTE.test(pathname) ? "event" : "platform";
+  if (/^\/exhibitor\/booths\/[^/]+(?:\/|$)/.test(pathname)) return "event";
+  if (/^\/expos\/[^/]+(?:\/|$)/.test(pathname)) {
+    const seg = pathname.match(/^\/expos\/([^/]+)/)?.[1];
+    if (seg && !RESERVED_EVENT_PATH_SEGMENTS.has(seg)) return "event";
+  }
+  // 仅真实活动 ID 进入活动侧栏；/events/new 保持账号中心导航
+  if (extractEventIdFromPath(pathname)) return "event";
+  return "platform";
 }
 
 export function isEventScopedRoute(pathname: string): boolean {
@@ -14,9 +21,15 @@ export function isEventScopedRoute(pathname: string): boolean {
 
 export function extractEventIdFromPath(pathname: string): string | null {
   const eventMatch = pathname.match(/\/events\/([^/]+)/);
-  if (eventMatch) return eventMatch[1];
+  if (eventMatch) {
+    const seg = eventMatch[1];
+    if (!RESERVED_EVENT_PATH_SEGMENTS.has(seg)) return seg;
+  }
   const expoMatch = pathname.match(/\/expos\/([^/]+)/);
-  if (expoMatch) return expoMatch[1];
+  if (expoMatch) {
+    const seg = expoMatch[1];
+    if (!RESERVED_EVENT_PATH_SEGMENTS.has(seg)) return seg;
+  }
   const boothMatch = pathname.match(/\/exhibitor\/booths\/([^/]+)/);
   return boothMatch?.[1] ?? null;
 }
@@ -62,9 +75,9 @@ export function isNavItemActive(
   return true;
 }
 
-/** 账号管理员平台级首页（活动列表 / 账号中心） */
+/** 账号管理员平台级首页（主办方个人中心 / 账号管理中心） */
 export function getAccountCenterHref(): string {
-  return "/events";
+  return "/organizer/dashboard";
 }
 
 export function getAccountCenterLabel(): string {
@@ -79,7 +92,7 @@ export function getPlatformHomeHref(
   if (role === "PLATFORM_ADMIN" || hasPlatformAdmin) {
     return "/platform/overview";
   }
-  return "/events";
+  return "/organizer/dashboard";
 }
 
 export function getPlatformHomeLabel(
@@ -89,5 +102,5 @@ export function getPlatformHomeLabel(
   if (role === "PLATFORM_ADMIN" || hasPlatformAdmin) {
     return "返回平台概览";
   }
-  return "返回活动列表";
+  return "返回账号中心";
 }

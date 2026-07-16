@@ -16,6 +16,8 @@ import {
 } from "@/lib/api-auth";
 import { mergeParticipantByPhone } from "@/lib/participant-merge";
 import { serializeParticipantRow } from "@/lib/participant-serialize";
+import { maybeAutoInviteNewParticipants } from "@/lib/invite/send-fixed-invites";
+import { requireEventAccessMobileOrWeb } from "@/lib/mobile-event-access";
 import {
   isSpeakerTagged,
   isVipTagged,
@@ -69,7 +71,7 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  await requireEventAccessMobileOrWeb(request, eventId);
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim() || undefined;
@@ -202,7 +204,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  const { session } = await requireEventAccess(eventId);
 
   const body = await request.json();
   const parsed = createSchema.safeParse(body);
@@ -217,6 +219,7 @@ export const POST = withErrorHandler(async (request, context) => {
   const tags = normalizeParticipantTags(parsed.data.tags);
 
   let participantId: string;
+  let newlyCreated = false;
   if (parsed.data.phone?.trim()) {
     const merged = await mergeParticipantByPhone(eventId, {
       name: parsed.data.name,
@@ -229,6 +232,7 @@ export const POST = withErrorHandler(async (request, context) => {
       role: parsed.data.role,
     });
     participantId = merged.participant.id;
+    newlyCreated = merged.created;
   } else {
     const created = await prisma.participant.create({
       data: {
@@ -246,6 +250,7 @@ export const POST = withErrorHandler(async (request, context) => {
       },
     });
     participantId = created.id;
+    newlyCreated = true;
   }
 
   if (parsed.data.ticketTypeId) {
@@ -266,6 +271,16 @@ export const POST = withErrorHandler(async (request, context) => {
         },
       });
     }
+  }
+
+  if (newlyCreated) {
+    void maybeAutoInviteNewParticipants({
+      eventId,
+      participantIds: [participantId],
+      createdBy: session.user.id,
+    }).catch((err) => {
+      console.error("[participants] auto-invite failed", err);
+    });
   }
 
   const participant = await prisma.participant.findUniqueOrThrow({

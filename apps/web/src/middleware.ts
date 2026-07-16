@@ -85,13 +85,29 @@ function getIncomingPathname(request: NextRequest): string {
   return new URL(request.url).pathname;
 }
 
+/** 鉴权用 pathname：去掉 basePath，使 /uc/login 与 /login 判定一致 */
+function getAppPathname(request: NextRequest): string {
+  const host = request.headers.get("host") ?? "";
+  const basePath = getPublicBasePathWithFallback(host);
+  const incoming = getIncomingPathname(request);
+  if (basePath && (incoming === basePath || incoming.startsWith(`${basePath}/`))) {
+    const rest = incoming.slice(basePath.length);
+    return rest || "/";
+  }
+  // 网关已剥前缀：incoming 已是应用路径
+  return request.nextUrl.pathname || incoming;
+}
+
 function isGatewayStrippedHost(host: string): boolean {
   return host.includes("9li.co");
 }
 
 /**
- * CloudBase 自定义域名会在网关剥 /uc 前缀；next.config 已设 basePath=/uc 时，
- * middleware 看到的 pathname 不含 /uc，不能再 rewrite 到 /uc/xxx（会变成 /uc/uc/xxx）。
+ * CloudBase 自定义域名路径前缀 `/uc` 会在网关**剥掉**再转发：
+ *   浏览器: https://9li.co/uc/api/live  →  容器内: /api/live
+ * Next.js 又配置了 basePath=/uc，必须把剥掉的前缀 rewrite 回去，否则全部 404。
+ *
+ * 注意：middleware matcher 必须 `basePath: false`，否则剥前缀后的路径根本进不了本函数。
  */
 function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
   const host = request.headers.get("host") ?? "";
@@ -100,36 +116,23 @@ function rewriteStrippedBasePath(request: NextRequest): NextResponse | null {
 
   const incomingPath = getIncomingPathname(request);
 
-  // 请求 URL 已带 /uc（如云托管默认域名 /uc/login）——交给 Next.js basePath 处理
+  // 已带 /uc（云托管默认域名）——交给 Next basePath
   if (incomingPath === basePath || incomingPath.startsWith(`${basePath}/`)) {
     return null;
   }
 
-  // 缺 /uc 前缀的 /api/*：必须 rewrite/redirect，否则 Next basePath 下会 404
-  if (incomingPath === "/api" || incomingPath.startsWith("/api/")) {
-    const target = new URL(request.url);
-    target.pathname = `${basePath}${incomingPath}`;
-    if (!isGatewayStrippedHost(host)) {
-      return NextResponse.redirect(target);
-    }
-    return NextResponse.rewrite(target);
-  }
+  const restored =
+    incomingPath === "/" ? `${basePath}/` : `${basePath}${incomingPath}`;
+  const target = request.nextUrl.clone();
+  target.pathname = restored;
 
-  // 非 9li.co 网关：缺 /uc 前缀时重定向到带前缀的 URL（默认 *.run.tcloudbase.com）
+  // 非网关域名（默认 *.run.tcloudbase.com）：浏览器应看见带 /uc 的 URL
   if (!isGatewayStrippedHost(host)) {
-    const target = new URL(request.url);
-    target.pathname =
-      incomingPath === "/"
-        ? `${basePath}/`
-        : `${basePath}${incomingPath}`;
     return NextResponse.redirect(target);
   }
 
-  // 9li.co 网关已剥前缀：rewrite 到内部 pathname，勿再拼 /uc
-  const { pathname } = request.nextUrl;
-  const url = request.nextUrl.clone();
-  url.pathname = pathname === "/" ? "/" : pathname;
-  return NextResponse.rewrite(url);
+  // 9li.co：对外 URL 已有 /uc，容器内被剥掉 —— rewrite 补回，不改变浏览器地址栏
+  return NextResponse.rewrite(target);
 }
 
 function finish(request: NextRequest, response: NextResponse) {
@@ -146,7 +149,8 @@ function finish(request: NextRequest, response: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  // 统一成无 /uc 前缀的路径做鉴权与公开页判断
+  const pathname = getAppPathname(request);
 
   if (pathname.startsWith("/api")) {
     if (request.method === "OPTIONS") {
@@ -233,6 +237,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Next 16 Turbopack 不支持 matcher 对象里的 basePath:false；
+  // 剥 /uc 后的路径由 next.config rewrites 补回，middleware 仍匹配带 /uc 的路径。
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],

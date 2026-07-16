@@ -28,6 +28,9 @@ const schema = z.object({
     source: z.string().optional(),
     confirm_all_attendees_sms: z.boolean().optional(),
   }),
+  variable_overrides: z
+    .record(z.string(), z.union([z.string(), z.number()]))
+    .optional(),
 });
 
 export const POST = withErrorHandler(async (request, context) => {
@@ -55,6 +58,7 @@ export const POST = withErrorHandler(async (request, context) => {
     orgId: event.orgId,
     filter: parsed.data.audience_filter,
     templateCode: parsed.data.template_code,
+    variableOverrides: parsed.data.variable_overrides,
   });
   return createSuccessResponse(preview);
 });

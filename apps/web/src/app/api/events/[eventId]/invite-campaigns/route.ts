@@ -6,6 +6,10 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import {
+  FIXED_PARTICIPANT_INVITE_SUBJECT,
+  FIXED_PARTICIPANT_INVITE_TEMPLATE,
+} from "@/lib/invite/message";
 import { createInviteCampaignSchema } from "@/lib/invite/schemas";
 import { listCampaigns } from "@/lib/invite/service";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
@@ -66,8 +70,8 @@ export const POST = withErrorHandler(async (request, context) => {
       name: parsed.data.name,
       channel: parsed.data.channel,
       templateId: parsed.data.template_id,
-      subject: parsed.data.subject,
-      customMessage: parsed.data.custom_message,
+      subject: FIXED_PARTICIPANT_INVITE_SUBJECT,
+      customMessage: FIXED_PARTICIPANT_INVITE_TEMPLATE,
       targetFilter: parsed.data.target_filter,
       scheduledAt,
     },

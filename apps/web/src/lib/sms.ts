@@ -6,7 +6,8 @@ import {
   type SmsSendResult,
 } from "@/lib/submail-sms";
 
-const SMS_CODE_TTL = 300;
+/** 与赛邮验证码模板「十分钟内有效」一致 */
+const SMS_CODE_TTL = 600;
 const SMS_RATE_LIMIT = 60;
 
 export type { SmsSendResult };
@@ -97,7 +98,8 @@ export async function sendVerificationSms(phone: string, code: string) {
         })
       : await sendSubmailSms({
           phone,
-          content: `您的验证码是${code}，${Math.round(SMS_CODE_TTL / 60)}分钟内有效。`,
+          // 正文不含签名；签名由 SUBMAIL_SIGN_NAME 自动加【】
+          content: `您本次验证码为：${code}，十分钟内有效。`,
         });
     if (!result.success) {
       console.error("[SMS] 验证码发送失败", result.error);

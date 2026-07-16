@@ -27,10 +27,11 @@ export function getSubmailConfig(): SubmailConfig | null {
     process.env.SUBMAIL_APP_KEY?.trim() ||
     process.env.SUBMAIL_APPKEY?.trim() ||
     "";
+  // 勿默认猜签名；猜错会触发赛邮 126「签名未报备」
   const signName =
     process.env.SUBMAIL_SIGN_NAME?.trim() ||
     process.env.ALIYUN_SMS_SIGN_NAME?.trim() ||
-    "玖莅";
+    "";
   if (!appId || !appKey) return null;
   return {
     appId,
@@ -79,7 +80,7 @@ async function fetchSubmailTimestamp(endpoint: string): Promise<string> {
  * signature = md5(appid + appkey + (k=v&...) + appid + appkey)
  * tag 不参与签名。
  */
-function buildSignature(
+function buildMd5Signature(
   appId: string,
   appKey: string,
   params: Record<string, string>,
@@ -90,6 +91,72 @@ function buildSignature(
   const kv = keys.map((k) => `${k}=${params[k] ?? ""}`).join("&");
   const raw = `${appId}${appKey}${kv}${appId}${appKey}`;
   return createHash("md5").update(raw).digest("hex");
+}
+
+/** 默认 normal：与赛邮官方示例 / 多数现网项目一致（signature=appkey） */
+function applyApiAuth(
+  cfg: SubmailConfig,
+  form: Record<string, string>,
+): Record<string, string> {
+  const mode = (
+    process.env.SUBMAIL_SIGN_TYPE?.trim().toLowerCase() || "normal"
+  ) as "normal" | "md5" | "sha1";
+  if (mode === "md5") {
+    form.timestamp = form.timestamp || String(Math.floor(Date.now() / 1000));
+    form.sign_type = "md5";
+    // v2：content 不参与加密，避免中文正文导致验签失败
+    form.sign_version = "2";
+    form.signature = buildMd5Signature(cfg.appId, cfg.appKey, form);
+    return form;
+  }
+  form.sign_type = "normal";
+  form.signature = cfg.appKey;
+  return form;
+}
+
+function extractLeadingSign(content: string): string | null {
+  const m = content.trim().match(/^【([^】]+)】/);
+  return m?.[1] ? m[1] : null;
+}
+
+/** 失败时回显正文：验证码数字打码，便于核对签名/模板 */
+function maskSmsContent(content: string): string {
+  return content.replace(/\d{4,8}/g, "******");
+}
+
+function mapSubmailError(
+  payload: {
+    code?: number | string;
+    msg?: string;
+    message?: string;
+    error?: string;
+  } | null,
+  httpStatus: number,
+  content?: string | null,
+): string {
+  const code = payload?.code != null ? String(payload.code) : "";
+  const raw =
+    payload?.msg ||
+    payload?.message ||
+    payload?.error ||
+    `Submail HTTP ${httpStatus}`;
+  const usedSign = content ? extractLeadingSign(content) : null;
+  const preview = content ? maskSmsContent(content) : "";
+  const meta = [
+    usedSign ? `实际签名：【${usedSign}】` : null,
+    preview ? `正文：${preview}` : null,
+  ]
+    .filter(Boolean)
+    .join("；");
+  const prefix = meta ? `${meta}。` : "";
+
+  if (code === "126" || /Signature not reported/i.test(raw)) {
+    return `${prefix}短信签名未完成运营商报备（赛邮错误126）。赛邮失败记录通常不展示正文；请以这里的「实际签名/正文」为准。`;
+  }
+  if (code === "113" || /IP/i.test(raw)) {
+    return `${prefix}请求 IP 不在赛邮白名单（错误113）。`;
+  }
+  return prefix ? `${prefix}${raw}` : raw;
 }
 
 /**
@@ -131,16 +198,27 @@ export async function sendSubmailSms(input: {
   }
 
   try {
-    const timestamp = await fetchSubmailTimestamp(cfg.endpoint);
+    const content = buildContent(input.signName ?? cfg.signName, input.content);
+    if (!content.includes("【")) {
+      return {
+        success: false,
+        error:
+          "短信内容缺少签名：请配置 SUBMAIL_SIGN_NAME（如 南京弟齐信息，不要带【】）",
+        provider: "submail",
+      };
+    }
+
     const form: Record<string, string> = {
       appid: cfg.appId,
       to: input.phone.trim(),
-      content: buildContent(input.signName ?? cfg.signName, input.content),
-      timestamp,
-      sign_type: "md5",
+      content,
     };
+    // md5 模式需要时间戳；normal 可省略
+    if ((process.env.SUBMAIL_SIGN_TYPE?.trim().toLowerCase() || "normal") === "md5") {
+      form.timestamp = await fetchSubmailTimestamp(cfg.endpoint);
+    }
     if (input.tag) form.tag = input.tag;
-    form.signature = buildSignature(cfg.appId, cfg.appKey, form);
+    applyApiAuth(cfg, form);
 
     const body = new URLSearchParams(form);
     const res = await fetch(`${cfg.endpoint}/sms/send.json`, {
@@ -165,12 +243,15 @@ export async function sendSubmailSms(input: {
       payload?.code === 0;
 
     if (!ok) {
-      const error =
-        payload?.msg ||
-        payload?.message ||
-        payload?.error ||
-        `Submail HTTP ${res.status}`;
-      console.error("[SUBMAIL]", error, payload);
+      const usedSign = extractLeadingSign(content);
+      const error = mapSubmailError(payload, res.status, content);
+      console.error("[SUBMAIL]", error, {
+        appid: cfg.appId,
+        signName: cfg.signName,
+        usedSign,
+        content: maskSmsContent(content),
+        payload,
+      });
       return { success: false, error, provider: "submail" };
     }
 
@@ -220,19 +301,19 @@ export async function sendSubmailXSend(input: {
   }
 
   try {
-    const timestamp = await fetchSubmailTimestamp(cfg.endpoint);
     const form: Record<string, string> = {
       appid: cfg.appId,
       to: input.phone.trim(),
       project: input.project,
-      timestamp,
-      sign_type: "md5",
     };
+    if ((process.env.SUBMAIL_SIGN_TYPE?.trim().toLowerCase() || "normal") === "md5") {
+      form.timestamp = await fetchSubmailTimestamp(cfg.endpoint);
+    }
     if (input.vars && Object.keys(input.vars).length) {
       form.vars = JSON.stringify(input.vars);
     }
     if (input.tag) form.tag = input.tag;
-    form.signature = buildSignature(cfg.appId, cfg.appKey, form);
+    applyApiAuth(cfg, form);
 
     const res = await fetch(`${cfg.endpoint}/sms/xsend.json`, {
       method: "POST",
@@ -245,6 +326,7 @@ export async function sendSubmailXSend(input: {
       send_id?: string;
       msg?: string;
       message?: string;
+      error?: string;
     } | null;
 
     const ok =
@@ -254,7 +336,7 @@ export async function sendSubmailXSend(input: {
     if (!ok) {
       return {
         success: false,
-        error: payload?.msg || payload?.message || `Submail XSend HTTP ${res.status}`,
+        error: mapSubmailError(payload, res.status),
         provider: "submail",
       };
     }

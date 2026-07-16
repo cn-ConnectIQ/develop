@@ -14,6 +14,7 @@ import { resolveMobileExhibitorBoothAccess } from "@/lib/mobile-exhibitor-servic
 import { findParticipantForUser } from "@/lib/interaction/participant-user";
 import { generateBadgeQr } from "@/lib/participants";
 import { resolveUserIdForParticipant } from "@/lib/participant-notify-service";
+import { maybeAutoInviteBoothStaff } from "@/lib/invite/send-fixed-invites";
 import { sendExhibitorInviteSubscribe } from "@/lib/wechat/subscribe-message";
 
 export type BoothStaffMemberView = {
@@ -202,7 +203,7 @@ async function ensureBoothOwnerParticipant(
     });
   }
 
-  return prisma.participant.create({
+  const created = await prisma.participant.create({
     data: {
       eventId,
       name: user.name ?? `用户${user.phone?.slice(-4) ?? ""}`,
@@ -214,6 +215,16 @@ async function ensureBoothOwnerParticipant(
       badgeQr: generateBadgeQr(eventId),
     },
   });
+
+  void maybeAutoInviteBoothStaff({
+    eventId,
+    participantIds: [created.id],
+    createdBy: userId,
+  }).catch((err) => {
+    console.error("[booth-owner] auto-invite failed", err);
+  });
+
+  return created;
 }
 
 async function countBoothStaff(boothId: string): Promise<number> {
@@ -473,6 +484,15 @@ export async function addBoothStaffMember(
     eventName: booth.event.name,
     boothId,
     inviterName: inviter?.name ?? "展位主账号",
+  });
+
+  // 展商工作人员已是大会参会者；开启配置后自动发固定模板短信/邮件邀请
+  void maybeAutoInviteBoothStaff({
+    eventId: booth.eventId,
+    participantIds: [participant.id],
+    createdBy: inviterUserId,
+  }).catch((err) => {
+    console.error("[booth-staff] auto-invite failed", err);
   });
 
   return { member: serializeMember(participant) };

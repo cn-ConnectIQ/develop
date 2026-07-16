@@ -27,7 +27,7 @@ type SidebarEventSwitcherProps = {
 };
 
 export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
-  const { events, currentEvent, setCurrentEventId, isLoading } =
+  const { events, currentEvent, currentEventId, setCurrentEventId, isLoading } =
     useCurrentEvent();
 
   const showSwitcher =
@@ -61,6 +61,11 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
   const currentRoleLabel = currentEvent
     ? getEventListRoleLabel(currentEvent)
     : null;
+
+  const displayName = isLoading
+    ? "加载活动..."
+    : currentEvent?.name ??
+      (currentEventId ? "当前活动" : "选择活动");
 
   function renderEventItem(event: (typeof events)[number]) {
     return (
@@ -109,19 +114,13 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
         <PopoverTrigger className="admin-sb-switch">
           <span className={cn("admin-ctx-dot", dotColor)} />
           <span className="min-w-0 flex-1 truncate font-medium">
-            {isLoading ? (
-              "加载活动..."
-            ) : (
-              <>
-                <span className="text-text-tertiary">当前活动：</span>
-                {currentEvent?.name ?? "选择活动"}
-                {currentRoleLabel ? (
-                  <span className="ml-1 text-[11px] font-normal text-brand-blue">
-                    · {currentRoleLabel}
-                  </span>
-                ) : null}
-              </>
-            )}
+            <span className="text-text-tertiary">当前活动：</span>
+            {displayName}
+            {currentRoleLabel ? (
+              <span className="ml-1 text-[11px] font-normal text-brand-blue">
+                · {currentRoleLabel}
+              </span>
+            ) : null}
           </span>
           <ChevronDown className="size-3.5 shrink-0 text-text-tertiary" />
         </PopoverTrigger>

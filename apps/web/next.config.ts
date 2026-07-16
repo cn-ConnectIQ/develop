@@ -17,7 +17,8 @@ function resolveBasePath(): string {
 
 /**
  * CloudBase 自定义域名 /uc 会在网关剥前缀（/uc/login → /login）。
- * basePath 保证对外 URL/redirect/Link 带 /uc；middleware rewrite 把剥前缀的请求补回。
+ * Next.js basePath=/uc；入口 uc-path-proxy 在进 Next 前补回 /uc。
+ * （Next 16 不允许用 rewrites 把 basePath 外路径 rewrite 进来。）
  */
 const basePath = resolveBasePath();
 

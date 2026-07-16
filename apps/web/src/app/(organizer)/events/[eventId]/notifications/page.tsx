@@ -1,4 +1,5 @@
-import { NotificationWizardClient } from "@/components/notifications/NotificationWizardClient";
+import { Suspense } from "react";
+import { NotificationManagementClient } from "@/components/notifications/NotificationManagementClient";
 
 export default async function EventNotificationsPage({
   params,
@@ -6,5 +7,9 @@ export default async function EventNotificationsPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  return <NotificationWizardClient eventId={eventId} />;
+  return (
+    <Suspense>
+      <NotificationManagementClient eventId={eventId} />
+    </Suspense>
+  );
 }

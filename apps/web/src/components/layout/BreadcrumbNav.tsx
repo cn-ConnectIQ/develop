@@ -92,6 +92,42 @@ export function BreadcrumbNav() {
     );
   }
 
+  if (pathname === "/events/new") {
+    return (
+      <nav
+        aria-label="面包屑"
+        className="hidden min-w-0 items-center gap-1.5 text-xs font-medium text-[var(--admin-ink)] md:flex"
+      >
+        {isAccountAdmin ? (
+          <>
+            <Link
+              href={getAccountCenterHref()}
+              className="text-text-muted transition-colors hover:text-[var(--admin-ink)]"
+            >
+              账号中心
+            </Link>
+            <span className="text-text-tertiary">/</span>
+          </>
+        ) : null}
+        <span>创建活动</span>
+      </nav>
+    );
+  }
+
+  if (
+    pathname === "/organizer/dashboard" ||
+    pathname.startsWith("/organizer/dashboard/")
+  ) {
+    return (
+      <nav
+        aria-label="面包屑"
+        className="hidden min-w-0 items-center text-xs font-medium text-[var(--admin-ink)] md:flex"
+      >
+        账号管理中心
+      </nav>
+    );
+  }
+
   if (pathname === "/platform/overview") {
     return (
       <nav
@@ -107,16 +143,21 @@ export function BreadcrumbNav() {
     const eventName = currentEvent?.name ?? "当前活动";
     const pageSeg = segments[segments.length - 1];
     const parentSeg = segments[segments.length - 2];
+    // /events/:eventId 根路径 = 活动工作台，不要误显示「活动列表」
     const pageLabel =
-      pageSeg === "new" && SEGMENT_LABELS[parentSeg]
-        ? `新建${SEGMENT_LABELS[parentSeg]}`
-        : isOpaqueIdSegment(pageSeg) &&
-            parentSeg &&
-            SEGMENT_LABELS[parentSeg]
-          ? SEGMENT_LABELS[parentSeg]
-          : pageSeg === "invite" && parentSeg === "participants"
-            ? "发起邀请"
-            : (SEGMENT_LABELS[pageSeg] ?? pageSeg);
+      segments.length === 2 &&
+      segments[0] === "events" &&
+      isOpaqueIdSegment(pageSeg)
+        ? "活动工作台"
+        : pageSeg === "new" && SEGMENT_LABELS[parentSeg]
+          ? `新建${SEGMENT_LABELS[parentSeg]}`
+          : isOpaqueIdSegment(pageSeg) &&
+              parentSeg &&
+              SEGMENT_LABELS[parentSeg]
+            ? SEGMENT_LABELS[parentSeg]
+            : pageSeg === "invite" && parentSeg === "participants"
+              ? "发起邀请"
+              : (SEGMENT_LABELS[pageSeg] ?? pageSeg);
 
     return (
       <nav

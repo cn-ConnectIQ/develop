@@ -28,8 +28,10 @@ export const createInviteCampaignSchema = z.object({
   name: z.string().min(1).max(100),
   channel: z.nativeEnum(InviteChannel),
   template_id: z.string().optional(),
+  /** 已废弃：服务端始终使用固定主题 */
   subject: z.string().max(200).optional(),
-  custom_message: z.string().min(1).max(2000),
+  /** 已废弃：服务端始终使用固定模板，可不传 */
+  custom_message: z.string().max(2000).optional(),
   target_filter: targetFilterSchema.default({}),
   scheduled_at: z.string().datetime().nullable().optional(),
 });

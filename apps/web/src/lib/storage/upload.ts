@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { withPublicPath } from "@/lib/public-path";
 import {
   isQiniuConfigured,
   uploadBufferToQiniu,
@@ -12,6 +13,14 @@ export type StoredFile = {
   /** qiniu | local */
   storage: "qiniu" | "local";
 };
+
+function allowLocalUploadFallback(): boolean {
+  // 生产容器盘不持久，且 /uploads 无 basePath 会打到域名根 COS → 禁止静默落本地
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.ALLOW_LOCAL_UPLOAD === "1") return true;
+  if (process.env.ALLOW_LOCAL_UPLOAD === "0") return false;
+  return true;
+}
 
 /**
  * 统一上传入口：已配置七牛则上传到 CDN（cdn.9li.cn），否则本地 public/uploads（仅开发兜底）。
@@ -36,6 +45,12 @@ export async function storeUploadBuffer(input: {
     return { url: result.url, key: result.key, storage: "qiniu" };
   }
 
+  if (!allowLocalUploadFallback()) {
+    throw new Error(
+      "生产环境未配置七牛：请在 CloudBase 云托管环境变量中设置 QINIU_ACCESS_KEY / QINIU_SECRET_KEY / QINIU_BUCKET / QINIU_CDN_DOMAIN 后重新发布",
+    );
+  }
+
   const prefix = (input.prefix ?? "uploads").replace(/^\/+|\/+$/g, "");
   const ext =
     input.filename?.split(".").pop()?.toLowerCase() ||
@@ -47,5 +62,11 @@ export async function storeUploadBuffer(input: {
   await mkdir(uploadsDir, { recursive: true });
   await writeFile(path.join(uploadsDir, name), input.buffer);
   const key = input.key ?? `${prefix}/${name}`;
-  return { url: `/${key.replace(/\\/g, "/")}`, key, storage: "local" };
+  const relativeUrl = `/${key.replace(/\\/g, "/")}`;
+  // 带 basePath（如 /uc/uploads/...），避免浏览器请求落到 https://9li.co/uploads
+  return {
+    url: withPublicPath(relativeUrl),
+    key,
+    storage: "local",
+  };
 }

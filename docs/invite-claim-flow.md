@@ -16,6 +16,9 @@
 - `GET|POST /api/invite/resolve`
 - `POST /api/invite/claim` `{ action: silent|phone|guest, token, wxCode, phoneCode? }`
 
+> **统一入口 InviteEntry（短信 / 邮件 / 小程序码共用 entryToken）** 见 [invite-entry.md](./invite-entry.md)：  
+> `POST /api/events/:eventId/invite-entries`、`POST /api/invite/entry-resolve`。
+
 ## 上线
 1. `migrate-invite-claim.sql`（phone_hash / first_used_at）
 2. 配置 `NEXT_PUBLIC_WX_MINI_APPID`（H5 唤起）、可选 `WX_MP_URL_LINK_BASE`

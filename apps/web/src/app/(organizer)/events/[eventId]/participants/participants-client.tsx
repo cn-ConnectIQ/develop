@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Bell,
   Bot,
   Columns3,
   Filter,
@@ -22,6 +23,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
 import {
   PRESET_PARTICIPANT_TAGS,
@@ -30,6 +32,7 @@ import {
 } from "@/lib/participant-tags";
 import { AddParticipantSheet } from "@/components/participants/AddParticipantSheet";
 import { ParticipantTable } from "@/components/participants/ParticipantTable";
+import { InviteManagementClient } from "@/components/invites/InviteManagementClient";
 import type { ParticipantListItem } from "@/lib/participants";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
@@ -201,21 +204,28 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
     router.push(base);
   }
 
+  const pageTab =
+    searchParams.get("tab") === "invite" && showInviteSystem
+      ? "invite"
+      : "people";
+
   return (
     <AdminPageBody>
       <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-[var(--admin-ink)]">参与人员管理</h1>
-          {showInviteSystem && (
-            <Link
-              href={`/events/${eventId}/invite`}
-              className="mt-1 inline-block text-xs text-brand-blue hover:underline"
-            >
-              邀请管理 →
-            </Link>
-          )}
+          <p className="mt-1 text-sm text-text-muted">
+            名单、邀请与现场签到；短信/邮件额度绑定主办方账号
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/events/${eventId}/notifications`}
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            <Bell className="mr-1 size-4" />
+            通知
+          </Link>
           <Link
             href={`/events/${eventId}/data-import`}
             className={cn(buttonVariants({ variant: "outline" }))}
@@ -241,6 +251,30 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           )}
         </div>
       </div>
+
+      {showInviteSystem && (
+        <Tabs
+          value={pageTab}
+          onValueChange={(v) => {
+            if (v === "invite") {
+              router.push(`/events/${eventId}/participants?tab=invite`);
+            } else {
+              router.push(`/events/${eventId}/participants`);
+            }
+          }}
+          className="mb-4"
+        >
+          <TabsList>
+            <TabsTrigger value="people">人员名单</TabsTrigger>
+            <TabsTrigger value="invite">邀请管理</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
+      {pageTab === "invite" ? (
+        <InviteManagementClient eventId={eventId} embedded />
+      ) : (
+        <>
 
       <div
         className={cn(
@@ -419,6 +453,8 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
         onOpenChange={setAddOpen}
         onSuccess={() => void refetch()}
       />
+        </>
+      )}
     </AdminPageBody>
   );
 }

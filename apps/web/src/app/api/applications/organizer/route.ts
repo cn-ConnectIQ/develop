@@ -18,8 +18,15 @@ const submitSchema = z.object({
     .regex(/^1[3-9]\d{9}$/, "请输入有效的中国大陆手机号")
     .optional(),
   code: z.string().length(6, "请输入 6 位验证码").optional(),
-  email: z.string().email("请输入有效邮箱"),
+  email: z
+    .string()
+    .email("请输入有效邮箱")
+    .refine(
+      (v) => !v.endsWith("@phone.connectiq.local"),
+      "请输入真实邮箱",
+    ),
   orgName: z.string().min(2, "请输入组织/公司名称").max(100),
+  // orgCreditCode：表单已不再收集；保留可选以兼容旧客户端
   orgCreditCode: z
     .string()
     .optional()
@@ -39,14 +46,21 @@ const submitSchema = z.object({
       "请输入有效官网地址",
     ),
   contactName: z.string().min(2, "请输入联系人姓名").max(50),
-  contactEmail: z.string().email("请输入有效联系邮箱"),
+  contactEmail: z
+    .string()
+    .email("请输入有效联系邮箱")
+    .refine(
+      (v) => !v.endsWith("@phone.connectiq.local"),
+      "请输入真实联系邮箱",
+    ),
   contactPhone: z
     .string()
     .regex(/^1[3-9]\d{9}$/, "请输入有效的联系手机"),
   description: z
     .string()
-    .min(100, "申请说明至少 100 字")
-    .max(500, "申请说明最多 500 字"),
+    .trim()
+    .min(1, "请填写申请说明")
+    .max(5000, "申请说明过长"),
 });
 
 export const POST = withErrorHandler(async (request) => {

@@ -19,8 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { InviteChannel } from "@/lib/invite/enums";
+import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
+import { FIXED_PARTICIPANT_INVITE_TEMPLATE } from "@/lib/invite/message";
 import { parseTagsFromCell } from "@/lib/participant-tags";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +95,6 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [channel, setChannel] = useState<InviteChannel>(InviteChannel.SMS);
-  const [customMessage, setCustomMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const [name, setName] = useState("");
@@ -133,13 +133,19 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
         body: JSON.stringify({
           contacts,
           channel,
-          custom_message: customMessage.trim() || undefined,
           send_now: true,
         }),
       });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.message ?? "发送失败");
+        const msg = json.error ?? json.message ?? "发送失败";
+        const err = new Error(msg) as Error & { redirectTo?: string };
+        if (typeof json.redirect_to === "string") {
+          err.redirectTo = json.redirect_to;
+        } else if (res.status === 402 || String(msg).includes("余额不足")) {
+          err.redirectTo = "/organizer/billing";
+        }
+        throw err;
       }
 
       const { created, merged, participant_ids } = json.data as {
@@ -159,7 +165,7 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
       void queryClient.invalidateQueries({ queryKey: ["participants", eventId] });
       onSent?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "发送失败");
+      toastInviteSendError(e, "发送失败");
     } finally {
       setSubmitting(false);
     }
@@ -270,16 +276,12 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
       </div>
 
       <div className="rounded-xl border border-border-light bg-white p-5">
-        <Label htmlFor="custom-message" className="text-xs text-text-muted">
-          个性化附言（可选）
+        <Label className="text-xs text-text-muted">
+          邀请文案（固定，不可修改）
         </Label>
-        <Textarea
-          id="custom-message"
-          className="mt-2 min-h-[80px]"
-          placeholder="可在邀请消息中附加说明，如座位安排、入场须知等"
-          value={customMessage}
-          onChange={(e) => setCustomMessage(e.target.value)}
-        />
+        <p className="mt-2 whitespace-pre-wrap rounded-lg border border-border-light bg-content/60 p-3 text-sm leading-relaxed text-[var(--admin-ink)]">
+          {FIXED_PARTICIPANT_INVITE_TEMPLATE}
+        </p>
       </div>
 
       <Tabs

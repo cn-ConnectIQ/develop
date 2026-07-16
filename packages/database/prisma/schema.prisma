@@ -345,6 +345,13 @@ enum InviteRecordStatus {
   SKIPPED
 }
 
+/// 受邀参会者统一入口（短信 / 邮件 / 现场小程序码共用 entryToken）
+enum InviteEntryStatus {
+  PENDING
+  USED
+  REVOKED
+}
+
 enum ParticipantInviteStatus {
   NOT_INVITED
   INVITED
@@ -618,6 +625,7 @@ model User {
   connectionsAsA             BusinessConnection[] @relation("ConnectionUserA")
   connectionsAsB             BusinessConnection[] @relation("ConnectionUserB")
   createdCampaigns           InviteCampaign[]     @relation("CampaignCreator")
+  createdInviteEntries       InviteEntry[]        @relation("InviteEntryCreator")
   inviteRecords              InviteRecord[]
   createdLotteries           Lottery[]            @relation("LotteryCreator")
   lotteryEntries             LotteryEntry[]
@@ -1054,6 +1062,7 @@ model Event {
   meetingAreas        MeetingArea[]
   snSessions          SnSession[]
   inviteCampaigns     InviteCampaign[]
+  inviteEntries       InviteEntry[]
   lotteries           Lottery[]
   interactionSessions InteractionSession[]
   aiReferralScans     AIReferralScan[]
@@ -1247,6 +1256,7 @@ model Participant {
   snPairsAsA      SnPair[]                  @relation("SnPairParticipantA")
   snPairsAsB      SnPair[]                  @relation("SnPairParticipantB")
   inviteRecords   InviteRecord[]
+  inviteEntries   InviteEntry[]
 
   @@index([eventId, phone])
   @@index([boothId])
@@ -2545,6 +2555,36 @@ model InviteRecord {
   @@index([vendorMessageId])
   @@index([status, updatedAt])
   @@map("invite_records")
+}
+
+/// 受邀参会者统一入口：短信短链 / 邮件 / 现场小程序码共用同一个 entryToken
+/// scene = `t_` + token（总长 ≤ 32）；path = pages/activation/landing?t=<token>
+model InviteEntry {
+  id            String            @id @default(cuid())
+  /// url-safe base62，推荐 16–24；scene 前缀 `t_` 后总长 ≤ 32
+  token         String            @unique
+  eventId       String            @map("event_id")
+  /// 国内 11 位手机号；null = 活动通用码（mode=event）
+  phone         String?
+  honorific     String?
+  /// 可选显示名（与 honorific 并存）
+  name          String?
+  participantId String?           @map("participant_id")
+  status        InviteEntryStatus @default(PENDING)
+  expiresAt     DateTime?         @map("expires_at")
+  createdBy     String?           @map("created_by")
+  usedAt        DateTime?         @map("used_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participant Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  creator     User?        @relation("InviteEntryCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([eventId, phone, status])
+  @@index([eventId, status])
+  @@index([status, expiresAt])
+  @@map("invite_entries")
 }
 
 /// 邀请渠道黑名单 / 退订（按手机号或邮箱）

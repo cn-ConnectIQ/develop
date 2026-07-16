@@ -3,6 +3,7 @@ import {
   getAuthApiBasePath,
   getPublicBasePath,
   getPublicBasePathWithFallback,
+  resolveMediaUrl,
   withPublicPath,
 } from "./public-path";
 
@@ -65,6 +66,30 @@ describe("withPublicPath", () => {
   it("已含前缀时不重复", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://9li.co/uc";
     expect(withPublicPath("/uc/login")).toBe("/uc/login");
+  });
+});
+
+describe("resolveMediaUrl", () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_BASE_PATH;
+    delete process.env.NEXT_BASE_PATH;
+    delete process.env.NEXT_PUBLIC_APP_URL;
+  });
+
+  it("绝对 URL 原样返回", () => {
+    expect(resolveMediaUrl("https://cdn.example.com/a.png")).toBe(
+      "https://cdn.example.com/a.png",
+    );
+  });
+
+  it("相对 /uploads 补 basePath", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://9li.co/uc";
+    expect(resolveMediaUrl("/uploads/a.png")).toBe("/uc/uploads/a.png");
+  });
+
+  it("空值返回空串", () => {
+    expect(resolveMediaUrl(null)).toBe("");
+    expect(resolveMediaUrl("")).toBe("");
   });
 });
 

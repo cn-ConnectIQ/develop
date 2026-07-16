@@ -7,15 +7,11 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
-  confirmJobCompliance,
   createNotificationJob,
-  dispatchNotificationJob,
-  getJobAnalytics,
   listEnabledTemplates,
-  previewAudience,
-  sendJobSampleTest,
 } from "@/lib/notification/job-service";
 import { seedNotificationTemplates } from "@/lib/notification/seed-templates";
+import { isPrismaSchemaDriftError } from "@/lib/prisma-errors";
 import { prisma } from "@connectiq/database";
 
 const audienceSchema = z.object({
@@ -52,12 +48,32 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
   await requireEventAccess(eventId);
 
-  let templates = await listEnabledTemplates();
-  if (templates.length === 0) {
-    await seedNotificationTemplates();
-    templates = await listEnabledTemplates();
+  try {
+    let templates = await listEnabledTemplates();
+    if (templates.length === 0) {
+      await seedNotificationTemplates();
+      templates = await listEnabledTemplates();
+    } else {
+      // 保证自定义通知模板已种子（兼容旧库）
+      const hasCustom = templates.some(
+        (t) => t.code === "CUSTOM-SMS" || t.code === "CUSTOM-EMAIL",
+      );
+      if (!hasCustom) {
+        await seedNotificationTemplates();
+        templates = await listEnabledTemplates();
+      }
+    }
+    return createSuccessResponse({ templates });
+  } catch (error) {
+    if (isPrismaSchemaDriftError(error)) {
+      return createErrorResponse(
+        "通知模块数据表尚未就绪，请联系平台管理员执行通知 DDL",
+        ErrorCode.INTERNAL_ERROR,
+        503,
+      );
+    }
+    throw error;
   }
-  return createSuccessResponse({ templates });
 });
 
 /** POST 创建 draft job */
