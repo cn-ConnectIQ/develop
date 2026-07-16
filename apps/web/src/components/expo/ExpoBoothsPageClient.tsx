@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
+import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
+import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import {
   AdminContent,
   AdminHeader,
@@ -167,6 +169,8 @@ export function ExpoBoothsPageClient({
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { data: featureFlags } = useEventFeatureFlags(eventId);
+  const { data: experienceProfile } = useExperienceAccount();
+  const experienceBulkBlocked = Boolean(experienceProfile?.isActiveExperience);
   const showRanking = isFeatureFlagEnabled(featureFlags, "boothRanking");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
@@ -355,6 +359,10 @@ export function ExpoBoothsPageClient({
   }
 
   async function handleInviteAllExhibitors() {
+    if (experienceBulkBlocked) {
+      toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+      return;
+    }
     const ok = window.confirm(
       "将向本场全部未激活的展商工作人员发送固定模板邀请（优先短信，否则邮件）。确认继续？",
     );
@@ -446,7 +454,12 @@ export function ExpoBoothsPageClient({
             <Button
               variant="outline"
               size="sm"
-              disabled={inviteAllBusy}
+              disabled={inviteAllBusy || experienceBulkBlocked}
+              title={
+                experienceBulkBlocked
+                  ? EXPERIENCE_BULK_INVITE_MESSAGE
+                  : undefined
+              }
               onClick={() => void handleInviteAllExhibitors()}
             >
               <Send className="mr-1 size-4" />

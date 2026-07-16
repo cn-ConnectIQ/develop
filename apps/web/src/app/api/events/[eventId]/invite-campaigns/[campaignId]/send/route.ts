@@ -10,12 +10,13 @@ import { triggerInviteProcessing } from "@/lib/invite/queue";
 import {
   getCampaignForEvent,
   prepareCampaignSend,
+  parseTargetFilter,
 } from "@/lib/invite/service";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import {
-  assertExperienceCanSendInvite,
-  ExperienceAccountError,
-} from "@/lib/experience/experience-account-service";
+  assertExperienceCanSendCampaign,
+} from "@/lib/experience/experience-invite-guards";
+import { ExperienceAccountError } from "@/lib/experience/experience-account-service";
 
 export const POST = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -35,7 +36,10 @@ export const POST = withErrorHandler(async (_request, context) => {
   }
 
   try {
-    await assertExperienceCanSendInvite(session.user.id, existing.channel);
+    await assertExperienceCanSendCampaign(session.user.id, {
+      totalTarget: existing.totalTarget,
+      targetFilter: parseTargetFilter(existing.targetFilter),
+    });
   } catch (error) {
     if (error instanceof ExperienceAccountError) {
       return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);

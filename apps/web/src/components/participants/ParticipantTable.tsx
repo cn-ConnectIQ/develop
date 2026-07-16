@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
+import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
+import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -125,6 +127,8 @@ export function ParticipantTable({
   onRefresh,
   onBulkInvite,
 }: ParticipantTableProps) {
+  const { data: experienceProfile } = useExperienceAccount();
+  const experienceBulkBlocked = Boolean(experienceProfile?.isActiveExperience);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -596,14 +600,35 @@ export function ParticipantTable({
               size="sm"
               variant="outline"
               className="border-brand-purple text-brand-purple hover:bg-brand-purple/10"
+              disabled={experienceBulkBlocked && selectedCount > 1}
+              title={
+                experienceBulkBlocked && selectedCount > 1
+                  ? EXPERIENCE_BULK_INVITE_MESSAGE
+                  : undefined
+              }
               onClick={() => {
                 const ids = table
                   .getFilteredSelectedRowModel()
                   .rows.map((r) => r.original.id);
+                if (experienceBulkBlocked) {
+                  if (ids.length > 1) {
+                    toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+                    return;
+                  }
+                  const row = table
+                    .getFilteredSelectedRowModel()
+                    .rows[0]?.original;
+                  if (row) {
+                    openInviteDialog(row);
+                    return;
+                  }
+                }
                 onBulkInvite(ids);
               }}
             >
-              批量邀请所选参会者
+              {experienceBulkBlocked && selectedCount === 1
+                ? "邀请所选参会者"
+                : "批量邀请所选参会者"}
             </Button>
           )}
           <Button

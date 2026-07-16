@@ -225,7 +225,7 @@ export function ExperienceSignupForm() {
           </Link>
         </p>
         <p className="mt-2 text-center text-xs text-text-tertiary">
-          体验不支持批量邀请与创建/发布活动；已同步进入平台潜客待审，审核通过后转正并可付费使用
+          体验账号支持单人短信/邮件邀请，不支持批量邀请与创建/发布活动；已同步进入平台潜客待审，审核通过后转正并可付费使用
         </p>
       </CardContent>
     </Card>

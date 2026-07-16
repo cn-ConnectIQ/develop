@@ -30,6 +30,8 @@ import {
   useSendInviteCampaign,
 } from "@/hooks/useInviteCampaigns";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
+import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
+import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import {
   FIXED_PARTICIPANT_INVITE_SUBJECT,
   FIXED_PARTICIPANT_INVITE_TEMPLATE,
@@ -135,6 +137,14 @@ export function CreateCampaignForm({
 
   const createMutation = useCreateInviteCampaign(eventId);
   const sendMutation = useSendInviteCampaign(eventId);
+  const { data: experienceProfile } = useExperienceAccount();
+  const experienceBulkBlocked = Boolean(experienceProfile?.isActiveExperience);
+  const singleParticipantOnly =
+    experienceBulkBlocked &&
+    initialParticipantIds?.length === 1 &&
+    !importContacts.length;
+  const experienceBulkBlockedForForm =
+    experienceBulkBlocked && !singleParticipantOnly;
 
   async function handleImportFile(file: File | null) {
     if (!file) return;
@@ -264,6 +274,10 @@ export function CreateCampaignForm({
   }
 
   async function handleSaveDraft() {
+    if (experienceBulkBlockedForForm) {
+      toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+      return;
+    }
     try {
       await createMutation.mutateAsync({
         name: name || "未命名邀请活动",
@@ -285,6 +299,10 @@ export function CreateCampaignForm({
   }
 
   async function handleConfirmSend() {
+    if (experienceBulkBlockedForForm) {
+      toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+      return;
+    }
     setConfirmOpen(false);
     try {
       const campaign = await createMutation.mutateAsync({
@@ -325,6 +343,16 @@ export function CreateCampaignForm({
   return (
     <>
       <div className="mx-auto max-w-3xl space-y-8 pb-28">
+        {experienceBulkBlockedForForm && (
+          <div className="rounded-xl border border-brand-amber/40 bg-brand-amber/10 px-4 py-3 text-sm text-brand-amber">
+            {EXPERIENCE_BULK_INVITE_MESSAGE}
+          </div>
+        )}
+        {singleParticipantOnly && (
+          <div className="rounded-xl border border-brand-blue/30 bg-brand-blue-light/40 px-4 py-3 text-sm text-brand-blue">
+            体验账号仅支持逐个邀请，当前已选定 1 位参会者。
+          </div>
+        )}
         <section className="space-y-4 rounded-xl border border-border-light bg-white p-6">
           <h4 className="text-sm font-semibold">活动基本设置</h4>
           <div className="space-y-2">
@@ -466,6 +494,12 @@ export function CreateCampaignForm({
 
         <section className="space-y-4 rounded-xl border border-border-light bg-white p-6">
           <h4 className="text-sm font-semibold">发送目标</h4>
+          {singleParticipantOnly ? (
+            <p className="text-sm text-text-muted">
+              将向选中的 1 位参会者发送邀请。
+            </p>
+          ) : (
+            <>
           {targetMode !== "import" && (
             <div className="space-y-2">
               <Label htmlFor="tag-filter">按标签筛选（可选）</Label>
@@ -633,6 +667,8 @@ export function CreateCampaignForm({
             预计发送人数：将发送给{" "}
             <span className="font-semibold">{estimatedCount}</span> 位参会者
           </p>
+            </>
+          )}
         </section>
 
         <section className="space-y-4 rounded-xl border border-border-light bg-white p-6">
@@ -684,8 +720,19 @@ export function CreateCampaignForm({
           </Button>
           <Button
             className="ml-auto bg-brand-purple text-white hover:bg-brand-purple/90"
-            disabled={isSubmitting || !message.trim()}
-            onClick={() => setConfirmOpen(true)}
+            disabled={
+              isSubmitting ||
+              !message.trim() ||
+              experienceBulkBlockedForForm ||
+              (experienceBulkBlocked && estimatedCount > 1)
+            }
+            onClick={() => {
+              if (experienceBulkBlocked && estimatedCount > 1) {
+                toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+                return;
+              }
+              setConfirmOpen(true);
+            }}
           >
             确认发送 → ({estimatedCount})
           </Button>

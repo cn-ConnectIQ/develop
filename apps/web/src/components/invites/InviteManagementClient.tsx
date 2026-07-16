@@ -6,6 +6,8 @@ import { InviteCampaignsPageClient } from "@/app/(organizer)/events/[eventId]/in
 import { DirectInvitePanel } from "@/components/invites/DirectInvitePanel";
 import { InviteAutoConfigPanel } from "@/components/invites/InviteAutoConfigPanel";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
+import { useExperienceAccount } from "@/hooks/useExperienceAccount";
+import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function InviteManagementClient({
@@ -16,6 +18,8 @@ export function InviteManagementClient({
   embedded?: boolean;
 }) {
   const searchParams = useSearchParams();
+  const { data: experienceProfile } = useExperienceAccount();
+  const experienceBulkBlocked = Boolean(experienceProfile?.isActiveExperience);
   const tabParam = searchParams.get("inviteTab");
   const [activeTab, setActiveTab] = useState(
     tabParam === "records" ? "records" : "send",
@@ -33,6 +37,11 @@ export function InviteManagementClient({
           <p className="mt-1 text-sm text-text-muted">
             一对一 / 批量发送固定模板邀请；新参会者可在开启邀请体系后自动触发
           </p>
+          {experienceBulkBlocked && (
+            <p className="mt-2 text-xs text-brand-amber">
+              {EXPERIENCE_BULK_INVITE_MESSAGE}
+            </p>
+          )}
         </div>
       )}
 

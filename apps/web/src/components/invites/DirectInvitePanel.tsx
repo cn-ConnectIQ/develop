@@ -19,8 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import { InviteChannel } from "@/lib/invite/enums";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
+import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
 import { FIXED_PARTICIPANT_INVITE_TEMPLATE } from "@/lib/invite/message";
 import { parseTagsFromCell } from "@/lib/participant-tags";
 import { cn } from "@/lib/utils";
@@ -93,6 +95,8 @@ function mapBatchRows(
 
 export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
   const queryClient = useQueryClient();
+  const { data: experienceProfile } = useExperienceAccount();
+  const experienceBulkBlocked = Boolean(experienceProfile?.isActiveExperience);
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [channel, setChannel] = useState<InviteChannel>(InviteChannel.SMS);
   const [submitting, setSubmitting] = useState(false);
@@ -192,6 +196,10 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
   }
 
   async function handleBatchSend() {
+    if (experienceBulkBlocked) {
+      toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+      return;
+    }
     await sendInvites(
       batchRows.map((row) => ({
         name: row.name,
@@ -286,12 +294,26 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
 
       <Tabs
         value={mode}
-        onValueChange={(v) => setMode(v as "single" | "batch")}
+        onValueChange={(v) => {
+          if (v === "batch" && experienceBulkBlocked) {
+            toast.error(EXPERIENCE_BULK_INVITE_MESSAGE);
+            return;
+          }
+          setMode(v as "single" | "batch");
+        }}
       >
         <TabsList>
           <TabsTrigger value="single">单个邀请</TabsTrigger>
-          <TabsTrigger value="batch">批量导入</TabsTrigger>
+          <TabsTrigger value="batch" disabled={experienceBulkBlocked}>
+            批量导入
+          </TabsTrigger>
         </TabsList>
+
+        {experienceBulkBlocked && (
+          <p className="mt-3 text-xs text-brand-amber">
+            {EXPERIENCE_BULK_INVITE_MESSAGE}
+          </p>
+        )}
 
         <TabsContent value="single" className="mt-4 space-y-4">
           <div className="rounded-xl border border-border-light bg-white p-5">

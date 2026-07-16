@@ -5,7 +5,6 @@ import {
   ApplicationStatus,
   ExperienceAccountRole,
   ExperienceAccountStatus,
-  InviteChannel,
   InviteStatus,
   OrgStaffRole,
   ParticipantInviteStatus,
@@ -827,23 +826,6 @@ export async function convertExperienceAccountToFormal(
     experienceAccountId: record.id,
     applicationId: approved.applicationId,
   };
-}
-
-export async function assertExperienceCanSendInvite(
-  userId: string,
-  channel: InviteChannel,
-) {
-  if (!(await isActiveExperienceUser(userId))) return;
-  if (
-    channel === InviteChannel.EMAIL ||
-    channel === InviteChannel.SMS ||
-    channel === InviteChannel.WECHAT
-  ) {
-    throw new ExperienceAccountError(
-      "体验账号不支持批量邮件/短信/微信邀请，请升级正式账号",
-      "INVITE_BLOCKED",
-    );
-  }
 }
 
 export async function assertExperienceCanManageMeetings(userId: string) {

@@ -9,10 +9,6 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
-import {
-  assertExperienceCanSendInvite,
-  ExperienceAccountError,
-} from "@/lib/experience/experience-account-service";
 import { sendFixedParticipantInvites } from "@/lib/invite/send-fixed-invites";
 
 const bodySchema = z.object({
@@ -43,15 +39,6 @@ export const POST = withErrorHandler(async (request, context) => {
 
   const channel =
     parsed.data.channel === "SMS" ? InviteChannel.SMS : InviteChannel.EMAIL;
-
-  try {
-    await assertExperienceCanSendInvite(session.user.id, channel);
-  } catch (error) {
-    if (error instanceof ExperienceAccountError) {
-      return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
-    }
-    throw error;
-  }
 
   const participant = await prisma.participant.findFirst({
     where: { id: participantId, eventId },

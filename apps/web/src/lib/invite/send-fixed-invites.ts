@@ -6,6 +6,12 @@ import {
 } from "@connectiq/database";
 import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
 import {
+  isActiveExperienceUser,
+} from "@/lib/experience/experience-account-service";
+import {
+  isBulkDirectInviteContactCount,
+} from "@/lib/experience/experience-invite-guards";
+import {
   getInviteAutoConfig,
   resolveInviteChannelForParticipant,
 } from "@/lib/invite/invite-auto-config";
@@ -166,6 +172,14 @@ export async function maybeAutoInviteNewParticipants(options: {
   const config = await getInviteAutoConfig(options.eventId);
   if (!config.enabled) {
     return { triggered: false, queued: 0, reason: "auto_off" };
+  }
+
+  if (
+    options.createdBy &&
+    (await isActiveExperienceUser(options.createdBy)) &&
+    isBulkDirectInviteContactCount(ids.length)
+  ) {
+    return { triggered: false, queued: 0, reason: "experience_bulk_blocked" };
   }
 
   const result = await queueFixedInvitesByConfig({

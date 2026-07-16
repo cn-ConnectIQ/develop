@@ -9,10 +9,9 @@ import {
 } from "@/lib/api-auth";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import {
-  assertExperienceCanSendInvite,
-  ExperienceAccountError,
-} from "@/lib/experience/experience-account-service";
-import { InviteChannel } from "@connectiq/database";
+  assertExperienceCanBulkInvite,
+} from "@/lib/experience/experience-invite-guards";
+import { ExperienceAccountError } from "@/lib/experience/experience-account-service";
 import { inviteAllExhibitors } from "@/lib/invite/send-fixed-invites";
 
 const bodySchema = z.object({
@@ -39,13 +38,8 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
-  // 体验账号：AUTO 按 SMS 校验（两种渠道都禁）
   try {
-    const checkChannel =
-      parsed.data.channel === "EMAIL"
-        ? InviteChannel.EMAIL
-        : InviteChannel.SMS;
-    await assertExperienceCanSendInvite(session.user.id, checkChannel);
+    await assertExperienceCanBulkInvite(session.user.id);
   } catch (error) {
     if (error instanceof ExperienceAccountError) {
       return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);

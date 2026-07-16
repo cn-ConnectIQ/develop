@@ -18,9 +18,9 @@ import {
 } from "@/lib/invite/message";
 import { prepareCampaignSend } from "@/lib/invite/service";
 import {
-  assertExperienceCanSendInvite,
-  ExperienceAccountError,
-} from "@/lib/experience/experience-account-service";
+  assertExperienceCanDirectInvite,
+} from "@/lib/experience/experience-invite-guards";
+import { ExperienceAccountError } from "@/lib/experience/experience-account-service";
 import { prisma } from "@connectiq/database";
 
 const contactSchema = z.object({
@@ -60,7 +60,10 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   try {
-    await assertExperienceCanSendInvite(session.user.id, parsed.data.channel);
+    await assertExperienceCanDirectInvite(
+      session.user.id,
+      parsed.data.contacts.length,
+    );
   } catch (error) {
     if (error instanceof ExperienceAccountError) {
       return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);

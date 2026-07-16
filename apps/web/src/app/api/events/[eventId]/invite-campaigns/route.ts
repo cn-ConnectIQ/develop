@@ -14,9 +14,9 @@ import { createInviteCampaignSchema } from "@/lib/invite/schemas";
 import { listCampaigns } from "@/lib/invite/service";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
 import {
-  assertExperienceCanSendInvite,
-  ExperienceAccountError,
-} from "@/lib/experience/experience-account-service";
+  assertExperienceCanCreateCampaign,
+} from "@/lib/experience/experience-invite-guards";
+import { ExperienceAccountError } from "@/lib/experience/experience-account-service";
 
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
@@ -51,7 +51,10 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   try {
-    await assertExperienceCanSendInvite(session.user.id, parsed.data.channel);
+    await assertExperienceCanCreateCampaign(
+      session.user.id,
+      parsed.data.target_filter,
+    );
   } catch (error) {
     if (error instanceof ExperienceAccountError) {
       return createErrorResponse(error.message, ErrorCode.FORBIDDEN, 403);
