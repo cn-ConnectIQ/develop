@@ -1,4 +1,5 @@
 import { PollStatus, PollType } from "@connectiq/database";
+import { withPublicPath } from "@/lib/public-path";
 
 /** 进行中投票：LIVE；OPEN/ACTIVE 为小程序侧别名 */
 export const RUNNING_POLL_STATUSES: PollStatus[] = [
@@ -58,10 +59,19 @@ export function buildPollBigscreenUrl(eventId: string, pollId?: string) {
   const base =
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXTAUTH_URL ??
-    "https://app.connectiq.cn";
+    "https://9li.co/uc";
   const root = base.replace(/\/$/, "");
   const params = pollId ? `?poll=${pollId}` : "";
-  return `${root}/events/${eventId}/screen/poll-display${params}`;
+  const path = withPublicPath(
+    `/events/${eventId}/screen/poll-display${params}`,
+  );
+  // NEXT_PUBLIC_APP_URL 已含 /uc 时，withPublicPath 仍返回 /uc/...，避免重复拼接域名路径
+  try {
+    const origin = new URL(root).origin;
+    return `${origin}${path}`;
+  } catch {
+    return `${root}${path.startsWith("/") ? path : `/${path}`}`;
+  }
 }
 
 export function serializePollForMobile(

@@ -129,7 +129,7 @@ export function LoginForm() {
       if (session?.user?.id) {
         setAuthRoleCookies(session.user);
         try {
-          const res = await fetch("/api/me/home-route");
+          const res = await fetch(withPublicPath("/api/me/home-route"));
           if (res.ok) {
             const json = await res.json();
             if (json.data?.path) {
@@ -156,7 +156,7 @@ export function LoginForm() {
     if (!valid) return;
 
     setError(null);
-    const res = await fetch("/api/auth/send-sms", {
+    const res = await fetch(withPublicPath("/api/auth/send-sms"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone }),
@@ -179,7 +179,7 @@ export function LoginForm() {
     if (!valid) return;
 
     setError(null);
-    const res = await fetch("/api/auth/send-email-code", {
+    const res = await fetch(withPublicPath("/api/auth/send-email-code"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),

@@ -32,7 +32,7 @@ type EventSwitcherProps = {
 
 export function EventSwitcher({ role }: EventSwitcherProps) {
   const [open, setOpen] = useState(false);
-  const { events, currentEvent, currentEventId, setCurrentEventId, isLoading } =
+  const { events, currentEvent, currentEventId, eventDisplayName, setCurrentEventId, isLoading } =
     useCurrentEvent();
   const theme = getRoleTheme(role as UserRole);
 
@@ -100,10 +100,7 @@ export function EventSwitcher({ role }: EventSwitcherProps) {
         <span className="flex min-w-0 items-center gap-2">
           <span className={cn("size-1.5 shrink-0 rounded-full", dotClass)} />
           <span className="truncate text-sm font-semibold text-[var(--admin-ink)]">
-            {isLoading
-              ? "加载活动..."
-              : (currentEvent?.name ??
-                (currentEventId ? "当前活动" : "选择活动"))}
+            {eventDisplayName}
             {currentRoleLabel ? (
               <span className="ml-1 text-xs font-normal text-brand-blue">
                 · {currentRoleLabel}

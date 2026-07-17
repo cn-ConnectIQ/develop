@@ -19,9 +19,6 @@ export const GET = withErrorHandler(async () => {
 
   if (user.userType === "ACCOUNT_ADMIN") {
     const experience = await getActiveExperienceAccount(user.id);
-    if (experience?.status === "ACTIVE") {
-      return createSuccessResponse({ path: `/events/${experience.eventId}` });
-    }
     if (experience?.status === "EXPIRED") {
       return createSuccessResponse({ path: "/experience/expired" });
     }

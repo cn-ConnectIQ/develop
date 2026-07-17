@@ -11,6 +11,7 @@ import {
   prizeRankBadgeClass,
   prizeRankLabel,
 } from "@/lib/lottery-types";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type PrizeDrawState = "PENDING" | "DRAWING" | "DONE";
@@ -195,7 +196,9 @@ export function LotteryDrawPanel({
         className="mt-4 h-12 w-full rounded-xl bg-brand-red font-semibold text-white"
         onClick={() =>
           window.open(
-            `/events/${eventId}/interactions/bigscreen?mode=lottery&lottery=${lotteryId}`,
+            withPublicPath(
+              `/events/${eventId}/interactions/bigscreen?mode=lottery&lottery=${lotteryId}`,
+            ),
             "_blank",
           )
         }

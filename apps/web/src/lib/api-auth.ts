@@ -1,4 +1,9 @@
-import { prisma } from "@connectiq/database";
+import {
+  ExperienceAccountStatus,
+  InviteStatus,
+  OrgStaffRole,
+  prisma,
+} from "@connectiq/database";
 import { ErrorCode, UserRole } from "@connectiq/types";
 import { isOrgAdminUsable } from "@/lib/org-access";
 import { errorResponse, successResponse } from "@connectiq/utils";
@@ -6,7 +11,6 @@ import { getServerSession } from "next-auth/next";
 import type { Session } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "./auth";
-import { ExperienceAccountStatus } from "@connectiq/database";
 import { getActiveExperienceAccount } from "@/lib/experience/experience-account-service";
 
 export type UserType = Session["user"]["userType"];
@@ -152,11 +156,9 @@ export async function requireEventAccessCheck(
   if ("error" in adminResult) return adminResult;
 
   const { orgId } = adminResult;
-  const event = await prisma.event.findFirst({
-    where: { id, orgId },
-  });
+  const event = await findAccessibleEvent(id, session, orgId);
   if (!event) return { error: forbidden("你没有权限访问此活动") };
-  return { session, event, orgId };
+  return { session, event, orgId: event.orgId ?? orgId };
 }
 
 // ?? ????????? ??
@@ -241,6 +243,47 @@ export function withErrorHandler(handler: RouteHandler) {
 
 async function loadEvent(eventId: string) {
   return prisma.event.findUnique({ where: { id: eventId } });
+}
+
+/** 当前活动 org 不匹配时，仍允许体验账号绑定活动或 orgStaff 成员访问 */
+async function findAccessibleEvent(
+  eventId: string,
+  session: Session,
+  activeOrgId: string,
+) {
+  const byActiveOrg = await prisma.event.findFirst({
+    where: { id: eventId, orgId: activeOrgId },
+  });
+  if (byActiveOrg) return byActiveOrg;
+
+  const experience = await getActiveExperienceAccount(session.user.id);
+  if (
+    experience?.status === ExperienceAccountStatus.ACTIVE &&
+    experience.eventId === eventId
+  ) {
+    return loadEvent(eventId);
+  }
+
+  return prisma.event.findFirst({
+    where: {
+      id: eventId,
+      org: {
+        staff: {
+          some: {
+            userId: session.user.id,
+            status: InviteStatus.ACCEPTED,
+            role: {
+              in: [
+                OrgStaffRole.OWNER,
+                OrgStaffRole.ADMIN,
+                OrgStaffRole.OPERATOR,
+              ],
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 async function loadBooth(boothId: string) {

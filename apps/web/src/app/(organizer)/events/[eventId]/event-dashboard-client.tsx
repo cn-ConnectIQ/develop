@@ -85,10 +85,13 @@ function QuickActionCard({
     </>
   );
 
+  // 外部新标签页用原生 <a>，不会自动加 Next basePath，必须 withPublicPath
+  const externalHref = withPublicPath(href);
+
   const tile =
     external && !locked ? (
       <a
-        href={href}
+        href={externalHref}
         target="_blank"
         rel="noopener noreferrer"
         className={className}

@@ -75,7 +75,7 @@ function isOpaqueIdSegment(seg: string) {
 export function BreadcrumbNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { currentEvent } = useCurrentEvent();
+  const { currentEvent, eventDisplayName } = useCurrentEvent();
   const segments = pathname.split("/").filter(Boolean);
   const isAccountAdmin = session?.user?.userType === "ACCOUNT_ADMIN";
 
@@ -140,7 +140,7 @@ export function BreadcrumbNav() {
   }
 
   if (isEventScopedRoute(pathname)) {
-    const eventName = currentEvent?.name ?? "当前活动";
+    const eventName = eventDisplayName;
     const pageSeg = segments[segments.length - 1];
     const parentSeg = segments[segments.length - 2];
     // /events/:eventId 根路径 = 活动工作台，不要误显示「活动列表」
@@ -187,7 +187,9 @@ export function BreadcrumbNav() {
   const crumbs = segments.map((seg, index) => {
     const href = `/${segments.slice(0, index + 1).join("/")}`;
     const label = isOpaqueIdSegment(seg)
-      ? "当前活动"
+      ? eventDisplayName !== "选择活动"
+        ? eventDisplayName
+        : "活动"
       : (SEGMENT_LABELS[seg] ?? seg);
     return { href, label, isLast: index === segments.length - 1 };
   });

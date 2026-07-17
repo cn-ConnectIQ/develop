@@ -15,6 +15,7 @@ import {
   isEventScopedRoute,
 } from "@/lib/nav-context";
 import { EVENTS_QUERY_KEY } from "@/lib/query-options";
+import { resolveEventDisplayName } from "@/lib/event-display-name";
 import { withPublicPath } from "@/lib/public-path";
 import type { EventListItem, EventListResponse } from "@/hooks/useEvents";
 
@@ -90,6 +91,7 @@ type EventContextValue = {
   eventStats: EventListResponse["stats"];
   currentEvent: EventListItem | null;
   currentEventId: string | null;
+  eventDisplayName: string;
   setCurrentEventId: (id: string) => void;
   isLoading: boolean;
   refreshEvents: () => Promise<void>;
@@ -112,6 +114,8 @@ export function EventProvider({
   );
   const [pathEventFallback, setPathEventFallback] =
     useState<EventListItem | null>(null);
+  const [pathEventLoading, setPathEventLoading] = useState(false);
+  const [pathEventFailed, setPathEventFailed] = useState(false);
 
   useEffect(() => {
     if (initialEvents) {
@@ -154,21 +158,37 @@ export function EventProvider({
     }
     setCurrentEventIdState(null);
     setPathEventFallback(null);
+    setPathEventLoading(false);
+    setPathEventFailed(false);
   }, [pathname]);
 
   // URL 活动不在列表中时补拉详情（分页截断 / 跨组织等）
   useEffect(() => {
     if (!currentEventId) {
       setPathEventFallback(null);
+      setPathEventLoading(false);
+      setPathEventFailed(false);
       return;
     }
     if (listedEvents.some((e) => e.id === currentEventId)) {
       setPathEventFallback(null);
+      setPathEventLoading(false);
+      setPathEventFailed(false);
       return;
     }
     let cancelled = false;
+    setPathEventLoading(true);
+    setPathEventFailed(false);
     void fetchEventSummary(currentEventId).then((item) => {
-      if (!cancelled) setPathEventFallback(item);
+      if (cancelled) return;
+      setPathEventLoading(false);
+      if (item) {
+        setPathEventFallback(item);
+        setPathEventFailed(false);
+      } else {
+        setPathEventFallback(null);
+        setPathEventFailed(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -207,12 +227,31 @@ export function EventProvider({
     [events, currentEventId],
   );
 
+  const eventDisplayName = useMemo(
+    () =>
+      resolveEventDisplayName({
+        name: currentEvent?.name,
+        eventId: currentEventId,
+        listLoading: isLoading,
+        detailLoading: pathEventLoading,
+        detailFailed: pathEventFailed,
+      }),
+    [
+      currentEvent?.name,
+      currentEventId,
+      isLoading,
+      pathEventLoading,
+      pathEventFailed,
+    ],
+  );
+
   const value = useMemo(
     () => ({
       events,
       eventStats,
       currentEvent,
       currentEventId,
+      eventDisplayName,
       setCurrentEventId,
       isLoading,
       refreshEvents,
@@ -222,6 +261,7 @@ export function EventProvider({
       eventStats,
       currentEvent,
       currentEventId,
+      eventDisplayName,
       setCurrentEventId,
       isLoading,
       refreshEvents,

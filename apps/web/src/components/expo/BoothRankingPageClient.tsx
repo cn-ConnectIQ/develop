@@ -12,6 +12,7 @@ import {
 } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
+import { withPublicPath } from "@/lib/public-path";
 import type { BoothRankingItem } from "@/lib/booth-rankings-service";
 
 async function fetchRankings(eventId: string) {
@@ -65,7 +66,9 @@ function BoothRankingContent({ eventId }: { eventId: string }) {
               刷新
             </Button>
             <a
-              href={`/events/${eventId}/interactions/bigscreen?tab=booth_ranking`}
+              href={withPublicPath(
+                `/events/${eventId}/interactions/bigscreen?tab=booth_ranking`,
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-9 items-center rounded-lg bg-brand-purple px-4 text-sm text-white hover:bg-brand-purple/90"

@@ -27,7 +27,7 @@ type SidebarEventSwitcherProps = {
 };
 
 export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
-  const { events, currentEvent, currentEventId, setCurrentEventId, isLoading } =
+  const { events, currentEvent, currentEventId, eventDisplayName, setCurrentEventId } =
     useCurrentEvent();
 
   const showSwitcher =
@@ -62,10 +62,7 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
     ? getEventListRoleLabel(currentEvent)
     : null;
 
-  const displayName = isLoading
-    ? "加载活动..."
-    : currentEvent?.name ??
-      (currentEventId ? "当前活动" : "选择活动");
+  const displayName = eventDisplayName;
 
   function renderEventItem(event: (typeof events)[number]) {
     return (
@@ -114,8 +111,14 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
         <PopoverTrigger className="admin-sb-switch">
           <span className={cn("admin-ctx-dot", dotColor)} />
           <span className="min-w-0 flex-1 truncate font-medium">
-            <span className="text-text-tertiary">当前活动：</span>
-            {displayName}
+            {currentEventId ? (
+              <>
+                <span className="text-text-tertiary">当前活动：</span>
+                {displayName}
+              </>
+            ) : (
+              displayName
+            )}
             {currentRoleLabel ? (
               <span className="ml-1 text-[11px] font-normal text-brand-blue">
                 · {currentRoleLabel}

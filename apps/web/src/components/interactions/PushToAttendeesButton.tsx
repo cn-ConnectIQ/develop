@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Megaphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 export type InteractionPushKind = "poll" | "lottery" | "qna";
@@ -84,7 +85,7 @@ export function OpenBigscreenButton({
       className={className}
       onClick={() =>
         window.open(
-          `/events/${eventId}/screen/poll-display${params}`,
+          withPublicPath(`/events/${eventId}/screen/poll-display${params}`),
           "_blank",
         )
       }

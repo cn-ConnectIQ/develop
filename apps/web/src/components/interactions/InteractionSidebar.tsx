@@ -39,6 +39,7 @@ import {
   isPollLive,
   type InteractionItem,
 } from "@/lib/interaction-manager";
+import { withPublicPath } from "@/lib/public-path";
 
 const POLL_ICONS: Record<string, typeof ToggleLeft> = {
   SINGLE_CHOICE: ToggleLeft,
@@ -230,7 +231,9 @@ function InteractionListItem({
                 const pollParam =
                   item.kind === "poll" ? `?poll=${item.id}` : "";
                 window.open(
-                  `/events/${eventId}/screen/poll-display${pollParam}`,
+                  withPublicPath(
+                    `/events/${eventId}/screen/poll-display${pollParam}`,
+                  ),
                   "_blank",
                 );
               }}

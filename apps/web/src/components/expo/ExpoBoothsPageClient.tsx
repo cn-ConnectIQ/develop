@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
 import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
+import { withPublicPath } from "@/lib/public-path";
 import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import {
   AdminContent,
@@ -441,7 +442,9 @@ export function ExpoBoothsPageClient({
                   刷新热度
                 </Button>
                 <a
-                  href={`/events/${eventId}/interactions/bigscreen?tab=booth_ranking`}
+                  href={withPublicPath(
+                    `/events/${eventId}/interactions/bigscreen?tab=booth_ranking`,
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex h-9 items-center rounded-lg bg-brand-purple px-4 text-sm text-white hover:bg-brand-purple/90"
