@@ -262,6 +262,8 @@ export async function resolveInviteEntry(input: {
   scene?: string | null;
 }): Promise<InviteEntryResolveResult> {
   const token = parseInviteEntryToken(input);
+
+  // 1) 优先 InviteEntry（小程序码 / URL Link / 活动通用码）
   const row = await prisma.inviteEntry.findUnique({
     where: { token },
     include: {
@@ -269,27 +271,64 @@ export async function resolveInviteEntry(input: {
     },
   });
 
-  if (!row) {
+  if (row) {
+    if (row.status === InviteEntryStatus.REVOKED) {
+      throw new InviteEntryError("入口已撤销", 410, "GONE");
+    }
+
+    if (isInviteTokenTimeExpired(row.expiresAt)) {
+      throw new InviteEntryError("入口已过期", 410, "GONE");
+    }
+
+    return {
+      eventId: row.eventId,
+      phone: row.phone,
+      mode: inviteEntryMode(row.phone),
+      eventName: row.event.name,
+      honorific: row.honorific,
+      name: row.name,
+      participantId: row.participantId,
+      status: row.status,
+    };
+  }
+
+  // 2) 兼容短信/邮件短链 activationToken（InviteRecord）
+  //    用户粘贴 9li.co/a/{token} 里的那段时走这里 → 同时带回 eventId + phone
+  const record = await prisma.inviteRecord.findUnique({
+    where: { activationToken: token },
+    include: {
+      participant: { select: { id: true, phone: true, name: true } },
+      campaign: {
+        include: {
+          event: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+
+  if (!record) {
     throw new InviteEntryError("入口无效或不存在", 404, "NOT_FOUND");
   }
 
-  if (row.status === InviteEntryStatus.REVOKED) {
-    throw new InviteEntryError("入口已撤销", 410, "GONE");
-  }
-
-  if (isInviteTokenTimeExpired(row.expiresAt)) {
+  if (isInviteTokenTimeExpired(record.tokenExpiresAt)) {
     throw new InviteEntryError("入口已过期", 410, "GONE");
   }
 
+  const phoneFromParticipant = record.participant.phone
+    ? normalizeInvitePhone(record.participant.phone)
+    : null;
+  const phoneFromDestination = normalizeInvitePhone(record.destination);
+  const phone = phoneFromParticipant || phoneFromDestination;
+
   return {
-    eventId: row.eventId,
-    phone: row.phone,
-    mode: inviteEntryMode(row.phone),
-    eventName: row.event.name,
-    honorific: row.honorific,
-    name: row.name,
-    participantId: row.participantId,
-    status: row.status,
+    eventId: record.campaign.event.id,
+    phone,
+    mode: inviteEntryMode(phone),
+    eventName: record.campaign.event.name,
+    honorific: null,
+    name: record.participant.name,
+    participantId: record.participantId,
+    status: InviteEntryStatus.PENDING,
   };
 }
 

@@ -25,7 +25,11 @@ const bodySchema = z
 
 /**
  * POST /api/invite/entry-resolve
- * 小程序 AC1：匿名兑换 entryToken → eventId + phone
+ * 小程序 AC1：匿名兑换 token → eventId + phone?
+ *
+ * 接受：
+ * - InviteEntry.token（小程序码 / URL Link）
+ * - InviteRecord.activationToken（短信短链 9li.co/a/... 里那段）
  */
 export const POST = withErrorHandler(async (request) => {
   const rate = await assertInviteEntryResolveRateLimit(
