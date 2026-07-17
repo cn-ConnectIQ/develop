@@ -11,17 +11,19 @@ function isWeChatUA() {
   return /MicroMessenger/i.test(navigator.userAgent);
 }
 
-function launchMiniProgram(path: string) {
-  // 优先 URL Scheme（需配置环境变量）；否则尝试 weixin://
+function launchMiniProgram(path: string, mpUrlLink?: string | null) {
+  // 优先微信官方 URL Link（短信外链 / 浏览器均可）
+  if (mpUrlLink?.startsWith("http")) {
+    window.location.href = mpUrlLink;
+    return;
+  }
   const appId = process.env.NEXT_PUBLIC_WX_MINI_APPID?.trim();
   if (appId) {
     const scheme = `weixin://dl/business/?appid=${appId}&path=${encodeURIComponent(
       path.replace(/^\//, ""),
     )}`;
     window.location.href = scheme;
-    return;
   }
-  // 兜底：跳转带 query 的同域页，提示长按识别（若配置了 URL Link）
 }
 
 export function InviteTransferClient({ data }: { data: OkData }) {
@@ -37,22 +39,24 @@ export function InviteTransferClient({ data }: { data: OkData }) {
   }, []);
 
   useEffect(() => {
-    if (!inWeChat) return;
-    // 微信内：尝试唤起小程序
+    // 有 URL Link 时优先跳转（微信内/外均可尝试）
     const t = window.setTimeout(() => {
-      launchMiniProgram(data.mini_path);
+      launchMiniProgram(data.mini_path, data.mp_url_link);
     }, 400);
     return () => window.clearTimeout(t);
-  }, [inWeChat, data.mini_path]);
+  }, [data.mini_path, data.mp_url_link]);
 
   const copyLink = async () => {
+    const toCopy = data.mp_url_link?.startsWith("http")
+      ? data.mp_url_link
+      : shortUrl;
     try {
-      await navigator.clipboard.writeText(shortUrl);
+      await navigator.clipboard.writeText(toCopy);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       const input = document.createElement("input");
-      input.value = shortUrl;
+      input.value = toCopy;
       document.body.appendChild(input);
       input.select();
       document.execCommand("copy");
@@ -96,35 +100,18 @@ export function InviteTransferClient({ data }: { data: OkData }) {
             : "开启 AI 配对，提前锁定值得见的人"}
         </p>
 
-        {inWeChat ? (
+        {inWeChat || data.mp_url_link ? (
           <div style={{ marginTop: 40 }}>
             <p style={{ fontSize: 14, opacity: 0.85, marginBottom: 16 }}>
               正在打开玖莅小程序…
             </p>
             <button
               type="button"
-              onClick={() => launchMiniProgram(data.mini_path)}
+              onClick={() => launchMiniProgram(data.mini_path, data.mp_url_link)}
               style={primaryBtn}
             >
               打开小程序继续
             </button>
-            {data.mp_url_link ? (
-              <a
-                href={data.mp_url_link}
-                style={{
-                  ...primaryBtn,
-                  display: "block",
-                  textAlign: "center",
-                  marginTop: 12,
-                  background: "transparent",
-                  border: "1px solid rgba(248,250,252,0.35)",
-                  color: "#f8fafc",
-                  textDecoration: "none",
-                }}
-              >
-                备用入口
-              </a>
-            ) : null}
           </div>
         ) : (
           <div style={{ marginTop: 40 }}>

@@ -13,7 +13,8 @@ type PageProps = {
 
 /**
  * https://9li.co/a/{token}
- * 优先解析邀请认领；否则回退通知短链 302。
+ * 优先解析邀请认领；有微信 URL Link 时直接 302（短信短链可长期不变）；
+ * 否则回退 H5 中转页 / 通知短链。
  */
 export default async function AttendeeShortLinkPage({ params }: PageProps) {
   const { token } = await params;
@@ -23,10 +24,13 @@ export default async function AttendeeShortLinkPage({ params }: PageProps) {
 
   const invite = await resolveInviteToken({ token });
   if (invite.kind === "ok") {
+    // MarketUP 同思路：自有短链 → 微信 URL Link → 小程序
+    if (invite.mp_url_link?.startsWith("http")) {
+      redirect(invite.mp_url_link);
+    }
     return <InviteTransferClient data={invite} />;
   }
   if (invite.kind === "expired" || invite.kind === "invalid") {
-    // 可能是通知短链（scene A）
     const short = await resolveAndClickShortLink(token);
     if (short && !short.expired && short.row.scene === ShortLinkScene.A) {
       redirect(short.row.targetUrl);
