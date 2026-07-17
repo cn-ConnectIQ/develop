@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Noto_Sans_SC } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { withPublicPath } from "@/lib/public-path";
 import "./globals.css";
 
 const notoSansSC = Noto_Sans_SC({
@@ -15,6 +16,11 @@ const appUrl =
   process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
   "https://9li.co/uc";
 
+/** 与官网一致：玖莅方标；带 /uc，避免浏览器落到域名根 favicon */
+const brandFavicon = withPublicPath("/favicon.ico");
+const brandIconPng = withPublicPath("/icon.png");
+const brandAppleIcon = withPublicPath("/apple-icon.png");
+
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: {
@@ -22,14 +28,13 @@ export const metadata: Metadata = {
     template: "%s · 玖莅",
   },
   description: "玖莅 后台管理系统",
-  // 显式声明，避免部分浏览器忽略 file-based icon 或回落到域名根 /favicon.ico
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
-      { url: "/icon.png", type: "image/png", sizes: "288x288" },
+      { url: brandIconPng, type: "image/png", sizes: "288x288" },
+      { url: brandFavicon, sizes: "any", type: "image/x-icon" },
     ],
-    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "288x288" }],
-    shortcut: "/favicon.ico",
+    apple: [{ url: brandAppleIcon, type: "image/png", sizes: "288x288" }],
+    shortcut: brandFavicon,
   },
 };
 

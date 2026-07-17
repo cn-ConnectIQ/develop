@@ -15,7 +15,7 @@ import type {
   ImportContactInput,
   TargetFilterInput,
 } from "@/lib/invite/schemas";
-import { computeTokenExpiresAt } from "@/lib/invite/message";
+import { computeTokenExpiresAt, isInviteTokenTimeExpired } from "@/lib/invite/message";
 import { isInviteDestinationBlocked } from "@/lib/invite/blocklist";
 
 export type TargetFilter = TargetFilterInput;
@@ -785,7 +785,7 @@ export async function recordInviteClick(token: string) {
 
   if (!record) return null;
 
-  const expired = record.tokenExpiresAt.getTime() < Date.now();
+  const expired = isInviteTokenTimeExpired(record.tokenExpiresAt);
   const now = new Date();
   const isFirstClick = !record.clickedAt && !expired;
 
@@ -876,8 +876,7 @@ export async function resolveJoinPageData(
     return { kind: "invalid" };
   }
 
-  const expired = record.tokenExpiresAt.getTime() < Date.now();
-  if (expired) {
+  if (isInviteTokenTimeExpired(record.tokenExpiresAt)) {
     return { kind: "invalid" };
   }
 

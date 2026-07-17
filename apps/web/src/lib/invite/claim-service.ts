@@ -18,6 +18,7 @@ import {
   silentActivateInvite,
 } from "@/lib/invite/mini-bridge";
 import { recordInviteClick } from "@/lib/invite/service";
+import { isInviteTokenTimeExpired } from "@/lib/invite/message";
 import type { InviteResolveResult } from "@/lib/invite/claim-types";
 
 export type { InviteResolveResult } from "@/lib/invite/claim-types";
@@ -57,7 +58,7 @@ export async function resolveInviteToken(input: {
 
   const record = await loadInviteRecord(token);
   if (!record) return { kind: "invalid" };
-  if (record.tokenExpiresAt.getTime() < Date.now()) return { kind: "expired" };
+  if (isInviteTokenTimeExpired(record.tokenExpiresAt)) return { kind: "expired" };
 
   await recordInviteClick(token);
 
@@ -170,7 +171,7 @@ export async function silentClaimByWxCode(input: {
   wxCode: string;
 }) {
   const record = await loadInviteRecord(input.token);
-  if (!record || record.tokenExpiresAt.getTime() < Date.now()) {
+  if (!record || isInviteTokenTimeExpired(record.tokenExpiresAt)) {
     throw new ApiError("邀请链接无效或已过期", ErrorCode.NOT_FOUND, 404);
   }
 
@@ -221,7 +222,7 @@ export async function claimInviteWithPhone(input: {
   phoneCode: string;
 }) {
   const record = await loadInviteRecord(input.token);
-  if (!record || record.tokenExpiresAt.getTime() < Date.now()) {
+  if (!record || isInviteTokenTimeExpired(record.tokenExpiresAt)) {
     throw new ApiError("邀请链接无效或已过期", ErrorCode.NOT_FOUND, 404);
   }
 
@@ -292,7 +293,7 @@ export async function enterAsUnverifiedGuest(input: {
   wxCode: string;
 }) {
   const record = await loadInviteRecord(input.token);
-  if (!record || record.tokenExpiresAt.getTime() < Date.now()) {
+  if (!record || isInviteTokenTimeExpired(record.tokenExpiresAt)) {
     throw new ApiError("邀请链接无效或已过期", ErrorCode.NOT_FOUND, 404);
   }
 

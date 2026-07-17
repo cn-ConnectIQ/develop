@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
+import { withPublicPath } from "@/lib/public-path";
+
+const brandFavicon = withPublicPath("/favicon.ico");
+const brandIconPng = withPublicPath("/icon.png");
+const brandAppleIcon = withPublicPath("/apple-icon.png");
 
 export const metadata: Metadata = {
   title: "玖莅 大屏",
   description: "玖莅 现场互动投影大屏",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
-      { url: "/icon.png", type: "image/png", sizes: "288x288" },
+      { url: brandIconPng, type: "image/png", sizes: "288x288" },
+      { url: brandFavicon, sizes: "any", type: "image/x-icon" },
     ],
-    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "288x288" }],
+    apple: [{ url: brandAppleIcon, type: "image/png", sizes: "288x288" }],
   },
 };
 

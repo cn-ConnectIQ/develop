@@ -11,6 +11,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { completeActivationSchema } from "@/lib/invite/schemas";
+import { isInviteTokenTimeExpired } from "@/lib/invite/message";
 
 export const POST = withErrorHandler(async (request) => {
   const body = await request.json();
@@ -35,7 +36,7 @@ export const POST = withErrorHandler(async (request) => {
     return createErrorResponse("邀请 token 无效", ErrorCode.NOT_FOUND, 404);
   }
 
-  if (record.tokenExpiresAt.getTime() < Date.now()) {
+  if (isInviteTokenTimeExpired(record.tokenExpiresAt)) {
     return createErrorResponse("邀请链接已过期", ErrorCode.VALIDATION_ERROR, 410);
   }
 

@@ -5,6 +5,7 @@ import {
 } from "@connectiq/database";
 import { normalizeInvitePhone } from "@/lib/invite/phone";
 import { generateInviteShortToken } from "@/lib/invite/token";
+import { isInviteTokenTimeExpired, INVITE_TOKEN_EXPIRY_ENFORCED } from "@/lib/invite/message";
 
 /** 小程序 AC1 落地页（固定） */
 export const INVITE_ENTRY_MINI_PAGE = "pages/activation/landing";
@@ -136,7 +137,7 @@ async function allocateEntryToken(): Promise<string> {
 function isUsable(row: InviteEntry, now = new Date()): boolean {
   if (row.status === InviteEntryStatus.REVOKED) return false;
   if (row.status === InviteEntryStatus.USED) return false;
-  if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return false;
+  if (isInviteTokenTimeExpired(row.expiresAt)) return false;
   return row.status === InviteEntryStatus.PENDING;
 }
 
@@ -191,7 +192,9 @@ export async function createOrReuseInviteEntry(
         eventId: input.eventId,
         ...phoneFilter,
         status: InviteEntryStatus.PENDING,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        ...(INVITE_TOKEN_EXPIRY_ENFORCED
+          ? { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
     });
@@ -274,7 +277,7 @@ export async function resolveInviteEntry(input: {
     throw new InviteEntryError("入口已撤销", 410, "GONE");
   }
 
-  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
+  if (isInviteTokenTimeExpired(row.expiresAt)) {
     throw new InviteEntryError("入口已过期", 410, "GONE");
   }
 

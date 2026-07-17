@@ -54,7 +54,26 @@ export function resolveInviteMessage(
   return out;
 }
 
+/**
+ * 临时关闭邀请 token 有效期校验（测试联调）。
+ * 恢复：改为 true，并确认下方 computeTokenExpiresAt 策略。
+ */
+export const INVITE_TOKEN_EXPIRY_ENFORCED = false;
+
+/** 是否因时间过期（未开启强制时恒为 false） */
+export function isInviteTokenTimeExpired(
+  expiresAt: Date | null | undefined,
+): boolean {
+  if (!INVITE_TOKEN_EXPIRY_ENFORCED) return false;
+  if (!expiresAt) return false;
+  return expiresAt.getTime() <= Date.now();
+}
+
+/** 写入 DB 的过期时间；未强制校验时仍写远未来，避免字段为空 */
 export function computeTokenExpiresAt(eventEndDate: Date | null | undefined) {
+  if (!INVITE_TOKEN_EXPIRY_ENFORCED) {
+    return new Date("2099-12-31T23:59:59.000Z");
+  }
   const base = eventEndDate ?? new Date();
   const expires = new Date(base);
   expires.setDate(expires.getDate() + 7);
