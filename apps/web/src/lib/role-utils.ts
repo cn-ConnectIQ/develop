@@ -36,19 +36,19 @@ export const ROLE_META: Record<UserRole, RoleMeta> = {
 
 export function getRoleHomePath(
   role: UserRole,
-  entityId: string | null,
+  _entityId: string | null,
 ): string {
   switch (role) {
     case UserRole.PLATFORM_ADMIN:
       return "/platform/overview";
     case UserRole.ORGANIZER:
-      return entityId ? `/events/${entityId}` : "/events";
     case UserRole.EXPO_ORGANIZER:
-      return entityId ? `/events/${entityId}` : "/events";
+      // 默认进账号中心，不再跳到某个活动（entityId 多为 orgId，不能当 eventId）
+      return "/organizer/dashboard";
     case UserRole.EXHIBITOR:
       return "/exhibitor/dashboard";
     default:
-      return "/events";
+      return "/organizer/dashboard";
   }
 }
 

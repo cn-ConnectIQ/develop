@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { PlatformAdminLayout } from "@/components/layout/PlatformAdminLayout";
 import { sessionToAdminUser } from "@/components/admin/admin-layout";
 import { authOptions } from "@/lib/auth";
-import { getRoleHomePath } from "@/lib/role-utils";
+import { getPostLoginRedirectPath } from "@/lib/auth-redirect";
 import { UserRole } from "@connectiq/types";
 
 export default async function PlatformLayout({
@@ -20,12 +20,7 @@ export default async function PlatformLayout({
     session.user.hasPlatformAdmin;
 
   if (!isPlatformAdmin) {
-    redirect(
-      getRoleHomePath(
-        session.user.role as UserRole,
-        session.user.entityId ?? null,
-      ),
-    );
+    redirect(getPostLoginRedirectPath(session.user));
   }
 
   return (

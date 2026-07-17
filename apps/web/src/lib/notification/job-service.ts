@@ -20,6 +20,7 @@ import {
 } from "@/lib/notification/render";
 import type { AudienceFilter, NotifyPayload } from "@/lib/notification/types";
 import { ensureUserIdentitiesFromUser } from "@/lib/notification/identity-resolver";
+import { buildInviteShortUrl } from "@/lib/invite/invite-url";
 
 async function assertEventOrgAccess(eventId: string, orgId: string) {
   const event = await prisma.event.findFirst({
@@ -115,8 +116,8 @@ export async function previewAudience(input: {
           }).format(event.startDate)
         : "",
       活动地点: event.location ?? "",
-      短链: "9li.co/a/preview",
-      完整链接: "https://9li.co/a/preview",
+      短链: buildInviteShortUrl("{短码}").replace(/^https?:\/\//, ""),
+      完整链接: buildInviteShortUrl("{短码}"),
       已启用人数: String(0),
       ...overrides,
     };

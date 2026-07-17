@@ -1,6 +1,5 @@
 import { authOptions } from "@/lib/auth";
-import { getAdminHomePath } from "@/lib/role-utils";
-import { UserRole } from "@connectiq/types";
+import { getPostLoginRedirectPath } from "@/lib/auth-redirect";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -13,16 +12,10 @@ export default async function AuthLayout({
 
   const userType = session?.user?.userType;
   if (
-    session?.user?.role &&
+    session?.user &&
     (userType === "PLATFORM_ADMIN" || userType === "ACCOUNT_ADMIN")
   ) {
-    redirect(
-      getAdminHomePath(
-        session.user.role as UserRole,
-        session.user.entityId ?? null,
-        session.user.hasPlatformAdmin,
-      ),
-    );
+    redirect(getPostLoginRedirectPath(session.user));
   }
 
   return <>{children}</>;

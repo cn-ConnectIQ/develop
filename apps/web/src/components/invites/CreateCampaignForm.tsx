@@ -37,6 +37,7 @@ import {
   FIXED_PARTICIPANT_INVITE_TEMPLATE,
   formatEventDate,
 } from "@/lib/invite/message";
+import { buildInviteShortUrl } from "@/lib/invite/invite-url";
 import { cn } from "@/lib/utils";
 
 type TargetMode = "all" | "not_invited" | "custom" | "import";
@@ -224,7 +225,8 @@ export function CreateCampaignForm({
     name: "张三",
     eventName,
     eventDate,
-    link: "https://app.connectiq.cn/join?token=preview",
+    // 账号管理员预览显示真实短链域名，不做 ****** 遮罩
+    link: buildInviteShortUrl("{短码}"),
     organizer: organizerName,
     location: "活动现场",
   };

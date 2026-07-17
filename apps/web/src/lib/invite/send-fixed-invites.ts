@@ -86,7 +86,11 @@ export async function sendFixedParticipantInvites(
       channel: input.channel,
       customMessage: FIXED_PARTICIPANT_INVITE_TEMPLATE,
       subject: FIXED_PARTICIPANT_INVITE_SUBJECT,
-      targetFilter: { participant_ids: eligible.map((p) => p.id) },
+      targetFilter: {
+        participant_ids: eligible.map((p) => p.id),
+        // 再邀请已激活者时必须关闭默认排除，否则 prepareCampaignSend 会筛掉目标
+        ...(input.allowResend ? { exclude_activated: false } : {}),
+      },
       totalTarget: eligible.length,
     },
   });

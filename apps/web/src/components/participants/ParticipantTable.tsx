@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   flexRender,
@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
 import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
+import { buildInviteShortUrl } from "@/lib/invite/invite-url";
 import {
   FIXED_PARTICIPANT_INVITE_SUBJECT,
   FIXED_PARTICIPANT_INVITE_TEMPLATE,
@@ -153,6 +154,9 @@ export function ParticipantTable({
   const [inviteTarget, setInviteTarget] = useState<ParticipantRow | null>(null);
   const [inviteChannel, setInviteChannel] = useState<"SMS" | "EMAIL">("SMS");
   const [inviting, setInviting] = useState(false);
+  const [invitePreviewLink, setInvitePreviewLink] = useState(
+    () => buildInviteShortUrl("{短码}"),
+  );
 
   function openInviteDialog(p: ParticipantRow) {
     const preferSms = Boolean(p.phone?.trim());
@@ -162,8 +166,32 @@ export function ParticipantTable({
       return;
     }
     setInviteChannel(preferSms ? "SMS" : "EMAIL");
+    setInvitePreviewLink(buildInviteShortUrl("{短码}"));
     setInviteTarget(p);
   }
+
+  useEffect(() => {
+    if (!inviteTarget) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          withPublicPath(
+            `/api/events/${eventId}/participants/${inviteTarget.id}/invite`,
+          ),
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const link = json.data?.preview_link as string | undefined;
+        if (!cancelled && link) setInvitePreviewLink(link);
+      } catch {
+        // 预览失败时保留真实域名格式，不遮罩
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, inviteTarget]);
 
   const invitePreviewContext = useMemo(() => {
     const eventName =
@@ -175,11 +203,16 @@ export function ParticipantTable({
       name: inviteTarget?.name?.trim() || "参会者",
       eventName,
       eventDate: "活动日期",
-      link: "https://9li.co/a/******",
+      link: invitePreviewLink,
       organizer: "主办方",
       location: "活动现场",
     };
-  }, [currentEvent?.name, eventDisplayName, inviteTarget?.name]);
+  }, [
+    currentEvent?.name,
+    eventDisplayName,
+    invitePreviewLink,
+    inviteTarget?.name,
+  ]);
 
   async function confirmQuickInvite() {
     if (!inviteTarget) return;

@@ -63,17 +63,29 @@ export function ExperienceSignupForm() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  async function redirectAfterLogin(eventId: string) {
+  async function redirectAfterLogin() {
     for (let attempt = 0; attempt < 15; attempt++) {
       const session = await getSession();
       if (session?.user?.id) {
         setAuthRoleCookies(session.user);
-        window.location.href = withPublicPath(`/events/${eventId}`);
+        try {
+          const res = await fetch(withPublicPath("/api/me/home-route"));
+          if (res.ok) {
+            const json = await res.json();
+            if (json.data?.path) {
+              window.location.href = withPublicPath(json.data.path as string);
+              return;
+            }
+          }
+        } catch {
+          // fallback below
+        }
+        window.location.href = withPublicPath("/organizer/dashboard");
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
-    router.push(withPublicPath(`/events/${eventId}`));
+    router.push(withPublicPath("/organizer/dashboard"));
   }
 
   async function sendCode() {
@@ -129,8 +141,8 @@ export function ExperienceSignupForm() {
       return;
     }
 
-    toast.success("体验已开通并进入潜客待审，正在进入演示展会…");
-    await redirectAfterLogin(json.data.eventId as string);
+    toast.success("体验已开通并进入潜客待审，正在进入账号中心…");
+    await redirectAfterLogin();
   });
 
   return (
