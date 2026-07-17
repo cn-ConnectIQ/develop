@@ -292,6 +292,46 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
       linkedUserId = user?.id ?? null;
     }
 
+    // 若弹窗预览已签发 DRAFT+PENDING 短码，迁入本场次，保证短信与预览一致
+    const previewRecord = await prisma.inviteRecord.findFirst({
+      where: {
+        participantId: participant.id,
+        status: InviteRecordStatus.PENDING,
+        campaign: {
+          eventId: campaign.eventId,
+          status: InviteCampaignStatus.DRAFT,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, campaignId: true },
+    });
+
+    if (previewRecord) {
+      await prisma.inviteRecord.update({
+        where: { id: previewRecord.id },
+        data: {
+          campaignId,
+          channel: campaign.channel,
+          destination,
+          phoneHash,
+          userId: linkedUserId,
+          tokenExpiresAt,
+          status: InviteRecordStatus.PENDING,
+          errorMessage: null,
+        },
+      });
+      const leftover = await prisma.inviteRecord.count({
+        where: { campaignId: previewRecord.campaignId },
+      });
+      if (leftover === 0) {
+        await prisma.inviteCampaign.delete({
+          where: { id: previewRecord.campaignId },
+        }).catch(() => undefined);
+      }
+      queued += 1;
+      continue;
+    }
+
     await prisma.inviteRecord.create({
       data: {
         campaignId,

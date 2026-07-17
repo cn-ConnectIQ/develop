@@ -885,6 +885,11 @@ export function ParticipantTable({
               <p className="mb-2 text-xs font-medium text-text-muted">
                 {inviteChannel === "SMS" ? "短信内容预览" : "邮件内容预览"}
                 <span className="ml-1 font-normal">（固定模板，不可修改）</span>
+                {invitePreviewLink.includes("{短码}") ? null : (
+                  <span className="ml-1 font-normal text-emerald-700">
+                    · 已显示真实短链
+                  </span>
+                )}
               </p>
               <MessagePreview
                 channel={inviteChannel}

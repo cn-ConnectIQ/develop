@@ -9,7 +9,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { guardEventFeature } from "@/lib/event-feature-flag-guard";
-import { buildInviteShortUrl } from "@/lib/invite/invite-url";
+import { ensureParticipantInvitePreviewToken } from "@/lib/invite/preview-token";
 import { sendFixedParticipantInvites } from "@/lib/invite/send-fixed-invites";
 
 const bodySchema = z.object({
@@ -18,7 +18,7 @@ const bodySchema = z.object({
   resend: z.boolean().optional(),
 });
 
-/** 账号管理员预览：返回该参会者最新邀请短链（真实链接，不做遮罩） */
+/** 账号管理员预览：返回真实短链；若尚未签发则先预生成（不发送） */
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
   const participantId = context?.params?.participantId;
@@ -26,7 +26,7 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  const { session } = await requireEventAccess(eventId);
 
   const participant = await prisma.participant.findFirst({
     where: { id: participantId, eventId },
@@ -36,26 +36,27 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("参会者不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const latest = await prisma.inviteRecord.findFirst({
-    where: {
+  try {
+    const preview = await ensureParticipantInvitePreviewToken({
+      eventId,
       participantId,
-      campaign: { eventId },
-      activationToken: { not: "" },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { activationToken: true, status: true, createdAt: true },
-  });
+      createdBy: session.user.id,
+    });
 
-  const previewLink = latest?.activationToken
-    ? buildInviteShortUrl(latest.activationToken)
-    : buildInviteShortUrl("{短码}");
-
-  return createSuccessResponse({
-    participant_id: participant.id,
-    invite_status: participant.inviteStatus,
-    preview_link: previewLink,
-    has_existing_token: Boolean(latest?.activationToken),
-  });
+    return createSuccessResponse({
+      participant_id: participant.id,
+      invite_status: participant.inviteStatus,
+      preview_link: preview.previewLink,
+      activation_token: preview.activationToken,
+      has_existing_token: true,
+      preview_created: preview.created,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "PARTICIPANT_NOT_FOUND") {
+      return createErrorResponse("参会者不存在", ErrorCode.NOT_FOUND, 404);
+    }
+    throw err;
+  }
 });
 
 export const POST = withErrorHandler(async (request, context) => {
