@@ -25,7 +25,15 @@ import {
 import { toast } from "sonner";
 import { toastInviteSendError } from "@/lib/invite/invite-credit-toast";
 import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
+import {
+  FIXED_PARTICIPANT_INVITE_SUBJECT,
+  FIXED_PARTICIPANT_INVITE_TEMPLATE,
+  resolveInviteMessage,
+} from "@/lib/invite/message";
+import { MessagePreview } from "@/components/invites/MessagePreview";
 import { useExperienceAccount } from "@/hooks/useExperienceAccount";
+import { useCurrentEvent } from "@/contexts/event-context";
+import { withPublicPath } from "@/lib/public-path";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -129,6 +137,7 @@ export function ParticipantTable({
 }: ParticipantTableProps) {
   const { data: experienceProfile } = useExperienceAccount();
   const experienceBulkBlocked = Boolean(experienceProfile?.isActiveExperience);
+  const { currentEvent, eventDisplayName } = useCurrentEvent();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
@@ -146,14 +155,31 @@ export function ParticipantTable({
   const [inviting, setInviting] = useState(false);
 
   function openInviteDialog(p: ParticipantRow) {
-    if (p.inviteStatus === "ACTIVATED") {
-      toast.message("该参会者已激活，无需再发邀请");
+    const preferSms = Boolean(p.phone?.trim());
+    const preferEmail = Boolean(p.email?.trim());
+    if (!preferSms && !preferEmail) {
+      toast.error("该参会者没有手机号和邮箱，请先补全联系方式");
       return;
     }
-    const preferSms = Boolean(p.phone?.trim());
     setInviteChannel(preferSms ? "SMS" : "EMAIL");
     setInviteTarget(p);
   }
+
+  const invitePreviewContext = useMemo(() => {
+    const eventName =
+      currentEvent?.name?.trim() ||
+      (eventDisplayName !== "选择活动" && eventDisplayName !== "加载活动..."
+        ? eventDisplayName
+        : "本活动");
+    return {
+      name: inviteTarget?.name?.trim() || "参会者",
+      eventName,
+      eventDate: "活动日期",
+      link: "https://9li.co/a/******",
+      organizer: "主办方",
+      location: "活动现场",
+    };
+  }, [currentEvent?.name, eventDisplayName, inviteTarget?.name]);
 
   async function confirmQuickInvite() {
     if (!inviteTarget) return;
@@ -171,7 +197,9 @@ export function ParticipantTable({
     try {
       const resend = inviteTarget.inviteStatus !== "NOT_INVITED";
       const res = await fetch(
-        `/api/events/${eventId}/participants/${inviteTarget.id}/invite`,
+        withPublicPath(
+          `/api/events/${eventId}/participants/${inviteTarget.id}/invite`,
+        ),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -437,16 +465,14 @@ export function ParticipantTable({
           const popoverOpen = tagPopoverId === p.id;
           return (
             <div className="flex items-center justify-end gap-1">
-              {p.inviteStatus !== "ACTIVATED" && (
-                <button
-                  type="button"
-                  className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-brand-purple hover:bg-brand-purple/10"
-                  onClick={() => openInviteDialog(p)}
-                >
-                  <Send className="size-3.5" />
-                  {p.inviteStatus === "NOT_INVITED" ? "邀请" : "再邀请"}
-                </button>
-              )}
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-brand-purple hover:bg-brand-purple/10"
+                onClick={() => openInviteDialog(p)}
+              >
+                <Send className="size-3.5" />
+                {p.inviteStatus === "NOT_INVITED" ? "邀请" : "再邀请"}
+              </button>
               <Popover
                 open={popoverOpen}
                 onOpenChange={(open) => {
@@ -509,14 +535,12 @@ export function ParticipantTable({
                   <CreditCard className="size-4" />
                   查看名片
                 </DropdownMenuItem>
-                {p.inviteStatus !== "ACTIVATED" && (
-                  <DropdownMenuItem onClick={() => openInviteDialog(p)}>
+                <DropdownMenuItem onClick={() => openInviteDialog(p)}>
                     <Send className="size-4" />
                     {p.inviteStatus === "NOT_INVITED"
                       ? "邀请加入"
                       : "重新发送邀请"}
                   </DropdownMenuItem>
-                )}
                 {!p.checkedInAt && (
                   <DropdownMenuItem onClick={() => onCheckIn(p.id)}>
                     <ScanLine className="size-4" />
@@ -761,7 +785,7 @@ export function ParticipantTable({
           if (!open) setInviteTarget(null);
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               邀请 {inviteTarget?.name ?? ""} 加入玖莅
@@ -771,7 +795,13 @@ export function ParticipantTable({
             <p className="text-sm text-text-muted">
               使用固定邀请模板发送。短信/邮件额度按主办方账号统一扣减。
             </p>
-            {inviteTarget?.inviteStatus !== "NOT_INVITED" && (
+            {inviteTarget?.inviteStatus === "ACTIVATED" && (
+              <p className="text-xs text-brand-amber">
+                该参会者已激活，确认后仍会再发送一条邀请。
+              </p>
+            )}
+            {inviteTarget?.inviteStatus !== "NOT_INVITED" &&
+              inviteTarget?.inviteStatus !== "ACTIVATED" && (
               <p className="text-xs text-brand-amber">
                 该参会者已邀请过，确认将重新发送一条邀请。
               </p>
@@ -817,6 +847,21 @@ export function ParticipantTable({
                   </span>
                 </span>
               </button>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-text-muted">
+                {inviteChannel === "SMS" ? "短信内容预览" : "邮件内容预览"}
+                <span className="ml-1 font-normal">（固定模板，不可修改）</span>
+              </p>
+              <MessagePreview
+                channel={inviteChannel}
+                template={FIXED_PARTICIPANT_INVITE_TEMPLATE}
+                subject={resolveInviteMessage(
+                  FIXED_PARTICIPANT_INVITE_SUBJECT,
+                  invitePreviewContext,
+                )}
+                context={invitePreviewContext}
+              />
             </div>
           </div>
           <DialogFooter>

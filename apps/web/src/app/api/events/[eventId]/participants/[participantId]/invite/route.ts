@@ -54,20 +54,14 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("参会者不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  if (participant.inviteStatus === ParticipantInviteStatus.ACTIVATED) {
-    return createErrorResponse(
-      "该参会者已激活，无需再发邀请",
-      ErrorCode.VALIDATION_ERROR,
-      409,
-    );
-  }
-
   if (
     !parsed.data.resend &&
     participant.inviteStatus !== ParticipantInviteStatus.NOT_INVITED
   ) {
     return createErrorResponse(
-      "该参会者已邀请过，如需重发请确认后再次提交",
+      participant.inviteStatus === ParticipantInviteStatus.ACTIVATED
+        ? "该参会者已激活，如需再发请确认后再次提交"
+        : "该参会者已邀请过，如需重发请确认后再次提交",
       ErrorCode.VALIDATION_ERROR,
       409,
     );

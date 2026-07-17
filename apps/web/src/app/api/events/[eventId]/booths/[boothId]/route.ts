@@ -17,6 +17,7 @@ import {
   countBoothStaffByEvent,
   resolveBoothStaffMaxCount,
 } from "@/lib/exhibitor/booth-staff-service";
+import { assertHallLabelAllowed } from "@/lib/expo-settings-service";
 
 const positionSchema = z.object({
   x: z.number().min(0).max(100),
@@ -81,6 +82,20 @@ export const PATCH = withErrorHandler(async (request, context) => {
     if (currentCount > newMax) {
       return createErrorResponse(
         `当前已有 ${currentCount} 位工作人员，名额上限不能低于已使用数量`,
+        ErrorCode.VALIDATION_ERROR,
+        400,
+      );
+    }
+  }
+
+  if (parsed.data.hallLabel !== undefined) {
+    const hallCheck = await assertHallLabelAllowed(
+      eventId,
+      parsed.data.hallLabel,
+    );
+    if (!hallCheck.ok) {
+      return createErrorResponse(
+        hallCheck.error,
         ErrorCode.VALIDATION_ERROR,
         400,
       );

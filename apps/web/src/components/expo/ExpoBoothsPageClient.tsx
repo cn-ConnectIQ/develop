@@ -59,6 +59,12 @@ import { StatusChip, type StatusChipVariant } from "@/components/ui/status-chip"
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
 import type { BoothRankingItem } from "@/lib/booth-rankings-service";
+import {
+  DEFAULT_EXPO_BOOTH_TYPES,
+  parseExpoBoothTypes,
+  type ExpoBoothType,
+  type ExpoSettingsPayload,
+} from "@/lib/expo-settings-service";
 
 type SortMode = "code" | "popularity";
 
@@ -110,9 +116,18 @@ function HeatChangeBadge({ change }: { change: number }) {
   );
 }
 async function fetchBooths(eventId: string): Promise<BoothMapData> {
-  const res = await fetch(`/api/events/${eventId}/booths`);
+  const res = await fetch(withPublicPath(`/api/events/${eventId}/booths`));
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as BoothMapData;
+}
+
+async function fetchExpoBoothTypes(eventId: string): Promise<ExpoBoothType[]> {
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/expo-settings`),
+  );
+  if (!res.ok) return DEFAULT_EXPO_BOOTH_TYPES.map((t) => ({ ...t }));
+  const json = (await res.json()) as { data?: ExpoSettingsPayload };
+  return parseExpoBoothTypes(json.data?.settings?.expo_booth_types).types;
 }
 
 type BoothForm = {
@@ -154,12 +169,6 @@ function staffQuotaLabel(booth: BoothRow): string {
   return `${currentCount}/${maxCount}`;
 }
 
-const BOOTH_TYPE_PRESETS = [
-  { label: "标准展位", hallLabel: "标准展位", maxStaffCount: 2 },
-  { label: "大展位", hallLabel: "大展位", maxStaffCount: 5 },
-  { label: "VIP 展位", hallLabel: "VIP", maxStaffCount: 10 },
-] as const;
-
 export function ExpoBoothsPageClient({
   eventId,
   eventName,
@@ -194,6 +203,12 @@ export function ExpoBoothsPageClient({
   const { data, isLoading } = useQuery({
     queryKey: ["expo-booths", eventId],
     queryFn: () => fetchBooths(eventId),
+  });
+
+  const { data: boothTypeCatalog = DEFAULT_EXPO_BOOTH_TYPES } = useQuery({
+    queryKey: ["expo-settings", eventId, "booth-types"],
+    queryFn: () => fetchExpoBoothTypes(eventId),
+    staleTime: 60_000,
   });
 
   const {
@@ -241,27 +256,40 @@ export function ExpoBoothsPageClient({
   const selectedExhibitorName =
     exhibitorOptions.find((ex) => ex.id === form.exhibitorId)?.name ?? "";
 
-  const hallLabelOptions = useMemo(() => {
-    const labels = new Set<string>();
-    for (const booth of booths) {
-      if (booth.hallLabel?.trim()) labels.add(booth.hallLabel.trim());
-    }
-    return [...labels].sort();
-  }, [booths]);
+  const catalogNames = useMemo(
+    () => new Set(boothTypeCatalog.map((t) => t.name)),
+    [boothTypeCatalog],
+  );
+
+  const orphanHallLabel =
+    form.hallLabel && !catalogNames.has(form.hallLabel)
+      ? form.hallLabel
+      : null;
+
+  const hallLabelOptions = useMemo(
+    () => boothTypeCatalog.map((t) => t.name),
+    [boothTypeCatalog],
+  );
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!form.hallLabel.trim()) {
+        throw new Error("请选择展位类型");
+      }
+      if (!catalogNames.has(form.hallLabel.trim())) {
+        throw new Error("请选择展会配置中的展位类型");
+      }
       const payload = {
         code: form.code,
         name: form.name,
         exhibitorId: form.exhibitorId || undefined,
         status: form.status,
         maxStaffCount: form.maxStaffCount,
-        hallLabel: form.hallLabel.trim() || null,
+        hallLabel: form.hallLabel.trim(),
       };
       if (editing) {
         const res = await fetch(
-          `/api/events/${eventId}/booths/${editing.id}`,
+          withPublicPath(`/api/events/${eventId}/booths/${editing.id}`),
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -275,7 +303,7 @@ export function ExpoBoothsPageClient({
         return;
       }
 
-      const res = await fetch(`/api/events/${eventId}/booths`, {
+      const res = await fetch(withPublicPath(`/api/events/${eventId}/booths`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -299,8 +327,8 @@ export function ExpoBoothsPageClient({
   const batchMutation = useMutation({
     mutationFn: async () => {
       const hallLabel = batchHallLabel.trim();
-      if (!hallLabel) throw new Error("请选择或输入展位类型");
-      const res = await fetch(`/api/events/${eventId}/booths`, {
+      if (!hallLabel) throw new Error("请选择展位类型");
+      const res = await fetch(withPublicPath(`/api/events/${eventId}/booths`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -339,9 +367,12 @@ export function ExpoBoothsPageClient({
 
   function openCreate() {
     setEditing(null);
+    const firstType = boothTypeCatalog[0];
     setForm({
       ...emptyForm,
       exhibitorId: exhibitors[0]?.id ?? "",
+      hallLabel: firstType?.name ?? "",
+      maxStaffCount: firstType?.defaultMaxStaffCount ?? 2,
     });
     setDialogOpen(true);
   }
@@ -398,8 +429,9 @@ export function ExpoBoothsPageClient({
   }
 
   function openBatchDialog() {
-    setBatchHallLabel(hallLabelOptions[0] ?? "");
-    setBatchMaxStaff(2);
+    const first = boothTypeCatalog[0];
+    setBatchHallLabel(first?.name ?? "");
+    setBatchMaxStaff(first?.defaultMaxStaffCount ?? 2);
     setBatchDialogOpen(true);
   }
 
@@ -481,7 +513,7 @@ export function ExpoBoothsPageClient({
               disabled={hallLabelOptions.length === 0}
               title={
                 hallLabelOptions.length === 0
-                  ? "请先在展位编辑中设置「展位类型」后再批量配置"
+                  ? "请先在「展会配置」中添加展位类型"
                   : undefined
               }
             >
@@ -783,12 +815,54 @@ export function ExpoBoothsPageClient({
               </Select>
             </div>
             <div>
-              <Label>展位类型（批量设置用）</Label>
-              <Input
-                value={form.hallLabel}
-                onChange={(e) => setForm({ ...form, hallLabel: e.target.value })}
-                placeholder="如：标准展位、大展位"
-              />
+              <Label>展位类型</Label>
+              {hallLabelOptions.length === 0 ? (
+                <p className="mt-2 text-sm text-brand-amber">
+                  暂无展位类型，请先到{" "}
+                  <Link
+                    href={`/events/${eventId}/expo-settings#booth-types`}
+                    className="underline"
+                  >
+                    展会配置
+                  </Link>{" "}
+                  添加。
+                </p>
+              ) : (
+                <Select
+                  value={form.hallLabel || undefined}
+                  onValueChange={(v) => {
+                    const name = v ?? "";
+                    const preset = boothTypeCatalog.find((t) => t.name === name);
+                    setForm({
+                      ...form,
+                      hallLabel: name,
+                      maxStaffCount:
+                        preset?.defaultMaxStaffCount ?? form.maxStaffCount,
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择展位类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orphanHallLabel && (
+                      <SelectItem value={orphanHallLabel} disabled>
+                        （未登记）{orphanHallLabel}
+                      </SelectItem>
+                    )}
+                    {boothTypeCatalog.map((t) => (
+                      <SelectItem key={t.name} value={t.name}>
+                        {t.name} · 默认 {t.defaultMaxStaffCount} 人
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {orphanHallLabel && (
+                <p className="mt-1.5 text-xs text-brand-amber">
+                  当前类型未在展会配置中，请改选已配置类型后再保存。
+                </p>
+              )}
             </div>
             <div>
               <Label>工作人员名额上限</Label>
@@ -824,6 +898,9 @@ export function ExpoBoothsPageClient({
                 !form.code.trim() ||
                 !form.name.trim() ||
                 !form.exhibitorId ||
+                !form.hallLabel.trim() ||
+                Boolean(orphanHallLabel) ||
+                hallLabelOptions.length === 0 ||
                 saveMutation.isPending
               }
               onClick={() => saveMutation.mutate()}
@@ -844,26 +921,31 @@ export function ExpoBoothsPageClient({
               将同一「展位类型」下的所有展位统一设置为相同的工作人员名额上限。
             </p>
             <div className="flex flex-wrap gap-2">
-              {BOOTH_TYPE_PRESETS.map((preset) => (
+              {boothTypeCatalog.map((preset) => (
                 <Button
-                  key={preset.hallLabel}
+                  key={preset.name}
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setBatchHallLabel(preset.hallLabel);
-                    setBatchMaxStaff(preset.maxStaffCount);
+                    setBatchHallLabel(preset.name);
+                    setBatchMaxStaff(preset.defaultMaxStaffCount);
                   }}
                 >
-                  {preset.label} · {preset.maxStaffCount} 人
+                  {preset.name} · {preset.defaultMaxStaffCount} 人
                 </Button>
               ))}
             </div>
             <div>
               <Label>展位类型</Label>
               <Select
-                value={batchHallLabel}
-                onValueChange={(v) => setBatchHallLabel(v ?? "")}
+                value={batchHallLabel || undefined}
+                onValueChange={(v) => {
+                  const name = v ?? "";
+                  setBatchHallLabel(name);
+                  const preset = boothTypeCatalog.find((t) => t.name === name);
+                  if (preset) setBatchMaxStaff(preset.defaultMaxStaffCount);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="选择展位类型" />

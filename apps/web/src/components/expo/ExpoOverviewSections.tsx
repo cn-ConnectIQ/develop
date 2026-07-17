@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { BarChart3, Bot, Bell, ClipboardList, Handshake, Send, Trophy } from "lucide-react";
+import {
+  BarChart3,
+  Bot,
+  Bell,
+  ClipboardList,
+  Handshake,
+  Plus,
+  Send,
+  Trash2,
+  Trophy,
+} from "lucide-react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
@@ -13,7 +23,12 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
-import type { ExpoSettingsPayload } from "@/lib/expo-settings-service";
+import {
+  parseExpoBoothTypes,
+  type ExpoBoothType,
+  type ExpoSettingsPayload,
+} from "@/lib/expo-settings-service";
+import { withPublicPath } from "@/lib/public-path";
 
 function getSetting<T extends Record<string, unknown>>(
   settings: Record<string, Record<string, unknown>>,
@@ -26,9 +41,15 @@ function getSetting<T extends Record<string, unknown>>(
 }
 
 async function fetchExpoSettings(expoId: string) {
-  const res = await fetch(`/api/events/${expoId}/expo-settings`);
+  const res = await fetch(withPublicPath(`/api/events/${expoId}/expo-settings`));
   if (!res.ok) throw new Error("加载配置失败");
   return (await res.json()).data as ExpoSettingsPayload;
+}
+
+function boothTypesFromSettings(
+  settings: Record<string, Record<string, unknown>> | undefined,
+): ExpoBoothType[] {
+  return parseExpoBoothTypes(settings?.expo_booth_types).types;
 }
 
 export function ExpoOverviewSections({
@@ -74,6 +95,10 @@ export function ExpoOverviewSections({
   const [buyerForm, setBuyerForm] = useState(buyer);
   const [matchForm, setMatchForm] = useState(matching);
   const [notifyForm, setNotifyForm] = useState(notifications);
+  const [boothTypes, setBoothTypes] = useState<ExpoBoothType[]>(() =>
+    boothTypesFromSettings(initialData?.settings),
+  );
+  const [savingBoothTypes, setSavingBoothTypes] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -81,26 +106,41 @@ export function ExpoOverviewSections({
       setBuyerForm(getSetting(data.settings, "expo_buyer", buyer));
       setMatchForm(getSetting(data.settings, "expo_matching", matching));
       setNotifyForm(getSetting(data.settings, "expo_notifications", notifications));
+      setBoothTypes(boothTypesFromSettings(data.settings));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   async function save(key: string, value: object) {
-    const res = await fetch(`/api/events/${expoId}/expo-settings`, {
+    const res = await fetch(withPublicPath(`/api/events/${expoId}/expo-settings`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ [key]: value }),
     });
     if (!res.ok) {
-      toast.error("保存失败");
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      toast.error(json?.error ?? "保存失败");
       return;
     }
     toast.success("已保存");
     void queryClient.invalidateQueries({ queryKey: ["expo-settings", expoId] });
   }
 
+  async function saveBoothTypes() {
+    setSavingBoothTypes(true);
+    try {
+      await save("expo_booth_types", { types: boothTypes });
+    } finally {
+      setSavingBoothTypes(false);
+    }
+  }
+
   async function sendExpoNotify() {
-    const res = await fetch(`/api/events/${expoId}/participants/notify`, {
+    const res = await fetch(
+      withPublicPath(`/api/events/${expoId}/participants/notify`),
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -108,7 +148,8 @@ export function ExpoOverviewSections({
         title: "展会通知",
         body: notifyForm.custom_message || "欢迎参加本次展会！",
       }),
-    });
+    },
+    );
     if (!res.ok) {
       toast.error("请先在名单中选择参会者，或填写通知内容");
       return;
@@ -155,6 +196,92 @@ export function ExpoOverviewSections({
           >
             保存展商配置
           </Button>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        id="booth-types"
+        title="展位类型"
+        description="配置本场活动可用的展位类型；创建展位时从下拉选择，并可按类型批量设置工作人员名额"
+      >
+        <div className="space-y-3">
+          {boothTypes.map((row, index) => (
+            <div
+              key={`booth-type-${index}`}
+              className="flex flex-wrap items-end gap-3 rounded-lg border border-border-light p-3"
+            >
+              <div className="min-w-[160px] flex-1">
+                <Label className="text-xs text-text-muted">类型名称</Label>
+                <Input
+                  value={row.name}
+                  onChange={(e) => {
+                    const next = [...boothTypes];
+                    next[index] = { ...row, name: e.target.value };
+                    setBoothTypes(next);
+                  }}
+                  placeholder="如：标准展位"
+                />
+              </div>
+              <div className="w-36">
+                <Label className="text-xs text-text-muted">默认名额</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={row.defaultMaxStaffCount}
+                  onChange={(e) => {
+                    const next = [...boothTypes];
+                    next[index] = {
+                      ...row,
+                      defaultMaxStaffCount: Math.max(
+                        1,
+                        Math.min(99, Number(e.target.value) || 1),
+                      ),
+                    };
+                    setBoothTypes(next);
+                  }}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-brand-red"
+                disabled={boothTypes.length <= 1}
+                onClick={() =>
+                  setBoothTypes(boothTypes.filter((_, i) => i !== index))
+                }
+              >
+                <Trash2 className="mr-1 size-3.5" />
+                删除
+              </Button>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setBoothTypes([
+                  ...boothTypes,
+                  { name: "", defaultMaxStaffCount: 2 },
+                ])
+              }
+            >
+              <Plus className="mr-1 size-4" />
+              添加类型
+            </Button>
+            <Button
+              className="bg-brand-blue text-white"
+              disabled={savingBoothTypes}
+              onClick={() => void saveBoothTypes()}
+            >
+              {savingBoothTypes ? "保存中…" : "保存展位类型"}
+            </Button>
+          </div>
+          <p className="text-xs text-text-muted">
+            已被展位占用的类型无法删除；可先改展位类型再删除。
+          </p>
         </div>
       </SectionCard>
 

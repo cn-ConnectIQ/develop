@@ -17,6 +17,7 @@ import {
   resolveBoothStaffMaxCount,
 } from "@/lib/exhibitor/booth-staff-service";
 import { requireEventAccessMobileOrWeb } from "@/lib/mobile-event-access";
+import { assertHallLabelAllowed } from "@/lib/expo-settings-service";
 import type { MapLabel, MapPoi } from "@/types/booth";
 
 const positionSchema = z.object({
@@ -212,6 +213,18 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("未找到展商组织", ErrorCode.VALIDATION_ERROR, 400);
   }
 
+  const hallCheck = await assertHallLabelAllowed(
+    eventId,
+    parsed.data.hallLabel,
+  );
+  if (!hallCheck.ok) {
+    return createErrorResponse(
+      hallCheck.error,
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
   let booth;
   try {
     booth = await prisma.exhibitorBooth.create({
@@ -300,6 +313,14 @@ export const PATCH = withErrorHandler(async (request, context) => {
 
   if (batchParsed.success) {
     const { hallLabel, maxStaffCount } = batchParsed.data.batchMaxStaffCount;
+    const hallCheck = await assertHallLabelAllowed(eventId, hallLabel);
+    if (!hallCheck.ok) {
+      return createErrorResponse(
+        hallCheck.error,
+        ErrorCode.VALIDATION_ERROR,
+        400,
+      );
+    }
     const result = await prisma.exhibitorBooth.updateMany({
       where: { eventId, hallLabel },
       data: { maxStaffCount },

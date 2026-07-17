@@ -67,7 +67,10 @@ export async function getEventVerificationStats(
   const winners = await prisma.lotteryWinner.findMany({
     where: {
       lottery: { eventId },
-      verificationCode: { not: null },
+      OR: [
+        { verificationCode: { not: null } },
+        { eventCodeId: { not: null } },
+      ],
     },
     select: { verified: true },
   });

@@ -4,12 +4,18 @@ import {
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
-import { ApiError, requireBoothAccess } from "@/lib/api-auth";
+import {
+  ApiError,
+  requireBoothAccess,
+  requireEventAccess,
+  requireEventAccessCheck,
+} from "@/lib/api-auth";
 import {
   computeLeadAiIntentLevel,
   type AiIntentLevel,
 } from "@/lib/exhibitor/lead-intent-service";
 import { fisherYatesShuffle } from "@/lib/interaction/lottery-rewards";
+import { requireLotteryManageAccess } from "@/lib/interaction/lottery-service";
 import {
   broadcastLotteryResult,
   type LotteryWinnerPayload,
@@ -18,6 +24,7 @@ import { isLotteryOpenForEntry } from "@/lib/lottery/booth-lottery-service";
 import { attachToRedemptionCode } from "@/lib/lottery/redemption";
 import type { LotteryPrizeConfig } from "@/lib/interaction/schemas";
 import { requireBoothAccessForRequest } from "@/lib/mobile-exhibitor-service";
+import { requireMobileEventAccess } from "@/lib/mobile-user-id";
 
 export type LotteryDashboardEntry = {
   id: string;
@@ -106,6 +113,63 @@ export async function requireLotteryBoothAccess(
   return { lottery, ...access };
 }
 
+/** 展位抽奖走展位权限；主办参与人抽奖（boothId=null）走活动管理权限 */
+export async function requireLotteryDashboardAccess(
+  lotteryId: string,
+  request?: Request,
+) {
+  const lottery = await prisma.lottery.findUnique({
+    where: { id: lotteryId },
+    include: {
+      booth: {
+        select: {
+          id: true,
+          eventId: true,
+          code: true,
+          name: true,
+          companyOrgId: true,
+        },
+      },
+      prizeItems: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+
+  if (!lottery) {
+    throw new ApiError("抽奖不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  if (lottery.boothId) {
+    if (request) {
+      const access = await requireBoothAccessForRequest(
+        request,
+        lottery.boothId,
+      );
+      return { lottery, ...access };
+    }
+    const access = await requireBoothAccess(lottery.boothId);
+    return { lottery, ...access };
+  }
+
+  // 主办参与人抽奖（无展位）：Web session 或小程序账号管理员
+  if (request) {
+    const sessionResult = await requireEventAccessCheck(lottery.eventId);
+    if (!("error" in sessionResult)) {
+      await requireLotteryManageAccess(
+        sessionResult.session,
+        lottery.eventId,
+        lottery,
+      );
+      return { lottery, session: sessionResult.session };
+    }
+    await requireMobileEventAccess(request, lottery.eventId);
+    return { lottery };
+  }
+
+  const { session } = await requireEventAccess(lottery.eventId);
+  await requireLotteryManageAccess(session, lottery.eventId, lottery);
+  return { lottery, session };
+}
+
 function resolvePrizePlan(lottery: {
   prizeItems: Array<{
     id: string;
@@ -140,8 +204,8 @@ export async function getLotteryDashboard(
   lotteryId: string,
   request?: Request,
 ): Promise<LotteryDashboardData> {
-  const { lottery } = await requireLotteryBoothAccess(lotteryId, request);
-  const boothId = lottery.boothId!;
+  const { lottery } = await requireLotteryDashboardAccess(lotteryId, request);
+  const boothId = lottery.boothId;
   const eventId = lottery.eventId;
 
   const [entryRows, winners, leadCount, participantCount] = await Promise.all([
@@ -203,7 +267,7 @@ export async function getLotteryDashboard(
     const participant = entry.lead?.participant;
     let aiLevel: AiIntentLevel = "C";
 
-    if (participant) {
+    if (participant && boothId) {
       aiLevel = await computeLeadAiIntentLevel(
         boothId,
         eventId,
@@ -254,7 +318,7 @@ export async function getLotteryDashboard(
       entry.lead?.intentGrade === "C"
     ) {
       level = entry.lead.intentGrade;
-    } else if (entry.lead?.participant) {
+    } else if (entry.lead?.participant && boothId) {
       level = await computeLeadAiIntentLevel(
         boothId,
         eventId,

@@ -56,9 +56,10 @@ export async function sendFixedParticipantInvites(
     where: {
       eventId: input.eventId,
       id: { in: uniqueIds },
-      inviteStatus: input.allowResend
-        ? { not: ParticipantInviteStatus.ACTIVATED }
-        : ParticipantInviteStatus.NOT_INVITED,
+      // 重发时允许已邀请/已激活；首次仅未邀请
+      ...(input.allowResend
+        ? {}
+        : { inviteStatus: ParticipantInviteStatus.NOT_INVITED }),
     },
     select: { id: true, phone: true, email: true },
   });
