@@ -1,4 +1,9 @@
-import { EventReviewStatus, EventStatus, prisma } from "@connectiq/database";
+import {
+  EventReviewStatus,
+  EventStatus,
+  ReviewStatus,
+  prisma,
+} from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 
@@ -15,7 +20,81 @@ export async function archiveEvent(eventId: string) {
   }
   return prisma.event.update({
     where: { id: eventId },
-    data: { status: EventStatus.ARCHIVED },
+    data: {
+      status: EventStatus.ARCHIVED,
+      reviewStatus: ReviewStatus.ENDED,
+    },
+  });
+}
+
+/** 将已发布活动设为进行中（LIVE），用于现场运营与发现排序 */
+export async function goLiveEvent(eventId: string) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  if (event.status === EventStatus.LIVE) {
+    return event;
+  }
+  if (
+    event.status !== EventStatus.PUBLISHED &&
+    event.status !== EventStatus.ARCHIVED
+  ) {
+    throw new ApiError(
+      "仅已发布或已归档的活动可设为进行中",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+  return prisma.event.update({
+    where: { id: eventId },
+    data: {
+      status: EventStatus.LIVE,
+      reviewStatus: ReviewStatus.LIVE,
+    },
+  });
+}
+
+/** 结束进行中状态，回到已发布（不归档） */
+export async function endLiveEvent(eventId: string) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  if (event.status === EventStatus.PUBLISHED) {
+    return event;
+  }
+  if (event.status !== EventStatus.LIVE) {
+    throw new ApiError(
+      "仅进行中的活动可结束现场状态",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+  return prisma.event.update({
+    where: { id: eventId },
+    data: {
+      status: EventStatus.PUBLISHED,
+      reviewStatus: ReviewStatus.PUBLISHED,
+    },
+  });
+}
+
+/** 从归档恢复为已发布 */
+export async function unarchiveEvent(eventId: string) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  if (event.status !== EventStatus.ARCHIVED) {
+    throw new ApiError("仅已归档活动可恢复发布", ErrorCode.VALIDATION_ERROR, 400);
+  }
+  return prisma.event.update({
+    where: { id: eventId },
+    data: {
+      status: EventStatus.PUBLISHED,
+      reviewStatus: ReviewStatus.PUBLISHED,
+    },
   });
 }
 

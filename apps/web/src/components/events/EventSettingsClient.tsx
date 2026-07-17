@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventGeneralSettingsForm } from "@/components/events/EventGeneralSettingsForm";
+import { EventStatusSettingsPanel } from "@/components/events/EventStatusSettingsPanel";
 import {
   EventTicketsPanel,
   type EventTicketTypeRow,
@@ -47,11 +48,13 @@ export function EventSettingsClient({
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const initialTab =
-    tabParam === "tickets" || tabParam === "features" ? tabParam : "general";
+    tabParam === "tickets" || tabParam === "features" || tabParam === "status"
+      ? tabParam
+      : "general";
   const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
-    if (tabParam === "tickets" || tabParam === "features") {
+    if (tabParam === "tickets" || tabParam === "features" || tabParam === "status") {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -122,6 +125,12 @@ export function EventSettingsClient({
               基本信息
             </TabsTrigger>
             <TabsTrigger
+              value="status"
+              className="rounded-md border border-transparent px-4 py-2 data-[state=active]:border-border data-[state=active]:bg-white data-[state=active]:shadow-sm"
+            >
+              发布与状态
+            </TabsTrigger>
+            <TabsTrigger
               value="tickets"
               className="rounded-md border border-transparent px-4 py-2 data-[state=active]:border-border data-[state=active]:bg-white data-[state=active]:shadow-sm"
             >
@@ -137,6 +146,10 @@ export function EventSettingsClient({
 
           <TabsContent value="general">
             <EventGeneralSettingsForm eventId={eventId} />
+          </TabsContent>
+
+          <TabsContent value="status">
+            <EventStatusSettingsPanel eventId={eventId} />
           </TabsContent>
 
           <TabsContent value="tickets">

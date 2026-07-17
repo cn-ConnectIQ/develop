@@ -3,12 +3,14 @@ import { cn } from "@/lib/utils";
 const eventStatusLabel: Record<string, string> = {
   DRAFT: "草稿",
   PUBLISHED: "已发布",
+  LIVE: "进行中",
   ARCHIVED: "已归档",
 };
 
 const eventStatusStyle: Record<string, string> = {
   DRAFT: "admin-badge-soft-amber",
   PUBLISHED: "admin-badge-green",
+  LIVE: "bg-brand-green-light text-brand-green text-xs",
   ARCHIVED: "admin-badge-soft-gray",
 };
 
@@ -94,15 +96,10 @@ export function ReviewStatusBadge({ status }: { status: string }) {
 }
 
 export function EventStatusBadge({ status }: { status: string }) {
-  const solidStatuses = ["PUBLISHED"];
   return (
     <StatusBadge
       label={eventStatusLabel[status] ?? status}
-      className={
-        solidStatuses.includes(status)
-          ? "admin-badge-green"
-          : (eventStatusStyle[status] ?? "admin-badge-soft-gray")
-      }
+      className={eventStatusStyle[status] ?? "admin-badge-soft-gray"}
     />
   );
 }

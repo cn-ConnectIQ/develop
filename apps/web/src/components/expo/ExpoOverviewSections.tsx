@@ -27,7 +27,7 @@ import {
   parseExpoBoothTypes,
   type ExpoBoothType,
   type ExpoSettingsPayload,
-} from "@/lib/expo-settings-service";
+} from "@/lib/expo-settings-shared";
 import { withPublicPath } from "@/lib/public-path";
 
 function getSetting<T extends Record<string, unknown>>(

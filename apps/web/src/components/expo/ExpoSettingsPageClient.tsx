@@ -6,7 +6,7 @@ import {
   AdminHeader,
   AdminPage,
 } from "@/components/admin/admin-header";
-import type { ExpoSettingsPayload } from "@/lib/expo-settings-service";
+import type { ExpoSettingsPayload } from "@/lib/expo-settings-shared";
 
 export function ExpoSettingsPageClient({
   eventId,

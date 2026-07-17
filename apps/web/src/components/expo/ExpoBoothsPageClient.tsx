@@ -64,7 +64,7 @@ import {
   parseExpoBoothTypes,
   type ExpoBoothType,
   type ExpoSettingsPayload,
-} from "@/lib/expo-settings-service";
+} from "@/lib/expo-settings-shared";
 
 type SortMode = "code" | "popularity";
 
