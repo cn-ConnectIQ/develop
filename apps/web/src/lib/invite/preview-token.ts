@@ -5,9 +5,13 @@ import {
   prisma,
 } from "@connectiq/database";
 import {
+  findCanonicalInviteRecord,
+  purgeDuplicateInviteRecords,
+  inviteTokenExpiresAt,
+} from "@/lib/invite/canonical-token";
+import {
   FIXED_PARTICIPANT_INVITE_SUBJECT,
   FIXED_PARTICIPANT_INVITE_TEMPLATE,
-  computeTokenExpiresAt,
 } from "@/lib/invite/message";
 import { buildInviteShortUrl } from "@/lib/invite/invite-url";
 import {
@@ -23,10 +27,8 @@ export type InvitePreviewTokenResult = {
 };
 
 /**
- * 邀请弹窗预览：保证该参会者在本活动下已有真实 activationToken。
- * - 已有记录 → 返回最新短链
- * - 没有 → 签发 DRAFT 场次 + PENDING 记录（不真正发送）
- * 确认发送时会把 DRAFT 预览记录迁入发送场次，保证短信里的短码与预览一致。
+ * 邀请弹窗预览：同一活动同一参会者只有一枚 activationToken。
+ * 已有则展示；没有则签发一枚（DRAFT，不发送）。发送/重发均复用此短码。
  */
 export async function ensureParticipantInvitePreviewToken(input: {
   eventId: string;
@@ -41,16 +43,16 @@ export async function ensureParticipantInvitePreviewToken(input: {
     throw new Error("PARTICIPANT_NOT_FOUND");
   }
 
-  const existing = await prisma.inviteRecord.findFirst({
-    where: {
-      participantId: participant.id,
-      campaign: { eventId: input.eventId },
-      activationToken: { not: "" },
-    },
-    orderBy: { createdAt: "desc" },
-    select: { activationToken: true },
-  });
+  const existing = await findCanonicalInviteRecord(
+    input.eventId,
+    participant.id,
+  );
   if (existing?.activationToken) {
+    await purgeDuplicateInviteRecords(
+      input.eventId,
+      participant.id,
+      existing.id,
+    );
     return {
       activationToken: existing.activationToken,
       previewLink: buildInviteShortUrl(existing.activationToken),
@@ -107,7 +109,7 @@ export async function ensureParticipantInvitePreviewToken(input: {
       destination,
       activationToken,
       phoneHash,
-      tokenExpiresAt: computeTokenExpiresAt(event.endDate),
+      tokenExpiresAt: inviteTokenExpiresAt(event.endDate),
       status: InviteRecordStatus.PENDING,
     },
   });

@@ -8,7 +8,6 @@ import {
   type Prisma,
 } from "@connectiq/database";
 import {
-  allocateUniqueInviteToken,
   hashInvitePhone,
 } from "@/lib/invite/token";
 import type {
@@ -17,6 +16,7 @@ import type {
 } from "@/lib/invite/schemas";
 import { computeTokenExpiresAt, isInviteTokenTimeExpired } from "@/lib/invite/message";
 import { isInviteDestinationBlocked } from "@/lib/invite/blocklist";
+import { attachCanonicalInviteToCampaign } from "@/lib/invite/canonical-token";
 
 export type TargetFilter = TargetFilterInput;
 
@@ -230,21 +230,21 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
 
     const destination = await resolveDestination(participant, campaign.channel);
     if (!destination) {
-      await prisma.inviteRecord.create({
-        data: {
-          campaignId,
-          participantId: participant.id,
-          channel: campaign.channel,
-          destination: "",
-          activationToken: await allocateUniqueInviteToken(),
-          tokenExpiresAt,
-          status: InviteRecordStatus.SKIPPED,
-          errorMessage:
-            campaign.channel === InviteChannel.WECHAT
-              ? "缺少微信 OpenID"
-              : "缺少有效联系方式",
-        },
+      await attachCanonicalInviteToCampaign({
+        campaignId,
+        eventId: campaign.eventId,
+        participantId: participant.id,
+        channel: campaign.channel,
+        destination: "",
+        phoneHash: null,
+        tokenExpiresAt,
+        status: InviteRecordStatus.SKIPPED,
+        errorMessage:
+          campaign.channel === InviteChannel.WECHAT
+            ? "缺少微信 OpenID"
+            : "缺少有效联系方式",
       });
+      existingSet.add(participant.id);
       skipped += 1;
       continue;
     }
@@ -256,18 +256,23 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
       orgId: campaign.event.orgId,
     });
     if (blocked) {
-      await prisma.inviteRecord.create({
-        data: {
-          campaignId,
-          participantId: participant.id,
-          channel: campaign.channel,
-          destination,
-          activationToken: await allocateUniqueInviteToken(),
-          tokenExpiresAt,
-          status: InviteRecordStatus.SKIPPED,
-          errorMessage: "已退订或在黑名单中",
-        },
+      await attachCanonicalInviteToCampaign({
+        campaignId,
+        eventId: campaign.eventId,
+        participantId: participant.id,
+        channel: campaign.channel,
+        destination,
+        phoneHash:
+          campaign.channel === InviteChannel.SMS
+            ? hashInvitePhone(destination)
+            : participant.phone
+              ? hashInvitePhone(participant.phone)
+              : null,
+        tokenExpiresAt,
+        status: InviteRecordStatus.SKIPPED,
+        errorMessage: "已退订或在黑名单中",
       });
+      existingSet.add(participant.id);
       skipped += 1;
       continue;
     }
@@ -292,59 +297,19 @@ async function buildCampaignRecords(campaignId: string): Promise<BuildResult> {
       linkedUserId = user?.id ?? null;
     }
 
-    // 若弹窗预览已签发 DRAFT+PENDING 短码，迁入本场次，保证短信与预览一致
-    const previewRecord = await prisma.inviteRecord.findFirst({
-      where: {
-        participantId: participant.id,
-        status: InviteRecordStatus.PENDING,
-        campaign: {
-          eventId: campaign.eventId,
-          status: InviteCampaignStatus.DRAFT,
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, campaignId: true },
+    await attachCanonicalInviteToCampaign({
+      campaignId,
+      eventId: campaign.eventId,
+      participantId: participant.id,
+      channel: campaign.channel,
+      destination,
+      phoneHash,
+      userId: linkedUserId,
+      tokenExpiresAt,
+      status: InviteRecordStatus.PENDING,
+      errorMessage: null,
     });
-
-    if (previewRecord) {
-      await prisma.inviteRecord.update({
-        where: { id: previewRecord.id },
-        data: {
-          campaignId,
-          channel: campaign.channel,
-          destination,
-          phoneHash,
-          userId: linkedUserId,
-          tokenExpiresAt,
-          status: InviteRecordStatus.PENDING,
-          errorMessage: null,
-        },
-      });
-      const leftover = await prisma.inviteRecord.count({
-        where: { campaignId: previewRecord.campaignId },
-      });
-      if (leftover === 0) {
-        await prisma.inviteCampaign.delete({
-          where: { id: previewRecord.campaignId },
-        }).catch(() => undefined);
-      }
-      queued += 1;
-      continue;
-    }
-
-    await prisma.inviteRecord.create({
-      data: {
-        campaignId,
-        participantId: participant.id,
-        channel: campaign.channel,
-        destination,
-        activationToken: await allocateUniqueInviteToken(),
-        phoneHash,
-        userId: linkedUserId,
-        tokenExpiresAt,
-        status: InviteRecordStatus.PENDING,
-      },
-    });
+    existingSet.add(participant.id);
     queued += 1;
   }
 
