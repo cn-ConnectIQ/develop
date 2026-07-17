@@ -32,6 +32,7 @@ import {
   resolveInviteMessage,
 } from "@/lib/invite/message";
 import { MessagePreview } from "@/components/invites/MessagePreview";
+import { EditParticipantSheet } from "@/components/participants/EditParticipantSheet";
 import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import { useCurrentEvent } from "@/contexts/event-context";
 import { withPublicPath } from "@/lib/public-path";
@@ -157,6 +158,7 @@ export function ParticipantTable({
   const [invitePreviewLink, setInvitePreviewLink] = useState(
     () => buildInviteShortUrl("{短码}"),
   );
+  const [editTarget, setEditTarget] = useState<ParticipantRow | null>(null);
 
   function openInviteDialog(p: ParticipantRow) {
     const preferSms = Boolean(p.phone?.trim());
@@ -500,6 +502,14 @@ export function ParticipantTable({
             <div className="flex items-center justify-end gap-1">
               <button
                 type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-text-secondary hover:bg-content"
+                onClick={() => setEditTarget(p)}
+              >
+                <UserRound className="size-3.5" />
+                编辑
+              </button>
+              <button
+                type="button"
                 className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-brand-purple hover:bg-brand-purple/10"
                 onClick={() => openInviteDialog(p)}
               >
@@ -556,6 +566,10 @@ export function ParticipantTable({
                 <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditTarget(p)}>
+                  <UserRound className="size-4" />
+                  编辑信息
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     toast.message(`${p.name}`, {
@@ -1042,6 +1056,16 @@ export function ParticipantTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditParticipantSheet
+        eventId={eventId}
+        participant={editTarget}
+        open={Boolean(editTarget)}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        onSuccess={onRefresh}
+      />
     </>
   );
 }

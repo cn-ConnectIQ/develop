@@ -1,4 +1,5 @@
 import {
+  ParticipantInviteStatus,
   ParticipantRole,
   SystemRole,
   prisma,
@@ -12,6 +13,8 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { maybeTriggerReferralScanOnCheckin } from "@/lib/ai/referral-scanner";
+import { normalizeInvitePhone } from "@/lib/invite/phone";
+import { hashInvitePhone } from "@/lib/invite/token";
 import { serializeParticipantRow } from "@/lib/participant-serialize";
 import {
   mergeParticipantTags,
@@ -20,10 +23,10 @@ import {
 
 const patchSchema = z.object({
   name: z.string().optional(),
-  email: z.string().optional(),
-  phone: z.string().optional(),
-  company: z.string().optional(),
-  jobTitle: z.string().optional(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  jobTitle: z.string().nullable().optional(),
   role: z.nativeEnum(ParticipantRole).optional(),
   systemRole: z.nativeEnum(SystemRole).optional(),
   boothId: z.string().nullable().optional(),
@@ -33,6 +36,15 @@ const patchSchema = z.object({
   ticketTypeId: z.string().nullable().optional(),
   checkIn: z.boolean().optional(),
 });
+
+function phonesEqual(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const na = a ? normalizeInvitePhone(a) ?? a.replace(/\D/g, "") : "";
+  const nb = b ? normalizeInvitePhone(b) ?? b.replace(/\D/g, "") : "";
+  return na === nb;
+}
 
 export const PATCH = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
@@ -55,6 +67,35 @@ export const PATCH = withErrorHandler(async (request, context) => {
   });
   if (!participant) {
     return createErrorResponse("参会者不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  let nextPhone: string | null | undefined = undefined;
+  if (parsed.data.phone !== undefined) {
+    const raw = parsed.data.phone?.trim() || null;
+    if (raw) {
+      const normalized = normalizeInvitePhone(raw);
+      if (!normalized) {
+        return createErrorResponse(
+          "请输入有效的中国大陆手机号",
+          ErrorCode.VALIDATION_ERROR,
+          400,
+        );
+      }
+      nextPhone = normalized;
+    } else {
+      nextPhone = null;
+    }
+
+    if (
+      participant.inviteStatus === ParticipantInviteStatus.ACTIVATED &&
+      !phonesEqual(participant.phone, nextPhone)
+    ) {
+      return createErrorResponse(
+        "已激活参会者不可修改手机号",
+        ErrorCode.VALIDATION_ERROR,
+        400,
+      );
+    }
   }
 
   if (parsed.data.checkIn) {
@@ -94,28 +135,69 @@ export const PATCH = withErrorHandler(async (request, context) => {
     nextTags = mergeParticipantTags(participant.tags, parsed.data.addTags);
   }
 
-  const updated = await prisma.participant.update({
-    where: { id: participantId },
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      company: parsed.data.company,
-      jobTitle: parsed.data.jobTitle,
-      role: parsed.data.role,
-      systemRole: parsed.data.systemRole,
-      boothId: parsed.data.boothId,
-      isBoothOwner: parsed.data.isBoothOwner,
-      tags: nextTags,
-    },
-    include: {
-      checkIns: { where: { eventId }, take: 1, orderBy: { checkedInAt: "desc" } },
-      registrations: {
-        take: 1,
-        include: { ticketType: { select: { id: true, name: true } } },
+  const phoneChanging =
+    nextPhone !== undefined && !phonesEqual(participant.phone, nextPhone);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.participant.update({
+      where: { id: participantId },
+      data: {
+        name: parsed.data.name,
+        email:
+          parsed.data.email === undefined
+            ? undefined
+            : parsed.data.email?.trim() || null,
+        phone:
+          participant.inviteStatus === ParticipantInviteStatus.ACTIVATED
+            ? undefined
+            : nextPhone,
+        company:
+          parsed.data.company === undefined
+            ? undefined
+            : parsed.data.company?.trim() || null,
+        jobTitle:
+          parsed.data.jobTitle === undefined
+            ? undefined
+            : parsed.data.jobTitle?.trim() || null,
+        role: parsed.data.role,
+        systemRole: parsed.data.systemRole,
+        boothId: parsed.data.boothId,
+        isBoothOwner: parsed.data.isBoothOwner,
+        tags: nextTags,
       },
-      _count: { select: { leads: true } },
-    },
+      include: {
+        checkIns: {
+          where: { eventId },
+          take: 1,
+          orderBy: { checkedInAt: "desc" },
+        },
+        registrations: {
+          take: 1,
+          include: { ticketType: { select: { id: true, name: true } } },
+        },
+        _count: { select: { leads: true } },
+      },
+    });
+
+    if (phoneChanging && nextPhone) {
+      const phoneHash = hashInvitePhone(nextPhone);
+      await tx.inviteRecord.updateMany({
+        where: {
+          participantId,
+          campaign: { eventId },
+        },
+        data: {
+          destination: nextPhone,
+          phoneHash,
+        },
+      });
+      await tx.inviteEntry.updateMany({
+        where: { eventId, participantId },
+        data: { phone: nextPhone },
+      });
+    }
+
+    return row;
   });
 
   return createSuccessResponse(serializeParticipantRow(updated, eventId));
