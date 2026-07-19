@@ -7,7 +7,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { findParticipantForUser } from "@/lib/interaction/participant-user";
-import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
+import { assertEventReadableForStaffOrAttendee } from "@/lib/public-event-access";
 import {
   requireMobileEventAccess,
   resolveOptionalMobileUserId,
@@ -72,7 +72,7 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await assertAttendeeReadableEvent(eventId);
+  await assertEventReadableForStaffOrAttendee(eventId);
   const userId = await resolveOptionalMobileUserId(request);
 
   const url = new URL(request.url);
