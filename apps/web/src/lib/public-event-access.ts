@@ -17,6 +17,18 @@ export async function assertAttendeeReadableEvent(eventId: string) {
   return event;
 }
 
+/** 活动存在即可（大屏投影 / 筹备预览，允许 DRAFT） */
+export async function assertEventExists(eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, status: true },
+  });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  return event;
+}
+
 /**
  * 管理端 + 参会端共用列表：
  * - 主办方已登录且有活动权限 → 允许 DRAFT（筹备期配置互动）

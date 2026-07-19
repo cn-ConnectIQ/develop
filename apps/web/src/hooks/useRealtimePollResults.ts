@@ -25,8 +25,12 @@ export function useRealtimePollResults({
       const res = await fetch(
         `/api/events/${eventId}/polls/${pollId}/realtime-results`,
       );
-      if (!res.ok) throw new Error("加载实时结果失败");
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof json.error === "string" ? json.error : "加载实时结果失败",
+        );
+      }
       setData(json.data as RealtimePollResults);
       setError(null);
     } catch (e) {

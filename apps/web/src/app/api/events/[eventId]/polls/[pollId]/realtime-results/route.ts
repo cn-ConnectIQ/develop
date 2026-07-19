@@ -2,15 +2,14 @@ import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
   createSuccessResponse,
-  requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
 import { getPollRealtimeResults } from "@/lib/poll-realtime-results";
-import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
+import { assertEventExists } from "@/lib/public-event-access";
 
 const SSE_INTERVAL_MS = 2000;
 
-/** 投票实时结果（JSON 或 SSE） */
+/** 投票实时结果（JSON 或 SSE）· 大屏投影可读（含 DRAFT 筹备预览） */
 export const GET = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const pollId = context?.params?.pollId;
@@ -18,7 +17,7 @@ export const GET = withErrorHandler(async (request, context) => {
     return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await assertAttendeeReadableEvent(eventId);
+  await assertEventExists(eventId);
 
   const accept = request.headers.get("accept") ?? "";
   const stream =
