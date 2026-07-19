@@ -6,8 +6,12 @@ import {
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { findParticipantForUser } from "@/lib/interaction/participant-user";
 import { assertAttendeeReadableEvent } from "@/lib/public-event-access";
-import { requireMobileEventAccess } from "@/lib/mobile-user-id";
+import {
+  requireMobileEventAccess,
+  resolveOptionalMobileUserId,
+} from "@/lib/mobile-user-id";
 import {
   resolvePollListStatusFilter,
   serializePollForMobile,
@@ -69,6 +73,7 @@ export const GET = withErrorHandler(async (request, context) => {
   }
 
   await assertAttendeeReadableEvent(eventId);
+  const userId = await resolveOptionalMobileUserId(request);
 
   const url = new URL(request.url);
   const typeFilter = url.searchParams.get("type");
@@ -101,8 +106,28 @@ export const GET = withErrorHandler(async (request, context) => {
     }),
   ]);
 
+  const participatedPollIds = new Set<string>();
+  if (userId && polls.length > 0) {
+    const participant = await findParticipantForUser(eventId, userId);
+    if (participant) {
+      const responses = await prisma.pollResponse.findMany({
+        where: {
+          participantId: participant.id,
+          pollId: { in: polls.map((p) => p.id) },
+        },
+        select: { pollId: true },
+        distinct: ["pollId"],
+      });
+      for (const row of responses) participatedPollIds.add(row.pollId);
+    }
+  }
+
   return createSuccessResponse({
-    polls: polls.map((poll) => serializePollForMobile(poll, eventId)),
+    polls: polls.map((poll) =>
+      serializePollForMobile(poll, eventId, {
+        myParticipated: participatedPollIds.has(poll.id),
+      }),
+    ),
     sessions,
   }, { total: polls.length });
 });

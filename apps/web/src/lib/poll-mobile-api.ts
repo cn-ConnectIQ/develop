@@ -77,9 +77,11 @@ export function buildPollBigscreenUrl(eventId: string, pollId?: string) {
 export function serializePollForMobile(
   poll: PollWithMeta,
   eventId: string,
+  extras?: { myParticipated?: boolean },
 ) {
   const participantCount = poll._count?.responses ?? 0;
   const endsAt = poll.closesAt?.toISOString() ?? null;
+  const myParticipated = Boolean(extras?.myParticipated);
 
   return {
     id: poll.id,
@@ -95,6 +97,9 @@ export function serializePollForMobile(
     createdAt: poll.createdAt.toISOString(),
     updatedAt: poll.updatedAt.toISOString(),
     participant_count: participantCount,
+    participantCount,
+    my_participated: myParticipated,
+    myParticipated,
     _count: { responses: participantCount },
     options: poll.options ?? [],
     bigscreen_url: buildPollBigscreenUrl(eventId, poll.id),
