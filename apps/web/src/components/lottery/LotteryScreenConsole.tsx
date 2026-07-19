@@ -21,6 +21,7 @@ import type {
 import type { LotteryTierState } from "@/lib/lottery/lottery-screen-service";
 import { TierDrawControl, type TierDrawMode } from "@/components/lottery/TierDrawControl";
 import { TierWinnersList } from "@/components/lottery/TierWinnersList";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type ScreenState = {
@@ -150,11 +151,14 @@ export function LotteryScreenConsole({
     [state?.lottery.animation],
   );
 
+  // iframe / 新窗口必须带 /uc，否则会打到域名根 COS → NoSuchKey 404
   const projectionUrl = lotteryId
-    ? `/events/${eventId}/screen/lottery-display?lottery=${lotteryId}`
+    ? withPublicPath(
+        `/events/${eventId}/screen/lottery-display?lottery=${lotteryId}`,
+      )
     : null;
   const embedPreviewUrl = projectionUrl
-    ? `${projectionUrl}&embed=1`
+    ? `${projectionUrl}${projectionUrl.includes("?") ? "&" : "?"}embed=1`
     : null;
 
   function refresh() {
