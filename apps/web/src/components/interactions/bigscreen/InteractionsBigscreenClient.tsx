@@ -16,15 +16,20 @@ import { BoothRankingDisplay } from "@/components/interactions/bigscreen/BoothRa
 import { BoothRankingController } from "@/components/interactions/bigscreen/BoothRankingController";
 import type { QnaListResult } from "@/lib/qna-service";
 import { patchQnaResponse } from "@/hooks/useRealtimeQna";
+import { withPublicPath } from "@/lib/public-path";
 
 async function fetchBigscreen(eventId: string): Promise<BigscreenData> {
-  const res = await fetch(`/api/events/${eventId}/bigscreen/current`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/bigscreen/current`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as BigscreenData;
 }
 
 async function fetchRankings(eventId: string) {
-  const res = await fetch(`/api/events/${eventId}/booth-rankings`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/booth-rankings`),
+  );
   if (!res.ok) throw new Error("加载排行榜失败");
   return (await res.json()).data as {
     event_name: string;

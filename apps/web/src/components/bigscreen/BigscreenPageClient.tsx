@@ -9,9 +9,12 @@ import { BigscreenProjection } from "@/components/bigscreen/BigscreenProjection"
 import { useBigscreenRealtime } from "@/hooks/useBigscreenRealtime";
 import { formatCountdown } from "@/lib/bigscreen-display";
 import type { BigscreenData } from "@/lib/bigscreen-types";
+import { withPublicPath } from "@/lib/public-path";
 
 async function fetchBigscreen(eventId: string): Promise<BigscreenData> {
-  const res = await fetch(`/api/events/${eventId}/bigscreen/current`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/bigscreen/current`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as BigscreenData;
 }

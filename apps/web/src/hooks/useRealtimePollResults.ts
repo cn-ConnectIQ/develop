@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { RealtimePollResults } from "@/lib/interaction-manager";
+import { withPublicPath } from "@/lib/public-path";
 
 type UseRealtimePollResultsOptions = {
   eventId: string;
@@ -23,7 +24,9 @@ export function useRealtimePollResults({
     if (!pollId) return;
     try {
       const res = await fetch(
-        `/api/events/${eventId}/polls/${pollId}/realtime-results`,
+        withPublicPath(
+          `/api/events/${eventId}/polls/${pollId}/realtime-results`,
+        ),
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {

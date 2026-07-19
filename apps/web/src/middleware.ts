@@ -36,7 +36,16 @@ const PUBLIC_PATHS = [
   "/optout",
 ] as const;
 
+/** 现场投影大屏：可不登录打开（投票/抽奖 display） */
+function isPublicScreenPath(pathname: string) {
+  return (
+    pathname.includes("/screen/poll-display") ||
+    pathname.includes("/screen/lottery-display")
+  );
+}
+
 function isPublicPath(pathname: string) {
+  if (isPublicScreenPath(pathname)) return true;
   return PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );

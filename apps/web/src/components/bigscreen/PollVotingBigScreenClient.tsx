@@ -8,9 +8,12 @@ import { PollVotingBigScreen } from "@/components/bigscreen/PollVotingBigScreen"
 import { WordCloudView } from "@/components/bigscreen/WordCloudView";
 import { useRealtimePollResults } from "@/hooks/useRealtimePollResults";
 import type { BigscreenData } from "@/lib/bigscreen-types";
+import { withPublicPath } from "@/lib/public-path";
 
 async function fetchCurrentPoll(eventId: string): Promise<BigscreenData> {
-  const res = await fetch(`/api/events/${eventId}/bigscreen/current`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/bigscreen/current`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as BigscreenData;
 }

@@ -13,6 +13,7 @@ import { formatCountdown } from "@/lib/bigscreen-display";
 import type { BigscreenPoll, PollOptionResult, WordCloudItem } from "@/lib/bigscreen-types";
 import type { QnaQuestion } from "@/lib/bigscreen-display";
 import type { ScreenPairingDisplayTarget } from "@/lib/screen-pairing/shared";
+import { withPublicPath } from "@/lib/public-path";
 
 type PollResultsPayload = {
   pollId: string;
@@ -43,7 +44,9 @@ async function fetchPollResults(
   pollId: string,
 ): Promise<PollResultsPayload> {
   const res = await fetch(
-    `/api/events/${eventId}/polls/${pollId}/realtime-results`,
+    withPublicPath(
+      `/api/events/${eventId}/polls/${pollId}/realtime-results`,
+    ),
   );
   if (!res.ok) throw new Error("加载互动数据失败");
   const json = await res.json();
