@@ -9,6 +9,8 @@ import {
   MessageSquare,
   Monitor,
   Pause,
+  Pencil,
+  Play,
   Square,
   Star,
   ToggleLeft,
@@ -37,6 +39,7 @@ import {
   isPollClosed,
   isPollDraft,
   isPollLive,
+  isPollPaused,
   type InteractionItem,
 } from "@/lib/interaction-manager";
 import { withPublicPath } from "@/lib/public-path";
@@ -60,16 +63,19 @@ type InteractionSidebarProps = {
   onCreate: (type: InteractionCreateType) => void;
   onPause: (item: InteractionItem) => void;
   onStop: (item: InteractionItem) => void;
+  onResume?: (item: InteractionItem) => void;
   creating?: boolean;
 };
 
 function itemFilterTab(item: InteractionItem): FilterTab {
   const live =
     item.kind === "poll" ? isPollLive(item.status) : isLotteryLive(item.status);
-  const draft =
-    item.kind === "poll" ? isPollDraft(item.status) : isLotteryDraft(item.status);
+  const draftOrPaused =
+    item.kind === "poll"
+      ? isPollDraft(item.status) || isPollPaused(item.status)
+      : isLotteryDraft(item.status);
   if (live) return "live";
-  if (draft) return "draft";
+  if (draftOrPaused) return "draft";
   return "all";
 }
 
@@ -81,6 +87,7 @@ export function InteractionSidebar({
   onCreate,
   onPause,
   onStop,
+  onResume,
   creating,
 }: InteractionSidebarProps) {
   const stats = countInteractionStats(items);
@@ -95,7 +102,7 @@ export function InteractionSidebar({
   const tabs = [
     { key: "all" as const, label: "全部", count: stats.total },
     { key: "live" as const, label: "进行中", count: stats.live },
-    { key: "draft" as const, label: "草稿", count: stats.draft },
+    { key: "draft" as const, label: "待发布", count: stats.draft },
   ];
 
   return (
@@ -130,7 +137,7 @@ export function InteractionSidebar({
             {filter === "live"
               ? "暂无进行中的互动"
               : filter === "draft"
-                ? "暂无草稿"
+                ? "暂无待发布的互动"
                 : "暂无互动，点击上方创建"}
           </ListEmptyState>
         ) : (
@@ -144,6 +151,7 @@ export function InteractionSidebar({
                   onSelect={() => onSelect(item)}
                   onPause={() => onPause(item)}
                   onStop={() => onStop(item)}
+                  onResume={() => onResume?.(item)}
                 />
               </li>
             ))}
@@ -161,6 +169,7 @@ function InteractionListItem({
   onSelect,
   onPause,
   onStop,
+  onResume,
 }: {
   item: InteractionItem;
   eventId: string;
@@ -168,9 +177,11 @@ function InteractionListItem({
   onSelect: () => void;
   onPause: () => void;
   onStop: () => void;
+  onResume: () => void;
 }) {
   const live =
     item.kind === "poll" ? isPollLive(item.status) : isLotteryLive(item.status);
+  const paused = item.kind === "poll" && isPollPaused(item.status);
   const draft =
     item.kind === "poll" ? isPollDraft(item.status) : isLotteryDraft(item.status);
   const closed =
@@ -191,6 +202,25 @@ function InteractionListItem({
 
   const count = getInteractionResponseCount(item);
 
+  const statusLabel = live
+    ? "进行中"
+    : paused
+      ? "已暂停"
+      : draft
+        ? "草稿"
+        : closed
+          ? "已结束"
+          : undefined;
+  const statusVariant = live
+    ? "live"
+    : paused
+      ? "draft"
+      : draft
+        ? "draft"
+        : closed
+          ? "ended"
+          : "default";
+
   return (
     <SelectableListItem
       selected={selected}
@@ -200,12 +230,8 @@ function InteractionListItem({
       typeLabel={typeLabel}
       title={item.title}
       meta={`${count} 人参与`}
-      statusLabel={
-        live ? "进行中" : draft ? "草稿" : closed ? "已结束" : undefined
-      }
-      statusVariant={
-        live ? "live" : draft ? "draft" : closed ? "ended" : "default"
-      }
+      statusLabel={statusLabel}
+      statusVariant={statusVariant}
       onClick={onSelect}
       actions={
         live ? (
@@ -239,6 +265,30 @@ function InteractionListItem({
               }}
             >
               <Monitor className="size-3.5" />
+            </ListIconAction>
+          </>
+        ) : paused ? (
+          <>
+            <ListIconAction
+              title="编辑"
+              className="hover:text-brand-blue"
+              onClick={() => onSelect()}
+            >
+              <Pencil className="size-3.5" />
+            </ListIconAction>
+            <ListIconAction
+              title="继续发布"
+              className="hover:text-brand-green"
+              onClick={() => onResume()}
+            >
+              <Play className="size-3.5" />
+            </ListIconAction>
+            <ListIconAction
+              title="结束"
+              className="hover:text-brand-red"
+              onClick={() => onStop()}
+            >
+              <Square className="size-3.5" />
             </ListIconAction>
           </>
         ) : undefined

@@ -25,6 +25,7 @@ import { WordCloudEditor } from "@/components/interactions/editors/WordCloudEdit
 import { RatingPollEditor } from "@/components/interactions/editors/RatingPollEditor";
 import {
   isPollLive,
+  isPollPaused,
   normalizePollOptionsForType,
   type InteractionItem,
   type InteractionPollItem,
@@ -35,6 +36,8 @@ import {
   DEFAULT_DISPLAY_CONFIG,
   type PollResultVisual,
 } from "@/lib/bigscreen-display";
+import { withPublicPath } from "@/lib/public-path";
+
 type InteractionWorkspaceProps = {
   eventId: string;
   selection: InteractionItem | null;
@@ -83,6 +86,7 @@ export function InteractionWorkspace({
     );
   }
 
+  // 仅 LIVE 进实时控制台；PAUSED 进入可编辑工作区
   if (selection.kind === "poll" && isPollLive(selection.status)) {
     return (
       <RealtimeConsole
@@ -115,6 +119,9 @@ export function InteractionWorkspace({
       sessions={sessions}
       onRefresh={onRefresh}
       onActivate={() => onActivate(selection)}
+      onStop={
+        isPollPaused(selection.status) ? () => onStop(selection) : undefined
+      }
     />
   );
 }
@@ -125,13 +132,16 @@ function PollEditWorkspace({
   sessions,
   onRefresh,
   onActivate,
+  onStop,
 }: {
   eventId: string;
   poll: InteractionPollItem;
   sessions: SessionOption[];
   onRefresh: () => void;
   onActivate: () => void;
+  onStop?: () => void;
 }) {
+  const paused = isPollPaused(poll.status);
   const [localPoll, setLocalPoll] = useState(poll);
   const [activeTab, setActiveTab] = useState<PollCreatorTab>(() =>
     pollTypeToTab(poll.type),
@@ -147,10 +157,10 @@ function PollEditWorkspace({
     setLocalPoll(poll);
     setActiveTab(pollTypeToTab(poll.type));
     setMultiChoice(poll.type === "MULTI_CHOICE");
-  }, [poll.id, poll.type, poll.title, poll.options]);
+  }, [poll.id, poll.type, poll.title, poll.options, poll.status]);
 
   useEffect(() => {
-    void fetch(`/api/events/${eventId}/polls/${poll.id}/display`)
+    void fetch(withPublicPath(`/api/events/${eventId}/polls/${poll.id}/display`))
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         const visual = json?.data?.resultVisual as PollResultVisual | undefined;
@@ -161,11 +171,14 @@ function PollEditWorkspace({
 
   async function persistResultVisual(visual: PollResultVisual) {
     setResultVisual(visual);
-    await fetch(`/api/events/${eventId}/polls/${poll.id}/display`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resultVisual: visual }),
-    });
+    await fetch(
+      withPublicPath(`/api/events/${eventId}/polls/${poll.id}/display`),
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resultVisual: visual }),
+      },
+    );
   }
 
   async function handleTabChange(tab: PollCreatorTab) {
@@ -236,9 +249,18 @@ function PollEditWorkspace({
 
   const editor = (
     <>
+      {paused ? (
+        <div className="mb-4 rounded-xl border border-brand-amber/30 bg-brand-amber-light/40 px-4 py-3">
+          <p className="text-sm font-medium text-brand-amber">已暂停 · 可编辑</p>
+          <p className="mt-1 text-xs text-text-muted">
+            参会者暂不可投票。可修改题目与选项，完成后点击「继续发布」。
+          </p>
+        </div>
+      ) : null}
+
       <PollCreatorTypeTabs
         activeTab={activeTab}
-        disabled={typeChanging}
+        disabled={typeChanging || paused}
         onChange={(tab) => void handleTabChange(tab)}
       />
 
@@ -330,20 +352,30 @@ function PollEditWorkspace({
 
   const footer = (
     <div className="flex items-center justify-between gap-4">
-      <button
-        type="button"
-        disabled={savingDraft}
-        onClick={() => void saveDraft()}
-        className="text-base text-text-muted hover:text-text-primary disabled:opacity-50"
-      >
-        {savingDraft ? "保存中…" : "保存草稿"}
-      </button>
+      {paused ? (
+        <button
+          type="button"
+          onClick={onStop}
+          className="text-base text-brand-red hover:underline disabled:opacity-50"
+        >
+          结束投票
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={savingDraft}
+          onClick={() => void saveDraft()}
+          className="text-base text-text-muted hover:text-text-primary disabled:opacity-50"
+        >
+          {savingDraft ? "保存中…" : "保存草稿"}
+        </button>
+      )}
       <Button
         size="lg"
         className="h-12 min-w-[140px] bg-brand-green text-base font-semibold text-white hover:bg-brand-green/90"
         onClick={onActivate}
       >
-        发布
+        {paused ? "继续发布" : "发布"}
       </Button>
     </div>
   );

@@ -54,6 +54,15 @@ export const INTERACTION_TYPE_SHORT: Record<string, string> = {
 };
 
 export function isPollLive(status: string): boolean {
+  return status === "LIVE";
+}
+
+export function isPollPaused(status: string): boolean {
+  return status === "PAUSED";
+}
+
+/** LIVE 或 PAUSED：仍属于「场上」互动（未结束） */
+export function isPollActive(status: string): boolean {
   return status === "LIVE" || status === "PAUSED";
 }
 
@@ -119,8 +128,8 @@ export function countInteractionStats(items: InteractionItem[]) {
   let draft = 0;
   for (const item of items) {
     if (item.kind === "poll") {
-      if (item.status === "LIVE" || item.status === "PAUSED") live++;
-      else if (item.status === "DRAFT") draft++;
+      if (item.status === "LIVE") live++;
+      else if (item.status === "DRAFT" || item.status === "PAUSED") draft++;
     } else {
       if (isLotteryLive(item.status)) live++;
       else if (isLotteryDraft(item.status)) draft++;

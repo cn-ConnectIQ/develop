@@ -24,9 +24,12 @@ import {
   mergeInteractions,
   type InteractionItem,
 } from "@/lib/interaction-manager";
+import { withPublicPath } from "@/lib/public-path";
 
 async function fetchInteractions(eventId: string) {
-  const pollsRes = await fetch(`/api/events/${eventId}/polls`);
+  const pollsRes = await fetch(
+    withPublicPath(`/api/events/${eventId}/polls`),
+  );
   if (!pollsRes.ok) {
     const json = await pollsRes.json().catch(() => null);
     throw new Error(json?.error ?? "加载投票失败");
@@ -80,16 +83,19 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
             ? "SINGLE_CHOICE"
             : type;
 
-      const res = await fetch(`/api/events/${eventId}/polls`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: getDefaultPollTitle(pollType),
-          type: pollType,
-          status: "DRAFT",
-          options: getDefaultPollOptions(pollType),
-        }),
-      });
+      const res = await fetch(
+        withPublicPath(`/api/events/${eventId}/polls`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: getDefaultPollTitle(pollType),
+            type: pollType,
+            status: "DRAFT",
+            options: getDefaultPollOptions(pollType),
+          }),
+        },
+      );
       if (!res.ok) throw new Error("创建互动失败");
       return { kind: "poll" as const, data: (await res.json()).data };
     },
@@ -108,14 +114,19 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
     push = false,
   ) {
     const res = await fetch(
-      `/api/events/${eventId}/polls/${pollId}/status`,
+      withPublicPath(`/api/events/${eventId}/polls/${pollId}/status`),
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, push: status === "LIVE" ? push : false }),
       },
     );
-    if (!res.ok) throw new Error("状态更新失败");
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      throw new Error(
+        typeof json?.error === "string" ? json.error : "状态更新失败",
+      );
+    }
     const json = await res.json().catch(() => null);
     refresh();
     return json?.data?.pushResult as
@@ -125,9 +136,12 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   }
 
   async function handleDelete(item: InteractionItem) {
-    const res = await fetch(`/api/events/${eventId}/polls/${item.id}`, {
-      method: "DELETE",
-    });
+    const res = await fetch(
+      withPublicPath(`/api/events/${eventId}/polls/${item.id}`),
+      {
+        method: "DELETE",
+      },
+    );
     if (!res.ok) {
       toast.error("删除失败");
       return;
@@ -158,8 +172,9 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
     void (async () => {
       try {
         await updatePollStatus(item.id, "PAUSED");
+        toast.success("已暂停，可继续编辑后发布");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "操作失败");
+        toast.error(e instanceof Error ? e.message : "暂停失败");
       }
     })();
   }
@@ -168,6 +183,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
     void (async () => {
       try {
         await updatePollStatus(item.id, "CLOSED");
+        toast.success("投票已结束");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "操作失败");
       }
@@ -209,6 +225,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
           onCreate={(type) => createMutation.mutate(type)}
           onPause={handlePause}
           onStop={handleStop}
+          onResume={handleActivate}
           creating={createMutation.isPending}
         />
         <InteractionWorkspace
