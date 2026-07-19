@@ -800,6 +800,20 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
   const winnerQuota = lottery.prizeItems.reduce((sum, p) => sum + p.quantity, 0);
   const entryCount = await prisma.lotteryEntry.count({ where: { lotteryId } });
 
+  const entries = await prisma.lotteryEntry.findMany({
+    where: { lotteryId },
+    take: 200,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          profile: { select: { company: true } },
+        },
+      },
+    },
+  });
+
   const tierStates = buildTierStates(
     lottery.prizeItems,
     winners.map((w) => ({ prizeId: w.prizeId, prizeRank: w.prizeRank })),
@@ -834,6 +848,12 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
     revealed_count: winners.length,
     active_tier: meta.active_draw_tier,
     tiers: tierStates,
+    /** 大屏断线/错过广播时用 HTTP 兜底还原滚动名单 */
+    rolling_entries: entries.map((e) => ({
+      id: e.userId,
+      name: e.user.name,
+      company: e.user.profile?.company ?? null,
+    })),
     winners: winners.map((w) => ({
       id: w.id,
       user_id: w.userId,

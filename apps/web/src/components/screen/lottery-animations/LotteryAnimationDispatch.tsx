@@ -22,6 +22,7 @@ import {
   type LotteryScreenRollingEntry,
   type LotteryScreenWinnerPayload,
 } from "@/lib/realtime/lottery-screen";
+import { withPublicPath } from "@/lib/public-path";
 
 type ScreenPhase = "idle" | "animating" | "revealed" | "ended";
 
@@ -72,19 +73,32 @@ function toRollingEntries(
   }));
 }
 
-async function fetchLotteryAnimationType(
+type ScreenStatePayload = {
+  lottery: {
+    id: string;
+    title: string;
+    status: string;
+    entry_count: number;
+    big_screen_animation_type?: BigScreenAnimationTypeValue;
+  };
+  winner_quota?: number;
+  revealed_count?: number;
+  rolling_entries?: LotteryScreenRollingEntry[];
+  winners?: LotteryScreenWinnerPayload[];
+};
+
+async function fetchLotteryScreenState(
   eventId: string,
   lotteryId: string,
-): Promise<BigScreenAnimationTypeValue> {
+): Promise<ScreenStatePayload> {
   const res = await fetch(
-    `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+    withPublicPath(
+      `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+    ),
   );
   if (!res.ok) throw new Error("加载抽奖配置失败");
   const json = await res.json();
-  const raw = json.data?.lottery?.big_screen_animation_type as
-    | BigScreenAnimationTypeValue
-    | undefined;
-  return raw ?? BigScreenAnimationType.ROLLING_MACHINE;
+  return json.data as ScreenStatePayload;
 }
 
 export function useLotteryScreenAnimation(
@@ -312,24 +326,75 @@ export function useLotteryScreenAnimation(
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    void fetchLotteryAnimationType(eventId, lotteryId)
-      .then((type) => {
-        if (!cancelled) {
-          setAnimationType(type);
-          setError(null);
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    function applyScreenState(data: ScreenStatePayload, fromPoll: boolean) {
+      const status = String(data.lottery?.status ?? "").toUpperCase();
+      const type =
+        data.lottery?.big_screen_animation_type ??
+        BigScreenAnimationType.ROLLING_MACHINE;
+      setAnimationType(type);
+      setTitle(data.lottery?.title || "闭幕全场大抽奖");
+      setEntryCount(data.lottery?.entry_count ?? 0);
+      if (data.rolling_entries?.length) {
+        setRollingEntries(data.rolling_entries);
+      }
+      if (data.winners?.length) {
+        setWinners(data.winners);
+        setProgress({
+          revealed: data.revealed_count ?? data.winners.length,
+          quota: data.winner_quota ?? data.winners.length,
+        });
+      }
+
+      // HTTP 兜底：错过 Realtime 广播时按服务端状态还原画面
+      setScreenPhase((prev) => {
+        if (prev === "animating" && fromPoll) return prev;
+        if (status === "FINISHED" || status === "ENDED") return "ended";
+        if (status === "DRAWING") {
+          if (data.winners && data.winners.length > 0) return "revealed";
+          return "animating";
         }
-      })
-      .catch((err) => {
-        if (!cancelled) {
+        if (prev !== "idle" && fromPoll) return prev;
+        return "idle";
+      });
+
+      if (
+        status === "DRAWING" &&
+        data.winners &&
+        data.winners.length > 0 &&
+        !fromPoll
+      ) {
+        const last = data.winners[data.winners.length - 1]!;
+        setCurrentWinner(last);
+        setCurrentWinners([last]);
+        setAnimPhase("revealed");
+      }
+    }
+
+    async function load(fromPoll = false) {
+      try {
+        const data = await fetchLotteryScreenState(eventId, lotteryId);
+        if (cancelled) return;
+        applyScreenState(data, fromPoll);
+        setError(null);
+      } catch (err) {
+        if (!cancelled && !fromPoll) {
           setError(err instanceof Error ? err.message : "加载失败");
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      } finally {
+        if (!cancelled && !fromPoll) setLoading(false);
+      }
+    }
+
+    setLoading(true);
+    void load(false);
+    // Realtime 不可用或广播丢失时，用轮询保证大屏能跟上控制台
+    pollTimer = setInterval(() => void load(true), 2500);
+
     return () => {
       cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
     };
   }, [eventId, lotteryId]);
 

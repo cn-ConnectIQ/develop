@@ -8,6 +8,7 @@ import {
   useLotteryScreenAnimation,
 } from "@/components/screen/lottery-animations";
 import { cn } from "@/lib/utils";
+import { withPublicPath } from "@/lib/public-path";
 
 export type LotteryScreenDisplayClientProps = {
   eventId: string;
@@ -82,7 +83,9 @@ function LotteryScreenDisplayInner({
     void (async () => {
       try {
         const res = await fetch(
-          `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+          withPublicPath(
+            `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+          ),
         );
         if (!res.ok) return;
         const json = await res.json();

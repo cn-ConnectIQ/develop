@@ -58,7 +58,9 @@ type ScreenState = {
 async function fetchGrandLottery(eventId: string, lotteryId?: string | null) {
   const params = new URLSearchParams({ category: "POOL_DRAW" });
   if (lotteryId) params.set("lottery_id", lotteryId);
-  const res = await fetch(`/api/events/${eventId}/lotteries?${params.toString()}`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/lotteries?${params.toString()}`),
+  );
   if (!res.ok) throw new Error("加载失败");
   const lotteries = (await res.json()).data.lotteries as OrganizerLotteryDto[];
   return lotteries[0] ?? null;
@@ -66,7 +68,9 @@ async function fetchGrandLottery(eventId: string, lotteryId?: string | null) {
 
 async function fetchScreenState(eventId: string, lotteryId: string) {
   const res = await fetch(
-    `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+    withPublicPath(
+      `/api/events/${eventId}/lotteries/${lotteryId}/screen-state`,
+    ),
   );
   if (!res.ok) throw new Error("加载状态失败");
   return (await res.json()).data as ScreenState;
@@ -172,13 +176,19 @@ export function LotteryScreenConsole({
     setAnimating(true);
     try {
       const res = await fetch(
-        `/api/events/${eventId}/lotteries/${lotteryId}/start-screen`,
+        withPublicPath(
+          `/api/events/${eventId}/lotteries/${lotteryId}/start-screen`,
+        ),
         { method: "POST" },
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "启动失败");
       setStarted(true);
-      toast.success("大屏动画已启动");
+      if (json.data?.sent === false) {
+        toast.warning("已启动，实时通道未连通；大屏将通过轮询同步");
+      } else {
+        toast.success("大屏动画已启动");
+      }
       refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "启动失败");
@@ -192,8 +202,14 @@ export function LotteryScreenConsole({
     setRevealing(true);
     try {
       const res = await fetch(
-        `/api/events/${eventId}/lotteries/${lotteryId}/reveal-winner`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+        withPublicPath(
+          `/api/events/${eventId}/lotteries/${lotteryId}/reveal-winner`,
+        ),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        },
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "揭晓失败");
@@ -214,7 +230,9 @@ export function LotteryScreenConsole({
     setTierAction(tier);
     try {
       const res = await fetch(
-        `/api/events/${eventId}/lotteries/${lotteryId}/draw-tier`,
+        withPublicPath(
+          `/api/events/${eventId}/lotteries/${lotteryId}/draw-tier`,
+        ),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -238,7 +256,9 @@ export function LotteryScreenConsole({
     setTierAction(tier);
     try {
       const res = await fetch(
-        `/api/events/${eventId}/lotteries/${lotteryId}/draw-tier`,
+        withPublicPath(
+          `/api/events/${eventId}/lotteries/${lotteryId}/draw-tier`,
+        ),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
