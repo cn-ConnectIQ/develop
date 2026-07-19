@@ -109,7 +109,7 @@ export function EditParticipantSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-[480px]">
+      <SheetContent className="flex w-full flex-col sm:max-w-[480px]">
         <SheetHeader>
           <SheetTitle>编辑参会者</SheetTitle>
           <SheetDescription>
@@ -120,13 +120,17 @@ export function EditParticipantSheet({
         </SheetHeader>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="mt-6 space-y-4"
+          className="mt-6 flex flex-1 flex-col space-y-5"
         >
           <div className="space-y-2">
             <Label htmlFor="edit-name">姓名 *</Label>
-            <Input id="edit-name" {...form.register("name")} />
+            <Input
+              id="edit-name"
+              placeholder="例如：张三"
+              {...form.register("name")}
+            />
             {form.formState.errors.name ? (
-              <p className="text-xs text-destructive">
+              <p className="text-xs text-brand-red">
                 {form.formState.errors.name.message}
               </p>
             ) : null}
@@ -135,44 +139,61 @@ export function EditParticipantSheet({
             <Label htmlFor="edit-phone">手机号 *</Label>
             <Input
               id="edit-phone"
+              placeholder="11 位手机号"
+              inputMode="tel"
               {...form.register("phone")}
               disabled={phoneLocked}
-              className={phoneLocked ? "bg-muted text-muted-foreground" : undefined}
+              className={
+                phoneLocked ? "bg-surface-secondary text-text-tertiary" : undefined
+              }
             />
             {phoneLocked ? (
               <p className="text-xs text-text-tertiary">
                 已激活账号绑定此手机号，无法更改
               </p>
             ) : form.formState.errors.phone ? (
-              <p className="text-xs text-destructive">
+              <p className="text-xs text-brand-red">
                 {form.formState.errors.phone.message}
               </p>
             ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="edit-email">邮箱</Label>
-            <Input id="edit-email" type="email" {...form.register("email")} />
+            <Input
+              id="edit-email"
+              type="email"
+              placeholder="可选"
+              {...form.register("email")}
+            />
             {form.formState.errors.email ? (
-              <p className="text-xs text-destructive">
+              <p className="text-xs text-brand-red">
                 {form.formState.errors.email.message}
               </p>
             ) : null}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-company">公司</Label>
-            <Input id="edit-company" {...form.register("company")} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="edit-company">公司</Label>
+              <Input
+                id="edit-company"
+                placeholder="可选"
+                {...form.register("company")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-job">职位</Label>
+              <Input
+                id="edit-job"
+                placeholder="可选"
+                {...form.register("jobTitle")}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-job">职位</Label>
-            <Input id="edit-job" {...form.register("jobTitle")} />
+          <div className="mt-auto pt-2">
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "保存中..." : "保存修改"}
+            </Button>
           </div>
-          <Button
-            type="submit"
-            className="w-full bg-brand-blue text-white hover:bg-brand-blue/90"
-            disabled={submitting}
-          >
-            {submitting ? "保存中..." : "保存修改"}
-          </Button>
         </form>
       </SheetContent>
     </Sheet>
