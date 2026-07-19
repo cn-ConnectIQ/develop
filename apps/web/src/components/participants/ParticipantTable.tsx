@@ -33,6 +33,7 @@ import {
 } from "@/lib/invite/message";
 import { MessagePreview } from "@/components/invites/MessagePreview";
 import { EditParticipantSheet } from "@/components/participants/EditParticipantSheet";
+import { ParticipantDetailSheet } from "@/components/participants/ParticipantDetailSheet";
 import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import { useCurrentEvent } from "@/contexts/event-context";
 import { withPublicPath } from "@/lib/public-path";
@@ -159,6 +160,7 @@ export function ParticipantTable({
     () => buildInviteShortUrl("{短码}"),
   );
   const [editTarget, setEditTarget] = useState<ParticipantRow | null>(null);
+  const [detailTarget, setDetailTarget] = useState<ParticipantRow | null>(null);
 
   function openInviteDialog(p: ParticipantRow) {
     const preferSms = Boolean(p.phone?.trim());
@@ -570,15 +572,7 @@ export function ParticipantTable({
                   <UserRound className="size-4" />
                   编辑信息
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    toast.message(`${p.name}`, {
-                      description: [p.company, p.phone, p.email]
-                        .filter(Boolean)
-                        .join(" · ") || "暂无更多信息",
-                    });
-                  }}
-                >
+                <DropdownMenuItem onClick={() => setDetailTarget(p)}>
                   <CreditCard className="size-4" />
                   查看名片
                 </DropdownMenuItem>
@@ -1065,6 +1059,15 @@ export function ParticipantTable({
           if (!open) setEditTarget(null);
         }}
         onSuccess={onRefresh}
+      />
+
+      <ParticipantDetailSheet
+        eventId={eventId}
+        participant={detailTarget}
+        open={Boolean(detailTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null);
+        }}
       />
     </>
   );

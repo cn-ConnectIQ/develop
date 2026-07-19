@@ -15,11 +15,29 @@ import {
 import { maybeTriggerReferralScanOnCheckin } from "@/lib/ai/referral-scanner";
 import { normalizeInvitePhone } from "@/lib/invite/phone";
 import { hashInvitePhone } from "@/lib/invite/token";
+import { getParticipantActivationDetail } from "@/lib/participant-activation-detail";
 import { serializeParticipantRow } from "@/lib/participant-serialize";
 import {
   mergeParticipantTags,
   normalizeParticipantTags,
 } from "@/lib/participant-tags";
+
+export const GET = withErrorHandler(async (_request, context) => {
+  const eventId = context?.params?.eventId;
+  const participantId = context?.params?.participantId;
+  if (!eventId || !participantId) {
+    return createErrorResponse("参数缺失", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  await requireEventAccess(eventId);
+
+  const detail = await getParticipantActivationDetail(eventId, participantId);
+  if (!detail) {
+    return createErrorResponse("参会者不存在", ErrorCode.NOT_FOUND, 404);
+  }
+
+  return createSuccessResponse(detail);
+});
 
 const patchSchema = z.object({
   name: z.string().optional(),
