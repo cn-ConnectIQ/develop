@@ -5,6 +5,7 @@ import { Trophy } from "lucide-react";
 import { SectionCard } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
 import { backgroundPoll } from "@/lib/query-options";
+import { withPublicPath } from "@/lib/public-path";
 
 export type StampMonitorBooth = {
   booth_id: string;
@@ -19,7 +20,9 @@ export type StampMonitorData = {
 };
 
 async function fetchStampMonitor(eventId: string): Promise<StampMonitorData> {
-  const res = await fetch(`/api/account/events/${eventId}/stamp-monitor`);
+  const res = await fetch(
+    withPublicPath(`/api/account/events/${eventId}/stamp-monitor`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data as StampMonitorData;
 }

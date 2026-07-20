@@ -355,12 +355,6 @@ function getEventNavigationGroups(
                 icon: ScanLine,
               },
               {
-                label: "互动大屏",
-                href: `/events/${eventId}/interactions/bigscreen`,
-                icon: Monitor,
-                external: true,
-              },
-              {
                 label: "大屏配对",
                 href: `/events/${eventId}/screen-pairings`,
                 icon: Monitor,

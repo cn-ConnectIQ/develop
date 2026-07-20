@@ -10,6 +10,7 @@ import {
 import { StampMonitorPanel } from "@/components/expo/StampMonitorPanel";
 import { Button } from "@/components/ui/button";
 import { backgroundPoll } from "@/lib/query-options";
+import { withPublicPath } from "@/lib/public-path";
 
 export function StampMonitorClient({
   eventId,
@@ -21,7 +22,9 @@ export function StampMonitorClient({
   const { refetch } = useQuery({
     queryKey: ["stamp-monitor", eventId],
     queryFn: async () => {
-      const res = await fetch(`/api/account/events/${eventId}/stamp-monitor`);
+      const res = await fetch(
+        withPublicPath(`/api/account/events/${eventId}/stamp-monitor`),
+      );
       if (!res.ok) throw new Error("加载失败");
       return (await res.json()).data;
     },

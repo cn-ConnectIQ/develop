@@ -100,7 +100,7 @@ export function StampRallyHubClient({
         actions={
           <div className="flex items-center gap-2">
             <Link
-              href="#monitor"
+              href={`/events/${eventId}/stamp-monitor`}
               className={buttonVariants({ variant: "outline" })}
             >
               <BarChart3 className="mr-1.5 size-4" />
