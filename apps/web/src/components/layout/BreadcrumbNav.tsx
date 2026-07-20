@@ -19,6 +19,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   checkin: "签到看板",
   bigscreen: "大屏",
   interactions: "互动管理",
+  "screen-pairings": "大屏配对",
   reports: "数据报告",
   exhibitors: "展商管理",
   map: "展位地图",
