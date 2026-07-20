@@ -33,8 +33,14 @@ const PUBLIC_PATHS = [
   "/b/",
   "/o/",
   "/j/",
+  "/st/",
   "/optout",
 ] as const;
+
+/** 现场投影配对唯一短链入口 https://9li.co/s */
+function isScreenPairingEntry(pathname: string) {
+  return pathname === "/s" || pathname === "/s/";
+}
 
 /** 现场投影大屏：可不登录打开（投票/抽奖 display） */
 function isPublicScreenPath(pathname: string) {
@@ -46,6 +52,7 @@ function isPublicScreenPath(pathname: string) {
 
 function isPublicPath(pathname: string) {
   if (isPublicScreenPath(pathname)) return true;
+  if (isScreenPairingEntry(pathname)) return true;
   return PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );

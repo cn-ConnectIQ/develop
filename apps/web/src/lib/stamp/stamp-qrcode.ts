@@ -6,19 +6,24 @@ import { storeUploadBuffer } from "@/lib/storage/upload";
 const QR_BUCKET = "stamp-qrcodes";
 const QR_SIZE = 400;
 
-function getAppBaseUrl() {
-  return (
+function getShortLinkOrigin() {
+  const raw =
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.NEXTAUTH_URL ??
-    "https://app.connectiq.cn"
-  ).replace(/\/$/, "");
+    "https://9li.co";
+  try {
+    const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    return url.origin;
+  } catch {
+    return "https://9li.co";
+  }
 }
 
 /** 章点扫码落地页（H5 / 微信内打开后引导小程序集章） */
 export function getStampScanUrl(stampId: string, scanCode: string) {
-  const base = getAppBaseUrl();
+  const base = getShortLinkOrigin();
   const params = new URLSearchParams({ code: scanCode });
-  return `${base}/s/${stampId}?${params.toString()}`;
+  return `${base}/st/${stampId}?${params.toString()}`;
 }
 
 export async function generateStampQRBuffer(
