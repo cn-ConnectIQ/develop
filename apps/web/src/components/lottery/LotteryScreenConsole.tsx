@@ -140,10 +140,10 @@ export function LotteryScreenConsole({
   });
 
   useEffect(() => {
-    if (state?.lottery.status === "DRAWING") {
+    if (state?.lottery.status === "DRAWING" || state?.active_tier != null) {
       setStarted(true);
     }
-  }, [state?.lottery.status]);
+  }, [state?.lottery.status, state?.active_tier]);
 
   const countdown = useCountdown(state?.lottery.draw_at ?? null);
 
@@ -290,7 +290,11 @@ export function LotteryScreenConsole({
 
   const isTierMode = state?.lottery.prize_draw_order === "ASC";
   const nextTier = state?.tiers.find((t) => t.is_next);
-  const activeTierState = state?.tiers.find((t) => t.is_active);
+  const activeTierState =
+    state?.tiers.find((t) => t.is_active) ??
+    state?.tiers.find(
+      (t) => state.active_tier != null && t.tier === state.active_tier,
+    );
 
   async function endCeremony() {
     if (!lotteryId) return;
@@ -482,24 +486,13 @@ export function LotteryScreenConsole({
                   </div>
                 </div>
 
-                {isTierMode && activeTierState && (
-                  <div className="border-t border-white/10 px-7 py-5">
-                    <TierDrawControl
-                      embedded
-                      tier={activeTierState}
-                      drawing={tierAction === activeTierState.tier}
-                      onDraw={(mode) => drawTierWinners(activeTierState.tier, mode)}
-                    />
-                  </div>
-                )}
-
                 {isTierMode &&
                   started &&
                   nextTier &&
                   state?.active_tier == null &&
                   !nextTier.complete && (
                     <div className="border-t border-white/10 px-7 py-4 text-sm text-white/50">
-                      点击下方「开始{nextTier.label}抽奖」后，将在此选择
+                      点击下方「开始{nextTier.label}抽奖」后，将在下方操作区选择
                       <span className="mx-1 text-[#7DE0BE]">逐个抽取</span>或
                       <span className="mx-1 text-[#D4D0FF]">一次性抽完</span>
                     </div>
@@ -511,7 +504,7 @@ export function LotteryScreenConsole({
                   nextTier &&
                   !nextTier.complete && (
                     <div className="border-t border-white/10 px-7 py-4 text-sm text-white/50">
-                      先点击「初始化大屏」，再开始{nextTier.label}抽奖，即可在此选择抽取模式
+                      先点击「初始化大屏」，再开始{nextTier.label}抽奖，即可选择抽取模式
                     </div>
                   )}
               </div>
@@ -521,20 +514,7 @@ export function LotteryScreenConsole({
               <p className="text-sm font-semibold text-white/50">
                 动效：{animationMeta?.title ?? "摇号机"} · {statusLabel}
               </p>
-              {primaryAction && (
-                <Button
-                  className="h-20 w-full max-w-xs rounded-[20px] bg-gradient-to-br from-brand-green to-[#0B8A69] text-2xl font-extrabold text-white shadow-[0_12px_40px_rgba(15,110,86,0.5),0_0_60px_rgba(15,110,86,0.2)] hover:from-brand-green/90 hover:to-[#0B8A69]/90"
-                  disabled={primaryAction.disabled}
-                  onClick={primaryAction.onClick}
-                >
-                  {primaryAction.loading ? (
-                    <Loader2 className="mr-2 size-6 animate-spin" />
-                  ) : (
-                    <Sparkles className="mr-2 size-6" />
-                  )}
-                  {primaryAction.label}
-                </Button>
-              )}
+
               <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-white/40">
                 <span
                   className={cn(
@@ -571,6 +551,37 @@ export function LotteryScreenConsole({
                     : "③ 确认结果，进入下一等级"}
                 </span>
               </div>
+
+              {/* 步骤③：抽取模式放在主操作区（紧挨步骤条下方），避免空按钮区 */}
+              {isTierMode && activeTierState && !activeTierState.complete ? (
+                <div className="w-full max-w-xl space-y-4">
+                  <p className="text-center text-sm text-brand-gold">
+                    {tierMedal(activeTierState.tier)} {activeTierState.label}
+                    · {activeTierState.prize_name} · 请选择抽取模式
+                  </p>
+                  <TierDrawControl
+                    tier={activeTierState}
+                    drawing={tierAction === activeTierState.tier}
+                    onDraw={(mode) =>
+                      drawTierWinners(activeTierState.tier, mode)
+                    }
+                  />
+                </div>
+              ) : primaryAction ? (
+                <Button
+                  className="h-20 w-full max-w-xs rounded-[20px] bg-gradient-to-br from-brand-green to-[#0B8A69] text-2xl font-extrabold text-white shadow-[0_12px_40px_rgba(15,110,86,0.5),0_0_60px_rgba(15,110,86,0.2)] hover:from-brand-green/90 hover:to-[#0B8A69]/90"
+                  disabled={primaryAction.disabled}
+                  onClick={primaryAction.onClick}
+                >
+                  {primaryAction.loading ? (
+                    <Loader2 className="mr-2 size-6 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 size-6" />
+                  )}
+                  {primaryAction.label}
+                </Button>
+              ) : null}
+
               {countdown && (
                 <p className="font-mono text-lg text-brand-gold">距计划开奖 {countdown}</p>
               )}
