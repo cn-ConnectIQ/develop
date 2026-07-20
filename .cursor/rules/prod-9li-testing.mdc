@@ -1,0 +1,24 @@
+---
+description: 联调/审计/数据探测一律基于 9li.co 生产，禁止用本地 Supabase
+alwaysApply: true
+---
+
+# 生产环境测试约定
+
+- 线上站点：`https://9li.co/uc`
+- 活动/数据核查、功能冒烟、生成测试数据：**只针对 9li.co / CloudBase 环境 `connectiq-d6gc2sul3855abd4e`**
+- **禁止**再用本地 `packages/database/.env` 或 `apps/web/.env.local` 里的 **Supabase**（`gfkovguwkwuuimedmheo`）做结论性查询；那是旧库，活动 ID 与线上不一致
+
+## 推荐查询方式
+
+```bash
+tcb db execute -e connectiq-d6gc2sul3855abd4e --json -s "SELECT ..."
+```
+
+HTTP 冒烟用 `https://9li.co/uc/api/...`（需登录态时用用户 cookie / 已登录浏览器）。
+
+## 常见坑
+
+同名「智链未来产业博览会 2026」在 Supabase 与腾讯云库是**不同 ID**：
+- 线上：以浏览器地址栏 `/uc/events/{id}` 为准
+- 本地 Supabase 的 `cmqurkwkt…` / TEST1377 **不能**当作 9li.co 结论

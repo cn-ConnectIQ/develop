@@ -7,6 +7,31 @@ import {
 import { ErrorCode } from "@connectiq/types";
 import { ApiError } from "@/lib/api-auth";
 
+/**
+ * 活动对外生命周期唯一写入口。
+ * `status`（小程序/参会端）与 `reviewStatus`（后台展示）必须成对更新，禁止只改一侧。
+ */
+export type EventLifecyclePhase = "DRAFT" | "PUBLISHED" | "LIVE" | "ARCHIVED";
+
+export function eventLifecycleFields(phase: EventLifecyclePhase): {
+  status: EventStatus;
+  reviewStatus: ReviewStatus;
+} {
+  switch (phase) {
+    case "DRAFT":
+      return { status: EventStatus.DRAFT, reviewStatus: ReviewStatus.DRAFT };
+    case "PUBLISHED":
+      return {
+        status: EventStatus.PUBLISHED,
+        reviewStatus: ReviewStatus.PUBLISHED,
+      };
+    case "LIVE":
+      return { status: EventStatus.LIVE, reviewStatus: ReviewStatus.LIVE };
+    case "ARCHIVED":
+      return { status: EventStatus.ARCHIVED, reviewStatus: ReviewStatus.ENDED };
+  }
+}
+
 export async function archiveEvent(eventId: string) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) {
@@ -20,10 +45,7 @@ export async function archiveEvent(eventId: string) {
   }
   return prisma.event.update({
     where: { id: eventId },
-    data: {
-      status: EventStatus.ARCHIVED,
-      reviewStatus: ReviewStatus.ENDED,
-    },
+    data: eventLifecycleFields("ARCHIVED"),
   });
 }
 
@@ -34,6 +56,13 @@ export async function goLiveEvent(eventId: string) {
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
   if (event.status === EventStatus.LIVE) {
+    // 顺带修复历史脏数据：status 已 LIVE 但 reviewStatus 不一致
+    if (event.reviewStatus !== ReviewStatus.LIVE) {
+      return prisma.event.update({
+        where: { id: eventId },
+        data: eventLifecycleFields("LIVE"),
+      });
+    }
     return event;
   }
   if (
@@ -48,10 +77,7 @@ export async function goLiveEvent(eventId: string) {
   }
   return prisma.event.update({
     where: { id: eventId },
-    data: {
-      status: EventStatus.LIVE,
-      reviewStatus: ReviewStatus.LIVE,
-    },
+    data: eventLifecycleFields("LIVE"),
   });
 }
 
@@ -62,6 +88,12 @@ export async function endLiveEvent(eventId: string) {
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
   if (event.status === EventStatus.PUBLISHED) {
+    if (event.reviewStatus !== ReviewStatus.PUBLISHED) {
+      return prisma.event.update({
+        where: { id: eventId },
+        data: eventLifecycleFields("PUBLISHED"),
+      });
+    }
     return event;
   }
   if (event.status !== EventStatus.LIVE) {
@@ -73,10 +105,7 @@ export async function endLiveEvent(eventId: string) {
   }
   return prisma.event.update({
     where: { id: eventId },
-    data: {
-      status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.PUBLISHED,
-    },
+    data: eventLifecycleFields("PUBLISHED"),
   });
 }
 
@@ -91,10 +120,7 @@ export async function unarchiveEvent(eventId: string) {
   }
   return prisma.event.update({
     where: { id: eventId },
-    data: {
-      status: EventStatus.PUBLISHED,
-      reviewStatus: ReviewStatus.PUBLISHED,
-    },
+    data: eventLifecycleFields("PUBLISHED"),
   });
 }
 
@@ -137,6 +163,7 @@ export async function copyEvent(eventId: string, organizerId: string) {
   }
 
   const slug = uniqueSlug(source.slug);
+  const draft = eventLifecycleFields("DRAFT");
 
   return prisma.$transaction(async (tx) => {
     const copied = await tx.event.create({
@@ -145,8 +172,7 @@ export async function copyEvent(eventId: string, organizerId: string) {
         slug,
         type: source.type,
         activityType: source.activityType,
-        status: EventStatus.DRAFT,
-        reviewStatus: "DRAFT",
+        ...draft,
         description: source.description,
         location: source.location,
         startDate: source.startDate,

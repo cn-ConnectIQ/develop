@@ -1,4 +1,4 @@
-import { EventStatus, EventType, prisma } from "@connectiq/database";
+import { prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -13,7 +13,7 @@ import {
   categoryToDbType,
   type EventCategory,
 } from "@/lib/event-utils";
-import { deleteEvent } from "@/lib/event-lifecycle-service";
+import { deleteEvent, eventLifecycleFields } from "@/lib/event-lifecycle-service";
 
 const updateSchema = z.object({
   name: z.string().min(2).optional(),
@@ -125,6 +125,10 @@ export const PATCH = withErrorHandler(async (request, context) => {
     data.location?.trim() ||
     (locationParts.length > 0 ? locationParts.join(" · ") : undefined);
 
+  // 基本信息保存不得改动发布态。仅在平台打回/拒绝时成对回到草稿。
+  const resetToDraft =
+    review?.status === "REVISION_REQUIRED" || review?.status === "REJECTED";
+
   const updated = await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -138,10 +142,7 @@ export const PATCH = withErrorHandler(async (request, context) => {
       ...(location !== undefined ? { location } : {}),
       ...(data.startDate ? { startDate: new Date(data.startDate) } : {}),
       ...(data.endDate ? { endDate: new Date(data.endDate) } : {}),
-      status: EventStatus.DRAFT,
-      ...(review?.status === "REVISION_REQUIRED" || review?.status === "REJECTED"
-        ? { reviewStatus: "DRAFT" as const }
-        : {}),
+      ...(resetToDraft ? eventLifecycleFields("DRAFT") : {}),
     },
   });
 

@@ -10,6 +10,7 @@ import {
   assertTrialCanPublishEvent,
   recordTrialSignal,
 } from "@/lib/organizer-trial-service";
+import { eventLifecycleFields } from "@/lib/event-lifecycle-service";
 
 export class EventReviewError extends Error {
   constructor(
@@ -142,11 +143,11 @@ export async function cancelEventReview(eventId: string) {
     }
     await tx.event.update({
       where: { id: eventId },
-      data: { reviewStatus: ReviewStatus.DRAFT },
+      data: eventLifecycleFields("DRAFT"),
     });
   });
 
-  return { reviewStatus: ReviewStatus.DRAFT };
+  return { ...eventLifecycleFields("DRAFT") };
 }
 
 /** 已审核组织直接发布活动（无需平台再审） */
@@ -165,8 +166,9 @@ export async function publishEvent(eventId: string) {
   }
 
   if (
-    event.reviewStatus === ReviewStatus.PUBLISHED ||
-    event.reviewStatus === ReviewStatus.LIVE
+    event.status === EventStatus.PUBLISHED ||
+    event.status === EventStatus.LIVE ||
+    event.status === EventStatus.ARCHIVED
   ) {
     throw new EventReviewError("活动已发布", "ALREADY_PUBLISHED");
   }
@@ -184,19 +186,17 @@ export async function publishEvent(eventId: string) {
     await assertEventPackagePaidForPublish(event.orgId, eventId);
   }
 
+  const published = eventLifecycleFields("PUBLISHED");
   await prisma.event.update({
     where: { id: eventId },
-    data: {
-      reviewStatus: ReviewStatus.PUBLISHED,
-      status: EventStatus.PUBLISHED,
-    },
+    data: published,
   });
 
   if (event.orgId) {
     void recordTrialSignal(event.orgId, "event_published", { eventId });
   }
 
-  return { reviewStatus: ReviewStatus.PUBLISHED, status: EventStatus.PUBLISHED };
+  return published;
 }
 
 export function isEventLockedForReview(

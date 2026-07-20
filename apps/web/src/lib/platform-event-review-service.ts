@@ -1,12 +1,11 @@
 import {
   EventReviewStatus,
-  EventStatus,
   prisma,
-  ReviewStatus,
 } from "@connectiq/database";
 import { sendEventReviewNotificationEmail } from "@/lib/email";
 import { sendNotificationSms } from "@/lib/sms";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
+import { eventLifecycleFields } from "@/lib/event-lifecycle-service";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   CONFERENCE: "会议",
@@ -199,12 +198,10 @@ export async function reviewPlatformEvent(
   if (!review) throw new Error("REVIEW_NOT_FOUND");
 
   const reviewStatus = input.status as EventReviewStatus;
-  const eventReviewStatus =
+  const lifecycle =
     input.status === "APPROVED"
-      ? ReviewStatus.PUBLISHED
-      : ReviewStatus.DRAFT;
-  const eventStatus =
-    input.status === "APPROVED" ? EventStatus.PUBLISHED : review.event.status;
+      ? eventLifecycleFields("PUBLISHED")
+      : eventLifecycleFields("DRAFT");
 
   await prisma.$transaction([
     prisma.eventReview.update({
@@ -222,10 +219,7 @@ export async function reviewPlatformEvent(
     }),
     prisma.event.update({
       where: { id: review.eventId },
-      data: {
-        reviewStatus: eventReviewStatus,
-        ...(input.status === "APPROVED" ? { status: eventStatus } : {}),
-      },
+      data: lifecycle,
     }),
   ]);
 

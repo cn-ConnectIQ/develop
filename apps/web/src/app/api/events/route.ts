@@ -3,7 +3,6 @@ import {
   prisma,
   PrismaUserRole,
   EventType,
-  EventStatus,
 } from "@connectiq/database";
 import { UserRole as AppUserRole, ErrorCode } from "@connectiq/types";
 import { z } from "zod";
@@ -27,7 +26,7 @@ import {
   getEventPhase,
   slugify,
 } from "@/lib/event-utils";
-
+import { eventLifecycleFields } from "@/lib/event-lifecycle-service";
 const eventCategorySchema = z.enum(["SUMMIT", "EXPO", "SALON", "TRAINING"]);
 
 const createEventBodySchema = z.object({
@@ -219,7 +218,7 @@ export const POST = withErrorHandler(async (request) => {
       slug: slugify(data.name),
       type: data.type,
       activityType,
-      status: EventStatus.DRAFT,
+      ...eventLifecycleFields("DRAFT"),
       description: data.description,
       location: data.location,
       startDate,
