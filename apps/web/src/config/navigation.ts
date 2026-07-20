@@ -360,6 +360,12 @@ function getEventNavigationGroups(
                 icon: Monitor,
                 external: true,
               },
+              {
+                label: "大屏配对",
+                href: `/events/${eventId}/screen-pairings`,
+                icon: Monitor,
+                isNew: true,
+              },
             ],
           },
           {

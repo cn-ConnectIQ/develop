@@ -3,12 +3,9 @@
 import {
   Bell,
   CheckSquare,
-  ClipboardList,
-  Cloud,
   MessageSquare,
   Star,
   ToggleLeft,
-  Trophy,
 } from "lucide-react";
 import {
   Popover,
@@ -20,12 +17,9 @@ import { cn } from "@/lib/utils";
 export type InteractionCreateType =
   | "SINGLE_CHOICE"
   | "MULTI_CHOICE"
-  | "WORD_CLOUD"
   | "RATING"
-  | "SURVEY"
   | "QNA"
-  | "ANNOUNCEMENT"
-  | "QUIZ";
+  | "ANNOUNCEMENT";
 
 const TYPE_CARDS: Array<{
   type: InteractionCreateType;
@@ -33,8 +27,6 @@ const TYPE_CARDS: Array<{
   iconClass: string;
   label: string;
   desc: string;
-  disabled?: boolean;
-  highlight?: boolean;
 }> = [
   {
     type: "SINGLE_CHOICE",
@@ -51,25 +43,11 @@ const TYPE_CARDS: Array<{
     desc: "多个选项",
   },
   {
-    type: "WORD_CLOUD",
-    icon: Cloud,
-    iconClass: "text-cyan-500",
-    label: "词云",
-    desc: "关键词收集",
-  },
-  {
     type: "RATING",
     icon: Star,
     iconClass: "text-brand-gold",
     label: "评分",
     desc: "1-5 星",
-  },
-  {
-    type: "SURVEY",
-    icon: ClipboardList,
-    iconClass: "text-brand-purple",
-    label: "问卷",
-    desc: "多题合一",
   },
   {
     type: "QNA",
@@ -85,21 +63,12 @@ const TYPE_CARDS: Array<{
     label: "公告",
     desc: "推送消息",
   },
-  {
-    type: "QUIZ",
-    icon: Trophy,
-    iconClass: "text-brand-gold",
-    label: "测验",
-    desc: "coming-soon",
-    disabled: true,
-  },
 ];
 
 type InteractionTypePopoverProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (type: InteractionCreateType) => void;
-  disabledTypes?: InteractionCreateType[];
   children: React.ReactNode;
 };
 
@@ -107,7 +76,6 @@ export function InteractionTypePopover({
   open,
   onOpenChange,
   onSelect,
-  disabledTypes = [],
   children,
 }: InteractionTypePopoverProps) {
   return (
@@ -118,39 +86,28 @@ export function InteractionTypePopover({
         side="bottom"
         className="w-[320px] rounded-2xl border border-border-light bg-white p-4 shadow-lg"
       >
-        <p className="mb-3 text-sm font-semibold">选择互动类型</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {TYPE_CARDS.map((card) => {
             const Icon = card.icon;
-            const isDisabled =
-              card.disabled || disabledTypes.includes(card.type);
             return (
               <button
                 key={card.type}
                 type="button"
-                disabled={isDisabled}
                 onClick={() => {
-                  if (isDisabled) return;
                   onSelect(card.type);
                   onOpenChange(false);
                 }}
                 className={cn(
-                  "relative flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-border-light bg-content-bg p-3 transition-colors",
-                  !isDisabled &&
-                    "hover:border-brand-blue hover:bg-brand-blue-light/20",
-                  isDisabled && "cursor-not-allowed opacity-60",
-                  card.highlight && !isDisabled && "ring-1 ring-brand-red/20",
+                  "flex flex-col items-start gap-1 rounded-xl border border-border-light bg-surface px-3 py-3 text-left transition-colors hover:border-brand-blue/40 hover:bg-brand-blue/5",
                 )}
               >
-                <Icon className={cn("size-5", card.iconClass)} />
-                <span className="text-[12px] font-medium">{card.label}</span>
-                {card.type === "QUIZ" ? (
-                  <span className="rounded bg-gray-100 px-1 text-[8px] text-gray-400">
-                    coming-soon
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-text-muted">{card.desc}</span>
-                )}
+                <Icon className={cn("size-4", card.iconClass)} />
+                <span className="text-sm font-medium text-text-primary">
+                  {card.label}
+                </span>
+                <span className="text-[11px] text-text-tertiary">
+                  {card.desc}
+                </span>
               </button>
             );
           })}

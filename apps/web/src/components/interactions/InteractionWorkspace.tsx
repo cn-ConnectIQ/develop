@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BarChart2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { AnnouncementWorkspace } from "@/components/interactions/AnnouncementWorkspace";
 import { QnaManager } from "@/components/interactions/QnaManager";
 import { InteractionTitleInput } from "@/components/interactions/InteractionTitleInput";
 import { InteractionSettings } from "@/components/interactions/InteractionSettings";
@@ -66,6 +67,27 @@ export function InteractionWorkspace({
         <p className="mt-3 text-sm text-text-muted">选择左侧的互动进行编辑</p>
         <p className="mt-1 text-xs text-text-tertiary">
           或点击「+ 创建互动」开始
+        </p>
+      </div>
+    );
+  }
+
+  if (selection.kind === "announcement") {
+    return (
+      <AnnouncementWorkspace
+        eventId={eventId}
+        item={selection}
+        onRefresh={onRefresh}
+        onDelete={onDelete}
+      />
+    );
+  }
+
+  if (selection.kind === "lottery") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <p className="text-sm text-text-muted">
+          抽奖请在「现场抽奖」菜单中管理
         </p>
       </div>
     );

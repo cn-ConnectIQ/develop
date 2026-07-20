@@ -27,30 +27,50 @@ import {
 import { withPublicPath } from "@/lib/public-path";
 
 async function fetchInteractions(eventId: string) {
-  const pollsRes = await fetch(
-    withPublicPath(`/api/events/${eventId}/polls`),
-  );
+  const [pollsRes, announcementsRes] = await Promise.all([
+    fetch(withPublicPath(`/api/events/${eventId}/polls`)),
+    fetch(withPublicPath(`/api/events/${eventId}/announcements`)),
+  ]);
+
   if (!pollsRes.ok) {
     const json = await pollsRes.json().catch(() => null);
     throw new Error(json?.error ?? "加载投票失败");
   }
+
   const pollsJson = await pollsRes.json();
   const pollsData = pollsJson.data as
     | { polls: PollListItem[]; sessions: SessionOption[] }
     | PollListItem[];
   const rawPolls = Array.isArray(pollsData) ? pollsData : pollsData.polls;
-  const polls = rawPolls.map((poll) => ({
-    ...poll,
-    _count: {
-      responses:
-        poll._count?.responses ??
-        (poll as { participant_count?: number }).participant_count ??
-        0,
-    },
-  }));
+  const polls = rawPolls
+    .filter((poll) => poll.type !== "ANNOUNCEMENT")
+    .map((poll) => ({
+      ...poll,
+      _count: {
+        responses:
+          poll._count?.responses ??
+          (poll as { participant_count?: number }).participant_count ??
+          0,
+      },
+    }));
   const sessions = Array.isArray(pollsData) ? [] : pollsData.sessions;
 
-  return { polls, sessions };
+  let announcements: Array<{
+    id: string;
+    title: string;
+    content: string;
+    isPinned?: boolean;
+    is_pinned?: boolean;
+    publishedAt?: string;
+    published_at?: string;
+  }> = [];
+  if (announcementsRes.ok) {
+    const annJson = await announcementsRes.json();
+    announcements =
+      annJson.data?.announcements ?? annJson.data?.items ?? [];
+  }
+
+  return { polls, sessions, announcements };
 }
 
 export function InteractionsManagerClient({ eventId }: { eventId: string }) {
@@ -64,7 +84,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   });
 
   const items = useMemo(
-    () => mergeInteractions(data?.polls ?? [], []),
+    () => mergeInteractions(data?.polls ?? [], [], data?.announcements ?? []),
     [data],
   );
 
@@ -76,12 +96,30 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
 
   const createMutation = useMutation({
     mutationFn: async (type: InteractionCreateType) => {
-      const pollType =
-        type === "SURVEY"
-          ? "MULTI_CHOICE"
-          : type === "QUIZ"
-            ? "SINGLE_CHOICE"
-            : type;
+      if (type === "ANNOUNCEMENT") {
+        const res = await fetch(
+          withPublicPath(`/api/events/${eventId}/announcements`),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: "现场公告",
+              content: "请在此填写公告正文。",
+              isPinned: false,
+            }),
+          },
+        );
+        if (!res.ok) {
+          const json = await res.json().catch(() => null);
+          throw new Error(
+            typeof json?.error === "string" ? json.error : "创建公告失败",
+          );
+        }
+        return {
+          kind: "announcement" as const,
+          data: (await res.json()).data as { id: string },
+        };
+      }
 
       const res = await fetch(
         withPublicPath(`/api/events/${eventId}/polls`),
@@ -89,10 +127,10 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: getDefaultPollTitle(pollType),
-            type: pollType,
+            title: getDefaultPollTitle(type),
+            type,
             status: "DRAFT",
-            options: getDefaultPollOptions(pollType),
+            options: getDefaultPollOptions(type),
           }),
         },
       );
@@ -102,7 +140,9 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
     onSuccess: (result) => {
       refresh();
       setSelectedId(result.data.id);
-      toast.success("已创建草稿");
+      toast.success(
+        result.kind === "announcement" ? "公告已发布，可继续编辑" : "已创建草稿",
+      );
     },
     onError: (e) =>
       toast.error(e instanceof Error ? e.message : "创建失败"),
@@ -136,12 +176,11 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   }
 
   async function handleDelete(item: InteractionItem) {
-    const res = await fetch(
-      withPublicPath(`/api/events/${eventId}/polls/${item.id}`),
-      {
-        method: "DELETE",
-      },
-    );
+    const path =
+      item.kind === "announcement"
+        ? `/api/events/${eventId}/announcements/${item.id}`
+        : `/api/events/${eventId}/polls/${item.id}`;
+    const res = await fetch(withPublicPath(path), { method: "DELETE" });
     if (!res.ok) {
       toast.error("删除失败");
       return;
@@ -152,6 +191,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   }
 
   function handleActivate(item: InteractionItem) {
+    if (item.kind !== "poll") return;
     void (async () => {
       try {
         const pushResult = await updatePollStatus(item.id, "LIVE", true);
@@ -169,6 +209,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   }
 
   function handlePause(item: InteractionItem) {
+    if (item.kind !== "poll") return;
     void (async () => {
       try {
         await updatePollStatus(item.id, "PAUSED");
@@ -180,6 +221,7 @@ export function InteractionsManagerClient({ eventId }: { eventId: string }) {
   }
 
   function handleStop(item: InteractionItem) {
+    if (item.kind !== "poll") return;
     void (async () => {
       try {
         await updatePollStatus(item.id, "CLOSED");

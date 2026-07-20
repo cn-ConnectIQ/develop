@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import type { ApiStampRally } from "@/lib/stamp-rally-service";
+import { withPublicPath } from "@/lib/public-path";
 
 export type BoothOption = {
   id: string;
@@ -112,7 +113,10 @@ export function StampRallyConfigSheet({
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const res = await fetch(withPublicPath("/api/upload"), {
+        method: "POST",
+        body: form,
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "上传失败");
       setPrizeImageUrl(json.data?.url ?? json.url);
@@ -140,9 +144,11 @@ export function StampRallyConfigSheet({
 
     setSaving(true);
     try {
-      const url = editRally
-        ? `/api/events/${eventId}/stamp-rallies/${editRally.id}`
-        : `/api/events/${eventId}/stamp-rallies`;
+      const url = withPublicPath(
+        editRally
+          ? `/api/events/${eventId}/stamp-rallies/${editRally.id}`
+          : `/api/events/${eventId}/stamp-rallies`,
+      );
       const res = await fetch(url, {
         method: editRally ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },

@@ -25,15 +25,19 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   ENDED: { label: "已结束", className: "bg-gray-100 text-text-muted" },
 };
 
+import { withPublicPath } from "@/lib/public-path";
+
 async function fetchRallies(eventId: string) {
-  const res = await fetch(`/api/events/${eventId}/stamp-rallies`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/stamp-rallies`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data.rallies as ApiStampRally[];
 }
 
 async function fetchBooths(eventId: string) {
   const res = await fetch(
-    `/api/events/${eventId}/stamp-rallies?include=booths`,
+    withPublicPath(`/api/events/${eventId}/stamp-rallies?include=booths`),
   );
   if (!res.ok) throw new Error("加载展位失败");
   return (await res.json()).data.booths as BoothOption[];
@@ -67,7 +71,7 @@ export function StampRallyPageClient({
 
   async function startRally(rally: ApiStampRally) {
     const res = await fetch(
-      `/api/events/${eventId}/stamp-rallies/${rally.id}`,
+      withPublicPath(`/api/events/${eventId}/stamp-rallies/${rally.id}`),
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

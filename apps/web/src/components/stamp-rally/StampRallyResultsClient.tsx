@@ -11,11 +11,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ApiStampRallyWinner } from "@/lib/stamp-rally-service";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 async function fetchWinners(eventId: string, rallyId: string) {
   const res = await fetch(
-    `/api/events/${eventId}/stamp-rallies/${rallyId}/winners`,
+    withPublicPath(
+      `/api/events/${eventId}/stamp-rallies/${rallyId}/winners`,
+    ),
   );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data.winners as ApiStampRallyWinner[];
@@ -39,7 +42,9 @@ export function StampRallyResultsClient({
 
   async function toggleRedeemed(winner: ApiStampRallyWinner) {
     const res = await fetch(
-      `/api/events/${eventId}/stamp-rallies/${rallyId}/winners`,
+      withPublicPath(
+        `/api/events/${eventId}/stamp-rallies/${rallyId}/winners`,
+      ),
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

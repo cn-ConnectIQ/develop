@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { ApiStampRally } from "@/lib/stamp-rally-service";
 import { cn } from "@/lib/utils";
+import { withPublicPath } from "@/lib/public-path";
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "草稿", className: "bg-brand-amber-light text-brand-amber" },
@@ -23,7 +24,9 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
 };
 
 async function fetchRallies(eventId: string) {
-  const res = await fetch(`/api/events/${eventId}/stamp-rallies`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/stamp-rallies`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data.rallies as ApiStampRally[];
 }
@@ -56,7 +59,7 @@ export function StampRallyHubClient({
 
   async function startRally(rally: ApiStampRally) {
     const res = await fetch(
-      `/api/events/${eventId}/stamp-rallies/${rally.id}`,
+      withPublicPath(`/api/events/${eventId}/stamp-rallies/${rally.id}`),
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -68,6 +71,23 @@ export function StampRallyHubClient({
       return;
     }
     toast.success("集章路线已开始");
+    refresh();
+  }
+
+  async function endRally(rally: ApiStampRally) {
+    const res = await fetch(
+      withPublicPath(`/api/events/${eventId}/stamp-rallies/${rally.id}`),
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ENDED" }),
+      },
+    );
+    if (!res.ok) {
+      toast.error("结束失败");
+      return;
+    }
+    toast.success("集章已结束，不再接受新打卡");
     refresh();
   }
 
@@ -190,6 +210,16 @@ export function StampRallyHubClient({
                       onClick={() => void startRally(rally)}
                     >
                       发布
+                    </Button>
+                  )}
+                  {rally.status === "ACTIVE" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-brand-red/40 text-brand-red hover:bg-brand-red/5"
+                      onClick={() => void endRally(rally)}
+                    >
+                      结束集章
                     </Button>
                   )}
                   {(rally.status === "ACTIVE" || rally.status === "ENDED") && (

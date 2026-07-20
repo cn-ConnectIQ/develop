@@ -21,9 +21,13 @@ type ProgressRow = {
   last_stamped_at: string | null;
 };
 
+import { withPublicPath } from "@/lib/public-path";
+
 async function fetchProgress(eventId: string, rallyId: string) {
   const res = await fetch(
-    `/api/events/${eventId}/stamp-rallies/${rallyId}/progress`,
+    withPublicPath(
+      `/api/events/${eventId}/stamp-rallies/${rallyId}/progress`,
+    ),
   );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data.progress as ProgressRow[];

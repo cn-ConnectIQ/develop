@@ -68,6 +68,7 @@ type InteractionSidebarProps = {
 };
 
 function itemFilterTab(item: InteractionItem): FilterTab {
+  if (item.kind === "announcement") return "live";
   const live =
     item.kind === "poll" ? isPollLive(item.status) : isLotteryLive(item.status);
   const draftOrPaused =
@@ -180,46 +181,72 @@ function InteractionListItem({
   onResume: () => void;
 }) {
   const live =
-    item.kind === "poll" ? isPollLive(item.status) : isLotteryLive(item.status);
+    item.kind === "announcement"
+      ? true
+      : item.kind === "poll"
+        ? isPollLive(item.status)
+        : isLotteryLive(item.status);
   const paused = item.kind === "poll" && isPollPaused(item.status);
   const draft =
-    item.kind === "poll" ? isPollDraft(item.status) : isLotteryDraft(item.status);
+    item.kind === "announcement"
+      ? false
+      : item.kind === "poll"
+        ? isPollDraft(item.status)
+        : isLotteryDraft(item.status);
   const closed =
-    item.kind === "poll" ? isPollClosed(item.status) : isLotteryClosed(item.status);
+    item.kind === "announcement"
+      ? false
+      : item.kind === "poll"
+        ? isPollClosed(item.status)
+        : isLotteryClosed(item.status);
 
   const typeLabel =
-    item.kind === "poll"
-      ? INTERACTION_TYPE_SHORT[item.type] ?? item.type
-      : "抽奖";
+    item.kind === "announcement"
+      ? "公告"
+      : item.kind === "poll"
+        ? (INTERACTION_TYPE_SHORT[item.type] ?? item.type)
+        : "抽奖";
 
   const Icon =
-    item.kind === "lottery" ? Gift : (POLL_ICONS[item.type] ?? ToggleLeft);
+    item.kind === "lottery"
+      ? Gift
+      : item.kind === "announcement"
+        ? Bell
+        : (POLL_ICONS[item.type] ?? ToggleLeft);
 
   const iconTone =
     item.kind === "lottery"
       ? "bg-violet-50 text-violet-600"
-      : (POLL_TYPE_BADGE[item.type] ?? "bg-gray-100 text-text-muted");
+      : item.kind === "announcement"
+        ? "bg-orange-50 text-orange-600"
+        : (POLL_TYPE_BADGE[item.type] ?? "bg-gray-100 text-text-muted");
 
   const count = getInteractionResponseCount(item);
 
-  const statusLabel = live
-    ? "进行中"
-    : paused
-      ? "已暂停"
-      : draft
-        ? "草稿"
-        : closed
-          ? "已结束"
-          : undefined;
-  const statusVariant = live
+  const statusLabel = item.kind === "announcement"
+    ? item.isPinned
+      ? "置顶"
+      : "已发布"
+    : live
+      ? "进行中"
+      : paused
+        ? "已暂停"
+        : draft
+          ? "草稿"
+          : closed
+            ? "已结束"
+            : undefined;
+  const statusVariant = item.kind === "announcement"
     ? "live"
-    : paused
-      ? "draft"
-      : draft
+    : live
+      ? "live"
+      : paused
         ? "draft"
-        : closed
-          ? "ended"
-          : "default";
+        : draft
+          ? "draft"
+          : closed
+            ? "ended"
+            : "default";
 
   return (
     <SelectableListItem
@@ -229,12 +256,18 @@ function InteractionListItem({
       iconClassName={iconTone}
       typeLabel={typeLabel}
       title={item.title}
-      meta={`${count} 人参与`}
+      meta={
+        item.kind === "announcement"
+          ? item.isPinned
+            ? "置顶公告"
+            : "已发布"
+          : `${count} 人参与`
+      }
       statusLabel={statusLabel}
       statusVariant={statusVariant}
       onClick={onSelect}
       actions={
-        live ? (
+        item.kind === "announcement" ? undefined : live ? (
           <>
             <ListIconAction
               title="暂停"

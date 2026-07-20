@@ -29,11 +29,27 @@ export type InteractionLotteryItem = LotteryListItem & {
   kind: "lottery";
 };
 
-export type InteractionItem = InteractionPollItem | InteractionLotteryItem;
+export type InteractionAnnouncementItem = {
+  kind: "announcement";
+  id: string;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  publishedAt: string;
+  /** 列表筛选用：公告发布即视为进行中 */
+  status: "LIVE";
+  type: "ANNOUNCEMENT";
+};
+
+export type InteractionItem =
+  | InteractionPollItem
+  | InteractionLotteryItem
+  | InteractionAnnouncementItem;
 
 export type InteractionSelection =
   | { kind: "poll"; data: InteractionPollItem }
   | { kind: "lottery"; data: InteractionLotteryItem }
+  | { kind: "announcement"; data: InteractionAnnouncementItem }
   | null;
 
 export type InteractionsPageData = {
@@ -90,12 +106,22 @@ export function getInteractionResponseCount(item: InteractionItem): number {
   if (item.kind === "poll") {
     return item._count?.responses ?? 0;
   }
+  if (item.kind === "announcement") return 0;
   return item.entryCount ?? item._count?.entries ?? 0;
 }
 
 export function mergeInteractions(
   polls: PollListItem[],
   lotteries: LotteryListItem[],
+  announcements: Array<{
+    id: string;
+    title: string;
+    content: string;
+    isPinned?: boolean;
+    is_pinned?: boolean;
+    publishedAt?: string;
+    published_at?: string;
+  }> = [],
 ): InteractionItem[] {
   const pollItems: InteractionPollItem[] = polls.map((p) => ({
     ...p,
@@ -105,8 +131,21 @@ export function mergeInteractions(
     ...l,
     kind: "lottery" as const,
   }));
+  const announcementItems: InteractionAnnouncementItem[] = announcements.map(
+    (a) => ({
+      kind: "announcement" as const,
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      isPinned: Boolean(a.isPinned ?? a.is_pinned),
+      publishedAt: a.publishedAt ?? a.published_at ?? new Date().toISOString(),
+      status: "LIVE" as const,
+      type: "ANNOUNCEMENT" as const,
+    }),
+  );
 
   const statusOrder = (item: InteractionItem) => {
+    if (item.kind === "announcement") return item.isPinned ? 0 : 1;
     if (item.kind === "poll") {
       if (item.status === "LIVE") return 0;
       if (item.status === "PAUSED") return 1;
@@ -118,7 +157,7 @@ export function mergeInteractions(
     return 3;
   };
 
-  return [...pollItems, ...lotteryItems].sort(
+  return [...pollItems, ...lotteryItems, ...announcementItems].sort(
     (a, b) => statusOrder(a) - statusOrder(b),
   );
 }
@@ -127,6 +166,10 @@ export function countInteractionStats(items: InteractionItem[]) {
   let live = 0;
   let draft = 0;
   for (const item of items) {
+    if (item.kind === "announcement") {
+      live++;
+      continue;
+    }
     if (item.kind === "poll") {
       if (item.status === "LIVE") live++;
       else if (item.status === "DRAFT" || item.status === "PAUSED") draft++;
