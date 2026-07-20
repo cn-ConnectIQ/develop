@@ -3,11 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  EventStatusBadge,
-  ReviewStatusBadge,
-  formatDateTime,
-} from "@/components/admin/status-badge";
+import { EventStatusBadge, formatDateTime } from "@/components/admin/status-badge";
 import { SectionCard } from "@/components/admin/admin-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -160,13 +156,10 @@ export function EventStatusSettingsPanel({ eventId }: { eventId: string }) {
                 {eventPhaseLabels[phase]}
               </span>
             </div>
-            {data.reviewStatus ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-text-muted">审核态</span>
-                <ReviewStatusBadge status={data.reviewStatus} />
-              </div>
-            ) : null}
           </div>
+          <p className="text-xs text-text-muted">
+            活动状态为唯一对外状态（小程序/发现页/现场入口共用）；发布与设为进行中会同步更新镜像字段。
+          </p>
 
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>

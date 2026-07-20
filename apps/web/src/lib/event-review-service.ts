@@ -3,7 +3,6 @@ import {
   EventStatus,
   prisma,
   PrismaUserRole,
-  ReviewStatus,
   UserType,
 } from "@connectiq/database";
 import {
@@ -85,8 +84,9 @@ export async function submitEventForReview(
   }
 
   if (
-    event.reviewStatus === ReviewStatus.PUBLISHED ||
-    event.reviewStatus === ReviewStatus.LIVE
+    event.status === EventStatus.PUBLISHED ||
+    event.status === EventStatus.LIVE ||
+    event.status === EventStatus.ARCHIVED
   ) {
     throw new EventReviewError("活动已发布", "ALREADY_PUBLISHED");
   }

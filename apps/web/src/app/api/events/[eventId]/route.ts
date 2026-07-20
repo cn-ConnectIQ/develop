@@ -13,7 +13,7 @@ import {
   categoryToDbType,
   type EventCategory,
 } from "@/lib/event-utils";
-import { deleteEvent, eventLifecycleFields } from "@/lib/event-lifecycle-service";
+import { deleteEvent, eventLifecycleFields, reconcileEventLifecyclePair } from "@/lib/event-lifecycle-service";
 
 const updateSchema = z.object({
   name: z.string().min(2).optional(),
@@ -41,7 +41,9 @@ export const GET = withErrorHandler(async (_request, context) => {
   }
 
   try {
-    const { event } = await requireEventAccess(eventId);
+    const { event: accessEvent } = await requireEventAccess(eventId);
+    // 读路径顺带对齐镜像字段，避免历史脏数据继续误导后台/小程序
+    const event = await reconcileEventLifecyclePair(accessEvent.id);
 
     const review = await prisma.eventReview.findUnique({
       where: { eventId },

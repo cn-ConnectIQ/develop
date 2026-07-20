@@ -107,7 +107,7 @@ export async function syncTrialMetricsFromOrg(orgId: string) {
       prisma.event.count({
         where: {
           orgId,
-          reviewStatus: { in: ["PUBLISHED", "LIVE", "ENDED"] },
+          status: { in: ["PUBLISHED", "LIVE", "ARCHIVED"] },
         },
       }),
       eventIds.length === 0
@@ -228,7 +228,7 @@ export async function assertTrialCanPublishEvent(
     where: {
       orgId,
       id: { not: eventId },
-      reviewStatus: { in: ["PUBLISHED", "LIVE"] },
+      status: { in: ["PUBLISHED", "LIVE"] },
     },
   });
 

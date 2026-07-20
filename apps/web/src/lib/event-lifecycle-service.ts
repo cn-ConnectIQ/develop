@@ -9,7 +9,8 @@ import { ApiError } from "@/lib/api-auth";
 
 /**
  * 活动对外生命周期唯一写入口。
- * `status`（小程序/参会端）与 `reviewStatus`（后台展示）必须成对更新，禁止只改一侧。
+ * `status`（小程序/参会端）是唯一真相；`reviewStatus` 仅作镜像字段，必须经
+ * `eventLifecycleFields` 成对写入，禁止只改一侧。
  */
 export type EventLifecyclePhase = "DRAFT" | "PUBLISHED" | "LIVE" | "ARCHIVED";
 
@@ -32,11 +33,56 @@ export function eventLifecycleFields(phase: EventLifecyclePhase): {
   }
 }
 
-export async function archiveEvent(eventId: string) {
+/** 由 status 推导应有的 reviewStatus（status 为唯一真相） */
+export function reviewStatusForEventStatus(status: EventStatus): ReviewStatus {
+  switch (status) {
+    case EventStatus.DRAFT:
+      return ReviewStatus.DRAFT;
+    case EventStatus.PUBLISHED:
+      return ReviewStatus.PUBLISHED;
+    case EventStatus.LIVE:
+      return ReviewStatus.LIVE;
+    case EventStatus.ARCHIVED:
+      return ReviewStatus.ENDED;
+    default:
+      return ReviewStatus.DRAFT;
+  }
+}
+
+export function isLifecyclePairConsistent(
+  status: EventStatus,
+  reviewStatus: ReviewStatus,
+): boolean {
+  return reviewStatusForEventStatus(status) === reviewStatus;
+}
+
+/** 将 reviewStatus 强制对齐到 status，修复历史脏数据 */
+export async function reconcileEventLifecyclePair(eventId: string) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) {
     throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
   }
+  const expected = reviewStatusForEventStatus(event.status);
+  if (event.reviewStatus === expected) return event;
+  return prisma.event.update({
+    where: { id: eventId },
+    data: { reviewStatus: expected },
+  });
+}
+
+async function loadEventOrThrow(eventId: string) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) {
+    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
+  }
+  if (!isLifecyclePairConsistent(event.status, event.reviewStatus)) {
+    return reconcileEventLifecyclePair(eventId);
+  }
+  return event;
+}
+
+export async function archiveEvent(eventId: string) {
+  const event = await loadEventOrThrow(eventId);
   if (event.status === EventStatus.ARCHIVED) {
     return event;
   }
@@ -51,18 +97,8 @@ export async function archiveEvent(eventId: string) {
 
 /** 将已发布活动设为进行中（LIVE），用于现场运营与发现排序 */
 export async function goLiveEvent(eventId: string) {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) {
-    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
-  }
+  const event = await loadEventOrThrow(eventId);
   if (event.status === EventStatus.LIVE) {
-    // 顺带修复历史脏数据：status 已 LIVE 但 reviewStatus 不一致
-    if (event.reviewStatus !== ReviewStatus.LIVE) {
-      return prisma.event.update({
-        where: { id: eventId },
-        data: eventLifecycleFields("LIVE"),
-      });
-    }
     return event;
   }
   if (
@@ -83,17 +119,8 @@ export async function goLiveEvent(eventId: string) {
 
 /** 结束进行中状态，回到已发布（不归档） */
 export async function endLiveEvent(eventId: string) {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) {
-    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
-  }
+  const event = await loadEventOrThrow(eventId);
   if (event.status === EventStatus.PUBLISHED) {
-    if (event.reviewStatus !== ReviewStatus.PUBLISHED) {
-      return prisma.event.update({
-        where: { id: eventId },
-        data: eventLifecycleFields("PUBLISHED"),
-      });
-    }
     return event;
   }
   if (event.status !== EventStatus.LIVE) {
@@ -111,10 +138,7 @@ export async function endLiveEvent(eventId: string) {
 
 /** 从归档恢复为已发布 */
 export async function unarchiveEvent(eventId: string) {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) {
-    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
-  }
+  const event = await loadEventOrThrow(eventId);
   if (event.status !== EventStatus.ARCHIVED) {
     throw new ApiError("仅已归档活动可恢复发布", ErrorCode.VALIDATION_ERROR, 400);
   }
@@ -125,10 +149,7 @@ export async function unarchiveEvent(eventId: string) {
 }
 
 export async function deleteEvent(eventId: string) {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) {
-    throw new ApiError("活动不存在", ErrorCode.NOT_FOUND, 404);
-  }
+  const event = await loadEventOrThrow(eventId);
   const review = await prisma.eventReview.findUnique({ where: { eventId } });
   if (review?.status === EventReviewStatus.PENDING_REVIEW) {
     throw new ApiError("审核中的活动不可删除", ErrorCode.FORBIDDEN, 403);
