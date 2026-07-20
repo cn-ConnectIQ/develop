@@ -1,3 +1,4 @@
+import { prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import {
   createErrorResponse,
@@ -10,11 +11,8 @@ import {
   updateAnnouncement,
   updateAnnouncementSchema,
 } from "@/lib/announcement-admin-service";
-import { prisma } from "@connectiq/database";
 
-type Ctx = { params?: { eventId?: string; announcementId?: string } };
-
-export const GET = withErrorHandler(async (_request, context: Ctx) => {
+export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
   const announcementId = context?.params?.announcementId;
   if (!eventId || !announcementId) {
@@ -41,7 +39,7 @@ export const GET = withErrorHandler(async (_request, context: Ctx) => {
   });
 });
 
-export const PATCH = withErrorHandler(async (request, context: Ctx) => {
+export const PATCH = withErrorHandler(async (request, context) => {
   const eventId = context?.params?.eventId;
   const announcementId = context?.params?.announcementId;
   if (!eventId || !announcementId) {
@@ -72,7 +70,7 @@ export const PATCH = withErrorHandler(async (request, context: Ctx) => {
   return createSuccessResponse(updated);
 });
 
-export const DELETE = withErrorHandler(async (_request, context: Ctx) => {
+export const DELETE = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
   const announcementId = context?.params?.announcementId;
   if (!eventId || !announcementId) {
