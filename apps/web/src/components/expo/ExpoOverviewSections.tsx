@@ -16,6 +16,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/admin/admin-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,6 +109,24 @@ export function ExpoOverviewSections({
     boothTypesFromSettings(initialData?.settings),
   );
   const [savingBoothTypes, setSavingBoothTypes] = useState(false);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
+  const [notifyBusy, setNotifyBusy] = useState(false);
+
+  const { data: participantStats } = useQuery({
+    queryKey: ["expo-notify-audience", expoId],
+    queryFn: async () => {
+      const res = await fetch(
+        withPublicPath(`/api/events/${expoId}/participants?limit=1`),
+      );
+      if (!res.ok) return { total: 0 };
+      const json = await res.json();
+      return {
+        total: Number(json.meta?.total ?? json.data?.total ?? 0),
+      };
+    },
+    staleTime: 30_000,
+  });
+  const audienceTotal = participantStats?.total ?? 0;
 
   useEffect(() => {
     if (data) {
@@ -137,25 +165,45 @@ export function ExpoOverviewSections({
     }
   }
 
-  async function sendExpoNotify() {
-    const res = await fetch(
-      withPublicPath(`/api/events/${expoId}/participants/notify`),
-      {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        all: true,
-        title: "展会通知",
-        body: notifyForm.custom_message || "欢迎参加本次展会！",
-      }),
-    },
-    );
-    if (!res.ok) {
-      toast.error("请先在名单中选择参会者，或填写通知内容");
+  async function sendExpoNotify(mode: "self" | "all") {
+    const bodyText = String(notifyForm.custom_message ?? "").trim();
+    if (!bodyText) {
+      toast.error("请先填写通知内容");
       return;
     }
-    const json = await res.json();
-    toast.success(`已发送 ${json.data.sent} 条通知`);
+    setNotifyBusy(true);
+    try {
+      const res = await fetch(
+        withPublicPath(`/api/events/${expoId}/participants/notify`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(mode === "self" ? { testSelf: true } : { all: true }),
+            title: "展会通知",
+            body: bodyText,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        toast.error(json?.error ?? "发送失败");
+        return;
+      }
+      const json = await res.json();
+      if (mode === "self") {
+        toast.success("已发给你自己，请到小程序「通知」查看");
+      } else {
+        toast.success(
+          `已向参会者发送 ${json.data.sent} 条（跳过 ${json.data.skipped} 条无账号）`,
+        );
+      }
+      setConfirmAllOpen(false);
+    } finally {
+      setNotifyBusy(false);
+    }
   }
 
   return (
@@ -353,7 +401,7 @@ export function ExpoOverviewSections({
       <SectionCard
         id="notifications"
         title="通知发送"
-        description="向参会者推送展会通知"
+        description="向参会者推送站内通知（小程序「通知」页可见，不会写入公告）"
       >
         <div className="grid max-w-xl gap-4">
           <div className="flex items-center justify-between">
@@ -372,10 +420,14 @@ export function ExpoOverviewSections({
               onChange={(e) =>
                 setNotifyForm({ ...notifyForm, custom_message: e.target.value })
               }
-              placeholder="输入后将可用于批量通知..."
+              placeholder="输入通知正文后再发送…"
             />
           </div>
-          <div className="flex gap-2">
+          <p className="rounded-md border border-border-light bg-muted/40 px-3 py-2 text-xs text-text-muted">
+            本场参会者约 <span className="font-semibold text-text">{audienceTotal}</span>{" "}
+            人。真正发出时仅发给已绑定账号的参会者；「发给我自己」不会触达他人。
+          </p>
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => void save("expo_notifications", notifyForm)}
@@ -383,14 +435,46 @@ export function ExpoOverviewSections({
               保存通知设置
             </Button>
             <Button
-              className="bg-brand-purple text-white"
-              onClick={() => void sendExpoNotify()}
+              variant="outline"
+              disabled={notifyBusy}
+              onClick={() => void sendExpoNotify("self")}
             >
               <Send className="mr-1 size-4" />
-              发送测试通知
+              发给我自己（测试）
+            </Button>
+            <Button
+              className="bg-brand-purple text-white"
+              disabled={notifyBusy || audienceTotal <= 0}
+              onClick={() => setConfirmAllOpen(true)}
+            >
+              发给全部参会者
             </Button>
           </div>
         </div>
+
+        <AlertDialog open={confirmAllOpen} onOpenChange={setConfirmAllOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认发给全部参会者？</AlertDialogTitle>
+              <AlertDialogDescription>
+                将向本场约 {audienceTotal}{" "}
+                名参会者推送站内通知（仅已绑定手机/邮箱账号者会收到）。此操作不是测试，发出后无法撤回。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={notifyBusy}>取消</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={notifyBusy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void sendExpoNotify("all");
+                }}
+              >
+                确认发送
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SectionCard>
 
       <SectionCard
