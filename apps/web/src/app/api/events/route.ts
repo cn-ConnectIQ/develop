@@ -1,5 +1,6 @@
 import {
   ActivityType,
+  EventStatus,
   prisma,
   PrismaUserRole,
   EventType,
