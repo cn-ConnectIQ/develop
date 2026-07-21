@@ -20,7 +20,24 @@ export function buildActivationLink(token: string, _eventId?: string) {
 
 export function formatEventDate(date: Date | null | undefined) {
   if (!date) return "日期待定";
-  return format(date, "M月d日", { locale: zhCN });
+  return format(date, "yyyy年M月d日", { locale: zhCN });
+}
+
+/** 起止日期展示：同日只显示一天，跨日显示区间 */
+export function formatEventDateRange(
+  start: Date | null | undefined,
+  end?: Date | null | undefined,
+) {
+  if (!start) return "日期待定";
+  const startLabel = format(start, "yyyy年M月d日", { locale: zhCN });
+  if (!end) return startLabel;
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+  if (sameDay) return startLabel;
+  const endLabel = format(end, "yyyy年M月d日", { locale: zhCN });
+  return `${startLabel} – ${endLabel}`;
 }
 
 /**

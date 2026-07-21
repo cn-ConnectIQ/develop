@@ -7,7 +7,7 @@ import {
 } from "@connectiq/database";
 import {
   buildActivationLink,
-  formatEventDate,
+  formatEventDateRange,
   resolveInviteMessage,
 } from "@/lib/invite/message";
 import { refreshCampaignStats } from "@/lib/invite/service";
@@ -45,7 +45,9 @@ async function loadRecordsByIds(ids: string[]) {
               name: true,
               location: true,
               startDate: true,
+              endDate: true,
               organizer: { select: { name: true } },
+              org: { select: { name: true } },
             },
           },
         },
@@ -99,12 +101,14 @@ async function claimPendingBatch(campaignId: string): Promise<string[]> {
 function buildMessageContext(record: RecordWithRelations) {
   const event = record.campaign.event;
   const link = buildActivationLink(record.activationToken, event.id);
+  const organizer =
+    event.org?.name?.trim() || event.organizer.name || "活动组委会";
   return {
     name: record.participant.name,
     eventName: event.name,
-    eventDate: formatEventDate(event.startDate),
+    eventDate: formatEventDateRange(event.startDate, event.endDate),
     link,
-    organizer: event.organizer.name,
+    organizer,
     location: event.location ?? "",
   };
 }
@@ -160,12 +164,17 @@ export async function sendEmail(
   plainText: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const ctx = buildMessageContext(record);
-  const { emailAdapterSend } = await import("@/lib/notification/email-adapter");
-  const result = await emailAdapterSend({
+  const { sendInviteEmail } = await import("@/lib/email");
+  const result = await sendInviteEmail({
     to: record.destination,
     subject,
-    text: plainText,
-    fromDisplayName: `${ctx.eventName}组委会 (via 玖莅)`,
+    participantName: ctx.name,
+    eventName: ctx.eventName,
+    eventDate: ctx.eventDate,
+    eventLocation: ctx.location,
+    organizerName: ctx.organizer,
+    activationLink: ctx.link,
+    plainText,
     variables: {
       invite_record_id: record.id,
       campaign_id: record.campaignId,
@@ -176,10 +185,9 @@ export async function sendEmail(
       event_location: ctx.location,
       organizer_name: ctx.organizer,
     },
-    tags: ["invite", record.campaignId],
   });
   return {
-    success: result.success,
+    success: result.sent,
     messageId: result.messageId,
     error: result.error,
   };
