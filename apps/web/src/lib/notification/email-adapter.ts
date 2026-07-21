@@ -10,7 +10,7 @@ function markdownishToHtml(text: string): string {
   const withLinks = text.replace(
     /\*\*\[\s*([^\]]+)\s*→?\s*\]\(([^)]+)\)\*\*/g,
     (_m, label, href) =>
-      `<p style="margin:24px 0"><a href="${href}" style="display:inline-block;padding:12px 20px;background:#0F6E56;color:#fff;text-decoration:none;border-radius:8px">${label}</a></p>`,
+      `<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:24px auto"><tr><td bgcolor="#0F6E56" style="background-color:#0F6E56;border-radius:10px;text-align:center"><a href="${href}" style="background-color:#0F6E56;border:1px solid #0F6E56;border-radius:10px;color:#ffffff;display:inline-block;font-size:16px;font-weight:700;line-height:48px;padding:0 32px;text-decoration:none;white-space:nowrap">${label}</a></td></tr></table>`,
   );
   const bold = withLinks.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   return plainTextToHtml(bold);

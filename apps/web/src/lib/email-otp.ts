@@ -1,4 +1,6 @@
+import { render } from "@react-email/render";
 import { sendMailViaMailgun } from "@/lib/mailgun";
+import { TransactionalEmail } from "@/lib/email-templates/transactional";
 
 export const EMAIL_CODE_TTL = 300;
 export const EMAIL_CODE_RATE_LIMIT = 60;
@@ -16,9 +18,27 @@ export function generateEmailCode() {
 }
 
 export async function sendLoginEmailCode(email: string, code: string) {
-  const subject = "玖莅 登录验证码";
+  const subject = "【玖莅】登录验证码";
   const text = `您的登录验证码是 ${code}，${EMAIL_CODE_TTL / 60} 分钟内有效。如非本人操作请忽略。`;
-  const html = `<p>您的登录验证码是 <strong style="font-size:20px;letter-spacing:4px">${code}</strong></p><p>${EMAIL_CODE_TTL / 60} 分钟内有效。如非本人操作请忽略。</p>`;
+
+  let html: string | undefined;
+  try {
+    html = await render(
+      TransactionalEmail({
+        preview: subject,
+        heading: "登录验证码",
+        paragraphs: [
+          `您的登录验证码是 ${code}。`,
+          `${EMAIL_CODE_TTL / 60} 分钟内有效，请勿泄露给他人。`,
+          "如非本人操作，请忽略本邮件。",
+        ],
+        footnote: `验证码：${code}`,
+      }),
+    );
+  } catch (error) {
+    console.error("[EMAIL] OTP template render failed:", error);
+    html = `<p>您的登录验证码是 <strong style="font-size:20px;letter-spacing:4px">${code}</strong></p><p>${EMAIL_CODE_TTL / 60} 分钟内有效。如非本人操作请忽略。</p>`;
+  }
 
   const hasMailgunKey = Boolean(process.env.MAILGUN_API_KEY?.trim());
   const isProd = process.env.NODE_ENV === "production";
@@ -40,9 +60,9 @@ export async function sendLoginEmailCode(email: string, code: string) {
     subject,
     text,
     html,
+    tags: ["auth-otp"],
   });
 
-  // getMailgunConfig 缺 DOMAIN 时可能假成功；生产不允许
   if (result.dev && isProd) {
     return {
       sent: false,

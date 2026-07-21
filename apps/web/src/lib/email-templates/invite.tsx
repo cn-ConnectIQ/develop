@@ -1,5 +1,6 @@
-import { Button, Heading, Section, Text } from "@react-email/components";
+import { Heading, Text } from "@react-email/components";
 import { BrandEmailLayout } from "@/lib/email-templates/brand-layout";
+import { EmailCtaButton } from "@/lib/email-templates/cta-button";
 
 export type InviteEmailProps = {
   participantName: string;
@@ -37,16 +38,11 @@ export function InviteEmail({
       <Text style={paragraph}>
         请点击下方按钮打开玖莅，完成入场激活。激活后即可使用现场互动、扫码连接与活动服务。
       </Text>
-      <Section style={buttonSection}>
-        <Button style={button} href={activationLink}>
-          打开玖莅，完成激活
-        </Button>
-      </Section>
+      <EmailCtaButton href={activationLink} label="打开玖莅，完成激活" />
       <Text style={linkFallback}>
-        若按钮无法点击，请复制链接到浏览器打开：
-        <br />
-        {activationLink}
+        若按钮无法点击，请复制以下链接到浏览器打开：
       </Text>
+      <Text style={linkBox}>{activationLink}</Text>
       <Text style={footnote}>此链接仅限您本人使用，请勿转发他人。</Text>
     </BrandEmailLayout>
   );
@@ -74,28 +70,22 @@ const paragraph = {
   margin: "0 0 8px",
 };
 
-const buttonSection = {
-  textAlign: "center" as const,
-  margin: "24px 0 12px",
-};
-
-const button = {
-  backgroundColor: "#0F6E56",
-  borderRadius: "10px",
-  color: "#ffffff",
-  fontSize: "15px",
-  fontWeight: "600" as const,
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "inline-block",
-  padding: "12px 28px",
-};
-
 const linkFallback = {
   color: "#8A93A0",
   fontSize: "12px",
-  lineHeight: "1.6",
-  margin: "0 0 12px",
+  lineHeight: "1.5",
+  margin: "0 0 6px",
+};
+
+const linkBox = {
+  color: "#5A6573",
+  fontSize: "12px",
+  lineHeight: "1.5",
+  margin: "0 0 14px",
+  padding: "10px 12px",
+  backgroundColor: "#F5F7FA",
+  borderRadius: "8px",
+  border: "1px solid #E6EAF0",
   wordBreak: "break-all" as const,
 };
 
