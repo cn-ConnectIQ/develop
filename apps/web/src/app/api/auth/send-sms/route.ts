@@ -3,13 +3,12 @@ import { cacheSet, cacheTtl } from "@/lib/redis";
 import {
   generateSmsCode,
   isSmsConfigured,
-  resolveSmsProvider,
+  sendVerificationSms,
   smsRateKey,
   smsVerifyKey,
   SMS_CODE_TTL,
   SMS_RATE_LIMIT,
 } from "@/lib/sms";
-import { notifyVerificationSms } from "@/lib/notification/notification-service";
 import { createErrorResponse, createSuccessResponse } from "@/lib/api-auth";
 import { ErrorCode } from "@connectiq/types";
 
@@ -19,6 +18,10 @@ const phoneSchema = z.object({
     .regex(/^1[3-9]\d{9}$/, "请输入有效的中国大陆手机号"),
 });
 
+/**
+ * 登录 / 注册验证码：必须在请求内同步直发通道，
+ * 禁止走 NotificationJob / invite 队列 / cron。
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -42,41 +45,21 @@ export async function POST(request: Request) {
     }
 
     const code = generateSmsCode();
-    await cacheSet(smsVerifyKey(phone), code, SMS_CODE_TTL);
-    await cacheSet(smsRateKey(phone), "1", SMS_RATE_LIMIT);
+    await Promise.all([
+      cacheSet(smsVerifyKey(phone), code, SMS_CODE_TTL),
+      cacheSet(smsRateKey(phone), "1", SMS_RATE_LIMIT),
+    ]);
 
-    // SYS-01：经 Notification SmsAdapter；有赛邮验证码模板则走 XSend 通道
-    const project = process.env.SUBMAIL_PROJECT_CODE?.trim();
-    if (resolveSmsProvider() === "submail" && project) {
-      const { sendSubmailXSend } = await import("@/lib/submail-sms");
-      const result = await sendSubmailXSend({
-        phone,
-        project,
-        vars: { code },
-      });
-      if (!result.success) {
-        return createErrorResponse(
-          result.error ?? "发送验证码失败",
-          ErrorCode.INTERNAL_ERROR,
-          500,
-        );
-      }
-    } else {
-      const result = await notifyVerificationSms({
-        phone,
-        code,
-        eventId: "system",
-      });
-      if (!result.success) {
-        return createErrorResponse(
-          result.error ?? "发送验证码失败",
-          ErrorCode.INTERNAL_ERROR,
-          500,
-        );
-      }
+    const result = await sendVerificationSms(phone, code);
+    if (!result.sent) {
+      return createErrorResponse(
+        result.error ?? "发送验证码失败",
+        ErrorCode.INTERNAL_ERROR,
+        500,
+      );
     }
 
-    const exposeDevCode = !isSmsConfigured();
+    const exposeDevCode = !isSmsConfigured() || Boolean(result.dev);
     return createSuccessResponse({
       sent: true,
       ...(exposeDevCode ? { devCode: code } : {}),

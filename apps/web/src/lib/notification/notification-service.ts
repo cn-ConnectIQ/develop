@@ -309,19 +309,21 @@ export async function notifyUser(input: {
   };
 }
 
-/** 验证码等无需 event 绑定的薄封装：创建占位 event 或由调用方传 platform event */
+/**
+ * @deprecated 登录验证码请用 `@/lib/sms` 的 `sendVerificationSms`（请求内直发）。
+ * 勿经 NotificationJob / 邀请队列。保留此函数仅兼容旧调用。
+ */
 export async function notifyVerificationSms(input: {
   phone: string;
   code: string;
   userId?: string;
   eventId: string;
 }) {
-  // SYS-01 不走 user 身份时，用 raw adapter via temporary path
-  const { smsAdapterSend } = await import("@/lib/notification/sms-adapter");
-  const { renderTemplate } = await import("@/lib/notification/render");
-  // 与赛邮报备模板一致；签名由通道自动加，正文勿写【签名】
-  const body = renderTemplate("您本次验证码为：{码}，十分钟内有效。", {
-    码: input.code,
-  });
-  return smsAdapterSend({ phone: input.phone, content: body, tag: "sys-01" });
+  const { sendVerificationSms } = await import("@/lib/sms");
+  const result = await sendVerificationSms(input.phone, input.code);
+  return {
+    success: result.sent,
+    error: result.error,
+    provider: result.dev ? "dev" : undefined,
+  };
 }

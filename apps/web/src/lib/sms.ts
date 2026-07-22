@@ -81,6 +81,10 @@ export async function sendSmsContent(input: {
   return { ...result, provider: "aliyun" };
 }
 
+/**
+ * 登录 / 注册验证码：请求内同步直发，禁止入队。
+ * 赛邮优先 XSend（SUBMAIL_PROJECT_CODE）；无模板时才回退正文通道。
+ */
 export async function sendVerificationSms(phone: string, code: string) {
   const provider = resolveSmsProvider();
   if (provider === "none") {
@@ -90,16 +94,23 @@ export async function sendVerificationSms(phone: string, code: string) {
 
   if (provider === "submail") {
     const project = process.env.SUBMAIL_PROJECT_CODE?.trim();
+    if (!project) {
+      console.warn(
+        "[SMS] 未配置 SUBMAIL_PROJECT_CODE，验证码将走正文通道（可能较慢）；建议配置赛邮验证码模板",
+      );
+    }
     const result = project
       ? await sendSubmailXSend({
           phone,
           project,
           vars: { code },
+          tag: "sys-01",
         })
       : await sendSubmailSms({
           phone,
           // 正文不含签名；签名由 SUBMAIL_SIGN_NAME 自动加【】
           content: `您本次验证码为：${code}，十分钟内有效。`,
+          tag: "sys-01",
         });
     if (!result.success) {
       console.error("[SMS] 验证码发送失败", result.error);
