@@ -1,4 +1,5 @@
 import { ErrorCode } from "@connectiq/types";
+import type { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createErrorResponse,
@@ -21,7 +22,7 @@ import {
   linkBaigeConnectionDev,
 } from "@/lib/integrations/baige-oauth";
 
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (): Promise<NextResponse> => {
   const result = await requireAccountAdmin();
   if ("error" in result) return result.error;
 
@@ -39,7 +40,7 @@ const linkSchema = z.object({
 });
 
 /** 开发/联调直连；正式环境应走 OAuth start/callback */
-export const POST = withErrorHandler(async (request) => {
+export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
   const result = await requireAccountAdmin();
   if ("error" in result) return result.error;
 
@@ -77,7 +78,7 @@ export const POST = withErrorHandler(async (request) => {
   }
 });
 
-export const DELETE = withErrorHandler(async () => {
+export const DELETE = withErrorHandler(async (): Promise<NextResponse> => {
   const result = await requireAccountAdmin();
   if ("error" in result) return result.error;
 

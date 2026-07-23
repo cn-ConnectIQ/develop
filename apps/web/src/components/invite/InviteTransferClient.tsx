@@ -86,7 +86,7 @@ export function InviteTransferClient({ data }: { data: OkData }) {
             marginBottom: 24,
           }}
         >
-          玖莅 · CONNECTIQ
+          玖莅 · 9li.co
         </p>
 
         <h1 style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.35 }}>

@@ -1,4 +1,5 @@
 import { ErrorCode } from "@connectiq/types";
+import type { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createErrorResponse,
@@ -34,7 +35,7 @@ const bodySchema = z.object({
   actorUserId: z.string().optional(),
 });
 
-export const POST = withErrorHandler(async (request) => {
+export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {

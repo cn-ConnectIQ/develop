@@ -1,5 +1,6 @@
 import { ErrorCode } from "@connectiq/types";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   createErrorResponse,
@@ -46,11 +47,21 @@ const stampsSchema = z.object({
     .min(1),
 });
 
-async function allowPartnerOrAdmin(request: NextRequest) {
+type PartnerAuth =
+  | {
+      ok: true;
+      mode: "session" | "partner";
+      orgId: string | null;
+      userId: string | null;
+    }
+  | { ok: false; response: NextResponse };
+
+async function allowPartnerOrAdmin(request: NextRequest): Promise<PartnerAuth> {
   const admin = await requireAccountAdmin();
   if (!("error" in admin)) {
     return {
-      mode: "session" as const,
+      ok: true,
+      mode: "session",
       orgId: admin.orgId,
       userId: admin.session.user.id,
     };
@@ -58,14 +69,16 @@ async function allowPartnerOrAdmin(request: NextRequest) {
   try {
     assertBaigePartnerApiKey(request);
     return {
-      mode: "partner" as const,
-      orgId: null as string | null,
-      userId: null as string | null,
+      ok: true,
+      mode: "partner",
+      orgId: null,
+      userId: null,
     };
   } catch (error) {
     if (error instanceof BaigePartnerAuthError) {
       return {
-        error: createErrorResponse(
+        ok: false,
+        response: createErrorResponse(
           error.message,
           ErrorCode.UNAUTHORIZED,
           error.status,
@@ -76,16 +89,43 @@ async function allowPartnerOrAdmin(request: NextRequest) {
   }
 }
 
-export const POST = withErrorHandler(async (request) => {
-  const auth = await allowPartnerOrAdmin(request);
-  if ("error" in auth) return auth.error;
+export const POST = withErrorHandler(
+  async (request): Promise<NextResponse> => {
+    const auth = await allowPartnerOrAdmin(request);
+    if (!auth.ok) return auth.response;
 
-  const url = new URL(request.url);
-  const kind = url.searchParams.get("kind") || "checkin";
-  const body = await request.json().catch(() => null);
+    const url = new URL(request.url);
+    const kind = url.searchParams.get("kind") || "checkin";
+    const body = await request.json().catch(() => null);
 
-  if (kind === "stamps" || kind === "collection-points") {
-    const parsed = stampsSchema.safeParse(body);
+    if (kind === "stamps" || kind === "collection-points") {
+      const parsed = stampsSchema.safeParse(body);
+      if (!parsed.success) {
+        return createErrorResponse(
+          parsed.error.issues[0]?.message ?? "参数错误",
+          ErrorCode.VALIDATION_ERROR,
+          400,
+        );
+      }
+      try {
+        const result = await syncBaigeCollectionPoints({
+          ...parsed.data,
+          actorUserId: auth.userId,
+        });
+        return createSuccessResponse(result);
+      } catch (error) {
+        if (error instanceof BaigeStampSyncError) {
+          return createErrorResponse(
+            error.message,
+            ErrorCode.VALIDATION_ERROR,
+            400,
+          );
+        }
+        throw error;
+      }
+    }
+
+    const parsed = checkinSchema.safeParse(body);
     if (!parsed.success) {
       return createErrorResponse(
         parsed.error.issues[0]?.message ?? "参数错误",
@@ -94,13 +134,10 @@ export const POST = withErrorHandler(async (request) => {
       );
     }
     try {
-      const result = await syncBaigeCollectionPoints({
-        ...parsed.data,
-        actorUserId: auth.userId,
-      });
+      const result = await ingestBaigeCheckin(parsed.data);
       return createSuccessResponse(result);
     } catch (error) {
-      if (error instanceof BaigeStampSyncError) {
+      if (error instanceof BaigeCheckinSyncError) {
         return createErrorResponse(
           error.message,
           ErrorCode.VALIDATION_ERROR,
@@ -109,23 +146,5 @@ export const POST = withErrorHandler(async (request) => {
       }
       throw error;
     }
-  }
-
-  const parsed = checkinSchema.safeParse(body);
-  if (!parsed.success) {
-    return createErrorResponse(
-      parsed.error.issues[0]?.message ?? "参数错误",
-      ErrorCode.VALIDATION_ERROR,
-      400,
-    );
-  }
-  try {
-    const result = await ingestBaigeCheckin(parsed.data);
-    return createSuccessResponse(result);
-  } catch (error) {
-    if (error instanceof BaigeCheckinSyncError) {
-      return createErrorResponse(error.message, ErrorCode.VALIDATION_ERROR, 400);
-    }
-    throw error;
-  }
-});
+  },
+);

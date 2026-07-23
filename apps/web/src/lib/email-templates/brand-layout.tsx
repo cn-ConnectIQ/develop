@@ -42,7 +42,7 @@ export function BrandEmailLayout({
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
-            <Text style={logoText}>玖莅 ConnectIQ</Text>
+            <Text style={logoText}>玖莅 9li.co</Text>
             <Text style={logoSub}>让每次相遇都有价值</Text>
           </Section>
 

@@ -1,4 +1,5 @@
 import { ErrorCode } from "@connectiq/types";
+import type { NextResponse } from "next/server";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -10,7 +11,7 @@ import {
   createBaigeOAuthStart,
 } from "@/lib/integrations/baige-oauth";
 
-export const GET = withErrorHandler(async () => {
+export const GET = withErrorHandler(async (): Promise<NextResponse> => {
   const result = await requireAccountAdmin();
   if ("error" in result) return result.error;
 
@@ -36,7 +37,7 @@ export const GET = withErrorHandler(async () => {
 });
 
 /** 浏览器跳转版：直接 302 到百格授权页 */
-export const POST = withErrorHandler(async () => {
+export const POST = withErrorHandler(async (): Promise<NextResponse | Response> => {
   const result = await requireAccountAdmin();
   if ("error" in result) return result.error;
 

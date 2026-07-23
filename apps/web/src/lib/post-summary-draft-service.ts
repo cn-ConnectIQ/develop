@@ -49,7 +49,7 @@ function buildDraftText(input: {
   }。
 ${nameLine}
 
-—— 经由 玖莅 ConnectIQ 记录`;
+—— 经由 玖莅 9li.co 记录`;
 }
 
 function buildShareText(
