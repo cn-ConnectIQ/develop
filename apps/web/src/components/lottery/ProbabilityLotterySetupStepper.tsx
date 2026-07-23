@@ -32,6 +32,7 @@ import {
   TriggerAction,
   type TriggerActionValue,
 } from "@/lib/lottery/probability-lottery-config";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PRIZES: ProbabilityPrizeDraft[] = [
@@ -87,7 +88,7 @@ export function ProbabilityLotterySetupStepper(props: ProbabilityLotterySetupSte
   useEffect(() => {
     if (triggerAction !== TriggerAction.SURVEY) return;
     setPollsLoading(true);
-    void fetch(`/api/events/${eventId}/polls?scope=admin`)
+    void fetch(withPublicPath(`/api/events/${eventId}/polls?scope=admin`))
       .then((res) => res.json())
       .then((json) => {
         const list = (json.data?.polls ?? []) as PollOption[];
@@ -130,9 +131,11 @@ export function ProbabilityLotterySetupStepper(props: ProbabilityLotterySetupSte
         publish,
       });
 
-      const apiUrl = isOrganizer
-        ? `/api/events/${eventId}/lottery/probability`
-        : `/api/booths/${boothId}/lotteries/probability`;
+      const apiUrl = withPublicPath(
+        isOrganizer
+          ? `/api/events/${eventId}/lottery/probability`
+          : `/api/booths/${boothId}/lotteries/probability`,
+      );
 
       const res = await fetch(apiUrl, {
         method: "POST",

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { buildParticipantCreatePath } from "@/lib/lottery/participant-lottery-utils";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type LotteryCreateType = "probability" | "instant";
@@ -67,7 +68,7 @@ const INITIATOR_OPTIONS: Array<{
 ];
 
 async function fetchBooths(eventId: string) {
-  const res = await fetch(`/api/events/${eventId}/booths`);
+  const res = await fetch(withPublicPath(`/api/events/${eventId}/booths`));
   if (!res.ok) throw new Error("展位加载失败");
   const json = (await res.json()) as { data?: { booths?: BoothOption[] } };
   return json.data?.booths ?? [];

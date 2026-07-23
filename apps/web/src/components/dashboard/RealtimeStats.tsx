@@ -12,6 +12,7 @@ type RealtimeStatsProps = {
   stats?: DashboardStats;
   isLoading?: boolean;
   isError?: boolean;
+  errorMessage?: string;
   onRetry?: () => void;
 };
 
@@ -19,6 +20,7 @@ export function RealtimeStats({
   stats,
   isLoading,
   isError,
+  errorMessage,
   onRetry,
 }: RealtimeStatsProps) {
   if (isLoading) {
@@ -35,6 +37,11 @@ export function RealtimeStats({
     return (
       <div className="mb-6 rounded-lg border border-border-light bg-white p-6 text-center text-sm text-text-muted">
         {isError ? "实时数据加载失败" : "暂无统计数据"}
+        {isError && errorMessage ? (
+          <span className="mt-1 block text-xs text-text-muted/80">
+            {errorMessage}
+          </span>
+        ) : null}
         {onRetry && (
           <button
             type="button"

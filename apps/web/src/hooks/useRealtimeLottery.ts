@@ -7,6 +7,7 @@ import {
   type LotteryWinnerPayload,
 } from "@/lib/realtime";
 import { parsePrizes } from "@/lib/lottery-types";
+import { withPublicPath } from "@/lib/public-path";
 import { useBigscreenStore } from "@/stores/bigscreenStore";
 
 type UseRealtimeLotteryOptions = {
@@ -34,9 +35,13 @@ export function useRealtimeLottery({
     if (!lotteryId) return;
     try {
       const [lotteryRes, entriesRes, winnersRes] = await Promise.all([
-        fetch(`/api/events/${eventId}/lotteries/${lotteryId}`),
-        fetch(`/api/events/${eventId}/lotteries/${lotteryId}/entries`),
-        fetch(`/api/events/${eventId}/lotteries/${lotteryId}/winners`),
+        fetch(withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}`)),
+        fetch(
+          withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}/entries`),
+        ),
+        fetch(
+          withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}/winners`),
+        ),
       ]);
 
       if (lotteryRes.ok) {

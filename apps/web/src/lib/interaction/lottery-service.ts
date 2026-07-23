@@ -577,7 +577,15 @@ export async function enterLottery(
   eventId: string,
   lotteryId: string,
   userId: string,
-  options?: { viaScan?: boolean },
+  options?: {
+    viaScan?: boolean;
+    guestProfile?: {
+      name: string;
+      company: string;
+      job_title: string;
+      phone: string;
+    };
+  },
 ) {
   const lottery = await getLotteryOrThrow(eventId, lotteryId);
 
@@ -587,6 +595,12 @@ export async function enterLottery(
 
   const viaScan = options?.viaScan === true;
   let scanJoinAllowed = false;
+  let eligibility: Awaited<
+    ReturnType<
+      typeof import("@/lib/lottery/organizer-lottery-service").loadOrganizerLotteryMeta
+    >
+  >["eligibility"] | null = null;
+
   if (viaScan) {
     const { loadOrganizerLotteryMeta } = await import(
       "@/lib/lottery/organizer-lottery-service"
@@ -596,6 +610,7 @@ export async function enterLottery(
       lotteryId,
       lottery.bigScreenAnimationType,
     );
+    eligibility = meta.eligibility;
     scanJoinAllowed = meta.eligibility.allow_scan_join === true;
     if (!scanJoinAllowed) {
       throw new ApiError("该抽奖未开启扫码加入", ErrorCode.FORBIDDEN, 403);
@@ -630,8 +645,67 @@ export async function enterLottery(
     }
   }
 
-  if (viaScan && scanJoinAllowed) {
-    await ensureParticipantForUser(eventId, userId);
+  let leadData: Record<string, string> | undefined;
+
+  if (viaScan && scanJoinAllowed && eligibility) {
+    const {
+      isRegisteredAttendee,
+      upsertGuestParticipantForUser,
+      ensureParticipantForUser,
+    } = await import("@/lib/interaction/participant-user");
+
+    const registered = await isRegisteredAttendee(eventId, userId);
+    const guest = options?.guestProfile;
+    const hasGuestProfile = Boolean(
+      guest?.name?.trim() &&
+        guest?.company?.trim() &&
+        guest?.job_title?.trim() &&
+        guest?.phone?.trim(),
+    );
+
+    if (!registered) {
+      if (
+        eligibility.require_registered_participant &&
+        !eligibility.allow_guest_with_profile
+      ) {
+        throw new ApiError(
+          "仅限本场参会者参与，请使用报名手机号登录",
+          ErrorCode.FORBIDDEN,
+          403,
+        );
+      }
+
+      if (eligibility.allow_guest_with_profile) {
+        if (!hasGuestProfile || !guest) {
+          throw new ApiError(
+            "请填写姓名、公司、职位与手机号后参与",
+            ErrorCode.VALIDATION_ERROR,
+            400,
+          );
+        }
+        const phoneOk = /^1\d{10}$/.test(guest.phone.trim());
+        if (!phoneOk) {
+          throw new ApiError("请填写有效的11位手机号", ErrorCode.VALIDATION_ERROR, 400);
+        }
+        await upsertGuestParticipantForUser(eventId, userId, {
+          name: guest.name.trim(),
+          company: guest.company.trim(),
+          jobTitle: guest.job_title.trim(),
+          phone: guest.phone.trim(),
+        });
+        leadData = {
+          name: guest.name.trim(),
+          company: guest.company.trim(),
+          job_title: guest.job_title.trim(),
+          phone: guest.phone.trim(),
+          join_as: "guest",
+        };
+      } else {
+        await ensureParticipantForUser(eventId, userId);
+      }
+    } else {
+      await ensureParticipantForUser(eventId, userId);
+    }
   }
 
   try {
@@ -641,6 +715,9 @@ export async function enterLottery(
           lotteryId,
           userId,
           source: viaScan && scanJoinAllowed ? "SCAN" : "MANUAL",
+          ...(leadData
+            ? { leadData: leadData as Prisma.InputJsonValue }
+            : {}),
         },
         include: {
           user: { select: { id: true, name: true, email: true } },

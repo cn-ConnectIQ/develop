@@ -16,6 +16,7 @@ import { RealtimeEntryFeed } from "@/components/lottery/RealtimeEntryFeed";
 import { WinnerList } from "@/components/lottery/WinnerList";
 import { useRealtimeLotteryDashboard } from "@/hooks/useRealtimeLotteryDashboard";
 import type { LotteryDashboardData } from "@/lib/lottery/lottery-dashboard-service";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 function AnimatedNumber({ value }: { value: number }) {
@@ -112,7 +113,9 @@ export function LotteryDashboard({
   async function handleExportMarketup() {
     setExportingMarketup(true);
     try {
-      const res = await fetch(`/api/lotteries/${lotteryId}/export-marketup`, {
+      const res = await fetch(
+        withPublicPath(`/api/lotteries/${lotteryId}/export-marketup`),
+        {
         method: "POST",
       });
       const json = (await res.json()) as {

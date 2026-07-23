@@ -94,6 +94,18 @@ export const participateSessionSchema = z.object({
       rating: z.number().int().min(1).max(5).optional(),
     })
     .optional(),
+  /** 大屏抽奖：非参会嘉宾资料 */
+  guest_profile: z
+    .object({
+      name: z.string().trim().min(1).max(80),
+      company: z.string().trim().min(1).max(120),
+      job_title: z.string().trim().min(1).max(80),
+      phone: z
+        .string()
+        .trim()
+        .regex(/^1\d{10}$/, "请填写有效的11位手机号"),
+    })
+    .optional(),
 });
 
 /** @deprecated 使用 participateSessionSchema */

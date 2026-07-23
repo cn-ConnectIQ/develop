@@ -84,3 +84,69 @@ export async function hasUserPollParticipation(
   });
   return Boolean(response);
 }
+
+/**
+ * 是否为本场「正式参会者」（报名/邀请/导入/自助注册），
+ * 排除仅因扫码轻量创建、且无报名记录的账号。
+ */
+export async function isRegisteredAttendee(
+  eventId: string,
+  userId: string,
+): Promise<boolean> {
+  const participant = await findParticipantForUser(eventId, userId);
+  if (!participant) return false;
+
+  const registration = await prisma.participantRegistration.findFirst({
+    where: { participantId: participant.id },
+    select: { id: true },
+  });
+  if (registration) return true;
+
+  if (participant.source !== "SCAN") return true;
+
+  if (
+    participant.inviteStatus === "INVITED" ||
+    participant.inviteStatus === "CLICKED" ||
+    participant.inviteStatus === "ACTIVATED"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/** 用嘉宾资料创建或更新 Participant（扫码入池） */
+export async function upsertGuestParticipantForUser(
+  eventId: string,
+  userId: string,
+  profile: {
+    name: string;
+    company: string;
+    jobTitle: string;
+    phone: string;
+  },
+) {
+  const existing = await findParticipantForUser(eventId, userId);
+  if (existing) {
+    return prisma.participant.update({
+      where: { id: existing.id },
+      data: {
+        name: profile.name,
+        company: profile.company,
+        jobTitle: profile.jobTitle,
+        phone: profile.phone,
+      },
+    });
+  }
+
+  return prisma.participant.create({
+    data: {
+      eventId,
+      name: profile.name,
+      company: profile.company,
+      jobTitle: profile.jobTitle,
+      phone: profile.phone,
+      source: "SELF_REGISTER",
+    },
+  });
+}

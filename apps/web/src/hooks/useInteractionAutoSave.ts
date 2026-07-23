@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withPublicPath } from "@/lib/public-path";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -57,11 +58,14 @@ export async function patchPoll(
   pollId: string,
   body: Record<string, unknown>,
 ) {
-  const res = await fetch(`/api/events/${eventId}/polls/${pollId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/polls/${pollId}`),
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     throw new Error(json.message ?? "保存失败");
@@ -74,11 +78,14 @@ export async function patchLottery(
   lotteryId: string,
   body: Record<string, unknown>,
 ) {
-  const res = await fetch(`/api/events/${eventId}/lotteries/${lotteryId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}`),
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     throw new Error(json.message ?? "保存失败");

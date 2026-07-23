@@ -34,6 +34,7 @@ export const POST = withErrorHandler(async (request, context) => {
     sessionCode,
     userId,
     parsed.data.poll_response,
+    parsed.data.guest_profile,
   );
 
   return createSuccessResponse(result);

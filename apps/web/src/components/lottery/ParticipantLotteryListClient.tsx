@@ -24,6 +24,7 @@ import {
   type ParticipantLotteryStatusFilter,
   type ParticipantLotteryTypeFilter,
 } from "@/lib/lottery/participant-lottery-utils";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type BoothOption = {
@@ -53,13 +54,15 @@ async function fetchParticipantLotteries(
     category: "AUTO_PROBABILITY,INSTANT_CLAIM",
   });
   if (boothId) params.set("boothId", boothId);
-  const res = await fetch(`/api/events/${eventId}/lotteries?${params.toString()}`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/lotteries?${params.toString()}`),
+  );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data.lotteries as ParticipantLotteryListItem[];
 }
 
 async function fetchBooths(eventId: string) {
-  const res = await fetch(`/api/events/${eventId}/booths`);
+  const res = await fetch(withPublicPath(`/api/events/${eventId}/booths`));
   if (!res.ok) throw new Error("展位加载失败");
   const json = (await res.json()) as { data?: { booths?: BoothOption[] } };
   return json.data?.booths ?? [];
@@ -71,7 +74,7 @@ async function patchLotteryStatus(
   status: "ACTIVE" | "DRAFT",
 ) {
   const res = await fetch(
-    `/api/events/${eventId}/lotteries/${lotteryId}`,
+    withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}`),
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -88,7 +91,9 @@ async function replenishStock(
   addQuantity: number,
 ) {
   const res = await fetch(
-    `/api/events/${eventId}/lotteries/${lotteryId}/replenish-stock`,
+    withPublicPath(
+      `/api/events/${eventId}/lotteries/${lotteryId}/replenish-stock`,
+    ),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

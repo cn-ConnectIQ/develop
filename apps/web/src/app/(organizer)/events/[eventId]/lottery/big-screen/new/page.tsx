@@ -1,6 +1,5 @@
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
-import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { OrganizerLotteryConfigurator } from "@/components/lottery/OrganizerLotteryConfigurator";
 
@@ -11,14 +10,10 @@ export default async function BigScreenLotteryNewPage({
 }) {
   const { eventId } = await params;
 
-  const access = await requireEventAccessCheck(eventId);
-  if ("error" in access) notFound();
-
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { id: true, name: true },
   });
-
   if (!event) notFound();
 
   return (

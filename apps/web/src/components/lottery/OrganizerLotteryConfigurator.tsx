@@ -41,6 +41,7 @@ import {
   normalizeOrganizerEligibility,
 } from "@/lib/lottery/organizer-lottery-config";
 import type { EligibleCountResult } from "@/lib/lottery/organizer-lottery-service";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_TIER_PRIZES: TierPrizeDraft[] = [
@@ -52,7 +53,9 @@ const DEFAULT_TIER_PRIZES: TierPrizeDraft[] = [
 async function fetchGrandLottery(eventId: string, lotteryId?: string) {
   const params = new URLSearchParams({ category: "POOL_DRAW" });
   if (lotteryId) params.set("lottery_id", lotteryId);
-  const res = await fetch(`/api/events/${eventId}/lotteries?${params.toString()}`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/lotteries?${params.toString()}`),
+  );
   if (!res.ok) throw new Error("加载失败");
   const lotteries = (await res.json()).data.lotteries as OrganizerLotteryDto[];
   return lotteries[0] ?? null;
@@ -86,7 +89,7 @@ function buildEligibleQuery(
 }
 
 async function fetchEligibleCount(url: string) {
-  const res = await fetch(url);
+  const res = await fetch(withPublicPath(url));
   if (!res.ok) throw new Error("统计加载失败");
   return (await res.json()).data as EligibleCountResult;
 }
@@ -206,7 +209,7 @@ export function OrganizerLotteryConfigurator({
         publish,
       };
 
-      const res = await fetch(`/api/events/${eventId}/lotteries`, {
+      const res = await fetch(withPublicPath(`/api/events/${eventId}/lotteries`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -296,10 +299,15 @@ export function OrganizerLotteryConfigurator({
                     </div>
                     {savedLottery.scan_join && (
                       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-brand-blue/25 bg-brand-blue/5 p-4">
-                        {savedLottery.scan_join.qr_url ? (
+                        {savedLottery.scan_join.wxacode_url ||
+                        savedLottery.scan_join.qr_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={savedLottery.scan_join.qr_url}
+                            src={
+                              savedLottery.scan_join.wxacode_url ||
+                              savedLottery.scan_join.qr_url ||
+                              ""
+                            }
                             alt="扫码加入抽奖"
                             className="size-28 rounded-lg bg-white p-1"
                           />
@@ -307,6 +315,9 @@ export function OrganizerLotteryConfigurator({
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-brand-blue">
                             扫码加入已开启
+                            {savedLottery.scan_join.wxacode_url
+                              ? " · 小程序码"
+                              : ""}
                           </p>
                           <p className="mt-1 break-all text-xs text-text-muted">
                             码：{savedLottery.scan_join.session_code}
@@ -315,7 +326,7 @@ export function OrganizerLotteryConfigurator({
                             {savedLottery.scan_join.scan_url}
                           </p>
                           <p className="mt-2 text-xs text-text-muted">
-                            大屏等待开奖时会展示该二维码；观众微信扫码登录后直接入池。
+                            大屏等待开奖时会展示该码；观众微信扫码登录后入池。若开启「非参会者须填写资料」，小程序需提交嘉宾表单。
                           </p>
                         </div>
                       </div>
@@ -426,10 +437,54 @@ export function OrganizerLotteryConfigurator({
                           扫码加入抽奖
                         </p>
                         <p className="text-xs text-text-muted">
-                          开启后生成互动二维码，观众扫码即可入池（无需满足下方门槛）。门槛自动入池仍可并行生效。
+                          开启后生成互动码（优先小程序码），观众扫码即可入池。门槛自动入池仍可并行生效。
                         </p>
                       </div>
                     </label>
+
+                    {eligibility.allow_scan_join ? (
+                      <div className="space-y-3 rounded-lg border border-border-light bg-muted/20 p-4">
+                        <p className="text-xs font-medium text-text-muted">
+                          扫码入池资格
+                        </p>
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <Checkbox
+                            checked={eligibility.require_registered_participant}
+                            onCheckedChange={(checked) =>
+                              patchEligibility({
+                                require_registered_participant: checked === true,
+                              })
+                            }
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">强制参会者参与</p>
+                            <p className="text-xs text-text-muted">
+                              须为本场已登记参会者（报名/邀请名单）。未开启「嘉宾填表」时，场外人员无法入池。
+                            </p>
+                          </div>
+                        </label>
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <Checkbox
+                            checked={eligibility.allow_guest_with_profile}
+                            onCheckedChange={(checked) =>
+                              patchEligibility({
+                                allow_guest_with_profile: checked === true,
+                              })
+                            }
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">
+                              非参会者须填写资料
+                            </p>
+                            <p className="text-xs text-text-muted">
+                              不在名单中的用户，扫码后须填写姓名、公司、职位、手机号再入池（小程序侧需对接表单）。
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    ) : null}
 
                     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-light px-4 py-3">
                       <Checkbox
@@ -442,7 +497,7 @@ export function OrganizerLotteryConfigurator({
                       <div>
                         <p className="text-sm font-medium">已完成签到</p>
                         <p className="text-xs text-text-muted">
-                          仅限已到场签到的参会者
+                          仅限已到场签到的参会者（自动入池门槛；扫码加入不受此限）
                         </p>
                       </div>
                     </label>

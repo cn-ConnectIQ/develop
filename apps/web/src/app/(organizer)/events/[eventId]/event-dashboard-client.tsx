@@ -39,8 +39,20 @@ async function fetchDashboard(eventId: string) {
   const res = await fetch(withPublicPath(`/api/events/${eventId}/dashboard`), {
     credentials: "same-origin",
   });
-  if (!res.ok) throw new Error("加载失败");
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = (await res.json()) as { error?: string; message?: string };
+      detail = body.error || body.message || "";
+    } catch {
+      // ignore
+    }
+    throw new Error(detail || `加载失败 (${res.status})`);
+  }
   const json = await res.json();
+  if (!json?.data) {
+    throw new Error("加载失败：无数据");
+  }
   return json.data as DashboardData;
 }
 
@@ -132,7 +144,7 @@ export function EventDashboardClient({
     showSpeedNetworking || showAiReferral || showAiBoothRoute || showBuyerPush;
   const showOnsiteTab = showLottery || showStampRally || showBoothRanking;
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<DashboardData>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<DashboardData>({
     queryKey: ["event-dashboard", eventId],
     queryFn: () => fetchDashboard(eventId),
     initialData,
@@ -209,6 +221,9 @@ export function EventDashboardClient({
         stats={data?.stats}
         isLoading={isLoading && !data}
         isError={isError && !data}
+        errorMessage={
+          error instanceof Error ? error.message : undefined
+        }
         onRetry={() => void refetch()}
       />
 

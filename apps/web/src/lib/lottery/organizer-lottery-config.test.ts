@@ -16,6 +16,9 @@ describe("createOrganizerLotterySchema", () => {
         require_stamp_rally: false,
         stamp_rally_id: "",
         min_connections: null,
+        allow_scan_join: true,
+        require_registered_participant: true,
+        allow_guest_with_profile: true,
       },
       publish: false,
     });

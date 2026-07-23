@@ -99,10 +99,24 @@ export type OrganizerLotteryEligibility = {
   min_connections: number | null;
   /** 允许扫码直接加入奖池（无需满足其它门槛） */
   allow_scan_join: boolean;
+  /**
+   * 强制参会名单：须为本场已登记参会者（报名/邀请等，不含纯扫码轻量账号）。
+   * 与 allow_guest_with_profile 组合：未在名单时可填嘉宾资料入池。
+   */
+  require_registered_participant: boolean;
+  /** 非参会名单用户须填写姓名/公司/职位/手机后入池 */
+  allow_guest_with_profile: boolean;
 };
 
 /** ASC = 从低等级到高等级依次开奖（先三等奖，压轴一等奖）；ALL_AT_ONCE = 不分级逐步控制 */
 export type PrizeDrawOrder = "ASC" | "ALL_AT_ONCE";
+
+export type OrganizerLotteryGuestProfile = {
+  name: string;
+  company: string;
+  job_title: string;
+  phone: string;
+};
 
 export type OrganizerLotteryMeta = {
   eligibility: OrganizerLotteryEligibility;
@@ -121,6 +135,8 @@ export const defaultOrganizerEligibility = (): OrganizerLotteryEligibility => ({
   stamp_rally_id: null,
   min_connections: null,
   allow_scan_join: false,
+  require_registered_participant: false,
+  allow_guest_with_profile: false,
 });
 
 export function normalizeOrganizerEligibility(
@@ -146,6 +162,11 @@ export function normalizeOrganizerEligibility(
         ? raw.min_connections
         : null,
     allow_scan_join: raw?.allow_scan_join ?? defaults.allow_scan_join,
+    require_registered_participant:
+      raw?.require_registered_participant ??
+      defaults.require_registered_participant,
+    allow_guest_with_profile:
+      raw?.allow_guest_with_profile ?? defaults.allow_guest_with_profile,
   };
 }
 
@@ -180,6 +201,18 @@ export const organizerEligibilitySchema = z.object({
   stamp_rally_id: optionalNullableCuid,
   min_connections: z.number().int().min(1).max(100).optional().nullable(),
   allow_scan_join: z.boolean().optional(),
+  require_registered_participant: z.boolean().optional(),
+  allow_guest_with_profile: z.boolean().optional(),
+});
+
+export const organizerGuestProfileSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  company: z.string().trim().min(1).max(120),
+  job_title: z.string().trim().min(1).max(80),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^1\d{10}$/, "请填写有效的11位手机号"),
 });
 
 export const createOrganizerLotterySchema = z.object({
@@ -229,6 +262,8 @@ export type OrganizerLotteryScanJoin = {
   session_code: string;
   qr_url: string | null;
   scan_url: string;
+  /** 微信小程序码（优先展示；未配置 WX_MINI 时为空） */
+  wxacode_url?: string | null;
 };
 
 export type OrganizerLotteryDto = {

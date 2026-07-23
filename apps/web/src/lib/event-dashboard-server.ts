@@ -1,7 +1,7 @@
 import { prisma } from "@connectiq/database";
 import { requireEventAccessCheck } from "@/lib/api-auth";
 import { getEventManageOverview } from "@/lib/account-manage-overview-service";
-import { getEventDashboardData } from "@/lib/dashboard";
+import { emptyDashboardData, getEventDashboardData } from "@/lib/dashboard";
 import type { DashboardAlert, DashboardInsights } from "@/lib/dashboard-types";
 import type { EventDashboardPayload } from "@/lib/event-dashboard-types";
 import { getEventPhase } from "@/lib/event-utils";
@@ -39,10 +39,17 @@ export async function loadEventDashboardPayload(
   const { event, orgId } = access;
   const review = await prisma.eventReview.findUnique({ where: { eventId } });
   const phase = getEventPhase(event);
-  const [{ stats, feed, alerts }, insights] = await Promise.all([
-    getEventDashboardData(eventId),
-    loadDashboardInsights(orgId, eventId),
-  ]);
+
+  let statsFeedAlerts: Awaited<ReturnType<typeof getEventDashboardData>>;
+  try {
+    statsFeedAlerts = await getEventDashboardData(eventId);
+  } catch (err) {
+    console.error("[event-dashboard] stats load failed:", err);
+    statsFeedAlerts = emptyDashboardData();
+  }
+
+  const insights = await loadDashboardInsights(orgId, eventId);
+  const { stats, feed, alerts } = statsFeedAlerts;
 
   const mergedAlerts: DashboardAlert[] = [...alerts];
   if (insights?.pendingExhibitors?.length) {

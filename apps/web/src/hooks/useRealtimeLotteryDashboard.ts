@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { LotteryDashboardData } from "@/lib/lottery/lottery-dashboard-service";
+import { withPublicPath } from "@/lib/public-path";
 
 type UseRealtimeLotteryDashboardOptions = {
   lotteryId: string;
@@ -22,7 +23,9 @@ export function useRealtimeLotteryDashboard({
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await fetch(`/api/lotteries/${lotteryId}/dashboard`);
+      const res = await fetch(
+        withPublicPath(`/api/lotteries/${lotteryId}/dashboard`),
+      );
       if (!res.ok) return;
       const json = (await res.json()) as { data: LotteryDashboardData };
       if (json.data) onUpdateRef.current(json.data);

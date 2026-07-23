@@ -277,10 +277,18 @@ export type PollParticipationInput = {
   rating?: number;
 };
 
+export type GuestProfileInput = {
+  name: string;
+  company: string;
+  job_title: string;
+  phone: string;
+};
+
 export async function participateInSession(
   sessionCode: string,
   userId?: string | null,
   pollInput?: PollParticipationInput,
+  guestProfile?: GuestProfileInput,
 ) {
   const session = await getSessionByCode(sessionCode);
   const refs = Array.isArray(session.interactions)
@@ -325,7 +333,7 @@ export async function participateInSession(
             session.eventId,
             ref.id,
             userId,
-            { viaScan },
+            { viaScan, guestProfile },
           );
           lotteryEntries.push(entry);
 

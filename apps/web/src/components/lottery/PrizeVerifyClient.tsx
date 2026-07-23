@@ -26,12 +26,15 @@ import type {
   VerificationStats,
   VerificationWinnerView,
 } from "@/lib/lottery/prize-verification-service";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 async function lookupCode(eventId: string, code: string) {
   const normalized = extractVerificationCode(code);
   const res = await fetch(
-    `/api/verify/${encodeURIComponent(normalized)}?event_id=${eventId}`,
+    withPublicPath(
+      `/api/verify/${encodeURIComponent(normalized)}?event_id=${eventId}`,
+    ),
   );
   if (res.status === 404) {
     return { status: "invalid" as const };
@@ -45,11 +48,14 @@ async function lookupCode(eventId: string, code: string) {
 
 async function redeemCode(eventId: string, code: string) {
   const normalized = extractVerificationCode(code);
-  const res = await fetch(`/api/verify/${encodeURIComponent(normalized)}/redeem`, {
+  const res = await fetch(
+    withPublicPath(`/api/verify/${encodeURIComponent(normalized)}/redeem`),
+    {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ event_id: eventId }),
-  });
+  },
+  );
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "核销失败");
   return json.data as {

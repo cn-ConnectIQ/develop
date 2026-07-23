@@ -27,6 +27,7 @@ import {
 } from "@/lib/lead-form/templates";
 import type { LeadFormField } from "@/lib/lead-form/types";
 import type { BoothLotteryPrizeDraft } from "@/lib/lottery/booth-lottery-schemas";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PRIZES: BoothLotteryPrizeDraft[] = [
@@ -107,7 +108,7 @@ export function LotterySetupStepper({
     else setSavingDraft(true);
 
     try {
-      const res = await fetch(`/api/booths/${boothId}/lotteries`, {
+      const res = await fetch(withPublicPath(`/api/booths/${boothId}/lotteries`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

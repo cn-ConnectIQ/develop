@@ -19,6 +19,7 @@ import {
   type BigScreenLotterySort,
 } from "@/lib/lottery/big-screen-lottery-utils";
 import { cn } from "@/lib/utils";
+import { withPublicPath } from "@/lib/public-path";
 
 const FILTER_TABS: Array<{ value: BigScreenLotteryFilter; label: string }> = [
   { value: "all", label: "全部" },
@@ -34,7 +35,7 @@ const SORT_OPTIONS: Array<{ value: BigScreenLotterySort; label: string }> = [
 
 async function fetchPoolDrawLotteries(eventId: string) {
   const res = await fetch(
-    `/api/events/${eventId}/lotteries?category=POOL_DRAW`,
+    withPublicPath(`/api/events/${eventId}/lotteries?category=POOL_DRAW`),
   );
   if (!res.ok) throw new Error("加载失败");
   return (await res.json()).data.lotteries as OrganizerLotteryDto[];
@@ -42,7 +43,7 @@ async function fetchPoolDrawLotteries(eventId: string) {
 
 async function deleteDraftLottery(eventId: string, lotteryId: string) {
   const res = await fetch(
-    `/api/events/${eventId}/lotteries/${lotteryId}`,
+    withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}`),
     { method: "DELETE" },
   );
   const json = (await res.json().catch(() => ({}))) as { error?: string };

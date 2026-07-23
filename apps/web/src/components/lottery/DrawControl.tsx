@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type DrawControlProps = {
@@ -67,7 +68,7 @@ export function DrawControl({
   async function handleDraw() {
     setDrawing(true);
     try {
-      const res = await fetch(`/api/lotteries/${lotteryId}/draw`, {
+      const res = await fetch(withPublicPath(`/api/lotteries/${lotteryId}/draw`), {
         method: "POST",
       });
       const json = (await res.json()) as { error?: string };

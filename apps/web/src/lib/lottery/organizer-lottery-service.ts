@@ -76,6 +76,14 @@ export async function loadOrganizerLotteryMeta(
       typeof eligibilityRaw?.allow_scan_join === "boolean"
         ? eligibilityRaw.allow_scan_join
         : undefined,
+    require_registered_participant:
+      typeof eligibilityRaw?.require_registered_participant === "boolean"
+        ? eligibilityRaw.require_registered_participant
+        : undefined,
+    allow_guest_with_profile:
+      typeof eligibilityRaw?.allow_guest_with_profile === "boolean"
+        ? eligibilityRaw.allow_guest_with_profile
+        : undefined,
   });
 
   const animation = obj.screen_animation;
@@ -334,11 +342,22 @@ export async function resolveOrganizerLotteryScanJoin(
   );
   if (!hit) return null;
 
+  let wxacode_url: string | null = null;
+  try {
+    const { resolveInteractionWxacodeImageUrl } = await import(
+      "@/lib/wechat/wxacode-image"
+    );
+    wxacode_url = await resolveInteractionWxacodeImageUrl(hit.sessionCode);
+  } catch {
+    wxacode_url = null;
+  }
+
   return {
     session_id: hit.id,
     session_code: hit.sessionCode,
     qr_url: hit.qrUrl,
     scan_url: getInteractionScanUrl(hit.sessionCode),
+    wxacode_url,
   };
 }
 
@@ -367,11 +386,22 @@ export async function ensureOrganizerLotteryScanSession(input: {
     skipBilling: true,
   });
 
+  let wxacode_url: string | null = null;
+  try {
+    const { resolveInteractionWxacodeImageUrl } = await import(
+      "@/lib/wechat/wxacode-image"
+    );
+    wxacode_url = await resolveInteractionWxacodeImageUrl(session.sessionCode);
+  } catch {
+    wxacode_url = null;
+  }
+
   return {
     session_id: session.id,
     session_code: session.sessionCode,
     qr_url: session.qrUrl,
     scan_url: getInteractionScanUrl(session.sessionCode),
+    wxacode_url,
   };
 }
 

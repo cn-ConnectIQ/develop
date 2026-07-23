@@ -6,10 +6,10 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import { participateInSession } from "@/lib/interaction/session-service";
-import { joinSessionSchema } from "@/lib/interaction/schemas";
+import { participateSessionSchema } from "@/lib/interaction/schemas";
 import { authOptions } from "@/lib/auth";
 
-/** 公开：扫码加入互动会话 */
+/** 公开：扫码加入互动会话（与 /participate 对齐，支持嘉宾资料） */
 export const POST = withErrorHandler(async (request, context) => {
   const sessionCode = context?.params?.sessionCode;
   if (!sessionCode) {
@@ -17,7 +17,7 @@ export const POST = withErrorHandler(async (request, context) => {
   }
 
   const body = await request.json().catch(() => ({}));
-  const parsed = joinSessionSchema.safeParse(body);
+  const parsed = participateSessionSchema.safeParse(body);
   if (!parsed.success) {
     return createErrorResponse(
       parsed.error.issues[0]?.message ?? "参数错误",
@@ -30,7 +30,12 @@ export const POST = withErrorHandler(async (request, context) => {
   const userId =
     parsed.data.user_id ?? authSession?.user?.id ?? null;
 
-  const result = await participateInSession(sessionCode, userId);
+  const result = await participateInSession(
+    sessionCode,
+    userId,
+    parsed.data.poll_response,
+    parsed.data.guest_profile,
+  );
 
   return createSuccessResponse(result);
 });

@@ -25,6 +25,46 @@ function classifyLeadGrade(tagLabel: string): "A" | "B" | "C" {
   return "C";
 }
 
+const EMPTY_STATS: DashboardStats = {
+  participants: 0,
+  checkedIn: 0,
+  pending: 0,
+  checkInRate: 0,
+  connections: 0,
+  connectionsDelta: "—",
+  vipCheckedIn: 0,
+  vipTotal: 0,
+  vipRate: 0,
+  leads: 0,
+  leadsGradeA: 0,
+  leadsGradeB: 0,
+  leadsGradeC: 0,
+  meetings: { total: 0, completed: 0, inProgress: 0, noShow: 0 },
+  hasLivePoll: false,
+  livePollTitle: null,
+  ticketTypeCount: 0,
+};
+
+async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error(`[dashboard] ${label} failed:`, err);
+    return fallback;
+  }
+}
+
+/** VIP 票种匹配：避免依赖 PG citext / mode:insensitive */
+function vipTicketNameFilter() {
+  return {
+    OR: [
+      { name: { contains: "VIP" } },
+      { name: { contains: "vip" } },
+      { name: { contains: "Vip" } },
+    ],
+  };
+}
+
 export async function getEventDashboardData(eventId: string) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -40,56 +80,89 @@ export async function getEventDashboardData(eventId: string) {
     vipCheckedIn,
     todayCheckIns,
   ] = await Promise.all([
-    prisma.participant.count({ where: { eventId } }),
-    prisma.checkIn.count({ where: { eventId } }),
-    prisma.checkIn.findMany({
-      where: { eventId },
-      orderBy: { checkedInAt: "desc" },
-      take: 12,
-      include: {
-        participant: {
+    safe("participant.count", () => prisma.participant.count({ where: { eventId } }), 0),
+    safe("checkIn.count", () => prisma.checkIn.count({ where: { eventId } }), 0),
+    safe(
+      "checkIn.recent",
+      () =>
+        prisma.checkIn.findMany({
+          where: { eventId },
+          orderBy: { checkedInAt: "desc" },
+          take: 12,
           include: {
-            registrations: {
+            participant: {
+              include: {
+                registrations: {
+                  take: 1,
+                  orderBy: { registeredAt: "desc" },
+                  include: { ticketType: { select: { name: true } } },
+                },
+              },
+            },
+          },
+        }),
+      [],
+    ),
+    safe("ticketType.count", () => prisma.ticketType.count({ where: { eventId } }), 0),
+    safe(
+      "poll.live",
+      () =>
+        prisma.poll.findFirst({
+          where: { eventId, status: "LIVE" },
+          select: { id: true, title: true },
+        }),
+      null,
+    ),
+    safe(
+      "lead.list",
+      () =>
+        prisma.lead.findMany({
+          where: { booth: { eventId } },
+          select: {
+            intentGrade: true,
+            intentTags: {
               take: 1,
-              orderBy: { registeredAt: "desc" },
-              include: { ticketType: { select: { name: true } } },
+              include: { intentTag: { select: { label: true } } },
             },
           },
-        },
-      },
-    }),
-    prisma.ticketType.count({ where: { eventId } }),
-    prisma.poll.findFirst({
-      where: { eventId, status: "LIVE" },
-      select: { id: true, title: true },
-    }),
-    prisma.lead.findMany({
-      where: { booth: { eventId } },
-      include: {
-        intentTags: { include: { intentTag: { select: { label: true } } } },
-      },
-    }),
-    prisma.participantRegistration.count({
-      where: {
-        participant: { eventId },
-        ticketType: { name: { contains: "VIP", mode: "insensitive" } },
-      },
-    }),
-    prisma.checkIn.count({
-      where: {
-        eventId,
-        participant: {
-          registrations: {
-            some: {
-              ticketType: { name: { contains: "VIP", mode: "insensitive" } },
+          take: 5000,
+        }),
+      [],
+    ),
+    safe(
+      "vip.total",
+      () =>
+        prisma.participantRegistration.count({
+          where: {
+            participant: { eventId },
+            ticketType: vipTicketNameFilter(),
+          },
+        }),
+      0,
+    ),
+    safe(
+      "vip.checkedIn",
+      () =>
+        prisma.checkIn.count({
+          where: {
+            eventId,
+            participant: {
+              registrations: {
+                some: { ticketType: vipTicketNameFilter() },
+              },
             },
           },
-        },
-      },
-    }),
-    prisma.checkIn.count({
-      where: { eventId, checkedInAt: { gte: todayStart } },
-    }),
+        }),
+      0,
+    ),
+    safe(
+      "checkIn.today",
+      () =>
+        prisma.checkIn.count({
+          where: { eventId, checkedInAt: { gte: todayStart } },
+        }),
+      0,
+    ),
   ]);
 
   const checkInRate =
@@ -102,6 +175,11 @@ export async function getEventDashboardData(eventId: string) {
 
   const leadsGrade = { A: 0, B: 0, C: 0 };
   for (const lead of leads) {
+    const fromGrade = lead.intentGrade?.trim().toUpperCase();
+    if (fromGrade === "A" || fromGrade === "B" || fromGrade === "C") {
+      leadsGrade[fromGrade]++;
+      continue;
+    }
     const label = lead.intentTags[0]?.intentTag.label ?? "";
     leadsGrade[classifyLeadGrade(label)]++;
   }
@@ -133,7 +211,7 @@ export async function getEventDashboardData(eventId: string) {
   const meetings = {
     total: meetingTotal,
     completed: Math.round(meetingTotal * 0.61),
-    inProgress: Math.max(1, Math.round(meetingTotal * 0.13)),
+    inProgress: Math.max(meetingTotal > 0 ? 1 : 0, Math.round(meetingTotal * 0.13)),
     noShow: 0,
   };
   meetings.noShow = Math.max(
@@ -209,6 +287,10 @@ export async function getEventDashboardData(eventId: string) {
   }
 
   return { stats, feed, alerts };
+}
+
+export function emptyDashboardData() {
+  return { stats: { ...EMPTY_STATS }, feed: [] as DashboardCheckinItem[], alerts: [] as DashboardAlert[] };
 }
 
 export async function getExpoDashboardData(expoId: string) {

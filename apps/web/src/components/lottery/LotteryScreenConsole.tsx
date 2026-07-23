@@ -39,6 +39,7 @@ type ScreenState = {
     qr_url: string | null;
     scan_url: string;
     session_code: string;
+    wxacode_url?: string | null;
   } | null;
   winner_quota: number;
   revealed_count: number;
@@ -460,13 +461,18 @@ export function LotteryScreenConsole({
                       <span className="ml-1 text-sm font-medium">人</span>
                     </p>
                   </div>
-                  {state?.scan_join?.qr_url && (
+                  {(state?.scan_join?.wxacode_url ||
+                    state?.scan_join?.qr_url) && (
                     <>
                       <div className="hidden h-12 w-px bg-white/10 sm:block" />
                       <div className="flex items-center gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={state.scan_join.qr_url}
+                          src={
+                            state.scan_join.wxacode_url ||
+                            state.scan_join.qr_url ||
+                            ""
+                          }
                           alt="扫码加入"
                           className="size-16 rounded-lg bg-white p-1"
                         />

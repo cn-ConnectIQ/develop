@@ -1,9 +1,13 @@
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
-import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { BigScreenLotteryListClient } from "@/components/lottery/BigScreenLotteryListClient";
 
+/**
+ * 大屏抽奖列表。
+ * 登录由 middleware 保证；此处不再用 requireEventAccessCheck + notFound
+ *（RSC session 偶发读不到时会被误判成整页 404）。
+ */
 export default async function BigScreenLotteryListPage({
   params,
 }: {
@@ -11,14 +15,10 @@ export default async function BigScreenLotteryListPage({
 }) {
   const { eventId } = await params;
 
-  const access = await requireEventAccessCheck(eventId);
-  if ("error" in access) notFound();
-
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { id: true, name: true },
   });
-
   if (!event) notFound();
 
   return (
