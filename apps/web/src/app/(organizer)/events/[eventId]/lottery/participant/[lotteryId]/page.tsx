@@ -1,19 +1,16 @@
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
-import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { LotteryDashboard } from "@/components/lottery/LotteryDashboard";
 import { getLotteryDashboard } from "@/lib/lottery/lottery-dashboard-service";
 
+/** 登录由 middleware 保证；不再用 access check → notFound 假 404。 */
 export default async function OrganizerParticipantLotteryDashboardPage({
   params,
 }: {
   params: Promise<{ eventId: string; lotteryId: string }>;
 }) {
   const { eventId, lotteryId } = await params;
-
-  const access = await requireEventAccessCheck(eventId);
-  if ("error" in access) notFound();
 
   const lottery = await prisma.lottery.findFirst({
     where: { id: lotteryId, eventId, boothId: null },

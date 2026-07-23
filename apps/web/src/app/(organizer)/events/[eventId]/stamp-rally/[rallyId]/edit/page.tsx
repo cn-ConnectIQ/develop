@@ -1,9 +1,9 @@
 import { prisma } from "@connectiq/database";
 import { notFound } from "next/navigation";
-import { requireEventAccessCheck } from "@/lib/api-auth";
 import { FeatureFlagGate } from "@/components/events/FeatureFlagGate";
 import { StampRallyConfigurator } from "@/components/stamp/StampRallyConfigurator";
 
+/** 登录由 middleware 保证；不再用 access check → notFound 假 404。 */
 export default async function EditStampRallyPage({
   params,
 }: {
@@ -11,16 +11,17 @@ export default async function EditStampRallyPage({
 }) {
   const { eventId, rallyId } = await params;
 
-  const access = await requireEventAccessCheck(eventId);
-  if ("error" in access) notFound();
-
   const rally = await prisma.stampRally.findFirst({
     where: { id: rallyId, eventId },
     select: { id: true },
   });
   if (!rally) notFound();
 
-  const event = access.event;
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, name: true },
+  });
+  if (!event) notFound();
 
   return (
     <FeatureFlagGate
