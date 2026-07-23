@@ -1,3 +1,4 @@
+import type { HTMLAttributes } from "react";
 import { Column, Link, Row, Section } from "@react-email/components";
 
 type EmailCtaButtonProps = {
@@ -23,7 +24,12 @@ export function EmailCtaButton({ href, label }: EmailCtaButtonProps) {
           >
             <tbody>
               <tr>
-                <td align="center" bgcolor="#0F6E56" style={td}>
+                <td
+                  align="center"
+                  style={td}
+                  // Outlook 等邮件客户端仍依赖 bgcolor；TS DOM 类型未收录该属性
+                  {...({ bgcolor: "#0F6E56" } as HTMLAttributes<HTMLTableCellElement>)}
+                >
                   <Link href={href} style={anchor}>
                     {label}
                   </Link>
