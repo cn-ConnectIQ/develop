@@ -45,31 +45,13 @@ export async function createInteractionSession(input: {
   ownerType?: "ORGANIZER" | "EXHIBITOR";
   channelType?: "QR_CODE" | "LINK" | "APP_PUSH";
   settings?: Record<string, unknown>;
-  /** 大屏抽奖扫码入池：不另扣互动点（主办方大奖池已是产品能力） */
+  /**
+   * @deprecated 互动点已改为「开通展位」扣费，创建会话不再扣点。
+   * 保留参数以免调用方类型报错。
+   */
   skipBilling?: boolean;
 }) {
-  const event = await prisma.event.findUnique({
-    where: { id: input.eventId },
-    select: { orgId: true },
-  });
-  if (event?.orgId && !input.skipBilling) {
-    const { assertAndDebitInteractionPoint } = await import(
-      "@/lib/billing/billing-guards"
-    );
-    try {
-      await assertAndDebitInteractionPoint({
-        orgId: event.orgId,
-        eventId: input.eventId,
-        createdByUserId: input.createdById,
-      });
-    } catch (err) {
-      throw new ApiError(
-        err instanceof Error ? err.message : "互动点不足",
-        ErrorCode.FORBIDDEN,
-        402,
-      );
-    }
-  }
+  void input.skipBilling;
 
   const sessionCode = await generateUniqueSessionCode();
   const qrUrl = await generateInteractionQR(sessionCode);

@@ -11,15 +11,17 @@
 
 ## 默认套餐（种子）
 
+互动点口径：**每开通一个展位扣 1 点**；展位内投票 / 抽奖 / 线索采集不再另扣。
+
 ```bash
 pnpm --filter @connectiq/database db:seed:billing-plans
 ```
 
 | code | 价格 | 含 |
 |------|------|-----|
-| `EVENT_UNDER_500` | ¥999/场 | 10 互动点 |
-| `EVENT_OVER_500` | ¥1999/场 | 20 互动点 |
-| `INTERACTION_POINT_1` | ¥150/点 | 1 互动点 |
+| `EVENT_UNDER_500` | ¥999/场 | 10 互动点（开通展位） |
+| `EVENT_OVER_500` | ¥1999/场 | 20 互动点（开通展位） |
+| `INTERACTION_POINT_1` | ¥150/点 | 1 互动点 = 开通 1 展位 |
 | `SMS_PACK_500` / `2000` | ¥45 / ¥160 | 短信条数 |
 | `EMAIL_PACK_1000` / `5000` | ¥30 / ¥120 | 邮件封数 |
 
@@ -168,7 +170,7 @@ pnpm --filter @connectiq/database db:seed:billing-plans
 - 发送入口：创建后立即 `triggerInviteProcessing`；兜底 Cron：`GET /api/cron/invite-send`（建议每 1～2 分钟）
 - Mailgun 回调：`POST /api/webhooks/mailgun`（自定义变量 `invite_record_id`）
 - 阿里云短信报告：`POST /api/webhooks/aliyun-sms`（按 `BizId` 关联）
-| 创建互动会话 | 互动点 −1 |
+| 开通展位 | 互动点 −1（投票/抽奖/采集会话不再扣点） |
 
 管理端 UI：`/organizer/billing`（侧栏「计费与充值」）。
 

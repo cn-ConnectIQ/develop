@@ -91,7 +91,7 @@ export const NOTIFICATION_TEMPLATE_SEEDS: SeedTemplate[] = [
     category: "TRANSACTIONAL",
     audience: "ORGANIZER",
     subject: null,
-    body: "【玖莅】{姓氏称谓},{活动简称}的互动点已耗尽,展商抽奖与线索采集已暂停。立即充值:{短链}",
+    body: "【玖莅】{姓氏称谓},{活动简称}的互动点已耗尽,无法再开通新展位。立即充值:{短链}",
     variables: ["姓氏称谓", "活动简称", "短链"],
     requiresOptOut: false,
   },

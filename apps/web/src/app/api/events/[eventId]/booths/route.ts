@@ -1,4 +1,4 @@
-import { prisma, type Prisma } from "@connectiq/database";
+import { BillingLedgerResource, prisma, type Prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -7,6 +7,8 @@ import {
   requireEventAccess,
   withErrorHandler,
 } from "@/lib/api-auth";
+import { assertAndDebitInteractionPoint } from "@/lib/billing/billing-guards";
+import { creditOrgWallet } from "@/lib/billing/wallet-service";
 import { classifyLeadGrade } from "@/lib/booth-map";
 import {
   resolveCompanyOrgId,
@@ -182,7 +184,7 @@ export const POST = withErrorHandler(async (request, context) => {
     return createErrorResponse("缺少活动 ID", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  await requireEventAccess(eventId);
+  const { session, event } = await requireEventAccess(eventId);
 
   const body = await request.json();
   const parsed = createBoothSchema.safeParse(body);
@@ -225,6 +227,26 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
+  const billingOrgId = event.orgId;
+  let debited = false;
+  if (billingOrgId) {
+    try {
+      await assertAndDebitInteractionPoint({
+        orgId: billingOrgId,
+        eventId,
+        createdByUserId: session.user.id,
+        remark: `开通展位 ${parsed.data.code}`,
+      });
+      debited = true;
+    } catch (err) {
+      return createErrorResponse(
+        err instanceof Error ? err.message : "互动点不足",
+        ErrorCode.FORBIDDEN,
+        402,
+      );
+    }
+  }
+
   let booth;
   try {
     booth = await prisma.exhibitorBooth.create({
@@ -245,6 +267,16 @@ export const POST = withErrorHandler(async (request, context) => {
       },
     });
   } catch (error) {
+    if (debited && billingOrgId) {
+      await creditOrgWallet({
+        orgId: billingOrgId,
+        resource: BillingLedgerResource.INTERACTION_POINT,
+        amount: 1,
+        eventId,
+        createdByUserId: session.user.id,
+        remark: `开通展位失败退回 ${parsed.data.code}`,
+      }).catch(() => undefined);
+    }
     if (
       typeof error === "object" &&
       error !== null &&

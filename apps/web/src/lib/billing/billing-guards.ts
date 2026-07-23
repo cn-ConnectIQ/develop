@@ -65,11 +65,13 @@ export async function getOrgIdForEvent(eventId: string): Promise<string | null> 
   return event?.orgId ?? null;
 }
 
-/** 正式组织创建互动会话扣 1 互动点；试用跳过。overdraft_limit 默认 0（耗尽即停） */
+/** 正式组织开通展位扣 1 互动点；试用跳过。overdraft_limit 默认 0（耗尽即停） */
 export async function assertAndDebitInteractionPoint(input: {
   orgId: string;
   eventId: string;
   createdByUserId?: string;
+  /** 流水备注，默认「开通展位」 */
+  remark?: string;
 }) {
   const org = await prisma.organization.findUnique({
     where: { id: input.orgId },
@@ -79,9 +81,10 @@ export async function assertAndDebitInteractionPoint(input: {
 
   const wallet = await getOrCreateOrgWallet(input.orgId);
   const overdraft = org.overdraftLimit ?? 0;
+  const remark = input.remark ?? "开通展位";
   if (wallet.interactionPointsBalance + overdraft < 1) {
     throw new Error(
-      "互动点不足，请先在「计费与充值」购买办会套餐或互动点后再发起互动。",
+      "互动点不足，请先在「计费与充值」购买办会套餐或互动点后再开通展位。",
     );
   }
 
@@ -92,7 +95,7 @@ export async function assertAndDebitInteractionPoint(input: {
       amount: 1,
       eventId: input.eventId,
       createdByUserId: input.createdByUserId,
-      remark: "创建现场互动会话",
+      remark,
     });
   } catch {
     // 透支额度 >0 时允许余额为 0 仍扣减（通过临时加点再扣——简化：若透支配置>0且余额为0则 credit 1 再 debit）
@@ -111,12 +114,12 @@ export async function assertAndDebitInteractionPoint(input: {
         amount: 1,
         eventId: input.eventId,
         createdByUserId: input.createdByUserId,
-        remark: "创建现场互动会话(透支)",
+        remark: `${remark}(透支)`,
       });
       return;
     }
     throw new Error(
-      "互动点不足，请先在「计费与充值」购买办会套餐或互动点后再发起互动。",
+      "互动点不足，请先在「计费与充值」购买办会套餐或互动点后再开通展位。",
     );
   }
 }
