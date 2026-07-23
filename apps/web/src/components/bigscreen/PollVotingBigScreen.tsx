@@ -57,7 +57,7 @@ export function PollVotingBigScreen({
           "radial-gradient(ellipse 120% 80% at 50% -20%, rgba(45,212,191,0.08) 0%, transparent 55%), #1a1d2e",
       }}
     >
-      <header className="flex shrink-0 items-start justify-between gap-6 px-[5%] pt-[4%]">
+      <header className="flex shrink-0 items-start justify-between gap-6 px-[5%] pt-[clamp(48px,7vh,72px)]">
         <div className="min-w-0 flex-1">
           <p className="text-[clamp(12px,1.1vw,15px)] text-white/45">
             现场投票 · 实时结果
@@ -134,7 +134,7 @@ export function PollVotingBigScreen({
         )}
       </div>
 
-      <footer className="flex shrink-0 items-center justify-between px-[5%] pb-[3%]">
+      <footer className="flex shrink-0 items-center justify-between px-[5%] pb-[clamp(28px,4vh,48px)] pl-[max(5%,88px)]">
         <div className="flex items-center gap-2.5">
           <span className="flex size-7 items-center justify-center rounded-md bg-[#22c55e] text-[11px] font-bold text-white">
             C

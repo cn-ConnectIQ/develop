@@ -88,18 +88,20 @@ export function BigscreenProjection({
 
   if (isChoicePoll) {
     return (
-      <PollVotingBigScreen
-        title={poll.title}
-        total={results?.total ?? poll.responseCount}
-        options={showResults ? (results?.options ?? []) : []}
-        showResults={showResults}
-        countdown={countdown}
-        closesAt={poll.closesAt}
-        createdAt={poll.createdAt}
-        scanUrl={scanUrl}
-        qrUrl={qrUrl}
-        wxacodeUrl={wxacodeUrl}
-      />
+      <div className="relative flex h-full min-h-0 flex-1 flex-col">
+        <PollVotingBigScreen
+          title={poll.title}
+          total={results?.total ?? poll.responseCount}
+          options={showResults ? (results?.options ?? []) : []}
+          showResults={showResults}
+          countdown={countdown}
+          closesAt={poll.closesAt}
+          createdAt={poll.createdAt}
+          scanUrl={scanUrl}
+          qrUrl={qrUrl}
+          wxacodeUrl={wxacodeUrl}
+        />
+      </div>
     );
   }
 

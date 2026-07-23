@@ -34,7 +34,8 @@ export function PollVotingBar({
 
       <div
         className={cn(
-          "relative min-w-0 flex-1 overflow-hidden rounded-2xl bg-white/[0.07]",
+          "relative min-w-0 flex-1 overflow-hidden rounded-2xl",
+          "bg-white/[0.06] ring-1 ring-inset ring-white/[0.06]",
           "h-[clamp(44px,5.5vh,64px)]",
           "transition-[box-shadow,ring-color] duration-500 ease-out",
           isWinner &&

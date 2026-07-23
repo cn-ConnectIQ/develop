@@ -625,13 +625,18 @@ export function ScreenPageClient() {
     });
   }, [handleStatusUpdate]);
 
+  // 与投票/问答投影统一：同一画布色，避免顶栏深灰 / 内容海军蓝 / 底缝近黑三段色带
+  const screenCanvas = "#1a1d2e";
+
   return (
     <div
       style={{
         position: "relative",
-        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
         width: "100%",
-        backgroundColor: "#0b0b14",
+        backgroundColor: screenCanvas,
         color: "#ffffff",
         overflow: "hidden",
       }}
@@ -674,13 +679,18 @@ export function ScreenPageClient() {
       {phase === "paired" && pairing?.eventId ? (
         <div
           style={{
-            position: "relative",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
             zIndex: 20,
-            padding: "16px 72px 8px 24px",
-            fontSize: "14px",
-            color: "rgba(255,255,255,0.72)",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            backgroundColor: "rgba(0,0,0,0.25)",
+            padding: "14px 72px 10px 24px",
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.55)",
+            letterSpacing: "0.02em",
+            background:
+              "linear-gradient(180deg, rgba(10,12,22,0.45) 0%, transparent 100%)",
+            pointerEvents: "none",
           }}
         >
           已连接：{pairing.eventName ?? "活动"} · 当前：
@@ -691,7 +701,8 @@ export function ScreenPageClient() {
       <div
         key={fadeKey}
         style={{
-          minHeight: phase === "paired" ? "calc(100vh - 52px)" : "100vh",
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           opacity: 1,

@@ -64,7 +64,7 @@ export function ScreenExitControl({ onExit }: ScreenExitControlProps) {
           style={{
             border: "none",
             background: "transparent",
-            color: "rgba(255,255,255,0.18)",
+            color: "rgba(255,255,255,0.28)",
             fontSize: 12,
             letterSpacing: "0.04em",
             padding: "6px 8px",
@@ -73,18 +73,18 @@ export function ScreenExitControl({ onExit }: ScreenExitControlProps) {
             transition: "color 0.2s ease, background 0.2s ease",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.55)";
+            e.currentTarget.style.color = "rgba(255,255,255,0.65)";
             e.currentTarget.style.background = "rgba(255,255,255,0.06)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.18)";
+            e.currentTarget.style.color = "rgba(255,255,255,0.28)";
             e.currentTarget.style.background = "transparent";
           }}
           onFocus={(e) => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.55)";
+            e.currentTarget.style.color = "rgba(255,255,255,0.65)";
           }}
           onBlur={(e) => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.18)";
+            e.currentTarget.style.color = "rgba(255,255,255,0.28)";
           }}
         >
           退出

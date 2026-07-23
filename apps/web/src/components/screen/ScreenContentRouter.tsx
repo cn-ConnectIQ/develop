@@ -200,7 +200,9 @@ function PollScreenContent({
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          backgroundColor: "#1A1A2E",
+          backgroundColor: "#1a1d2e",
+          height: "100%",
+          minHeight: 0,
         }}
       >
         <div style={{ padding: "32px 32px 0" }}>
@@ -241,6 +243,8 @@ function PollScreenContent({
         flex: 1,
         display: "flex",
         flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
         backgroundColor: "#1a1d2e",
       }}
     >
@@ -321,7 +325,7 @@ function LotteryScreenContent({
           alignItems: "center",
           justifyContent: "center",
           color: "rgba(255,255,255,0.5)",
-          backgroundColor: "#0a0a12",
+          backgroundColor: "#1a1d2e",
         }}
       >
         加载抽奖大屏…
@@ -338,7 +342,7 @@ function LotteryScreenContent({
           alignItems: "center",
           justifyContent: "center",
           color: "rgba(255,255,255,0.6)",
-          backgroundColor: "#0a0a12",
+          backgroundColor: "#1a1d2e",
         }}
       >
         {error}
@@ -349,7 +353,7 @@ function LotteryScreenContent({
   return (
     <div
       className="relative flex h-full min-h-0 flex-col overflow-hidden text-white"
-      style={{ backgroundColor: "#0a0a12" }}
+      style={{ backgroundColor: "#1a1d2e" }}
     >
       <header className="relative z-10 flex items-start justify-between gap-6 px-8 py-4">
         <div className="min-w-0 flex-1">
