@@ -58,6 +58,39 @@ async function fetchPollResults(
   return json.data as PollResultsPayload;
 }
 
+function samePollResults(
+  a: PollResultsPayload | null,
+  b: PollResultsPayload,
+): boolean {
+  if (!a) return false;
+  if (
+    a.pollId !== b.pollId ||
+    a.total !== b.total ||
+    a.showResults !== b.showResults ||
+    a.status !== b.status ||
+    a.title !== b.title ||
+    a.scanUrl !== b.scanUrl ||
+    a.qrUrl !== b.qrUrl ||
+    a.wxacodeUrl !== b.wxacodeUrl
+  ) {
+    return false;
+  }
+  if (a.options.length !== b.options.length) return false;
+  for (let i = 0; i < a.options.length; i += 1) {
+    const x = a.options[i];
+    const y = b.options[i];
+    if (
+      x.id !== y.id ||
+      x.count !== y.count ||
+      x.percentage !== y.percentage ||
+      x.text !== y.text
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function PollScreenContent({
   eventId,
   pollId,
@@ -74,7 +107,7 @@ function PollScreenContent({
   const reload = useCallback(async () => {
     try {
       const next = await fetchPollResults(eventId, pollId);
-      setData(next);
+      setData((prev) => (samePollResults(prev, next) ? prev : next));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载失败");

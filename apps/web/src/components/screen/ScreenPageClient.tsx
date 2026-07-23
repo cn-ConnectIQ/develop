@@ -7,12 +7,13 @@ import {
 } from "@/components/screen/ConnectionStatusDot";
 import { QRDisplay } from "@/components/screen/QRDisplay";
 import { ScreenContentRouter } from "@/components/screen/ScreenContentRouter";
+import { ScreenExitControl } from "@/components/screen/ScreenExitControl";
 import { subscribeScreenPairing } from "@/lib/screen-pairing/realtime.client";
 import type {
   ScreenPairingBroadcastMessage,
   ScreenPairingStatusPayload,
 } from "@/lib/screen-pairing/shared";
-import { TOKEN_TTL_SECONDS } from "@/lib/screen-pairing/shared";
+import { buildQrContent, TOKEN_TTL_SECONDS } from "@/lib/screen-pairing/shared";
 
 /** 每个浏览器标签页独立存储,避免多块屏互相覆盖 token */
 const STORAGE_KEY = "connectiq_screen_pairing_token";
@@ -20,6 +21,19 @@ const HEARTBEAT_MS = 10_000;
 const POLL_MS = 3_000;
 
 type ScreenPhase = "loading" | "waiting" | "paired";
+
+/** 仅当投影内容真正切换时才换 key，避免配对轮询反复整页重挂闪屏 */
+function screenContentKey(status: ScreenPairingStatusPayload): string {
+  const dt = status.displayTarget;
+  return [
+    status.status,
+    status.eventId ?? "",
+    status.interactionType ?? "",
+    status.interactionId ?? "",
+    dt?.pollId ?? "",
+    dt?.lotteryId ?? "",
+  ].join("|");
+}
 
 function supportsWebSocket() {
   return typeof WebSocket !== "undefined";
@@ -193,6 +207,18 @@ export function ScreenPageClient() {
   const lastHeartbeatOkRef = useRef(true);
   const realtimeConnectedRef = useRef(true);
   const usePollingFallbackRef = useRef(false);
+  const contentKeyRef = useRef("");
+
+  const bumpFadeIfContentChanged = useCallback(
+    (status: ScreenPairingStatusPayload) => {
+      const nextKey = screenContentKey(status);
+      if (nextKey === contentKeyRef.current) return false;
+      contentKeyRef.current = nextKey;
+      setFadeKey((k) => k + 1);
+      return true;
+    },
+    [],
+  );
 
   const setPollingFallback = useCallback((enabled: boolean) => {
     usePollingFallbackRef.current = enabled;
@@ -258,7 +284,7 @@ export function ScreenPageClient() {
             if (refreshed.status.status === "PAIRED") {
               setPairing(refreshed.status);
               setPhase("paired");
-              setFadeKey((k) => k + 1);
+              bumpFadeIfContentChanged(refreshed.status);
               return;
             }
 
@@ -274,7 +300,7 @@ export function ScreenPageClient() {
         })();
       }, delaySec * 1000);
     },
-    [clearRefreshTimer],
+    [bumpFadeIfContentChanged, clearRefreshTimer],
   );
 
   const handleStatusUpdate = useCallback(
@@ -286,7 +312,7 @@ export function ScreenPageClient() {
 
       if (status.status === "PAIRED" && status.eventId) {
         setPhase("paired");
-        setFadeKey((k) => k + 1);
+        bumpFadeIfContentChanged(status);
         clearRefreshTimer();
         return;
       }
@@ -309,20 +335,25 @@ export function ScreenPageClient() {
       }
 
       setPhase("waiting");
+      bumpFadeIfContentChanged(status);
       scheduleQrRefresh(
         status.pairingToken,
         status.expiresIn ?? TOKEN_TTL_SECONDS,
       );
     },
-    [clearRefreshTimer, scheduleQrRefresh],
+    [bumpFadeIfContentChanged, clearRefreshTimer, scheduleQrRefresh],
   );
 
   const handlePairedBroadcast = useCallback(
     (message: ScreenPairingBroadcastMessage) => {
       const token = pairingTokenRef.current;
+      setPairing((prev) => {
+        const next = applyPairedFromBroadcast(prev, message, token);
+        // 内容指纹在 updater 外同步，避免 StrictMode 双调用导致副作用紊乱
+        queueMicrotask(() => bumpFadeIfContentChanged(next));
+        return next;
+      });
       setPhase("paired");
-      setFadeKey((k) => k + 1);
-      setPairing((prev) => applyPairedFromBroadcast(prev, message, token));
       clearRefreshTimer();
 
       void (async () => {
@@ -334,7 +365,7 @@ export function ScreenPageClient() {
         }
       })();
     },
-    [clearRefreshTimer, handleStatusUpdate],
+    [bumpFadeIfContentChanged, clearRefreshTimer, handleStatusUpdate],
   );
 
   const pollPairingStatus = useCallback(async () => {
@@ -351,9 +382,6 @@ export function ScreenPageClient() {
       }
 
       if (status.status === "WAITING" || status.status === "EXPIRED") {
-        if (phase === "paired") {
-          setFadeKey((k) => k + 1);
-        }
         handleStatusUpdate(status);
         return;
       }
@@ -385,7 +413,6 @@ export function ScreenPageClient() {
             void (async () => {
               const status = await fetchPairingStatus(pairingTokenRef.current);
               if (status) {
-                setFadeKey((k) => k + 1);
                 handleStatusUpdate(status);
               }
             })();
@@ -570,6 +597,34 @@ export function ScreenPageClient() {
       ? pairing.interactionType
       : null;
 
+  const exitToPairingQr = useCallback(async () => {
+    const token = pairingTokenRef.current;
+    if (!token) throw new Error("当前没有配对会话");
+
+    const res = await fetch(
+      `/api/screen-pairing/${encodeURIComponent(token)}/reset`,
+      { method: "POST" },
+    );
+    if (!res.ok) throw new Error("退出失败，请稍后重试");
+    const json = await res.json();
+    const data = json.data as ScreenPairingStatusPayload & {
+      qrContent?: string;
+    };
+
+    setQrContent(data.qrContent ?? buildQrContent(data.pairingToken ?? token));
+    handleStatusUpdate({
+      ...data,
+      status: "WAITING",
+      eventId: null,
+      eventName: null,
+      interactionType: null,
+      interactionId: null,
+      interactionName: null,
+      displayTarget: null,
+      pairingToken: data.pairingToken ?? token,
+    });
+  }, [handleStatusUpdate]);
+
   return (
     <div
       style={{
@@ -591,6 +646,10 @@ export function ScreenPageClient() {
       >
         <ConnectionStatusDot state={connectionState} />
       </div>
+
+      {phase === "paired" ? (
+        <ScreenExitControl onExit={exitToPairingQr} />
+      ) : null}
 
       {showReconnectBanner && phase === "paired" ? (
         <div

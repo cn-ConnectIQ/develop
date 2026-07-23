@@ -14,6 +14,7 @@ type BigscreenJoinQrProps = {
 
 /**
  * 大屏右上角参与码：优先小程序码，其次已有 qrUrl，再次根据 scanUrl 生成 H5 码。
+ * 同一 URL 不重复换图，避免轮询刷新时二维码闪白。
  */
 export function BigscreenJoinQr({
   wxacodeUrl,
@@ -27,7 +28,7 @@ export function BigscreenJoinQr({
 
   useEffect(() => {
     if (preferred) {
-      setDataUrl(preferred);
+      setDataUrl((prev) => (prev === preferred ? prev : preferred));
       return;
     }
     if (!scanUrl) {
@@ -45,7 +46,7 @@ export function BigscreenJoinQr({
           errorCorrectionLevel: "M",
           color: { dark: "#0b0b14", light: "#ffffff" },
         });
-        if (!cancelled) setDataUrl(url);
+        if (!cancelled) setDataUrl((prev) => (prev === url ? prev : url));
       } catch {
         if (!cancelled) setDataUrl(null);
       }
@@ -70,6 +71,7 @@ export function BigscreenJoinQr({
             src={dataUrl}
             alt={caption}
             className="size-full rounded-lg object-contain"
+            decoding="async"
           />
         ) : (
           <div className="flex size-full items-center justify-center text-[10px] text-black/40">
