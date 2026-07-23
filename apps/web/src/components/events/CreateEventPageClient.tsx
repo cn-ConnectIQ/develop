@@ -94,7 +94,11 @@ const SOURCE_OPTIONS: Array<{
   },
 ];
 
-function buildPayload(step1: Step1Values, description: string) {
+function buildPayload(
+  step1: Step1Values,
+  description: string,
+  source: EventSource,
+) {
   const locationParts = [step1.city?.trim(), step1.venue?.trim()].filter(Boolean);
   return {
     name: step1.name,
@@ -105,6 +109,7 @@ function buildPayload(step1: Step1Values, description: string) {
     venue: step1.venue,
     location: locationParts.length > 0 ? locationParts.join(" · ") : undefined,
     description,
+    ...(source === "baige" ? { dataSource: "BAGEVENT" as const } : {}),
   };
 }
 
@@ -189,7 +194,7 @@ export function CreateEventPageClient() {
   async function saveEventDraft(): Promise<string | null> {
     if (!step1Data) return null;
     const description = step2Form.getValues("description") ?? "";
-    const payload = buildPayload(step1Data, description);
+    const payload = buildPayload(step1Data, description, source);
 
     const res = await fetch("/api/events", {
       method: "POST",

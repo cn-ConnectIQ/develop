@@ -1,5 +1,6 @@
 import {
   ActivityType,
+  DataSource,
   EventStatus,
   prisma,
   PrismaUserRole,
@@ -35,6 +36,9 @@ const createEventBodySchema = z.object({
   type: z.nativeEnum(EventType).optional(),
   event_type: z.nativeEnum(EventType).optional(),
   category: eventCategorySchema.optional(),
+  /** 可选：从百格创建时传 BAGEVENT，默认 NATIVE，不影响现有调用 */
+  dataSource: z.nativeEnum(DataSource).optional(),
+  data_source: z.nativeEnum(DataSource).optional(),
   startDate: z.string().datetime({ message: "请选择开始时间" }).optional(),
   endDate: z.string().datetime({ message: "请选择结束时间" }).optional(),
   starts_at: z.string().datetime({ message: "请选择开始时间" }).optional(),
@@ -75,6 +79,7 @@ function parseCreateEventBody(body: unknown) {
       name: data.name,
       type,
       category: data.category,
+      dataSource: data.dataSource ?? data.data_source ?? DataSource.NATIVE,
       startDate: startRaw,
       endDate: endRaw,
       location,
@@ -219,6 +224,7 @@ export const POST = withErrorHandler(async (request) => {
       slug: slugify(data.name),
       type: data.type,
       activityType,
+      dataSource: data.dataSource,
       ...eventLifecycleFields("DRAFT"),
       description: data.description,
       location: data.location,

@@ -109,6 +109,9 @@ export const POST = withErrorHandler(async (request) => {
           { status: 400 },
         );
       }
+      if (error.code === "EMAIL_TAKEN") {
+        return createErrorResponse(error.message, ErrorCode.VALIDATION_ERROR, 409);
+      }
       const status =
         error.code === "ALREADY_APPROVED"
           ? 409
@@ -116,6 +119,19 @@ export const POST = withErrorHandler(async (request) => {
             ? 400
             : 400;
       return createErrorResponse(error.message, ErrorCode.VALIDATION_ERROR, status);
+    }
+    // Prisma 唯一约束未被捕获时的兜底（User.email）
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code: string }).code === "P2002"
+    ) {
+      return createErrorResponse(
+        "该邮箱已被其他账号使用，请更换邮箱或直接登录",
+        ErrorCode.VALIDATION_ERROR,
+        409,
+      );
     }
     throw error;
   }

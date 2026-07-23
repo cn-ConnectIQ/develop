@@ -224,6 +224,11 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                 参展
               </span>
             )}
+            {event.dataSource === "BAGEVENT" && (
+              <span className="rounded-full bg-content px-2 py-0.5 text-xs font-medium text-text-muted">
+                来源百格
+              </span>
+            )}
             {(isPendingReview || isRevisionRequired || isRejected) && (
               <ReviewStatusBadge status={reviewStatus} />
             )}

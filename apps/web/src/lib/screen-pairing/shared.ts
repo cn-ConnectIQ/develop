@@ -29,7 +29,8 @@ export type ScreenPairingStatusPayload = {
 };
 
 export function buildQrContent(pairingToken: string): string {
-  return `CIQ:SCREEN:${pairingToken}`;
+  // 带 token 的公开页 URL：小程序 scanCode 可直接解析；浏览器打开仍可进入大屏页
+  return `https://9li.co/uc/s?token=${encodeURIComponent(pairingToken)}`
 }
 
 export const SCREEN_PAIRING_BROADCAST_EVENT = "screen-pairing";

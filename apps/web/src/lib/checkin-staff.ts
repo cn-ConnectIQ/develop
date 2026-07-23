@@ -93,6 +93,17 @@ export async function performStaffBadgeCheckin(
     // 自动扫描失败不影响签到
   });
 
+  // 百格来源活动：尝试回写签到（失败不影响主流程）
+  void import("@/lib/integrations/baige-checkin-sync")
+    .then(({ pushCheckinToBaige }) =>
+      pushCheckinToBaige({
+        eventId,
+        participantId: participant.id,
+        checkedAt: checkIn.checkedInAt,
+      }),
+    )
+    .catch(() => {});
+
   return {
     participant: mapped,
     checked_in_at: checkIn.checkedInAt.toISOString(),

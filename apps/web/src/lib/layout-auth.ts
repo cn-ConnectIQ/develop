@@ -3,6 +3,11 @@ import type { UserRole } from "@connectiq/types";
 import { getServerSession } from "next-auth";
 import type { Session } from "next-auth";
 import { redirect } from "next/navigation";
+import {
+  getAccountAdminBlockedPath,
+  getPostLoginRedirectPath,
+} from "@/lib/auth-redirect";
+import { isOrgAdminUsable } from "@/lib/org-access";
 
 const PLATFORM_ADMIN = "PLATFORM_ADMIN" as UserRole;
 
@@ -25,12 +30,22 @@ export async function requireAccountAdminLayoutSession(): Promise<Session> {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  if (
-    session.user.userType === "PLATFORM_ADMIN" ||
-    session.user.userType === "ACCOUNT_ADMIN"
-  ) {
+  if (session.user.userType === "PLATFORM_ADMIN") {
     return session;
   }
 
-  redirect("/403");
+  if (session.user.userType !== "ACCOUNT_ADMIN") {
+    redirect("/403");
+  }
+
+  // 正式申请未通过 / 无可用组织：不得进入管理端壳层
+  if (!isOrgAdminUsable(session.user.activeAdminStatus)) {
+    redirect(getAccountAdminBlockedPath(session.user.activeAdminStatus));
+  }
+
+  if (!session.user.activeOrgId) {
+    redirect(getPostLoginRedirectPath(session.user));
+  }
+
+  return session;
 }

@@ -40,6 +40,22 @@ function normalizeOrgName(name: string) {
   return name.trim();
 }
 
+/** User.email 唯一；冲突时抛可读错误，避免落到 500 INTERNAL_ERROR */
+async function assertEmailAvailable(email: string, currentUserId?: string) {
+  const normalized = email.toLowerCase();
+  const owner = await prisma.user.findUnique({
+    where: { email: normalized },
+    select: { id: true },
+  });
+  if (owner && owner.id !== currentUserId) {
+    throw new ApplicationServiceError(
+      "该邮箱已被其他账号使用，请更换邮箱或直接登录",
+      "EMAIL_TAKEN",
+    );
+  }
+  return normalized;
+}
+
 async function resolveApplicantUser(input: SubmitApplicationInput) {
   if (input.userId) {
     const user = await prisma.user.findUnique({ where: { id: input.userId } });
@@ -47,10 +63,12 @@ async function resolveApplicantUser(input: SubmitApplicationInput) {
       throw new ApplicationServiceError("用户不存在", "USER_NOT_FOUND");
     }
 
-    if (user.email !== input.email.toLowerCase()) {
+    const email = await assertEmailAvailable(input.email, user.id);
+
+    if (user.email !== email) {
       return prisma.user.update({
         where: { id: user.id },
-        data: { email: input.email.toLowerCase(), name: input.contactName },
+        data: { email, name: input.contactName },
       });
     }
 
@@ -74,8 +92,8 @@ async function resolveApplicantUser(input: SubmitApplicationInput) {
   }
   await cacheDel(smsVerifyKey(input.phone));
 
-  const email = input.email.toLowerCase();
   let user = await prisma.user.findFirst({ where: { phone: input.phone } });
+  const email = await assertEmailAvailable(input.email, user?.id);
 
   if (!user) {
     user = await prisma.user.create({

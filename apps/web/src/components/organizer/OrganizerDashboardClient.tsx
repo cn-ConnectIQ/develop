@@ -29,7 +29,20 @@ type TrialOnboarding = {
 
 async function fetchAccountCenter() {
   const res = await fetch("/api/me/account-center");
-  if (!res.ok) throw new Error("加载失败");
+  if (res.status === 403) {
+    const json = await res.json().catch(() => ({}));
+    if (
+      json.code === "ADMIN_NOT_APPROVED" ||
+      json.code === "ADMIN_NOT_USABLE"
+    ) {
+      window.location.href = "/register/pending";
+      throw new Error("账号尚未审核通过");
+    }
+  }
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.error ?? "加载失败");
+  }
   return (await res.json()).data as OrgAccountCenter;
 }
 
@@ -159,7 +172,9 @@ export function OrganizerDashboardClient() {
             <p className="py-8 text-center text-sm text-text-muted">加载中…</p>
           )}
           {isError && (
-            <p className="py-8 text-center text-sm text-brand-red">加载失败</p>
+            <p className="py-8 text-center text-sm text-brand-red">
+              活动历史暂时无法加载，请稍后刷新重试
+            </p>
           )}
           {!isLoading && data && data.eventHistory.length === 0 && (
             <div className="py-8 text-center">

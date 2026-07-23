@@ -100,21 +100,24 @@ export async function requireAccountAdmin(
       error: NextResponse.json(
         {
           error:
-            session.user.activeAdminStatus === "PENDING_REVIEW"
+            session.user.activeAdminStatus === "PENDING_REVIEW" ||
+            !session.user.activeAdminStatus
               ? "账号尚未审核通过"
               : "账号暂不可用",
           code:
-            session.user.activeAdminStatus === "PENDING_REVIEW"
+            session.user.activeAdminStatus === "PENDING_REVIEW" ||
+            !session.user.activeAdminStatus
               ? "ADMIN_NOT_APPROVED"
               : "ADMIN_NOT_USABLE",
           adminStatus: session.user.activeAdminStatus,
           hint:
-            session.user.activeAdminStatus === "PENDING_REVIEW"
+            session.user.activeAdminStatus === "PENDING_REVIEW" ||
+            !session.user.activeAdminStatus
               ? (session.user.ownedOrgs || []).some(
                   (o) => o.admin_status === "APPROVED" || o.admin_status === "TRIAL",
                 )
                 ? "您已有其他可用组织，请切换到该组织"
-                : "可先通过免费试用体验，或等待正式审核"
+                : "请等待平台审核通过后再登录管理端"
               : null,
         },
         { status: 403 },

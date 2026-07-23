@@ -18,6 +18,8 @@ export type EventListItem = {
   slug: string;
   type: string;
   activityType?: string;
+  /** 活动数据来源：NATIVE | BAGEVENT | MARKETUP */
+  dataSource?: string;
   category: EventCategory | null;
   status: string;
   reviewStatus: string;

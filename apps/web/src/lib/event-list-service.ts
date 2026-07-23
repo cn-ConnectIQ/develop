@@ -33,9 +33,8 @@ const eventListInclude = (activeOrgId?: string | null) => ({
     },
   },
   settings: {
-    where: { key: "event_category" },
-    take: 1,
-    select: { value: true },
+    where: { key: { in: ["event_category", "baige_event_id"] } },
+    select: { key: true, value: true },
   },
   review: {
     select: {
@@ -56,7 +55,7 @@ const eventListInclude = (activeOrgId?: string | null) => ({
 });
 
 type RawEvent = {
-  settings: Array<{ value: unknown }>;
+  settings: Array<{ key: string; value: unknown }>;
   booths?: Array<{ id: string; code: string; name: string }>;
   org: {
     id: string;
@@ -85,6 +84,7 @@ type RawEvent = {
   activityType: string;
   status: EventStatus;
   reviewStatus: string;
+  dataSource: string;
   description: string | null;
   location: string | null;
   startDate: Date | null;
@@ -92,6 +92,17 @@ type RawEvent = {
   createdAt: Date;
   featureFlags: unknown;
 };
+
+function resolveListDataSource(event: RawEvent): string {
+  if (event.dataSource === "BAGEVENT" || event.dataSource === "MARKETUP") {
+    return event.dataSource;
+  }
+  const baigeId = event.settings.find((s) => s.key === "baige_event_id")?.value;
+  if (typeof baigeId === "string" && baigeId.trim()) {
+    return "BAGEVENT";
+  }
+  return event.dataSource || "NATIVE";
+}
 
 export function buildOrganizerWhere(session: Session) {
   if (session.user.role === AppUserRole.PLATFORM_ADMIN) {
@@ -130,7 +141,9 @@ export function serializeEventListItem(
   event: RawEvent,
   activeOrgId?: string | null,
 ): EventListItem {
-  const categorySetting = event.settings[0]?.value;
+  const categorySetting = event.settings.find(
+    (s) => s.key === "event_category",
+  )?.value;
   const category =
     typeof categorySetting === "string"
       ? (categorySetting as EventCategory)
@@ -156,6 +169,7 @@ export function serializeEventListItem(
     slug: event.slug,
     type: event.type,
     activityType: event.activityType,
+    dataSource: resolveListDataSource(event),
     category,
     status: event.status,
     reviewStatus: event.reviewStatus,

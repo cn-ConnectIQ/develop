@@ -141,18 +141,37 @@ async function hydrateAccountAdminToken(userId: string) {
   });
 
   const ownedOrgs = staffRoles.map((s) => toOwnedOrgSummary(s.org));
+  const usableOrgs = ownedOrgs.filter(
+    (o) => o.admin_status === "APPROVED" || o.admin_status === "TRIAL",
+  );
 
   const dbUser = await prisma.user.findUnique({
     where: { id: userId },
     select: { orgId: true },
   });
 
+  // 仅在可用组织中选 active，禁止回落到未审核/已挂起组织
   const activeOrg =
-    ownedOrgs.find((o) => o.id === dbUser?.orgId) ||
-    ownedOrgs.find((o) => o.admin_status === "APPROVED") ||
-    ownedOrgs.find((o) => o.admin_status === "TRIAL") ||
-    ownedOrgs[0] ||
-    null;
+    usableOrgs.find((o) => o.id === dbUser?.orgId) || usableOrgs[0] || null;
+
+  let activeAdminStatus: string | null = activeOrg?.admin_status ?? null;
+
+  if (!activeAdminStatus) {
+    const applications = await prisma.organizerApplication.findMany({
+      where: { userId },
+      select: { status: true },
+      orderBy: { submittedAt: "desc" },
+      take: 20,
+    });
+    if (applications.some((a) => a.status === "PENDING")) {
+      activeAdminStatus = "PENDING_REVIEW";
+    } else if (
+      applications.some((a) => a.status === "REJECTED") &&
+      !applications.some((a) => a.status === "APPROVED")
+    ) {
+      activeAdminStatus = "REJECTED";
+    }
+  }
 
   const activeOrgId = activeOrg?.id ?? null;
   const activeOrgType = activeOrg?.account_type ?? null;
@@ -170,7 +189,7 @@ async function hydrateAccountAdminToken(userId: string) {
     activeOrgId,
     activeOrgSlug: activeOrg?.slug ?? null,
     activeOrgType,
-    activeAdminStatus: activeOrg?.admin_status ?? null,
+    activeAdminStatus,
     boothId,
     boothEventName,
   };
@@ -230,6 +249,8 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user) {
+          // 手机号登录仅创建终端用户；勿写入 ORGANIZER 角色，
+          // 否则 resolveUserType 会立刻升成 ACCOUNT_ADMIN，绕过正式审核。
           user = await prisma.user.create({
             data: {
               phone,
@@ -237,9 +258,6 @@ export const authOptions: NextAuthOptions = {
               passwordHash: await bcrypt.hash(crypto.randomUUID(), 12),
               name: `用户${phone.slice(-4)}`,
               userType: PrismaUserType.END_USER,
-              roleAssignments: {
-                create: { role: PrismaUserRole.ORGANIZER },
-              },
             },
             include: { roleAssignments: true },
           });
@@ -386,19 +404,21 @@ export const authOptions: NextAuthOptions = {
             token.boothId = orgSession.boothId;
             token.boothEventName = orgSession.boothEventName;
           }
-        } else if (
-          trigger === "update" &&
-          token.sub &&
-          token.userType === PrismaUserType.ACCOUNT_ADMIN
-        ) {
-          const orgSession = await hydrateAccountAdminToken(token.sub);
-          token.ownedOrgs = orgSession.ownedOrgs;
-          token.activeOrgId = orgSession.activeOrgId;
-          token.activeOrgSlug = orgSession.activeOrgSlug;
-          token.activeOrgType = orgSession.activeOrgType;
-          token.activeAdminStatus = orgSession.activeAdminStatus;
-          token.boothId = orgSession.boothId;
-          token.boothEventName = orgSession.boothEventName;
+        } else if (trigger === "update" && token.sub) {
+          const userType = await loadUserType(token.sub);
+          if (userType) {
+            token.userType = userType;
+          }
+          if (userType === PrismaUserType.ACCOUNT_ADMIN) {
+            const orgSession = await hydrateAccountAdminToken(token.sub);
+            token.ownedOrgs = orgSession.ownedOrgs;
+            token.activeOrgId = orgSession.activeOrgId;
+            token.activeOrgSlug = orgSession.activeOrgSlug;
+            token.activeOrgType = orgSession.activeOrgType;
+            token.activeAdminStatus = orgSession.activeAdminStatus;
+            token.boothId = orgSession.boothId;
+            token.boothEventName = orgSession.boothEventName;
+          }
         } else if (token.sub && !token.userType) {
           const userType = await loadUserType(token.sub);
           if (userType) {

@@ -13,6 +13,22 @@ export function getAccountAdminHomePath(
   return "/organizer/dashboard";
 }
 
+/** 账号管理员不可用时的落地页（未审核 / 驳回 / 挂起） */
+export function getAccountAdminBlockedPath(
+  adminStatus: string | null | undefined,
+): string {
+  switch (adminStatus) {
+    case "REJECTED":
+      return "/register/rejected";
+    case "SUSPENDED":
+      return "/account-suspended";
+    case "PENDING_REVIEW":
+    default:
+      // 无组织、status 为空：视为待审（正式申请尚未通过）
+      return "/register/pending";
+  }
+}
+
 function resolveActiveAdminStatus(user: Session["user"]): string | null {
   if (user.activeAdminStatus) return user.activeAdminStatus;
   const usableOrg = user.ownedOrgs?.find(
@@ -36,13 +52,11 @@ export function getPostLoginRedirectPath(user: Session["user"]): string {
             user.activeOrgId,
           );
         case "PENDING_REVIEW":
-          return "/register/pending";
         case "REJECTED":
-          return "/register/rejected";
         case "SUSPENDED":
-          return "/account-suspended";
+          return getAccountAdminBlockedPath(resolveActiveAdminStatus(user));
         default:
-          return "/register/pending";
+          return getAccountAdminBlockedPath(null);
       }
 
     case "END_USER":

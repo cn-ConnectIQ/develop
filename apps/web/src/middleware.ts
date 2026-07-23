@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isOrgAdminUsable } from "@/lib/org-access";
 import { getPublicBasePathWithFallback } from "@/lib/public-path";
 import {
+  getAccountAdminBlockedPath,
   ROLE_COOKIE_ADMIN_STATUS,
   ROLE_COOKIE_USER_TYPE,
 } from "@/lib/auth-redirect";
@@ -194,20 +195,25 @@ export async function middleware(request: NextRequest) {
   const userType =
     (token?.userType as string | undefined) ??
     request.cookies.get(ROLE_COOKIE_USER_TYPE)?.value;
-  const adminStatus =
-    (token?.activeAdminStatus as string | undefined) ??
-    (token?.adminStatus as string | undefined) ??
-    request.cookies.get(ROLE_COOKIE_ADMIN_STATUS)?.value ??
-    "";
+  // 有 JWT 时以 token 为准（含显式 null），禁止回落到过期的 admin-status cookie
+  const adminStatus = token
+    ? String(
+        (token.activeAdminStatus as string | null | undefined) ??
+          (token.adminStatus as string | null | undefined) ??
+          "",
+      )
+    : (request.cookies.get(ROLE_COOKIE_ADMIN_STATUS)?.value ?? "");
 
   const applyCookieSync = (response: NextResponse) => {
     if (token?.userType) {
       syncRoleCookies(
         response,
         token.userType as string,
-        (token.activeAdminStatus as string | undefined) ??
-          (token.adminStatus as string | undefined) ??
-          "",
+        String(
+          (token.activeAdminStatus as string | null | undefined) ??
+            (token.adminStatus as string | null | undefined) ??
+            "",
+        ),
       );
     }
     return response;
@@ -230,17 +236,10 @@ export async function middleware(request: NextRequest) {
     if (userType !== "ACCOUNT_ADMIN") {
       return applyCookieSync(redirectTo(request, "/403"));
     }
-    if (adminStatus === "SUSPENDED") {
-      return applyCookieSync(redirectTo(request, "/account-suspended"));
-    }
     if (!isOrgAdminUsable(adminStatus)) {
-      const pendingPath =
-        adminStatus === "REJECTED"
-          ? "/register/rejected"
-          : adminStatus === "PENDING_REVIEW"
-            ? "/register/pending"
-            : "/login";
-      return applyCookieSync(redirectTo(request, pendingPath));
+      return applyCookieSync(
+        redirectTo(request, getAccountAdminBlockedPath(adminStatus || null)),
+      );
     }
     return finish(request, applyCookieSync(NextResponse.next()));
   }

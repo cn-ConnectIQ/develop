@@ -3,8 +3,10 @@
 import { Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { withPublicPath } from "@/lib/public-path";
 
 type ApplicationData = {
   status: string;
@@ -26,6 +28,7 @@ function formatDate(iso: string) {
 
 export default function RegisterPendingPage() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const [application, setApplication] = useState<ApplicationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -57,7 +60,13 @@ export default function RegisterPendingPage() {
         if (apps.some((a) => a.status === "REJECTED")) {
           router.replace("/register/rejected");
         } else if (apps.some((a) => a.status === "APPROVED")) {
-          router.replace("/events");
+          // 刷新 JWT，避免仍带着 PENDING_REVIEW 被 middleware 拦回
+          try {
+            await updateSession();
+          } catch {
+            // ignore
+          }
+          window.location.href = withPublicPath("/organizer/dashboard");
         } else {
           router.replace("/register/admin");
         }
@@ -70,7 +79,7 @@ export default function RegisterPendingPage() {
       setLoading(false);
       if (manual) setRefreshing(false);
     }
-  }, [router]);
+  }, [router, updateSession]);
 
   useEffect(() => {
     void fetchStatus();
@@ -91,10 +100,10 @@ export default function RegisterPendingPage() {
       <div className="rounded-2xl border border-border-light bg-white p-10">
         <Clock className="mx-auto size-16 text-brand-amber" strokeWidth={1.5} />
         <h1 className="mt-6 text-center text-2xl font-bold text-[var(--admin-ink)]">
-          申请已提交
+          账号审核中
         </h1>
         <p className="mt-2 text-center text-text-muted">
-          预计 1-3 个工作日内完成审核
+          申请已提交，预计 1-3 个工作日内完成审核。审核通过前无法进入管理端。
         </p>
 
         {application && (

@@ -49,6 +49,21 @@ function clearStoredToken() {
   }
 }
 
+function readUrlPairingToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return (
+      params.get("token")?.trim() ||
+      params.get("t")?.trim() ||
+      params.get("pairingToken")?.trim() ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function fetchPairingStatus(
   token: string,
 ): Promise<ScreenPairingStatusPayload | null> {
@@ -395,7 +410,8 @@ export function ScreenPageClient() {
     setUsePollingFallback(!supportsWebSocket());
 
     try {
-      const stored = readStoredToken();
+      const fromUrl = readUrlPairingToken();
+      const stored = fromUrl || readStoredToken();
       if (stored) {
         const status = await fetchPairingStatus(stored);
         if (status) {

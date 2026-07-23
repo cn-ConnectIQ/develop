@@ -57,6 +57,7 @@ export {
   OrgJoinSource,
   ExperienceAccountStatus,
   ExperienceAccountRole,
+  PartnerConnectionStatus,
   AiFeedbackType,
   MatchFeedbackSignal,
   AiGenerationType,

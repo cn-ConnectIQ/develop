@@ -71,6 +71,11 @@ const TEST_ACCOUNT_OPTIONS = [
   },
 ] as const;
 
+/** 仅本地或显式开关时展示测试账号，避免生产登录页泄漏 */
+const SHOW_TEST_ACCOUNTS =
+  process.env.NEXT_PUBLIC_SHOW_TEST_ACCOUNTS === "true" ||
+  process.env.NODE_ENV === "development";
+
 export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
@@ -133,16 +138,32 @@ export function LoginForm() {
           if (res.ok) {
             const json = await res.json();
             if (json.data?.path) {
-              window.location.href = withPublicPath(json.data.path as string);
+              const path = json.data.path as string;
+              if (
+                path.includes("/register/pending") ||
+                path.includes("/register/rejected") ||
+                path.includes("/account-suspended")
+              ) {
+                toast.message(
+                  path.includes("rejected")
+                    ? "账号申请未通过"
+                    : path.includes("suspended")
+                      ? "账号已挂起"
+                      : "账号审核中，请等待平台审核通过后再使用管理端",
+                );
+              }
+              window.location.href = withPublicPath(path);
               return;
             }
           }
         } catch {
           // fallback below
         }
-        window.location.href = withPublicPath(
-          getPostLoginRedirectPath(session.user),
-        );
+        const fallback = getPostLoginRedirectPath(session.user);
+        if (fallback.includes("/register/pending")) {
+          toast.message("账号审核中，请等待平台审核通过后再使用管理端");
+        }
+        window.location.href = withPublicPath(fallback);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -264,29 +285,31 @@ export function LoginForm() {
             <TabsTrigger value="phone">手机号</TabsTrigger>
           </TabsList>
 
-          <div className="mb-4 space-y-2">
-            <Label htmlFor="test-account">测试账号</Label>
-            <select
-              id="test-account"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={selectedAccount}
-              onChange={(e) =>
-                applyTestAccount(
-                  e.target.value as (typeof TEST_ACCOUNT_OPTIONS)[number]["key"],
-                )
-              }
-            >
-              {TEST_ACCOUNT_OPTIONS.map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-text-tertiary">
-              账号管理员：{ACCOUNT_ADMIN_EMAIL} / {SEED_PASSWORD}；平台管理员：
-              {PLATFORM_ADMIN_EMAIL} / {SEED_PASSWORD}
-            </p>
-          </div>
+          {SHOW_TEST_ACCOUNTS && (
+            <div className="mb-4 space-y-2">
+              <Label htmlFor="test-account">测试账号</Label>
+              <select
+                id="test-account"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedAccount}
+                onChange={(e) =>
+                  applyTestAccount(
+                    e.target.value as (typeof TEST_ACCOUNT_OPTIONS)[number]["key"],
+                  )
+                }
+              >
+                {TEST_ACCOUNT_OPTIONS.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-text-tertiary">
+                账号管理员：{ACCOUNT_ADMIN_EMAIL} / {SEED_PASSWORD}；平台管理员：
+                {PLATFORM_ADMIN_EMAIL} / {SEED_PASSWORD}
+              </p>
+            </div>
+          )}
 
           <TabsContent value="email-code">
             <form onSubmit={onEmailCodeSubmit} className="space-y-4">

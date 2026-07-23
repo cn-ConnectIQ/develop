@@ -76,7 +76,12 @@ function mapEventStatus(status: EventStatus): OrgAccountEventHistoryItem["status
 }
 
 export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCenter> {
-  await syncOrganizationAccountTotals(orgId);
+  try {
+    await syncOrganizationAccountTotals(orgId);
+  } catch (error) {
+    // 汇总失败不阻断账号中心主流程（避免首页整块「加载失败」）
+    console.error("[account-center] sync totals failed:", error);
+  }
 
   const org = await prisma.organization.findUnique({
     where: { id: orgId },

@@ -1,4 +1,4 @@
-import { prisma } from "@connectiq/database";
+import { prisma, DataSource } from "@connectiq/database";
 import type { ImportRow } from "@/lib/participants";
 import { upsertParticipantsFromRows } from "@/lib/participant-import-service";
 import { getBaigeConnectionStatus } from "@/lib/integrations/baige-connection";
@@ -161,11 +161,21 @@ export async function syncBaigeParticipants(
   });
 
   const now = new Date().toISOString();
-  await prisma.eventSetting.upsert({
-    where: { eventId_key: { eventId, key: "baige_last_sync_at" } },
-    create: { eventId, key: "baige_last_sync_at", value: now },
-    update: { value: now },
-  });
+  await prisma.$transaction([
+    prisma.eventSetting.upsert({
+      where: { eventId_key: { eventId, key: "baige_last_sync_at" } },
+      create: { eventId, key: "baige_last_sync_at", value: now },
+      update: { value: now },
+    }),
+    // 标记来源，不影响未关联百格的原生活动
+    prisma.event.update({
+      where: { id: eventId },
+      data: {
+        dataSource: DataSource.BAGEVENT,
+        externalRefId: baigeEventId,
+      },
+    }),
+  ]);
 
   const totalChanged = result.created + result.updated;
   return {

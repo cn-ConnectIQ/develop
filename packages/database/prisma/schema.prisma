@@ -752,6 +752,8 @@ model Organization {
   /// 互动点透支额度（默认 0 = 耗尽即停）
   overdraftLimit  Int @default(0) @map("overdraft_limit")
 
+  partnerConnections PartnerConnection[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1127,6 +1129,36 @@ model PlatformIntegration {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("platform_integrations")
+}
+
+/// 伙伴平台组织级绑定（如百格 OAuth 授权后）
+enum PartnerConnectionStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+model PartnerConnection {
+  id             String                  @id @default(cuid())
+  provider       String
+  orgId          String                  @map("org_id")
+  externalOrgId  String                  @map("external_org_id")
+  status         PartnerConnectionStatus @default(ACTIVE)
+  scopes         String[]                @default([])
+  accessToken    String?                 @map("access_token")
+  refreshToken   String?                 @map("refresh_token")
+  tokenExpiresAt DateTime?               @map("token_expires_at")
+  metadata       Json?
+  linkedByUserId String?                 @map("linked_by_user_id")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, orgId])
+  @@unique([provider, externalOrgId])
+  @@index([provider, status])
+  @@map("partner_connections")
 }
 
 model CrmSyncJob {

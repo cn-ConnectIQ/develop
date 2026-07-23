@@ -181,11 +181,7 @@ export function OrganizerBillingClient() {
 
       {!alipayReady && (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          支付宝尚未在当前环境配置完整
-          {channelsQuery.data?.alipay.missing?.length
-            ? `（缺少 ${channelsQuery.data.alipay.missing.join("、")}）`
-            : ""}
-          。本地请检查 `.env.local`，生产请配置 CloudBase 环境变量。
+          在线支付暂未开通，请联系平台开通后再购买套餐。
         </div>
       )}
 
@@ -259,10 +255,7 @@ export function OrganizerBillingClient() {
           )}
           {!plansQuery.isLoading && (plansQuery.data?.length ?? 0) === 0 && (
             <p className="text-sm text-text-muted">
-              暂无套餐。请先执行{" "}
-              <code className="rounded bg-muted px-1">
-                pnpm --filter @connectiq/database db:seed:billing-plans
-              </code>
+              暂无可用套餐，请联系平台管理员配置后再购买。
             </p>
           )}
         </div>
