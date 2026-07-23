@@ -38,8 +38,6 @@ async function aggregateResults(pollId: string) {
     };
   });
 
-  optionStats.sort((a, b) => b.count - a.count);
-
   const wordCloud = poll.responses
     .filter((r) => r.textAnswer)
     .reduce<Record<string, number>>((acc, r) => {

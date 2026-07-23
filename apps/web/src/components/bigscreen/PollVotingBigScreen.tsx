@@ -47,7 +47,6 @@ export function PollVotingBigScreen({
   wxacodeUrl = null,
 }: PollVotingBigScreenProps) {
   const winnerId = getWinnerId(options);
-  const sorted = [...options].sort((a, b) => b.percentage - a.percentage);
   const showCountdown = Boolean(countdown && countdown !== "--:--");
 
   return (
@@ -116,7 +115,7 @@ export function PollVotingBigScreen({
               投票进行中，结果暂不显示
             </p>
           </div>
-        ) : sorted.length === 0 ? (
+        ) : options.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="size-3 animate-pulse rounded-full bg-[#34d399]" />
             <p className="text-center text-[clamp(18px,2vw,26px)] text-white/40">
@@ -124,7 +123,7 @@ export function PollVotingBigScreen({
             </p>
           </div>
         ) : (
-          sorted.map((opt) => (
+          options.map((opt) => (
             <PollVotingBar
               key={opt.id}
               label={opt.text}

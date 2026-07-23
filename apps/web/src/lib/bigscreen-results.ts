@@ -35,15 +35,14 @@ export function aggregatePollOptions(
   responses: Array<{ optionId: string | null }>,
 ) {
   const total = responses.length;
-  return options
-    .map((option) => {
-      const count = responses.filter((r) => r.optionId === option.id).length;
-      return {
-        id: option.id,
-        text: option.text,
-        count,
-        percentage: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
-      };
-    })
-    .sort((a, b) => b.count - a.count);
+  // 保持调用方传入的选项顺序（通常为 displayOrder），不按票数重排
+  return options.map((option) => {
+    const count = responses.filter((r) => r.optionId === option.id).length;
+    return {
+      id: option.id,
+      text: option.text,
+      count,
+      percentage: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
+    };
+  });
 }

@@ -21,11 +21,10 @@ function getWinnerId(options: PollOptionResult[]): string | null {
 /** PR5 条形赛跑（兼容旧引用） */
 export function PollBarsView({ options }: PollBarsViewProps) {
   const winnerId = getWinnerId(options);
-  const sorted = [...options].sort((a, b) => b.percentage - a.percentage);
 
   return (
     <div className="flex flex-1 flex-col justify-center gap-4 px-[5%] pb-24">
-      {sorted.map((option) => (
+      {options.map((option) => (
         <PollVotingBar
           key={option.id}
           label={option.text}
