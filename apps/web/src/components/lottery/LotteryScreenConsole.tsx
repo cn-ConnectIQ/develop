@@ -318,16 +318,22 @@ export function LotteryScreenConsole({
     }
   }
 
-  const statusLabel =
-    state?.lottery.status === "DRAWING"
+  const allTiersComplete =
+    Boolean(state?.tiers.length) && state!.tiers.every((t) => t.complete);
+  const isCeremonyFinished =
+    state?.lottery.status === "FINISHED" || allTiersComplete;
+
+  const statusLabel = isCeremonyFinished
+    ? "已结束"
+    : state?.lottery.status === "DRAWING"
       ? "进行中"
       : state?.lottery.status === "OPEN"
         ? "准备就绪"
-        : state?.lottery.status === "FINISHED"
-          ? "已结束"
-          : "草稿";
+        : "草稿";
 
-  const focusTier = activeTierState ?? nextTier ?? state?.tiers.find((t) => !t.complete);
+  const focusTier = isCeremonyFinished
+    ? null
+    : (activeTierState ?? nextTier ?? state?.tiers.find((t) => !t.complete));
   const stepIndex =
     activeTierState && !activeTierState.complete
       ? 2
@@ -336,7 +342,7 @@ export function LotteryScreenConsole({
         : 0;
 
   const primaryAction = (() => {
-    if (!state || state.lottery.status === "FINISHED") return null;
+    if (!state || isCeremonyFinished) return null;
     if (isTierMode) {
       if (!started && state.lottery.status !== "DRAWING") {
         return {
@@ -422,6 +428,51 @@ export function LotteryScreenConsole({
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex min-w-0 flex-1 flex-col gap-6 overflow-y-auto p-8 lg:p-9">
+            {isCeremonyFinished && state ? (
+              <div className="overflow-hidden rounded-2xl bg-[#1A2035]">
+                <div className="flex flex-wrap items-center gap-5 px-7 py-5">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-12 items-center justify-center rounded-xl bg-brand-green/15 text-2xl">
+                      ✓
+                    </span>
+                    <div>
+                      <p className="text-sm text-white/50">仪式状态</p>
+                      <p className="text-2xl font-extrabold text-[#7DE0BE]">
+                        抽奖已全部结束
+                      </p>
+                    </div>
+                  </div>
+                  <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                  <div>
+                    <p className="text-sm text-white/50">奖池人数</p>
+                    <p className="text-2xl font-extrabold text-white">
+                      {state.lottery.entry_count}
+                      <span className="ml-1 text-sm font-medium text-white/40">
+                        人
+                      </span>
+                    </p>
+                  </div>
+                  <div className="hidden h-12 w-px bg-white/10 sm:block" />
+                  <div>
+                    <p className="text-sm text-white/50">已揭晓</p>
+                    <p className="text-2xl font-extrabold text-brand-gold">
+                      {state.winners.length}
+                      <span className="ml-1 text-sm font-medium text-white/40">
+                        位中奖者
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex-1" />
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2">
+                    <span className="size-2 rounded-full bg-[#7DE0BE]" />
+                    <span className="text-sm font-semibold text-[#7DE0BE]">
+                      已结束
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {focusTier && (
               <div className="overflow-hidden rounded-2xl bg-[#1A2035]">
                 <div className="flex flex-wrap items-center gap-5 px-7 py-5">
@@ -486,9 +537,27 @@ export function LotteryScreenConsole({
                     </>
                   )}
                   <div className="flex-1" />
-                  <div className="inline-flex items-center gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/15 px-4 py-2">
-                    <span className="size-2 animate-pulse rounded-full bg-brand-gold shadow-[0_0_8px_#EF9F27]" />
-                    <span className="text-sm font-semibold text-brand-gold">{statusLabel}</span>
+                  <div
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-xl border px-4 py-2",
+                      isCeremonyFinished
+                        ? "border-white/15 bg-white/5"
+                        : "border-brand-gold/40 bg-brand-gold/15",
+                    )}
+                  >
+                    {!isCeremonyFinished ? (
+                      <span className="size-2 animate-pulse rounded-full bg-brand-gold shadow-[0_0_8px_#EF9F27]" />
+                    ) : (
+                      <span className="size-2 rounded-full bg-[#7DE0BE]" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-sm font-semibold",
+                        isCeremonyFinished ? "text-[#7DE0BE]" : "text-brand-gold",
+                      )}
+                    >
+                      {statusLabel}
+                    </span>
                   </div>
                 </div>
 
@@ -517,6 +586,23 @@ export function LotteryScreenConsole({
             )}
 
             <div className="flex flex-col items-center gap-5 rounded-[20px] bg-[#1A2035] px-8 py-10">
+              {isCeremonyFinished ? (
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-white/50">
+                    动效：{animationMeta?.title ?? "摇号机"} · 已结束
+                  </p>
+                  <p className="mt-4 text-lg font-bold text-white/80">
+                    全部奖项已揭晓，无需再开奖
+                  </p>
+                  <p className="mt-2 text-sm text-white/40">
+                    下方可查看等级进度与中奖名单
+                  </p>
+                  {isFetching && (
+                    <Loader2 className="mx-auto mt-4 size-4 animate-spin text-white/40" />
+                  )}
+                </div>
+              ) : (
+                <>
               <p className="text-sm font-semibold text-white/50">
                 动效：{animationMeta?.title ?? "摇号机"} · {statusLabel}
               </p>
@@ -594,6 +680,8 @@ export function LotteryScreenConsole({
               {isFetching && (
                 <Loader2 className="size-4 animate-spin text-white/40" />
               )}
+                </>
+              )}
             </div>
 
             {isTierMode && activeTierState && state?.winners && (
@@ -628,7 +716,7 @@ export function LotteryScreenConsole({
                   ))}
                 </div>
                 {(started || state.lottery.status === "DRAWING") &&
-                  state.lottery.status !== "FINISHED" && (
+                  !isCeremonyFinished && (
                     <Button
                       variant="outline"
                       className="mt-4 w-full border-white/15 bg-transparent text-white/70 hover:bg-white/5"
