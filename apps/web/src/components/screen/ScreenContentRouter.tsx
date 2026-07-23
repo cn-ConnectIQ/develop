@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Gift, Trophy } from "lucide-react";
+import { BigscreenJoinQr } from "@/components/bigscreen/BigscreenJoinQr";
 import { BigscreenProjection } from "@/components/bigscreen/BigscreenProjection";
 import { QnaProjectionView } from "@/components/bigscreen/QnaProjectionView";
 import {
@@ -28,6 +29,10 @@ type PollResultsPayload = {
   wordCloud: WordCloudItem[];
   qnaQuestions: QnaQuestion[];
   featuredQuestion: QnaQuestion | null;
+  scanUrl?: string | null;
+  qrUrl?: string | null;
+  wxacodeUrl?: string | null;
+  sessionCode?: string | null;
 };
 
 type ScreenContentRouterProps = {
@@ -213,6 +218,9 @@ function PollScreenContent({
         results={{ total: data.total, options: data.options }}
         wordCloud={data.wordCloud}
         qnaQuestions={data.qnaQuestions}
+        scanUrl={data.scanUrl}
+        qrUrl={data.qrUrl}
+        wxacodeUrl={data.wxacodeUrl}
       />
     </div>
   );
@@ -239,6 +247,37 @@ function LotteryScreenContent({
     error,
     dispatchExtras,
   } = useLotteryScreenAnimation(eventId, lotteryId);
+  const [join, setJoin] = useState<{
+    scanUrl: string | null;
+    qrUrl: string | null;
+    wxacodeUrl: string | null;
+  }>({ scanUrl: null, qrUrl: null, wxacodeUrl: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          withPublicPath(
+            `/api/events/${eventId}/lotteries/${lotteryId}/join-qr`,
+          ),
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        setJoin({
+          scanUrl: json.data?.scanUrl ?? null,
+          qrUrl: json.data?.qrUrl ?? null,
+          wxacodeUrl: json.data?.wxacodeUrl ?? null,
+        });
+      } catch {
+        // ignore — 大屏仍可展示抽奖
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, lotteryId]);
 
   if (loading) {
     return (
@@ -279,14 +318,23 @@ function LotteryScreenContent({
       className="relative flex h-full min-h-0 flex-col overflow-hidden text-white"
       style={{ backgroundColor: "#0a0a12" }}
     >
-      <header className="relative z-10 flex items-center justify-between px-8 py-4">
-        <div>
+      <header className="relative z-10 flex items-start justify-between gap-6 px-8 py-4">
+        <div className="min-w-0 flex-1">
           <p className="text-sm text-white/40">{eventName}</p>
           <h1 className="text-2xl font-bold">{title}</h1>
         </div>
-        <div className="text-right">
-          <p className="text-sm text-white/40">参与人数</p>
-          <p className="text-3xl font-black text-brand-gold">{entryCount}</p>
+        <div className="flex shrink-0 items-start gap-5">
+          <div className="text-right">
+            <p className="text-sm text-white/40">参与人数</p>
+            <p className="text-3xl font-black text-brand-gold">{entryCount}</p>
+          </div>
+          <BigscreenJoinQr
+            wxacodeUrl={join.wxacodeUrl}
+            scanUrl={join.scanUrl}
+            qrUrl={join.qrUrl}
+            size={112}
+            caption="微信扫码参与"
+          />
         </div>
       </header>
 

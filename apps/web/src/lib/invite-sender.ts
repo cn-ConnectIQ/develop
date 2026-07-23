@@ -164,6 +164,29 @@ export async function sendEmail(
   plainText: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const ctx = buildMessageContext(record);
+
+  let wxacodeImageUrl: string | null = null;
+  try {
+    const { createOrReuseInviteEntry } = await import(
+      "@/lib/invite/entry-service"
+    );
+    const { resolveInviteWxacodeImageUrl } = await import(
+      "@/lib/wechat/wxacode-image"
+    );
+    const phone =
+      record.participant.phone?.trim() ||
+      (record.channel === InviteChannel.SMS ? record.destination : null);
+    const entry = await createOrReuseInviteEntry({
+      eventId: record.campaign.eventId,
+      phone,
+      name: record.participant.name,
+      participantId: record.participantId,
+    });
+    wxacodeImageUrl = await resolveInviteWxacodeImageUrl(entry.token);
+  } catch (err) {
+    console.warn("[invite-email] wxacode skipped:", err);
+  }
+
   const { sendInviteEmail } = await import("@/lib/email");
   const result = await sendInviteEmail({
     to: record.destination,
@@ -175,6 +198,7 @@ export async function sendEmail(
     organizerName: ctx.organizer,
     activationLink: ctx.link,
     plainText,
+    wxacodeImageUrl,
     variables: {
       invite_record_id: record.id,
       campaign_id: record.campaignId,

@@ -176,6 +176,8 @@ export async function sendInviteEmail(params: {
   organizerName: string;
   activationLink: string;
   plainText: string;
+  /** 微信小程序码图 URL */
+  wxacodeImageUrl?: string | null;
   /** Mailgun 自定义变量，用于送达/打开/失败 Webhook 回写 */
   variables?: Record<string, string>;
 }) {
@@ -188,7 +190,7 @@ ${params.organizerName} 邀请您参加「${params.eventName}」。
 时间：${params.eventDate}
 地点：${params.eventLocation}
 
-请点击链接激活参会资格：
+请使用微信扫描邮件中的小程序码，或点击链接激活参会资格：
 ${params.activationLink}
 
 玖莅团队`;
@@ -203,6 +205,7 @@ ${params.activationLink}
         eventLocation: params.eventLocation,
         organizerName: params.organizerName,
         activationLink: params.activationLink,
+        wxacodeImageUrl: params.wxacodeImageUrl,
       }),
     );
   } catch (error) {

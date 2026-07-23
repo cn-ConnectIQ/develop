@@ -192,6 +192,12 @@ export function ScreenPageClient() {
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const lastHeartbeatOkRef = useRef(true);
   const realtimeConnectedRef = useRef(true);
+  const usePollingFallbackRef = useRef(false);
+
+  const setPollingFallback = useCallback((enabled: boolean) => {
+    usePollingFallbackRef.current = enabled;
+    setUsePollingFallback(enabled);
+  }, []);
 
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current) {
@@ -226,7 +232,10 @@ export function ScreenPageClient() {
       return;
     }
 
-    const online = lastHeartbeatOkRef.current && realtimeConnectedRef.current;
+    // 无 Supabase Realtime（生产常见）时走 HTTP 轮询，此时只看 heartbeat
+    const transportOk =
+      usePollingFallbackRef.current || realtimeConnectedRef.current;
+    const online = lastHeartbeatOkRef.current && transportOk;
     setConnectionState(online ? "connected" : "disconnected");
     setShowReconnectBanner(!online);
   }, [phase]);
@@ -386,7 +395,8 @@ export function ScreenPageClient() {
           onConnectionChange: (connected) => {
             realtimeConnectedRef.current = connected;
             if (!connected) {
-              setUsePollingFallback(true);
+              // Realtime 断开后改用轮询，连接状态改由 heartbeat 判定
+              setPollingFallback(true);
             }
             updateConnectionIndicator();
           },
@@ -394,20 +404,28 @@ export function ScreenPageClient() {
       );
 
       if (!unsub) {
-        setUsePollingFallback(true);
+        // 未配置 Supabase 时属于预期的轮询模式，不应显示「连接中断」
+        setPollingFallback(true);
         realtimeConnectedRef.current = false;
+        updateConnectionIndicator();
       } else {
         unsubscribeRef.current = unsub;
         realtimeConnectedRef.current = true;
+        updateConnectionIndicator();
       }
     },
-    [handlePairedBroadcast, handleStatusUpdate, updateConnectionIndicator],
+    [
+      handlePairedBroadcast,
+      handleStatusUpdate,
+      setPollingFallback,
+      updateConnectionIndicator,
+    ],
   );
 
   const bootstrap = useCallback(async () => {
     setLoadError(null);
     setPhase("loading");
-    setUsePollingFallback(!supportsWebSocket());
+    setPollingFallback(!supportsWebSocket());
 
     try {
       const fromUrl = readUrlPairingToken();
@@ -434,7 +452,7 @@ export function ScreenPageClient() {
         setPhase("waiting");
       }
     }
-  }, [handleStatusUpdate]);
+  }, [handleStatusUpdate, setPollingFallback]);
 
   useEffect(() => {
     void bootstrap();
@@ -486,13 +504,18 @@ export function ScreenPageClient() {
         void pollPairingStatus();
       }, POLL_MS);
 
-      void fetch(
-        `/api/screen-pairing/${encodeURIComponent(token)}/heartbeat`,
-        { method: "POST" },
-      ).catch(() => {
-        lastHeartbeatOkRef.current = false;
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/screen-pairing/${encodeURIComponent(token)}/heartbeat`,
+            { method: "POST" },
+          );
+          lastHeartbeatOkRef.current = res.ok;
+        } catch {
+          lastHeartbeatOkRef.current = false;
+        }
         updateConnectionIndicator();
-      });
+      })();
     }
 
     return () => {

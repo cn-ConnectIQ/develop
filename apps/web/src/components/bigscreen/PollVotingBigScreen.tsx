@@ -1,6 +1,8 @@
 "use client";
 
 import { AnimatedParticipantCount } from "@/components/bigscreen/AnimatedParticipantCount";
+import { BigscreenJoinQr } from "@/components/bigscreen/BigscreenJoinQr";
+import { CountdownRing } from "@/components/bigscreen/CountdownRing";
 import { PollVotingBar } from "@/components/bigscreen/PollVotingBar";
 import type { PollOptionResult } from "@/lib/bigscreen-types";
 
@@ -9,6 +11,13 @@ type PollVotingBigScreenProps = {
   total: number;
   options: PollOptionResult[];
   showResults: boolean;
+  /** 剩余时间文案，如 07:55；无截止则不显示 */
+  countdown?: string;
+  closesAt?: string | null;
+  createdAt?: string | null;
+  scanUrl?: string | null;
+  qrUrl?: string | null;
+  wxacodeUrl?: string | null;
 };
 
 function getWinnerId(options: PollOptionResult[]): string | null {
@@ -30,9 +39,16 @@ export function PollVotingBigScreen({
   total,
   options,
   showResults,
+  countdown,
+  closesAt = null,
+  createdAt = null,
+  scanUrl = null,
+  qrUrl = null,
+  wxacodeUrl = null,
 }: PollVotingBigScreenProps) {
   const winnerId = getWinnerId(options);
   const sorted = [...options].sort((a, b) => b.percentage - a.percentage);
+  const showCountdown = Boolean(countdown && countdown !== "--:--");
 
   return (
     <div
@@ -51,14 +67,44 @@ export function PollVotingBigScreen({
             {title}
           </h1>
         </div>
-        <div className="shrink-0 text-right">
-          <AnimatedParticipantCount
-            value={total}
-            className="block text-[clamp(44px,5.5vw,80px)] font-black leading-none tracking-tight text-[#2dd4bf]"
+
+        <div className="flex shrink-0 items-start gap-5">
+          <div className="flex flex-col items-end gap-3 pt-1">
+            {showCountdown ? (
+              <div className="flex items-center gap-2.5">
+                <div className="text-right">
+                  <p className="text-[clamp(11px,1vw,13px)] text-white/45">
+                    剩余时间
+                  </p>
+                  <p className="font-mono text-[clamp(22px,2.4vw,32px)] font-bold leading-none text-[#fbbf24]">
+                    {countdown}
+                  </p>
+                </div>
+                <CountdownRing
+                  closesAt={closesAt}
+                  startedAt={createdAt}
+                  size={36}
+                />
+              </div>
+            ) : null}
+            <div className="text-right">
+              <AnimatedParticipantCount
+                value={total}
+                className="block text-[clamp(40px,5vw,72px)] font-black leading-none tracking-tight text-[#2dd4bf]"
+              />
+              <p className="mt-1 text-[clamp(12px,1.1vw,15px)] text-white/45">
+                人已参与
+              </p>
+            </div>
+          </div>
+
+          <BigscreenJoinQr
+            wxacodeUrl={wxacodeUrl}
+            scanUrl={scanUrl}
+            qrUrl={qrUrl}
+            size={120}
+            caption="微信扫码参与"
           />
-          <p className="mt-1 text-[clamp(12px,1.1vw,15px)] text-white/45">
-            人已参与
-          </p>
         </div>
       </header>
 
@@ -104,7 +150,7 @@ export function PollVotingBigScreen({
             <span className="relative inline-flex size-2 rounded-full bg-[#34d399]" />
           </span>
           <span className="text-[clamp(12px,1.1vw,14px)] text-white/45">
-            实时更新中 · 扫码参与
+            实时更新中 · 微信扫右上角码参与
           </span>
         </div>
       </footer>

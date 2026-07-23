@@ -6,6 +6,7 @@ import {
   aggregatePollOptions,
   aggregateWordCloud,
 } from "@/lib/bigscreen-results";
+import { findInteractionJoinInfo } from "@/lib/interaction/join-info";
 import { serializePollOptionResults } from "@/lib/poll-mobile-api";
 import { ErrorCode } from "@connectiq/types";
 
@@ -47,15 +48,15 @@ export async function getPollRealtimeResults(eventId: string, pollId: string) {
     options = aggregatePollOptions(poll.options, poll.responses);
   }
 
-  const onScreenResponse =
-    poll.responses.find((r) => r.isOnScreen) ??
-    null;
+  const onScreenResponse = poll.responses.find((r) => r.isOnScreen) ?? null;
 
   const featuredQuestion =
     qnaQuestions.find((q) => q.onScreen && !q.hidden) ??
     qnaQuestions.find((q) => q.featured && !q.hidden) ??
     qnaQuestions.find((q) => !q.hidden) ??
     null;
+
+  const join = await findInteractionJoinInfo({ eventId, pollId });
 
   return {
     pollId: poll.id,
@@ -75,5 +76,9 @@ export async function getPollRealtimeResults(eventId: string, pollId: string) {
     featuredQuestion,
     onScreenResponseId: onScreenResponse?.id ?? null,
     updatedAt: new Date().toISOString(),
+    scanUrl: join?.scanUrl ?? null,
+    qrUrl: join?.qrUrl ?? null,
+    wxacodeUrl: join?.wxacodeUrl ?? null,
+    sessionCode: join?.sessionCode ?? null,
   };
 }

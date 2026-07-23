@@ -1,9 +1,9 @@
 "use client";
 
-import { CountdownRing } from "@/components/bigscreen/CountdownRing";
 import { PollVotingBigScreen } from "@/components/bigscreen/PollVotingBigScreen";
 import { QnaProjectionView } from "@/components/bigscreen/QnaProjectionView";
 import { WordCloudView } from "@/components/bigscreen/WordCloudView";
+import { BigscreenJoinQr } from "@/components/bigscreen/BigscreenJoinQr";
 import { pollTypeLabel } from "@/lib/bigscreen-display";
 import type { BigscreenPoll, PollOptionResult, WordCloudItem } from "@/lib/bigscreen-types";
 import type { QnaQuestion } from "@/lib/bigscreen-display";
@@ -15,6 +15,9 @@ type BigscreenProjectionProps = {
   results: { total: number; options: PollOptionResult[] } | null;
   wordCloud: WordCloudItem[];
   qnaQuestions: QnaQuestion[];
+  scanUrl?: string | null;
+  qrUrl?: string | null;
+  wxacodeUrl?: string | null;
 };
 
 export function BigscreenProjection({
@@ -24,6 +27,9 @@ export function BigscreenProjection({
   results,
   wordCloud,
   qnaQuestions,
+  scanUrl = null,
+  qrUrl = null,
+  wxacodeUrl = null,
 }: BigscreenProjectionProps) {
   const typeLabel = pollTypeLabel(poll.type);
   const featuredQna =
@@ -39,7 +45,15 @@ export function BigscreenProjection({
   if (poll.type === "QNA") {
     return (
       <div className="relative flex flex-1 flex-col bg-[#1a1d2e]">
-        <div className="p-8">
+        <div className="absolute right-[5%] top-8 z-10">
+          <BigscreenJoinQr
+            wxacodeUrl={wxacodeUrl}
+            scanUrl={scanUrl}
+            qrUrl={qrUrl}
+            size={112}
+          />
+        </div>
+        <div className="p-8 pr-[180px]">
           <span className="rounded-full bg-brand-blue px-3 py-1 text-xs text-white">
             问答进行中 · {typeLabel}
           </span>
@@ -55,7 +69,15 @@ export function BigscreenProjection({
   if (poll.type === "WORD_CLOUD" && showResults) {
     return (
       <div className="relative flex flex-1 flex-col bg-[#1a1d2e]">
-        <div className="px-[5%] pt-[4%] text-center">
+        <div className="absolute right-[5%] top-8 z-10">
+          <BigscreenJoinQr
+            wxacodeUrl={wxacodeUrl}
+            scanUrl={scanUrl}
+            qrUrl={qrUrl}
+            size={112}
+          />
+        </div>
+        <div className="px-[5%] pt-[4%] pr-[200px] text-center">
           <p className="text-sm text-white/45">现场投票 · 词云</p>
           <h1 className="mt-4 text-[28px] font-bold text-white">{poll.title}</h1>
         </div>
@@ -64,34 +86,19 @@ export function BigscreenProjection({
     );
   }
 
-  if (isChoicePoll && showResults && results) {
-    return (
-      <div className="relative flex flex-1 flex-col">
-        <PollVotingBigScreen
-          title={poll.title}
-          total={results.total}
-          options={results.options}
-          showResults
-        />
-        {countdown !== "--:--" && (
-          <div className="absolute right-[5%] top-[18%] flex items-center gap-2">
-            <span className="font-mono text-2xl font-bold text-[#fbbf24]">
-              {countdown}
-            </span>
-            <CountdownRing closesAt={poll.closesAt} startedAt={poll.createdAt} />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (isChoicePoll && !showResults) {
+  if (isChoicePoll) {
     return (
       <PollVotingBigScreen
         title={poll.title}
         total={results?.total ?? poll.responseCount}
-        options={[]}
-        showResults={false}
+        options={showResults ? (results?.options ?? []) : []}
+        showResults={showResults}
+        countdown={countdown}
+        closesAt={poll.closesAt}
+        createdAt={poll.createdAt}
+        scanUrl={scanUrl}
+        qrUrl={qrUrl}
+        wxacodeUrl={wxacodeUrl}
       />
     );
   }
@@ -110,6 +117,12 @@ export function BigscreenProjection({
       total={results?.total ?? poll.responseCount}
       options={results?.options ?? []}
       showResults={showResults}
+      countdown={countdown}
+      closesAt={poll.closesAt}
+      createdAt={poll.createdAt}
+      scanUrl={scanUrl}
+      qrUrl={qrUrl}
+      wxacodeUrl={wxacodeUrl}
     />
   );
 }
