@@ -25,6 +25,11 @@ export type InviteResolveResult =
       session_user_id: string | null;
       needs_intent: boolean;
       mp_url_link: string | null;
+      /** 服务端下发，避免依赖 NEXT_PUBLIC_WX_MINI_APPID 构建注入 */
+      mini_app_id: string | null;
+      entry_token: string | null;
+      mp_launch_error: string | null;
+      wxacode_url: string | null;
       mini_path: string;
       app_join_fallback: string;
     };

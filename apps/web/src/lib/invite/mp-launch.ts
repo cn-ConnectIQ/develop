@@ -19,6 +19,12 @@ type UrlLinkResponse = {
   errmsg?: string;
 };
 
+type UrlSchemeResponse = {
+  openlink?: string;
+  errcode?: number;
+  errmsg?: string;
+};
+
 function cacheKey(entryToken: string) {
   return `invite:mp_url_link:${entryToken}`;
 }
@@ -60,10 +66,52 @@ async function generateUrlLinkRaw(
   });
 }
 
+/** 微信内打开用的加密 URL Scheme（无 URL Link 权限时的回退） */
+async function generateUrlSchemeRaw(
+  entryToken: string,
+  envVersion: "release" | "trial" | "develop",
+): Promise<string> {
+  const query = `t=${encodeURIComponent(entryToken)}`;
+  return withWechatAccessToken(async (accessToken) => {
+    const res = await fetch(
+      `https://api.weixin.qq.com/wxa/generatescheme?access_token=${accessToken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jump_wxa: {
+            path: INVITE_ENTRY_MINI_PAGE,
+            query,
+            env_version: envVersion,
+          },
+          expire_type: 1,
+          expire_interval: URL_LINK_EXPIRE_DAYS,
+        }),
+      },
+    );
+    const data = (await res.json()) as UrlSchemeResponse;
+    if (!data.openlink || (data.errcode && data.errcode !== 0)) {
+      throw new Error(
+        data.errmsg ?? `generatescheme 失败 (${data.errcode ?? "unknown"})`,
+      );
+    }
+    return data.openlink;
+  });
+}
+
+function isLaunchHref(value: string | null | undefined): value is string {
+  return Boolean(
+    value &&
+      (value.startsWith("http://") ||
+        value.startsWith("https://") ||
+        value.startsWith("weixin://")),
+  );
+}
+
 /**
  * 为邀请参会者准备小程序入口：
  * - 短信/邮件仍发 https://9li.co/a/{activationToken}
- * - 打开短链时再生成微信 URL Link（MarketUP 同思路）
+ * - 打开短链时再生成微信 URL Link；失败则尝试 URL Scheme
  */
 export async function prepareInviteMiniLaunch(input: {
   eventId: string;
@@ -75,6 +123,7 @@ export async function prepareInviteMiniLaunch(input: {
   entryToken: string;
   miniPath: string;
   mpUrlLink: string | null;
+  miniAppId: string | null;
   error?: string;
 }> {
   let entry;
@@ -98,26 +147,30 @@ export async function prepareInviteMiniLaunch(input: {
   }
 
   const miniPath = buildInviteEntryMiniPath(entry.token);
+  const creds = getWxMiniCredentials();
+  const miniAppId = creds?.appId ?? null;
 
-  if (!getWxMiniCredentials()) {
+  if (!creds) {
     return {
       entryToken: entry.token,
       miniPath,
       mpUrlLink: null,
+      miniAppId,
       error: "未配置 WX_MINI_APPID / WX_MINI_SECRET",
     };
   }
 
   const cached = await cacheGet(cacheKey(entry.token));
-  if (cached?.startsWith("http")) {
+  if (isLaunchHref(cached)) {
     return {
       entryToken: entry.token,
       miniPath,
       mpUrlLink: cached,
+      miniAppId,
     };
   }
 
-  let lastError = "generate_urllink 失败";
+  const errors: string[] = [];
   for (const envVersion of preferredEnvVersions()) {
     try {
       const urlLink = await generateUrlLinkRaw(entry.token, envVersion);
@@ -126,10 +179,34 @@ export async function prepareInviteMiniLaunch(input: {
         entryToken: entry.token,
         miniPath,
         mpUrlLink: urlLink,
+        miniAppId,
       };
     } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
-      continue;
+      errors.push(
+        `urllink/${envVersion}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  // URL Link 常因「未开通权限 / 个人主体」失败；再试 URL Scheme（微信内可跳）
+  for (const envVersion of preferredEnvVersions()) {
+    try {
+      const openlink = await generateUrlSchemeRaw(entry.token, envVersion);
+      await cacheSet(
+        cacheKey(entry.token),
+        openlink,
+        URL_LINK_CACHE_TTL_SECONDS,
+      );
+      return {
+        entryToken: entry.token,
+        miniPath,
+        mpUrlLink: openlink,
+        miniAppId,
+      };
+    } catch (e) {
+      errors.push(
+        `scheme/${envVersion}: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -137,6 +214,7 @@ export async function prepareInviteMiniLaunch(input: {
     entryToken: entry.token,
     miniPath,
     mpUrlLink: null,
-    error: lastError,
+    miniAppId,
+    error: errors.join(" | ") || "generate_urllink/generatescheme 失败",
   };
 }

@@ -232,7 +232,6 @@ export function ParticipantTable({
 
     setInviting(true);
     try {
-      const resend = inviteTarget.inviteStatus !== "NOT_INVITED";
       const res = await fetch(
         withPublicPath(
           `/api/events/${eventId}/participants/${inviteTarget.id}/invite`,
@@ -240,7 +239,7 @@ export function ParticipantTable({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel, resend }),
+          body: JSON.stringify({ channel }),
         },
       );
       const json = await res.json();
@@ -516,7 +515,7 @@ export function ParticipantTable({
                 onClick={() => openInviteDialog(p)}
               >
                 <Send className="size-3.5" />
-                {p.inviteStatus === "NOT_INVITED" ? "邀请" : "再邀请"}
+                邀请
               </button>
               <Popover
                 open={popoverOpen}
@@ -578,9 +577,7 @@ export function ParticipantTable({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openInviteDialog(p)}>
                     <Send className="size-4" />
-                    {p.inviteStatus === "NOT_INVITED"
-                      ? "邀请加入"
-                      : "重新发送邀请"}
+                    邀请加入
                   </DropdownMenuItem>
                 {!p.checkedInAt && (
                   <DropdownMenuItem onClick={() => onCheckIn(p.id)}>
@@ -834,19 +831,8 @@ export function ParticipantTable({
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-text-muted">
-              使用固定邀请模板发送。短信/邮件额度按主办方账号统一扣减。
+              使用固定邀请模板发送。短信与邮件可分别发送，也可多次发送；额度按主办方账号统一扣减。
             </p>
-            {inviteTarget?.inviteStatus === "ACTIVATED" && (
-              <p className="text-xs text-brand-amber">
-                该参会者已激活，确认后仍会再发送一条邀请。
-              </p>
-            )}
-            {inviteTarget?.inviteStatus !== "NOT_INVITED" &&
-              inviteTarget?.inviteStatus !== "ACTIVATED" && (
-              <p className="text-xs text-brand-amber">
-                该参会者已邀请过，确认将重新发送一条邀请。
-              </p>
-            )}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"

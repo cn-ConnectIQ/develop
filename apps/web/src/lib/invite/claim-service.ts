@@ -110,12 +110,16 @@ export async function resolveInviteToken(input: {
   const appBase =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://9li.co/uc";
 
-  // 自有短链长期有效；打开时再生成微信 URL Link（与 MarketUP 短链中转同思路）
+  // 自有短链长期有效；打开时再生成微信 URL Link / Scheme（与 MarketUP 短链中转同思路）
   const { prepareInviteMiniLaunch } = await import("@/lib/invite/mp-launch");
+  const { getWxMiniCredentials } = await import("@/lib/wechat/config");
   let miniPath = `/pages/activation/landing?token=${encodeURIComponent(token)}&eventId=${event.id}`;
   let mpUrlLink: string | null = process.env.WX_MP_URL_LINK_BASE
     ? `${process.env.WX_MP_URL_LINK_BASE}?token=${encodeURIComponent(token)}`
     : null;
+  let entryToken: string | null = null;
+  let mpLaunchError: string | null = null;
+  let miniAppId = getWxMiniCredentials()?.appId ?? null;
 
   try {
     const launch = await prepareInviteMiniLaunch({
@@ -124,15 +128,19 @@ export async function resolveInviteToken(input: {
       phone: record.participant.phone,
       name: record.participant.name,
     });
+    entryToken = launch.entryToken;
+    miniAppId = launch.miniAppId ?? miniAppId;
     miniPath = launch.miniPath.startsWith("/")
       ? launch.miniPath
       : `/${launch.miniPath}`;
     if (launch.mpUrlLink) {
       mpUrlLink = launch.mpUrlLink;
     } else if (launch.error) {
+      mpLaunchError = launch.error;
       console.warn("[invite] mp url link unavailable:", launch.error);
     }
   } catch (e) {
+    mpLaunchError = e instanceof Error ? e.message : String(e);
     console.warn("[invite] prepareInviteMiniLaunch failed", e);
   }
 
@@ -160,6 +168,12 @@ export async function resolveInviteToken(input: {
     session_user_id: sessionUserId,
     needs_intent: !intent,
     mp_url_link: mpUrlLink,
+    mini_app_id: miniAppId,
+    entry_token: entryToken,
+    mp_launch_error: mpLaunchError,
+    wxacode_url: entryToken
+      ? `${appBase}/api/public/invite-wxacode/${encodeURIComponent(entryToken)}`
+      : null,
     mini_path: miniPath,
     app_join_fallback: `${appBase}/join?token=${encodeURIComponent(token)}&event=${event.id}`,
   };

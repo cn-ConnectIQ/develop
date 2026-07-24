@@ -11,24 +11,53 @@ function isWeChatUA() {
   return /MicroMessenger/i.test(navigator.userAgent);
 }
 
-function launchMiniProgram(path: string, mpUrlLink?: string | null) {
-  // 优先微信官方 URL Link（短信外链 / 浏览器均可）
-  if (mpUrlLink?.startsWith("http")) {
-    window.location.href = mpUrlLink;
-    return;
+function isLaunchHref(value: string | null | undefined): value is string {
+  return Boolean(
+    value &&
+      (value.startsWith("http://") ||
+        value.startsWith("https://") ||
+        value.startsWith("weixin://")),
+  );
+}
+
+function buildWeixinBusinessHref(miniPath: string, appId: string) {
+  const raw = miniPath.replace(/^\//, "");
+  const qIndex = raw.indexOf("?");
+  const path = qIndex >= 0 ? raw.slice(0, qIndex) : raw;
+  const query = qIndex >= 0 ? raw.slice(qIndex + 1) : "";
+  const params = new URLSearchParams({
+    appid: appId,
+    path,
+  });
+  if (query) params.set("query", query);
+  return `weixin://dl/business/?${params.toString()}`;
+}
+
+function launchMiniProgram(input: {
+  miniPath: string;
+  mpUrlLink?: string | null;
+  miniAppId?: string | null;
+}) {
+  if (isLaunchHref(input.mpUrlLink)) {
+    window.location.href = input.mpUrlLink;
+    return true;
   }
-  const appId = process.env.NEXT_PUBLIC_WX_MINI_APPID?.trim();
+  const appId =
+    input.miniAppId?.trim() ||
+    process.env.NEXT_PUBLIC_WX_MINI_APPID?.trim() ||
+    "";
   if (appId) {
-    const scheme = `weixin://dl/business/?appid=${appId}&path=${encodeURIComponent(
-      path.replace(/^\//, ""),
-    )}`;
-    window.location.href = scheme;
+    window.location.href = buildWeixinBusinessHref(input.miniPath, appId);
+    return true;
   }
+  return false;
 }
 
 export function InviteTransferClient({ data }: { data: OkData }) {
   const [inWeChat, setInWeChat] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [launchAttempted, setLaunchAttempted] = useState(false);
+  const [launchOk, setLaunchOk] = useState(false);
   const shortUrl = useMemo(() => {
     if (typeof window !== "undefined") return window.location.href;
     return `https://9li.co/a/${data.token}`;
@@ -39,17 +68,20 @@ export function InviteTransferClient({ data }: { data: OkData }) {
   }, []);
 
   useEffect(() => {
-    // 有 URL Link 时优先跳转（微信内/外均可尝试）
     const t = window.setTimeout(() => {
-      launchMiniProgram(data.mini_path, data.mp_url_link);
+      const ok = launchMiniProgram({
+        miniPath: data.mini_path,
+        mpUrlLink: data.mp_url_link,
+        miniAppId: data.mini_app_id,
+      });
+      setLaunchAttempted(true);
+      setLaunchOk(ok);
     }, 400);
     return () => window.clearTimeout(t);
-  }, [data.mini_path, data.mp_url_link]);
+  }, [data.mini_path, data.mp_url_link, data.mini_app_id]);
 
   const copyLink = async () => {
-    const toCopy = data.mp_url_link?.startsWith("http")
-      ? data.mp_url_link
-      : shortUrl;
+    const toCopy = isLaunchHref(data.mp_url_link) ? data.mp_url_link : shortUrl;
     try {
       await navigator.clipboard.writeText(toCopy);
       setCopied(true);
@@ -64,6 +96,9 @@ export function InviteTransferClient({ data }: { data: OkData }) {
       setCopied(true);
     }
   };
+
+  const canAutoLaunch =
+    isLaunchHref(data.mp_url_link) || Boolean(data.mini_app_id?.trim());
 
   return (
     <main
@@ -100,14 +135,22 @@ export function InviteTransferClient({ data }: { data: OkData }) {
             : "开启 AI 配对，提前锁定值得见的人"}
         </p>
 
-        {inWeChat || data.mp_url_link ? (
+        {canAutoLaunch || inWeChat ? (
           <div style={{ marginTop: 40 }}>
             <p style={{ fontSize: 14, opacity: 0.85, marginBottom: 16 }}>
-              正在打开玖莅小程序…
+              {launchAttempted && !launchOk
+                ? "未能自动打开小程序，请扫码或点击下方按钮"
+                : "正在打开玖莅小程序…"}
             </p>
             <button
               type="button"
-              onClick={() => launchMiniProgram(data.mini_path, data.mp_url_link)}
+              onClick={() =>
+                launchMiniProgram({
+                  miniPath: data.mini_path,
+                  mpUrlLink: data.mp_url_link,
+                  miniAppId: data.mini_app_id,
+                })
+              }
               style={primaryBtn}
             >
               打开小程序继续
@@ -130,7 +173,7 @@ export function InviteTransferClient({ data }: { data: OkData }) {
                 邀请你开启 AI 配对。
               </p>
               <p style={{ fontSize: 13, opacity: 0.7, marginTop: 10 }}>
-                玖莅 AI 配对在微信小程序内使用，请用微信打开本链接。
+                请用微信扫下方小程序码，或复制链接后用微信打开。
               </p>
             </div>
             <button type="button" onClick={() => void copyLink()} style={primaryBtn}>
@@ -152,6 +195,27 @@ export function InviteTransferClient({ data }: { data: OkData }) {
             ) : null}
           </div>
         )}
+
+        {data.wxacode_url ? (
+          <div style={{ marginTop: 28, textAlign: "center" }}>
+            <img
+              src={data.wxacode_url}
+              alt="玖莅小程序码"
+              width={200}
+              height={200}
+              style={{
+                width: 200,
+                height: 200,
+                borderRadius: 12,
+                background: "#fff",
+                padding: 10,
+              }}
+            />
+            <p style={{ marginTop: 10, fontSize: 13, opacity: 0.7 }}>
+              微信扫一扫，直接进入活动
+            </p>
+          </div>
+        ) : null}
       </div>
     </main>
   );

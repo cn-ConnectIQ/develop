@@ -30,7 +30,7 @@ export type SendParticipantInvitesInput = {
   /** 活动名用于 campaign 标题 */
   campaignName?: string;
   /**
-   * true：允许对未激活者重新发送（排除 ACTIVATED）；
+   * true：不按邀请状态过滤（已邀请/已激活也可再发，用于单人邀请）；
    * false（默认）：仅 NOT_INVITED。
    */
   allowResend?: boolean;

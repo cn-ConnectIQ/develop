@@ -1,4 +1,4 @@
-import { InviteChannel, ParticipantInviteStatus, prisma } from "@connectiq/database";
+import { InviteChannel, prisma } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
 import { z } from "zod";
 import {
@@ -14,7 +14,7 @@ import { sendFixedParticipantInvites } from "@/lib/invite/send-fixed-invites";
 
 const bodySchema = z.object({
   channel: z.enum(["SMS", "EMAIL"]),
-  /** 对已邀请未激活者允许再发一封 */
+  /** @deprecated 单人邀请已允许任意次数重发，保留字段兼容旧前端 */
   resend: z.boolean().optional(),
 });
 
@@ -89,24 +89,10 @@ export const POST = withErrorHandler(async (request, context) => {
       name: true,
       phone: true,
       email: true,
-      inviteStatus: true,
     },
   });
   if (!participant) {
     return createErrorResponse("参会者不存在", ErrorCode.NOT_FOUND, 404);
-  }
-
-  if (
-    !parsed.data.resend &&
-    participant.inviteStatus !== ParticipantInviteStatus.NOT_INVITED
-  ) {
-    return createErrorResponse(
-      participant.inviteStatus === ParticipantInviteStatus.ACTIVATED
-        ? "该参会者已激活，如需再发请确认后再次提交"
-        : "该参会者已邀请过，如需重发请确认后再次提交",
-      ErrorCode.VALIDATION_ERROR,
-      409,
-    );
   }
 
   if (channel === InviteChannel.SMS && !participant.phone?.trim()) {
@@ -130,18 +116,14 @@ export const POST = withErrorHandler(async (request, context) => {
       participantIds: [participantId],
       channel,
       createdBy: session.user.id,
-      allowResend: Boolean(parsed.data.resend),
+      // 单人邀请：短信/邮件可各发、可多次发，不按邀请状态拦截
+      allowResend: true,
       campaignName: `一键邀请·${participant.name}`,
     });
 
     if (result.queued <= 0) {
-      const activatedResend =
-        parsed.data.resend &&
-        participant.inviteStatus === ParticipantInviteStatus.ACTIVATED;
       return createErrorResponse(
-        activatedResend
-          ? "未能加入发送队列（已激活重发未生效），请稍后重试或联系管理员"
-          : "未能加入发送队列，请检查联系方式或邀请状态",
+        "未能加入发送队列，请检查联系方式后重试",
         ErrorCode.VALIDATION_ERROR,
         400,
       );

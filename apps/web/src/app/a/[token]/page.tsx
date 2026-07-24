@@ -25,7 +25,11 @@ export default async function AttendeeShortLinkPage({ params }: PageProps) {
   const invite = await resolveInviteToken({ token });
   if (invite.kind === "ok") {
     // MarketUP 同思路：自有短链 → 微信 URL Link → 小程序
-    if (invite.mp_url_link?.startsWith("http")) {
+    // weixin:// Scheme 留给客户端跳转（服务端 302 对部分环境无效）
+    if (
+      invite.mp_url_link?.startsWith("http://") ||
+      invite.mp_url_link?.startsWith("https://")
+    ) {
       redirect(invite.mp_url_link);
     }
     return <InviteTransferClient data={invite} />;
