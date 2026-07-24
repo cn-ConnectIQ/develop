@@ -44,26 +44,31 @@ export const GET = withErrorHandler(async () => {
   const attempts: Array<Record<string, unknown>> = [];
 
   for (const env_version of envVersions) {
-    const link = await withWechatAccessToken(async (accessToken) => {
-      const res = await fetch(
-        `https://api.weixin.qq.com/wxa/generate_urllink?access_token=${accessToken}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            path: INVITE_ENTRY_MINI_PAGE,
-            query,
-            env_version,
-            expire_type: 1,
-            expire_interval: 1,
-          }),
-        },
-      );
-      return (await res.json()) as WxApiResult;
-    }).catch((e) => ({
-      errcode: -1,
-      errmsg: e instanceof Error ? e.message : String(e),
-    }));
+    let link: WxApiResult;
+    try {
+      link = await withWechatAccessToken(async (accessToken) => {
+        const res = await fetch(
+          `https://api.weixin.qq.com/wxa/generate_urllink?access_token=${accessToken}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              path: INVITE_ENTRY_MINI_PAGE,
+              query,
+              env_version,
+              expire_type: 1,
+              expire_interval: 1,
+            }),
+          },
+        );
+        return (await res.json()) as WxApiResult;
+      });
+    } catch (e) {
+      link = {
+        errcode: -1,
+        errmsg: e instanceof Error ? e.message : String(e),
+      };
+    }
 
     attempts.push({ api: "generate_urllink", env_version, ...link });
     if (link.url_link) {
@@ -80,28 +85,33 @@ export const GET = withErrorHandler(async () => {
   }
 
   for (const env_version of envVersions) {
-    const scheme = await withWechatAccessToken(async (accessToken) => {
-      const res = await fetch(
-        `https://api.weixin.qq.com/wxa/generatescheme?access_token=${accessToken}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jump_wxa: {
-              path: INVITE_ENTRY_MINI_PAGE,
-              query,
-              env_version,
-            },
-            expire_type: 1,
-            expire_interval: 1,
-          }),
-        },
-      );
-      return (await res.json()) as WxApiResult;
-    }).catch((e) => ({
-      errcode: -1,
-      errmsg: e instanceof Error ? e.message : String(e),
-    }));
+    let scheme: WxApiResult;
+    try {
+      scheme = await withWechatAccessToken(async (accessToken) => {
+        const res = await fetch(
+          `https://api.weixin.qq.com/wxa/generatescheme?access_token=${accessToken}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jump_wxa: {
+                path: INVITE_ENTRY_MINI_PAGE,
+                query,
+                env_version,
+              },
+              expire_type: 1,
+              expire_interval: 1,
+            }),
+          },
+        );
+        return (await res.json()) as WxApiResult;
+      });
+    } catch (e) {
+      scheme = {
+        errcode: -1,
+        errmsg: e instanceof Error ? e.message : String(e),
+      };
+    }
 
     attempts.push({ api: "generatescheme", env_version, ...scheme });
     if (scheme.openlink) {
