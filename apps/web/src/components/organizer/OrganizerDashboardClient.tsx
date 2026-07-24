@@ -65,7 +65,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function OrganizerDashboardClient() {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["account-center"],
     queryFn: fetchAccountCenter,
     refetchInterval: 60_000,
@@ -173,9 +173,21 @@ export function OrganizerDashboardClient() {
             <p className="py-8 text-center text-sm text-text-muted">加载中…</p>
           )}
           {isError && (
-            <p className="py-8 text-center text-sm text-brand-red">
-              活动历史暂时无法加载，请稍后刷新重试
-            </p>
+            <div className="py-8 text-center">
+              <p className="text-sm text-brand-red">
+                活动历史暂时无法加载
+                {error instanceof Error && error.message
+                  ? `：${error.message}`
+                  : "，请稍后刷新重试"}
+              </p>
+              <button
+                type="button"
+                className="mt-3 text-xs text-brand-blue hover:underline"
+                onClick={() => void refetch()}
+              >
+                点击重试
+              </button>
+            </div>
           )}
           {!isLoading && data && data.eventHistory.length === 0 && (
             <div className="py-8 text-center">

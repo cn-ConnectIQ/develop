@@ -102,62 +102,115 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
     throw new Error("组织不存在");
   }
 
-  const [organizedEvents, exhibitorBooths] = await Promise.all([
-    prisma.event.findMany({
-      where: { orgId },
-      orderBy: { startDate: "desc" },
-      include: {
-        _count: { select: { participants: true, checkIns: true } },
-      },
-    }),
-    prisma.exhibitorBooth.findMany({
-      where: { companyOrgId: orgId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        event: { select: { id: true, name: true, startDate: true, endDate: true, status: true, activityType: true } },
-        _count: { select: { leads: true } },
-      },
-    }),
-  ]);
+  let organizedEvents: Array<{
+    id: string;
+    name: string;
+    activityType: ActivityType;
+    status: EventStatus;
+    startDate: Date | null;
+    endDate: Date | null;
+    _count: { participants: number; checkIns: number };
+  }> = [];
+  let exhibitorBooths: Array<{
+    id: string;
+    code: string;
+    name: string;
+    status: string;
+    eventId: string;
+    event: {
+      id: string;
+      name: string;
+      startDate: Date | null;
+      endDate: Date | null;
+      status: EventStatus;
+      activityType: ActivityType;
+    };
+    _count: { leads: number };
+  }> = [];
+
+  try {
+    [organizedEvents, exhibitorBooths] = await Promise.all([
+      prisma.event.findMany({
+        where: { orgId },
+        orderBy: { startDate: "desc" },
+        include: {
+          _count: { select: { participants: true, checkIns: true } },
+        },
+      }),
+      prisma.exhibitorBooth.findMany({
+        where: { companyOrgId: orgId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          event: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+              status: true,
+              activityType: true,
+            },
+          },
+          _count: { select: { leads: true } },
+        },
+      }),
+    ]);
+  } catch (error) {
+    console.error("[account-center] load events/booths failed:", error);
+    throw new Error(
+      error instanceof Error
+        ? `加载活动历史失败：${error.message}`
+        : "加载活动历史失败",
+    );
+  }
 
   const organizedEventIds = organizedEvents.map((e) => e.id);
   const exhibitorEventIds = exhibitorBooths.map((b) => b.eventId);
   const allEventIds = [...new Set([...organizedEventIds, ...exhibitorEventIds])];
 
-  const [connectionCounts, leadCountsByEvent] = await Promise.all([
-    allEventIds.length === 0
-      ? Promise.resolve([] as Array<{ eventId: string | null; _count: { _all: number } }>)
-      : prisma.businessConnection.groupBy({
-          by: ["eventId"],
-          where: { eventId: { in: allEventIds } },
-          _count: { _all: true },
-        }),
-    exhibitorBooths.length === 0
-      ? Promise.resolve(new Map<string, number>())
-      : (async () => {
-          const grouped = await prisma.lead.groupBy({
-            by: ["boothId"],
-            where: { boothId: { in: exhibitorBooths.map((b) => b.id) } },
-            _count: { _all: true },
-          });
-          const boothEventMap = new Map(
-            exhibitorBooths.map((b) => [b.id, b.eventId]),
-          );
-          const map = new Map<string, number>();
-          for (const row of grouped) {
-            const eventId = boothEventMap.get(row.boothId);
-            if (!eventId) continue;
-            map.set(eventId, (map.get(eventId) ?? 0) + row._count._all);
-          }
-          return map;
-        })(),
-  ]);
+  let connectionMap = new Map<string, number>();
+  let leadCountsByEvent = new Map<string, number>();
 
-  const connectionMap = new Map(
-    connectionCounts
-      .filter((row) => row.eventId)
-      .map((row) => [row.eventId!, row._count._all]),
-  );
+  try {
+    const [connectionCounts, leadMap] = await Promise.all([
+      allEventIds.length === 0
+        ? Promise.resolve([] as Array<{ eventId: string | null; _count: { _all: number } }>)
+        : prisma.businessConnection.groupBy({
+            by: ["eventId"],
+            where: { eventId: { in: allEventIds } },
+            _count: { _all: true },
+          }),
+      exhibitorBooths.length === 0
+        ? Promise.resolve(new Map<string, number>())
+        : (async () => {
+            const grouped = await prisma.lead.groupBy({
+              by: ["boothId"],
+              where: { boothId: { in: exhibitorBooths.map((b) => b.id) } },
+              _count: { _all: true },
+            });
+            const boothEventMap = new Map(
+              exhibitorBooths.map((b) => [b.id, b.eventId]),
+            );
+            const map = new Map<string, number>();
+            for (const row of grouped) {
+              const eventId = boothEventMap.get(row.boothId);
+              if (!eventId) continue;
+              map.set(eventId, (map.get(eventId) ?? 0) + row._count._all);
+            }
+            return map;
+          })(),
+    ]);
+
+    connectionMap = new Map(
+      connectionCounts
+        .filter((row) => row.eventId)
+        .map((row) => [row.eventId!, row._count._all]),
+    );
+    leadCountsByEvent = leadMap;
+  } catch (error) {
+    // 连接/线索统计失败时仍返回活动列表
+    console.error("[account-center] stats aggregation failed:", error);
+  }
 
   const organizerHistoryAsc = [...organizedEvents].sort(
     (a, b) =>
@@ -178,7 +231,7 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
     (event) => ({
       id: event.id,
       name: event.name,
-      activityType: event.activityType,
+      activityType: String(event.activityType),
       status: mapEventStatus(event.status),
       role: "organizer" as const,
       startDate: event.startDate?.toISOString() ?? null,
@@ -191,17 +244,17 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
     }),
   );
 
-  const exhibitorHistory: OrgExhibitorHistoryItem[] = exhibitorBooths.map(
-    (booth) => ({
+  const exhibitorHistory: OrgExhibitorHistoryItem[] = exhibitorBooths
+    .filter((booth) => booth.event)
+    .map((booth) => ({
       boothId: booth.id,
       boothCode: booth.code,
       boothName: booth.name,
       eventId: booth.event.id,
       eventName: booth.event.name,
       leads: booth._count.leads,
-      status: booth.status,
-    }),
-  );
+      status: String(booth.status),
+    }));
 
   const eventsForType = organizedEvents.map((e) => ({
     activityType: e.activityType,
@@ -215,15 +268,15 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
       id: org.id,
       name: org.name,
       slug: org.slug,
-      adminStatus: org.adminStatus,
+      adminStatus: String(org.adminStatus),
       isVerified: org.isVerified,
       memberSince: org.createdAt.toISOString(),
     },
     totals: {
-      totalEvents: org.totalEvents,
-      totalParticipants: org.totalParticipants,
-      totalLeads: org.totalLeads,
-      totalConnections: org.totalConnections,
+      totalEvents: org.totalEvents ?? organizedEvents.length,
+      totalParticipants: org.totalParticipants ?? 0,
+      totalLeads: org.totalLeads ?? 0,
+      totalConnections: org.totalConnections ?? 0,
       eventsByType: countEventsByType(eventsForType),
     },
     eventHistory,
@@ -232,7 +285,11 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
       lastOrganizerEventId: lastOrganizer?.id ?? null,
       lastOrganizerEventName: lastOrganizer?.name ?? null,
       hints,
-      valueSummary: buildValueSummary(org),
+      valueSummary: buildValueSummary({
+        totalEvents: org.totalEvents ?? organizedEvents.length,
+        totalConnections: org.totalConnections ?? 0,
+        totalLeads: org.totalLeads ?? 0,
+      }),
     },
     dataPolicy: {
       scope: "b2b_account",

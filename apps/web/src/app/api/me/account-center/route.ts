@@ -1,4 +1,6 @@
+import { ErrorCode } from "@connectiq/types";
 import {
+  createErrorResponse,
   createSuccessResponse,
   requireAccountAdmin,
   withErrorHandler,
@@ -10,6 +12,13 @@ export const GET = withErrorHandler(async () => {
   const result = await requireAccountAdmin();
   if ("error" in result) return result.error;
 
-  const data = await getOrgAccountCenter(result.orgId);
-  return createSuccessResponse(data);
+  try {
+    const data = await getOrgAccountCenter(result.orgId);
+    return createSuccessResponse(data);
+  } catch (error) {
+    console.error("[api/me/account-center]", error);
+    const message =
+      error instanceof Error ? error.message : "加载账号中心失败";
+    return createErrorResponse(message, ErrorCode.INTERNAL_ERROR, 500);
+  }
 });
