@@ -133,16 +133,21 @@ async function fetchExpoBoothTypes(eventId: string): Promise<ExpoBoothType[]> {
 type BoothForm = {
   code: string;
   name: string;
+  /** 已有展商 ID；新建时用 `__new__` */
   exhibitorId: string;
+  exhibitorName: string;
   status: BoothRow["status"];
   maxStaffCount: number;
   hallLabel: string;
 };
 
+const NEW_EXHIBITOR_VALUE = "__new__";
+
 const emptyForm: BoothForm = {
   code: "",
   name: "",
-  exhibitorId: "",
+  exhibitorId: NEW_EXHIBITOR_VALUE,
+  exhibitorName: "",
   status: "AVAILABLE",
   maxStaffCount: 2,
   hallLabel: "",
@@ -245,16 +250,29 @@ export function ExpoBoothsPageClient({
   }, [filtered, sortBy, rankingMap, showRanking]);
 
   const exhibitorOptions = useMemo(() => {
-    if (!editing) return exhibitors;
-    if (exhibitors.some((ex) => ex.id === editing.exhibitor.id)) return exhibitors;
+    const base = editing
+      ? exhibitors.some((ex) => ex.id === editing.exhibitor.id)
+        ? exhibitors
+        : [
+            { id: editing.exhibitor.id, name: editing.exhibitor.name },
+            ...exhibitors,
+          ]
+      : exhibitors;
     return [
-      { id: editing.exhibitor.id, name: editing.exhibitor.name },
-      ...exhibitors,
+      ...base,
+      { id: NEW_EXHIBITOR_VALUE, name: "＋ 新建展商企业" },
     ];
   }, [exhibitors, editing]);
 
   const selectedExhibitorName =
-    exhibitorOptions.find((ex) => ex.id === form.exhibitorId)?.name ?? "";
+    form.exhibitorId === NEW_EXHIBITOR_VALUE
+      ? "＋ 新建展商企业"
+      : (exhibitorOptions.find((ex) => ex.id === form.exhibitorId)?.name ?? "");
+
+  const canSaveExhibitor =
+    form.exhibitorId === NEW_EXHIBITOR_VALUE
+      ? Boolean(form.exhibitorName.trim())
+      : Boolean(form.exhibitorId);
 
   const catalogNames = useMemo(
     () => new Set(boothTypeCatalog.map((t) => t.name)),
@@ -282,7 +300,14 @@ export function ExpoBoothsPageClient({
       const payload = {
         code: form.code,
         name: form.name,
-        exhibitorId: form.exhibitorId || undefined,
+        exhibitorId:
+          form.exhibitorId === NEW_EXHIBITOR_VALUE
+            ? undefined
+            : form.exhibitorId || undefined,
+        exhibitorName:
+          form.exhibitorId === NEW_EXHIBITOR_VALUE
+            ? form.exhibitorName.trim()
+            : undefined,
         status: form.status,
         maxStaffCount: form.maxStaffCount,
         hallLabel: form.hallLabel.trim(),
@@ -370,7 +395,8 @@ export function ExpoBoothsPageClient({
     const firstType = boothTypeCatalog[0];
     setForm({
       ...emptyForm,
-      exhibitorId: exhibitors[0]?.id ?? "",
+      exhibitorId: exhibitors[0]?.id ?? NEW_EXHIBITOR_VALUE,
+      exhibitorName: "",
       hallLabel: firstType?.name ?? "",
       maxStaffCount: firstType?.defaultMaxStaffCount ?? 2,
     });
@@ -383,6 +409,7 @@ export function ExpoBoothsPageClient({
       code: booth.code,
       name: booth.name,
       exhibitorId: booth.exhibitor.id,
+      exhibitorName: "",
       status: booth.status,
       maxStaffCount: booth.maxStaffCount,
       hallLabel: booth.hallLabel ?? "",
@@ -777,11 +804,16 @@ export function ExpoBoothsPageClient({
               <Select
                 value={form.exhibitorId}
                 onValueChange={(v) =>
-                  setForm({ ...form, exhibitorId: v ?? "" })
+                  setForm({
+                    ...form,
+                    exhibitorId: v ?? NEW_EXHIBITOR_VALUE,
+                    exhibitorName:
+                      v === NEW_EXHIBITOR_VALUE ? form.exhibitorName : "",
+                  })
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择展商">
+                  <SelectValue placeholder="选择展商或新建">
                     {selectedExhibitorName || undefined}
                   </SelectValue>
                 </SelectTrigger>
@@ -793,6 +825,19 @@ export function ExpoBoothsPageClient({
                   ))}
                 </SelectContent>
               </Select>
+              {form.exhibitorId === NEW_EXHIBITOR_VALUE && (
+                <Input
+                  className="mt-2"
+                  value={form.exhibitorName}
+                  onChange={(e) =>
+                    setForm({ ...form, exhibitorName: e.target.value })
+                  }
+                  placeholder="输入展商企业名称，如 某某科技"
+                />
+              )}
+              <p className="mt-1.5 text-xs text-text-muted">
+                仅显示本场已有展商；新活动请选择「新建展商企业」
+              </p>
             </div>
             <div>
               <Label>状态</Label>
@@ -897,7 +942,7 @@ export function ExpoBoothsPageClient({
               disabled={
                 !form.code.trim() ||
                 !form.name.trim() ||
-                !form.exhibitorId ||
+                !canSaveExhibitor ||
                 !form.hallLabel.trim() ||
                 Boolean(orphanHallLabel) ||
                 hallLabelOptions.length === 0 ||

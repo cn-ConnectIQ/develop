@@ -9,7 +9,7 @@ import {
   withErrorHandler,
 } from "@/lib/api-auth";
 import {
-  resolveCompanyOrgId,
+  resolveOrCreateExhibitorOrg,
   withLegacyExhibitor,
 } from "@/lib/exhibitor-booth-utils";
 import { getPublicBoothDetail } from "@/lib/mobile-booth-service";
@@ -31,6 +31,7 @@ const updateBoothSchema = z.object({
   name: z.string().optional(),
   code: z.string().optional(),
   exhibitorId: z.string().optional(),
+  exhibitorName: z.string().max(80).optional(),
   status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
   positionData: positionSchema.nullable().optional(),
   leadFormConfig: z.record(z.unknown()).optional(),
@@ -103,12 +104,19 @@ export const PATCH = withErrorHandler(async (request, context) => {
   }
 
   let companyOrgId: string | undefined;
-  if (parsed.data.exhibitorId) {
-    const resolved = await resolveCompanyOrgId(parsed.data.exhibitorId);
-    if (!resolved) {
-      return createErrorResponse("未找到展商组织", ErrorCode.VALIDATION_ERROR, 400);
+  if (parsed.data.exhibitorId || parsed.data.exhibitorName) {
+    try {
+      companyOrgId = await resolveOrCreateExhibitorOrg({
+        exhibitorId: parsed.data.exhibitorId,
+        exhibitorName: parsed.data.exhibitorName,
+      });
+    } catch (err) {
+      return createErrorResponse(
+        err instanceof Error ? err.message : "展商信息无效",
+        ErrorCode.VALIDATION_ERROR,
+        400,
+      );
     }
-    companyOrgId = resolved;
   }
 
   const updated = await prisma.exhibitorBooth.update({

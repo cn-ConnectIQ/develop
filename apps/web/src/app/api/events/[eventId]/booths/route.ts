@@ -11,7 +11,8 @@ import { assertAndDebitInteractionPoint } from "@/lib/billing/billing-guards";
 import { creditOrgWallet } from "@/lib/billing/wallet-service";
 import { classifyLeadGrade } from "@/lib/booth-map";
 import {
-  resolveCompanyOrgId,
+  listEventExhibitorOrgs,
+  resolveOrCreateExhibitorOrg,
   withLegacyExhibitor,
 } from "@/lib/exhibitor-booth-utils";
 import {
@@ -30,21 +31,28 @@ const positionSchema = z.object({
   area: z.number().optional(),
 });
 
-const createBoothSchema = z.object({
-  name: z.string().min(1),
-  code: z.string().min(1),
-  exhibitorId: z.string().optional(),
-  hallId: z.string().optional(),
-  status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
-  positionData: positionSchema.optional(),
-  maxStaffCount: z.number().int().min(1).max(99).optional(),
-  hallLabel: z.string().max(64).optional(),
-});
+const createBoothSchema = z
+  .object({
+    name: z.string().min(1),
+    code: z.string().min(1),
+    exhibitorId: z.string().optional(),
+    exhibitorName: z.string().max(80).optional(),
+    hallId: z.string().optional(),
+    status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
+    positionData: positionSchema.optional(),
+    maxStaffCount: z.number().int().min(1).max(99).optional(),
+    hallLabel: z.string().max(64).optional(),
+  })
+  .refine(
+    (v) => Boolean(v.exhibitorId?.trim() || v.exhibitorName?.trim()),
+    { message: "请选择已有展商，或填写新展商企业名称", path: ["exhibitorId"] },
+  );
 
 const updateBoothSchema = z.object({
   name: z.string().optional(),
   code: z.string().optional(),
   exhibitorId: z.string().optional(),
+  exhibitorName: z.string().max(80).optional(),
   status: z.enum(["AVAILABLE", "BOOKED", "OCCUPIED"]).optional(),
   positionData: positionSchema.nullable().optional(),
   leadFormConfig: z.record(z.unknown()).optional(),
@@ -126,11 +134,7 @@ export const GET = withErrorHandler(async (request, context) => {
         key: { in: ["floor_plan_url", "floor_plan_pois", "floor_plan_labels"] },
       },
     }),
-    prisma.organization.findMany({
-      where: { accountType: "EXHIBITOR", adminStatus: "APPROVED" },
-      select: { id: true, name: true, slug: true },
-      orderBy: { name: "asc" },
-    }),
+    listEventExhibitorOrgs(eventId),
     getBoothStats(eventId),
     countBoothStaffByEvent(eventId),
   ]);
@@ -196,23 +200,18 @@ export const POST = withErrorHandler(async (request, context) => {
     );
   }
 
-  const exhibitorRef =
-    parsed.data.exhibitorId ??
-    (
-      await prisma.organization.findFirst({
-        where: { accountType: "EXHIBITOR", adminStatus: "APPROVED" },
-        select: { id: true },
-        orderBy: { createdAt: "asc" },
-      })
-    )?.id;
-
-  if (!exhibitorRef) {
-    return createErrorResponse("未找到可用展商", ErrorCode.VALIDATION_ERROR, 400);
-  }
-
-  const companyOrgId = await resolveCompanyOrgId(exhibitorRef);
-  if (!companyOrgId) {
-    return createErrorResponse("未找到展商组织", ErrorCode.VALIDATION_ERROR, 400);
+  let companyOrgId: string;
+  try {
+    companyOrgId = await resolveOrCreateExhibitorOrg({
+      exhibitorId: parsed.data.exhibitorId,
+      exhibitorName: parsed.data.exhibitorName,
+    });
+  } catch (err) {
+    return createErrorResponse(
+      err instanceof Error ? err.message : "展商信息无效",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
   }
 
   const hallCheck = await assertHallLabelAllowed(
