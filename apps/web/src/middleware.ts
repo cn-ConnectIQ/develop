@@ -29,6 +29,7 @@ const PUBLIC_PATHS = [
   "/account-suspended",
   "/register",
   "/join",
+  "/r",
   "/i/",
   "/a/",
   "/b/",

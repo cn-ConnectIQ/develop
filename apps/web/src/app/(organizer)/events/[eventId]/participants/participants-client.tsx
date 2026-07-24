@@ -9,6 +9,7 @@ import {
   Bot,
   Columns3,
   Filter,
+  Link2,
   Search,
   Upload,
   UserPlus,
@@ -36,6 +37,11 @@ import { InviteManagementClient } from "@/components/invites/InviteManagementCli
 import type { ParticipantListItem } from "@/lib/participants";
 import { useEventFeatureFlags } from "@/hooks/useEventFeatureFlags";
 import { isFeatureFlagEnabled } from "@/lib/event-feature-flags";
+import {
+  ENABLE_INTERNAL_SELF_REGISTER,
+  selfRegisterPath,
+} from "@/lib/internal-self-register";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 import { TableToolbar } from "@/components/ui/table";
 
@@ -219,6 +225,30 @@ export function ParticipantsPageClient({ eventId }: { eventId: string }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {ENABLE_INTERNAL_SELF_REGISTER ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={async () => {
+                const url = `${window.location.origin}${withPublicPath(selfRegisterPath(eventId))}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  toast.success("已复制报名链接（内部测试）", {
+                    action: {
+                      label: "打开",
+                      onClick: () => window.open(url, "_blank", "noopener"),
+                    },
+                  });
+                } catch {
+                  window.open(url, "_blank", "noopener");
+                  toast.message("已打开报名页，可从地址栏复制链接");
+                }
+              }}
+            >
+              <Link2 className="mr-1 size-4" />
+              报名链接
+            </Button>
+          ) : null}
           <Link
             href={`/events/${eventId}/notifications`}
             className={cn(buttonVariants({ variant: "outline" }))}
