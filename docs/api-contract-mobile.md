@@ -1101,7 +1101,37 @@ Query：`stream=sse` 或 Header `Accept: text/event-stream` 开启 SSE（约 2s 
 
 鉴权：无（body 可传 `user_id`）
 
-请求：见 `participateSessionSchema`（含 `poll_response`）
+请求：见 `participateSessionSchema`（含 `poll_response`、可选 `guest_profile`）
+
+说明：大屏抽奖开启「嘉宾资料入池」时，若未传 `guest_profile`，服务端会尝试用该用户**最近一次参与活动**的姓名/公司/职位/手机自动填入。
+
+---
+
+### GET /api/me/recent-participant-profile
+
+用途：**扫码入池表单自动填入** — 取最近一次参与活动留下的嘉宾资料
+
+鉴权：mobile token
+
+Query：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `exclude_event_id` | string? | 排除当前活动，避免回填本场空草稿 |
+
+响应 `data`：
+
+| 字段 | 类型 |
+|------|------|
+| `name` | string |
+| `company` | string |
+| `job_title` | string |
+| `phone` | string |
+| `source_event_id` | string \| null |
+| `source_event_name` | string \| null |
+| `complete` | boolean | 四项齐全且手机号合法时可直接提交 |
+
+小程序建议：扫 `i_<sessionCode>` 进嘉宾资料页时先调本接口；`complete=true` 可预填并提示「已带入上次活动资料」。
 
 ---
 

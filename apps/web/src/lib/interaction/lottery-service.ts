@@ -652,16 +652,33 @@ export async function enterLottery(
       isRegisteredAttendee,
       upsertGuestParticipantForUser,
       ensureParticipantForUser,
+      resolveRecentGuestProfileForUser,
     } = await import("@/lib/interaction/participant-user");
 
     const registered = await isRegisteredAttendee(eventId, userId);
-    const guest = options?.guestProfile;
-    const hasGuestProfile = Boolean(
+    let guest = options?.guestProfile;
+    let hasGuestProfile = Boolean(
       guest?.name?.trim() &&
         guest?.company?.trim() &&
         guest?.job_title?.trim() &&
         guest?.phone?.trim(),
     );
+
+    // 老用户未传资料时：用最近一次参与活动自动填入
+    if (!hasGuestProfile && eligibility.allow_guest_with_profile) {
+      const recent = await resolveRecentGuestProfileForUser(userId, {
+        excludeEventId: eventId,
+      });
+      if (recent?.complete) {
+        guest = {
+          name: recent.name,
+          company: recent.company,
+          job_title: recent.job_title,
+          phone: recent.phone,
+        };
+        hasGuestProfile = true;
+      }
+    }
 
     if (!registered) {
       if (

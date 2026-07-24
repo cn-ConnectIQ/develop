@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Monitor, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { StatusChip } from "@/components/ui/status-chip";
+import { ParticipantLotteryJoinQrDialog } from "@/components/lottery/ParticipantLotteryJoinQrDialog";
 import type { ParticipantLotteryListItem } from "@/lib/interaction/lottery-service";
 import {
   buildParticipantDashboardPath,
@@ -25,6 +27,7 @@ import {
   getParticipantLifecycleStatus,
   getParticipantTypeEmoji,
 } from "@/lib/lottery/participant-lottery-utils";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type ParticipantLotteryCardProps = {
@@ -107,12 +110,27 @@ export function ParticipantLotteryCard({
   replenishing = false,
 }: ParticipantLotteryCardProps) {
   const [replenishOpen, setReplenishOpen] = useState(false);
+  const [joinQrOpen, setJoinQrOpen] = useState(false);
   const [addQuantity, setAddQuantity] = useState("50");
 
   const dashboardPath = buildParticipantDashboardPath(eventId, lottery);
   const displayStatus = getParticipantDisplayStatus(lottery);
   const animationBadge = getAnimationBadge(lottery.animation_type);
   const typeEmoji = getParticipantTypeEmoji(lottery.lottery_category);
+  const isOrganizerLottery =
+    lottery.owner_type === "ORGANIZER" && !lottery.booth;
+  const lifecycle = getParticipantLifecycleStatus(lottery);
+  const showOrganizerLiveActions =
+    isOrganizerLottery && lifecycle === "active";
+
+  function openBigScreen() {
+    window.open(
+      withPublicPath(
+        `/events/${eventId}/interactions/bigscreen?mode=lottery&lottery=${lottery.id}`,
+      ),
+      "_blank",
+    );
+  }
 
   async function handleReplenish() {
     const quantity = Number.parseInt(addQuantity, 10);
@@ -208,6 +226,27 @@ export function ParticipantLotteryCard({
               <span className="text-xs text-text-secondary">暂无管理入口</span>
             )}
 
+            {showOrganizerLiveActions ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openBigScreen()}
+                >
+                  <Monitor className="size-3.5" />
+                  大屏
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setJoinQrOpen(true)}
+                >
+                  <QrCode className="size-3.5" />
+                  获取扫码
+                </Button>
+              </>
+            ) : null}
+
             {canPauseParticipantLottery(lottery) && (
               <Button
                 variant="outline"
@@ -273,6 +312,14 @@ export function ParticipantLotteryCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ParticipantLotteryJoinQrDialog
+        open={joinQrOpen}
+        onOpenChange={setJoinQrOpen}
+        eventId={eventId}
+        lotteryId={lottery.id}
+        title={lottery.title}
+      />
     </>
   );
 }

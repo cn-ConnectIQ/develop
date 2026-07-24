@@ -9,6 +9,7 @@ export { DrawTypeSelector } from "./DrawTypeSelector";
 export type { DrawTypeSelectorProps } from "./DrawTypeSelector";
 export { LotteryDashboard } from "./LotteryDashboard";
 export type { LotteryDashboardProps } from "./LotteryDashboard";
+export { ParticipantLotteryJoinQrDialog } from "./ParticipantLotteryJoinQrDialog";
 export { RealtimeEntryFeed } from "./RealtimeEntryFeed";
 export { DrawControl } from "./DrawControl";
 export { TierDrawControl } from "./TierDrawControl";

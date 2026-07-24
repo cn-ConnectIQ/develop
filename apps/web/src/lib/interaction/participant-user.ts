@@ -115,6 +115,115 @@ export async function isRegisteredAttendee(
   return false;
 }
 
+export type RecentGuestProfile = {
+  name: string;
+  company: string;
+  job_title: string;
+  phone: string;
+  source_event_id: string | null;
+  source_event_name: string | null;
+  /** 四项齐全且手机号合法，可直接用于扫码入池 */
+  complete: boolean;
+};
+
+/**
+ * 取用户最近一次参与活动留下的嘉宾资料（姓名/公司/职位/手机），
+ * 供小程序扫码表单自动填入；也可在服务端缺 guest_profile 时回填。
+ */
+export async function resolveRecentGuestProfileForUser(
+  userId: string,
+  options?: { excludeEventId?: string },
+): Promise<RecentGuestProfile | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      name: true,
+      phone: true,
+      email: true,
+      profile: { select: { company: true } },
+    },
+  });
+  if (!user) return null;
+
+  const contactOr: Array<{ email?: string; phone?: string }> = [];
+  if (user.email) contactOr.push({ email: user.email });
+  if (user.phone) contactOr.push({ phone: user.phone });
+
+  const exclude =
+    options?.excludeEventId != null
+      ? { eventId: { not: options.excludeEventId } }
+      : {};
+
+  const select = {
+    name: true,
+    company: true,
+    jobTitle: true,
+    phone: true,
+    eventId: true,
+    event: { select: { name: true } },
+  } as const;
+
+  let recent =
+    contactOr.length > 0
+      ? await prisma.participant.findFirst({
+          where: {
+            OR: contactOr,
+            ...exclude,
+            company: { not: null },
+            NOT: { company: "" },
+          },
+          orderBy: { createdAt: "desc" },
+          select,
+        })
+      : null;
+
+  if (!recent && contactOr.length > 0 && options?.excludeEventId) {
+    recent = await prisma.participant.findFirst({
+      where: {
+        OR: contactOr,
+        company: { not: null },
+        NOT: { company: "" },
+      },
+      orderBy: { createdAt: "desc" },
+      select,
+    });
+  }
+
+  if (!recent && contactOr.length > 0) {
+    recent = await prisma.participant.findFirst({
+      where: { OR: contactOr, ...exclude },
+      orderBy: { createdAt: "desc" },
+      select,
+    });
+  }
+
+  if (!recent && contactOr.length > 0 && options?.excludeEventId) {
+    recent = await prisma.participant.findFirst({
+      where: { OR: contactOr },
+      orderBy: { createdAt: "desc" },
+      select,
+    });
+  }
+
+  const name = (recent?.name || user.name || "").trim();
+  const company = (recent?.company || user.profile?.company || "").trim();
+  const job_title = (recent?.jobTitle || "").trim();
+  const phone = (recent?.phone || user.phone || "").trim();
+
+  if (!name && !company && !job_title && !phone) return null;
+
+  return {
+    name,
+    company,
+    job_title,
+    phone,
+    source_event_id: recent?.eventId ?? null,
+    source_event_name: recent?.event?.name ?? null,
+    complete:
+      Boolean(name && company && job_title) && /^1\d{10}$/.test(phone),
+  };
+}
+
 /** 用嘉宾资料创建或更新 Participant（扫码入池） */
 export async function upsertGuestParticipantForUser(
   eventId: string,

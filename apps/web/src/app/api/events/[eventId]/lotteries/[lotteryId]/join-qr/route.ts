@@ -4,9 +4,9 @@ import {
   createSuccessResponse,
   withErrorHandler,
 } from "@/lib/api-auth";
-import { findInteractionJoinInfo } from "@/lib/interaction/join-info";
+import { resolveLotteryJoinInfo } from "@/lib/interaction/join-info";
 
-/** 大屏抽奖：返回扫码参与入口（公开，含小程序码） */
+/** 抽奖扫码参与入口（公开，含小程序码；参与人抽奖无会话时会补建） */
 export const GET = withErrorHandler(async (_request, context) => {
   const eventId = context?.params?.eventId;
   const lotteryId = context?.params?.lotteryId;
@@ -14,7 +14,7 @@ export const GET = withErrorHandler(async (_request, context) => {
     return createErrorResponse("缺少参数", ErrorCode.VALIDATION_ERROR, 400);
   }
 
-  const join = await findInteractionJoinInfo({ eventId, lotteryId });
+  const join = await resolveLotteryJoinInfo({ eventId, lotteryId });
   return createSuccessResponse({
     scanUrl: join?.scanUrl ?? null,
     qrUrl: join?.qrUrl ?? null,

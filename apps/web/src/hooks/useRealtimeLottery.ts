@@ -23,6 +23,7 @@ export function useRealtimeLottery({
 }: UseRealtimeLotteryOptions) {
   const initLottery = useBigscreenStore((s) => s.initLottery);
   const setLotteryEntryCount = useBigscreenStore((s) => s.setLotteryEntryCount);
+  const setLotteryQrUrl = useBigscreenStore((s) => s.setLotteryQrUrl);
   const setRollingEntries = useBigscreenStore((s) => s.setRollingEntries);
   const addWinners = useBigscreenStore((s) => s.addWinners);
   const setPrizeStatus = useBigscreenStore((s) => s.setPrizeStatus);
@@ -34,13 +35,16 @@ export function useRealtimeLottery({
   const fetchLottery = useCallback(async () => {
     if (!lotteryId) return;
     try {
-      const [lotteryRes, entriesRes, winnersRes] = await Promise.all([
+      const [lotteryRes, entriesRes, winnersRes, joinRes] = await Promise.all([
         fetch(withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}`)),
         fetch(
           withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}/entries`),
         ),
         fetch(
           withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}/winners`),
+        ),
+        fetch(
+          withPublicPath(`/api/events/${eventId}/lotteries/${lotteryId}/join-qr`),
         ),
       ]);
 
@@ -62,6 +66,15 @@ export function useRealtimeLottery({
         } else if (lottery.status === "FINISHED") {
           setMode("lottery_result");
         }
+      }
+
+      if (joinRes.ok) {
+        const join = (await joinRes.json()).data as {
+          wxacodeUrl?: string | null;
+          qrUrl?: string | null;
+        };
+        const qr = join?.wxacodeUrl || join?.qrUrl || null;
+        if (qr) setLotteryQrUrl(qr);
       }
 
       if (winnersRes.ok) {
@@ -91,6 +104,7 @@ export function useRealtimeLottery({
     lotteryId,
     initLottery,
     setLotteryEntryCount,
+    setLotteryQrUrl,
     setRollingEntries,
     setMode,
     setPrizeStatus,

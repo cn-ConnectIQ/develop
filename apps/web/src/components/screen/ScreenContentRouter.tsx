@@ -365,12 +365,12 @@ function LotteryScreenContent({
             <p className="text-sm text-white/40">参与人数</p>
             <p className="text-3xl font-black text-brand-gold">{entryCount}</p>
           </div>
-          <BigscreenJoinQr
+                      <BigscreenJoinQr
             wxacodeUrl={join.wxacodeUrl}
             scanUrl={join.scanUrl}
             qrUrl={join.qrUrl}
             size={112}
-            caption="微信扫码参与"
+            caption="小程序扫码参与"
           />
         </div>
       </header>

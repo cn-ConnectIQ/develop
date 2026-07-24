@@ -92,6 +92,7 @@ type BigscreenStore = {
     prizes: LotteryPrizeConfig[];
   }) => void;
   setLotteryEntryCount: (count: number) => void;
+  setLotteryQrUrl: (url: string | null) => void;
   setPrizeStatus: (rank: number, status: PrizeDrawStatus) => void;
   setActivePrizeRank: (rank: number | null) => void;
   setRollingPerson: (person: RollingPerson | null) => void;
@@ -172,6 +173,7 @@ export const useBigscreenStore = create<BigscreenStore>((set, get) => ({
   },
 
   setLotteryEntryCount: (count) => set({ lotteryEntryCount: count }),
+  setLotteryQrUrl: (url) => set({ lotteryQrUrl: url }),
 
   setPrizeStatus: (rank, status) =>
     set((s) => ({

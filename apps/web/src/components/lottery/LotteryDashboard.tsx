@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LotteryDrawType, LotteryStatus } from "@/lib/lottery/lottery-enums";
-import { Download, Loader2, Upload, ArrowLeft } from "lucide-react";
+import { Download, Loader2, Upload, ArrowLeft, Monitor, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminContent,
@@ -12,6 +12,7 @@ import {
 } from "@/components/admin/admin-header";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { DrawControl } from "@/components/lottery/DrawControl";
+import { ParticipantLotteryJoinQrDialog } from "@/components/lottery/ParticipantLotteryJoinQrDialog";
 import { RealtimeEntryFeed } from "@/components/lottery/RealtimeEntryFeed";
 import { WinnerList } from "@/components/lottery/WinnerList";
 import { useRealtimeLotteryDashboard } from "@/hooks/useRealtimeLotteryDashboard";
@@ -89,7 +90,9 @@ export function LotteryDashboard({
   const [data, setData] = useState(initialData);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [exportingMarketup, setExportingMarketup] = useState(false);
+  const [joinQrOpen, setJoinQrOpen] = useState(false);
   const prevEntryCount = useRef(initialData.stats.participant_count);
+  const isOrganizerContext = contextLabel === "主办方";
 
   const { refetch } = useRealtimeLotteryDashboard({
     lotteryId,
@@ -131,6 +134,15 @@ export function LotteryDashboard({
     }
   }
 
+  function openBigScreen() {
+    window.open(
+      withPublicPath(
+        `/events/${eventId}/interactions/bigscreen?mode=lottery&lottery=${lotteryId}`,
+      ),
+      "_blank",
+    );
+  }
+
   const listHref = `/events/${eventId}/lottery/participant`;
 
   return (
@@ -140,13 +152,35 @@ export function LotteryDashboard({
         description={`${contextLabel} · ${DRAW_TYPE_LABEL[data.lottery.draw_type]}`}
         breadcrumb={["互动管理", "参与人抽奖", "数据看板"]}
         actions={
-          <Link
-            href={listHref}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <ArrowLeft className="mr-1.5 size-4" />
-            返回列表
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {isOrganizerContext && !isFinished ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openBigScreen()}
+                >
+                  <Monitor className="mr-1.5 size-4" />
+                  大屏
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setJoinQrOpen(true)}
+                >
+                  <QrCode className="mr-1.5 size-4" />
+                  获取小程序扫码参与
+                </Button>
+              </>
+            ) : null}
+            <Link
+              href={listHref}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <ArrowLeft className="mr-1.5 size-4" />
+              返回列表
+            </Link>
+          </div>
         }
       />
 
@@ -227,6 +261,16 @@ export function LotteryDashboard({
           />
         </div>
       </AdminContent>
+
+      {isOrganizerContext ? (
+        <ParticipantLotteryJoinQrDialog
+          open={joinQrOpen}
+          onOpenChange={setJoinQrOpen}
+          eventId={eventId}
+          lotteryId={lotteryId}
+          title={data.lottery.title}
+        />
+      ) : null}
     </AdminPage>
   );
 }

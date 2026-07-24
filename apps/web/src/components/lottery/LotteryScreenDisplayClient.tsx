@@ -19,6 +19,7 @@ export type LotteryScreenDisplayClientProps = {
 
 type ScanJoinInfo = {
   qr_url: string | null;
+  wxacode_url?: string | null;
   scan_url: string;
   session_code: string;
 };
@@ -184,16 +185,62 @@ function LotteryScreenDisplayInner({
           <div className="flex flex-col items-center text-center">
             {scanJoin ? (
               <>
-                {scanJoin.qr_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={scanJoin.qr_url}
-                    alt="扫码加入抽奖"
+                {scanJoin.wxacode_url || scanJoin.qr_url ? (
+                  <div
                     className={cn(
-                      "rounded-2xl bg-white p-3 shadow-xl",
-                      embedded ? "size-28" : "size-56",
+                      "flex items-end justify-center",
+                      embedded ? "gap-3" : "gap-8",
                     )}
-                  />
+                  >
+                    {scanJoin.wxacode_url ? (
+                      <div className="flex flex-col items-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={scanJoin.wxacode_url}
+                          alt="小程序码加入抽奖"
+                          className={cn(
+                            "rounded-2xl bg-white p-3 shadow-xl",
+                            embedded ? "size-28" : "size-56",
+                          )}
+                        />
+                        <p
+                          className={cn(
+                            "text-white/50",
+                            embedded ? "mt-1 text-[9px]" : "mt-2 text-xs",
+                          )}
+                        >
+                          小程序码 · 老用户可自动带入资料
+                        </p>
+                      </div>
+                    ) : null}
+                    {scanJoin.qr_url ? (
+                      <div className="flex flex-col items-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={scanJoin.qr_url}
+                          alt="H5 扫码加入抽奖"
+                          className={cn(
+                            "rounded-2xl bg-white p-3 shadow-xl",
+                            scanJoin.wxacode_url
+                              ? embedded
+                                ? "size-20"
+                                : "size-40"
+                              : embedded
+                                ? "size-28"
+                                : "size-56",
+                          )}
+                        />
+                        <p
+                          className={cn(
+                            "text-white/50",
+                            embedded ? "mt-1 text-[9px]" : "mt-2 text-xs",
+                          )}
+                        >
+                          {scanJoin.wxacode_url ? "H5 备用" : "微信扫码"}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
                   <Gift
                     className={cn(
