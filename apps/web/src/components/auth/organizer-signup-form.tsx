@@ -13,6 +13,7 @@ import {
   clearAuthRoleCookies,
   setAuthRoleCookies,
 } from "@/lib/auth-redirect";
+import { LEGAL_URLS } from "@/lib/legal";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -280,7 +281,27 @@ export function OrganizerSignupForm() {
                 className="mt-0.5"
               />
               <span className="text-xs leading-relaxed text-text-muted">
-                我已阅读并同意《平台服务协议》和《隐私政策》，了解试用版功能范围
+                我已阅读并同意
+                <a
+                  href={LEGAL_URLS.userAgreement}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-blue underline-offset-2 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  《平台服务协议》
+                </a>
+                和
+                <a
+                  href={LEGAL_URLS.privacyPolicy}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-blue underline-offset-2 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  《隐私政策》
+                </a>
+                ，了解试用版功能范围
               </span>
             </label>
             {form.formState.errors.agreeTerms && (

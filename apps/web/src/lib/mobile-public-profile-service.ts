@@ -12,7 +12,7 @@ import {
   buildSharedIntents,
   computeMatchScore,
 } from "@/lib/connect-card-service";
-import { parseIntentTags } from "@/lib/user-me-service";
+import { loadIntentTagsForContext, parseIntentTags } from "@/lib/user-me-service";
 import { resolveHonorTagsForViewer } from "@/lib/participant-honor-tags-visibility";
 
 export type ApiAiScoreDimensions = {
@@ -188,7 +188,9 @@ export async function getMobilePublicProfile(
     throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  const tags = parseIntentTags(user.profile?.intentTags);
+  const tags = eventId
+    ? await loadIntentTagsForContext(userId, eventId)
+    : parseIntentTags(user.profile?.intentTags);
   const seeks = tags.filter((t) => t.type === "DEMAND").map((t) => t.label);
   const offers = tags.filter((t) => t.type === "SUPPLY").map((t) => t.label);
 
@@ -239,24 +241,12 @@ export async function getMobilePublicProfile(
     if (pair) {
       matchScore = pair.score;
       dimensions = pair.dimensions;
-      const viewerProfile = await prisma.userProfile.findUnique({
-        where: { userId: viewerId },
-        select: { intentTags: true },
-      });
-      sharedIntents = buildSharedIntents(
-        parseIntentTags(viewerProfile?.intentTags),
-        tags,
-      );
     }
+    const viewerTags = await loadIntentTagsForContext(viewerId, eventId);
+    sharedIntents = buildSharedIntents(viewerTags, tags);
   } else {
-    const viewerProfile = await prisma.userProfile.findUnique({
-      where: { userId: viewerId },
-      select: { intentTags: true },
-    });
-    sharedIntents = buildSharedIntents(
-      parseIntentTags(viewerProfile?.intentTags),
-      tags,
-    );
+    const viewerTags = await loadIntentTagsForContext(viewerId, null);
+    sharedIntents = buildSharedIntents(viewerTags, tags);
     matchScore = computeMatchScore(sharedIntents) ?? business_score;
   }
 

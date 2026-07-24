@@ -13,7 +13,7 @@ import { ApiError } from "@/lib/api-auth";
 import { getOrCreateContactCard } from "@/lib/contact-card-service";
 import { getOrGenerateMatchBrief } from "@/lib/ai/match-brief-service";
 import type { MatchDimensionHit } from "@/lib/ai/matching/types";
-import { parseIntentTags, type ApiProfileIntentTag } from "@/lib/user-me-service";
+import { loadIntentTagsForContext, type ApiProfileIntentTag } from "@/lib/user-me-service";
 import { recordSignal } from "@/lib/signals";
 import { resolveHonorTagsForViewer } from "@/lib/participant-honor-tags-visibility";
 import { MatchFeedbackSignal, trackMatchFeedback } from "@/lib/ai/matching/match-feedback-service";
@@ -336,18 +336,10 @@ async function fetchConnectCardCore(
     throw new ApiError("用户不存在", ErrorCode.NOT_FOUND, 404);
   }
 
-  let viewerProfile: { intentTags: unknown } | null = null;
-  try {
-    viewerProfile = await prisma.userProfile.findUnique({
-      where: { userId: viewerId },
-      select: { intentTags: true },
-    });
-  } catch (error) {
-    console.warn("[connect-card] viewer profile skipped:", error);
-  }
-
-  const viewerIntents = parseIntentTags(viewerProfile?.intentTags);
-  const targetIntents = parseIntentTags(target.profile?.intentTags);
+  const [viewerIntents, targetIntents] = await Promise.all([
+    loadIntentTagsForContext(viewerId, eventId),
+    loadIntentTagsForContext(targetUserId, eventId),
+  ]);
 
   const cardRow =
     target.contactCard ??

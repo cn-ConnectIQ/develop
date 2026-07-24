@@ -16,6 +16,7 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
+import { LEGAL_URLS } from "@/lib/legal";
 import { StepProgress } from "./step-progress";
 
 type ApplicationData = {
@@ -546,7 +547,26 @@ export function AdminRegisterForm() {
                 className="mt-0.5"
               />
               <span className="text-sm text-text-muted">
-                我已阅读并同意《平台服务协议》和《隐私政策》
+                我已阅读并同意
+                <a
+                  href={LEGAL_URLS.userAgreement}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-blue underline-offset-2 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  《平台服务协议》
+                </a>
+                和
+                <a
+                  href={LEGAL_URLS.privacyPolicy}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-blue underline-offset-2 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  《隐私政策》
+                </a>
               </span>
             </label>
             <label className="flex cursor-pointer items-start gap-3">

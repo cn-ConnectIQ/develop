@@ -88,6 +88,57 @@ export function parseIntentTags(value: unknown): ApiProfileIntentTag[] {
   });
 }
 
+/** 本场 UserEventIntent → 与账号级 intentTags 同结构，供连接名片/公开档算共同意向 */
+export function profileTagsFromEventIntent(intent: {
+  supplyTags: string[];
+  demandTags: string[];
+  role: string | null;
+  topics: string[];
+} | null | undefined): ApiProfileIntentTag[] {
+  if (!intent) return [];
+  const tags: ApiProfileIntentTag[] = [];
+  for (const label of intent.supplyTags) {
+    const text = label.trim();
+    if (!text) continue;
+    tags.push({ id: `supply-${text}`, label: text, type: "SUPPLY" });
+  }
+  for (const label of intent.demandTags) {
+    const text = label.trim();
+    if (!text) continue;
+    tags.push({ id: `demand-${text}`, label: text, type: "DEMAND" });
+  }
+  if (intent.role?.trim()) {
+    const text = intent.role.trim();
+    tags.push({ id: `role-${text}`, label: text, type: "DEMAND" });
+  }
+  for (const label of intent.topics) {
+    const text = label.trim();
+    if (!text) continue;
+    tags.push({ id: `topic-${text}`, label: text, type: "DEMAND" });
+  }
+  return tags;
+}
+
+/** 有 eventId 读本场意向；否则回退账号级 intentTags */
+export async function loadIntentTagsForContext(
+  userId: string,
+  eventId?: string | null,
+): Promise<ApiProfileIntentTag[]> {
+  const eid = eventId?.trim();
+  if (eid) {
+    const intent = await prisma.userEventIntent.findUnique({
+      where: { userId_eventId: { userId, eventId: eid } },
+      select: { supplyTags: true, demandTags: true, role: true, topics: true },
+    });
+    return profileTagsFromEventIntent(intent);
+  }
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { intentTags: true },
+  });
+  return parseIntentTags(profile?.intentTags);
+}
+
 export async function fetchMeUser(userId: string): Promise<ApiMeUser> {
   const [user, avatarUrl] = await Promise.all([
     prisma.user.findUnique({

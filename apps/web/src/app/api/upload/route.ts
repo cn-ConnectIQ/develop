@@ -181,7 +181,17 @@ async function handleJsonUpload(request: Request) {
 
 /** multipart：兼容 File / Blob（微信 uploadFile 在部分运行时不是 File） */
 async function handleMultipartUpload(request: Request) {
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch (err) {
+    console.error("[upload] formData parse failed", err);
+    return createErrorResponse(
+      "上传表单解析失败，请换 PNG/JPG 后重试",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
   const file = form.get("file");
 
   // 微信 → Next 时常见：是 Blob 但 instanceof File === false
