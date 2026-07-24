@@ -143,6 +143,48 @@ HTTP 状态码与 `code` 对应：401 / 403 / 404 / 400 / 429 / 500 / 503。
 
 ---
 
+### POST /api/applications/organizer/mini
+
+用途：**小程序「申请试用」** — 提交后生成平台可见的正式账号入驻申请（`OrganizerApplication.status = PENDING`）
+
+鉴权：**mobile token**（`Authorization: Bearer mini_{userId}_*`）
+
+请求：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `contactName` | string | 是 | 姓名，2–50 字 |
+| `orgName` | string | 是 | 公司/机构，2–100 字 |
+| `contactPhone` | string | 是 | 中国大陆手机号；须与当前登录账号已绑定手机一致 |
+| `wechat` | string \| null | 否 | 微信号或手机号 |
+| `requirement` | string \| null | 否 | 活动规模/需求，写入申请说明 |
+
+响应 `data`：申请记录
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | string | |
+| `status` | `"PENDING"` \| … | 提交成功一般为 `PENDING` |
+| `orgName` | string | |
+| `contactName` | string | |
+| `contactPhone` | string | |
+| `contactEmail` | string | 有真实邮箱则复用，否则 `{phone}@mini-apply.9li.local` |
+| `description` | string | 含【小程序申请试用】及需求/微信 |
+| `submittedAt` | string | ISO 时间 |
+
+错误码：
+
+| code | HTTP | 说明 |
+|------|------|------|
+| `UNAUTHORIZED` | 401 | 未登录 / token 无效 |
+| `VALIDATION_ERROR` | 400 | 参数错误或手机号与登录账号不一致 |
+| `DUPLICATE_APPLICATION` | 400 | 同用户同组织名已有待审或已通过申请 |
+| `NOT_FOUND` | 404 | 用户不存在 |
+
+> 平台管理员在 Web「入驻申请」列表（`GET /api/platform/applications?status=PENDING`）审核。小程序端须去掉「在线提交暂不可用」硬拦截后调用本接口。
+
+---
+
 ### POST /api/events/verify-code
 
 用途：**Z1 活动码校验**
@@ -1707,6 +1749,7 @@ Query：`targetUserId`，可选 `eventId`
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-24 | 小程序申请试用：`POST /api/applications/organizer/mini` → 平台待审正式账号 |
 | 2026-06-13 | AD 投票：polls POST/GET/PATCH、realtime-results（onsite_count/vote_count）、bigscreen_url/SSE、admin-lotteries 说明 |
 | 2026-06-13 | dashboard-mobile：`countdownSeconds`/`closesAt`、`stampRally.id`、`unreadNotificationCount`；Poll GET `hasVoted`；PATCH profile、POST intents；联调码 TEST1377 |
 | 2026-06-13 | P1：管理工具、展商 dashboard、AI 三件套、语音上传；小程序 admin 接 API + 扩展屏注册 |
