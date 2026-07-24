@@ -30,6 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CampaignCard } from "@/components/invites/CampaignCard";
 import { InviteFunnel } from "@/components/invites/InviteFunnel";
+import { CopySelfRegisterLinkButton } from "@/components/participants/CopySelfRegisterLinkButton";
 import { ParticipantTagEditPopover } from "@/components/participants/ParticipantTagEditPopover";
 import {
   aggregateFunnelStats,
@@ -186,21 +187,25 @@ export function InviteCampaignsPageClient({
               ← 返回参与人员管理
             </Link>
           </div>
-          <Link
-            href={inviteCreateHref}
-            className={cn(
-              buttonVariants({ variant: "default" }),
-              "bg-brand-purple text-white hover:bg-brand-purple/90",
-            )}
-          >
-            <Plus className="mr-1 size-4" />
-            创建邀请活动
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <CopySelfRegisterLinkButton eventId={eventId} />
+            <Link
+              href={inviteCreateHref}
+              className={cn(
+                buttonVariants({ variant: "default" }),
+                "bg-brand-purple text-white hover:bg-brand-purple/90",
+              )}
+            >
+              <Plus className="mr-1 size-4" />
+              创建邀请活动
+            </Link>
+          </div>
         </div>
       )}
 
       {embedded && (
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <CopySelfRegisterLinkButton eventId={eventId} size="sm" />
           <Button
             variant="outline"
             size="sm"

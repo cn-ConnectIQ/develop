@@ -13,6 +13,7 @@ import {
   useEventDateLabel,
   type CreateCampaignCloneFrom,
 } from "@/components/invites/CreateCampaignForm";
+import { CopySelfRegisterLinkButton } from "@/components/participants/CopySelfRegisterLinkButton";
 import { InviteChannel } from "@/lib/invite/enums";
 import { useCurrentEvent } from "@/contexts/event-context";
 
@@ -89,12 +90,15 @@ export function CreateCampaignPageClient({ eventId }: { eventId: string }) {
         description={eventName}
         breadcrumb={["参与人员管理", "发起邀请"]}
         actions={
-          <Link
-            href={`/events/${eventId}/participants`}
-            className="text-sm text-brand-blue hover:underline"
-          >
-            ← 返回参与人员管理
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <CopySelfRegisterLinkButton eventId={eventId} size="sm" />
+            <Link
+              href={`/events/${eventId}/participants`}
+              className="text-sm text-brand-blue hover:underline"
+            >
+              ← 返回参与人员管理
+            </Link>
+          </div>
         }
       />
       <AdminContent>

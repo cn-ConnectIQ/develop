@@ -6,6 +6,7 @@ import { Download, Mail, MessageCircle, Phone, Send, Upload } from "lucide-react
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { InviteTagPicker } from "@/components/invites/InviteTagPicker";
+import { CopySelfRegisterLinkButton } from "@/components/participants/CopySelfRegisterLinkButton";
 import { ParticipantTagChips } from "@/components/participants/ParticipantTagChips";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -250,6 +251,18 @@ export function DirectInvitePanel({ eventId, onSent }: DirectInvitePanelProps) {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-brand-blue/30 bg-brand-blue-light/40 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-[var(--admin-ink)]">
+            公开报名链接（内部测试）
+          </p>
+          <p className="mt-0.5 text-xs text-text-muted">
+            无需短信邀请，分享链接即可让测试人员自助写入名单
+          </p>
+        </div>
+        <CopySelfRegisterLinkButton eventId={eventId} size="sm" />
+      </div>
+
       <div className="rounded-xl border border-border-light bg-white p-5">
         <Label className="text-xs text-text-muted">发送渠道</Label>
         <div className="mt-2 flex flex-wrap gap-2">

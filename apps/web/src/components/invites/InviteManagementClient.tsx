@@ -6,6 +6,7 @@ import { InviteCampaignsPageClient } from "@/app/(organizer)/events/[eventId]/in
 import { DirectInvitePanel } from "@/components/invites/DirectInvitePanel";
 import { InviteAutoConfigPanel } from "@/components/invites/InviteAutoConfigPanel";
 import { AdminPageBody } from "@/components/layout/AdminLayout";
+import { CopySelfRegisterLinkButton } from "@/components/participants/CopySelfRegisterLinkButton";
 import { useExperienceAccount } from "@/hooks/useExperienceAccount";
 import { EXPERIENCE_BULK_INVITE_MESSAGE } from "@/lib/experience/experience-invite-messages";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,16 +33,19 @@ export function InviteManagementClient({
   const body = (
     <>
       {!embedded && (
-        <div className="mb-4">
-          <h1 className="text-xl font-bold text-[var(--admin-ink)]">邀请管理</h1>
-          <p className="mt-1 text-sm text-text-muted">
-            一对一 / 批量发送固定模板邀请；新参会者可在开启邀请体系后自动触发
-          </p>
-          {experienceBulkBlocked && (
-            <p className="mt-2 text-xs text-brand-amber">
-              {EXPERIENCE_BULK_INVITE_MESSAGE}
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-[var(--admin-ink)]">邀请管理</h1>
+            <p className="mt-1 text-sm text-text-muted">
+              一对一 / 批量发送固定模板邀请；新参会者可在开启邀请体系后自动触发
             </p>
-          )}
+            {experienceBulkBlocked && (
+              <p className="mt-2 text-xs text-brand-amber">
+                {EXPERIENCE_BULK_INVITE_MESSAGE}
+              </p>
+            )}
+          </div>
+          <CopySelfRegisterLinkButton eventId={eventId} />
         </div>
       )}
 
