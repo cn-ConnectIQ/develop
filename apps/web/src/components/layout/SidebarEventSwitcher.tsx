@@ -57,6 +57,7 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
         : "bg-brand-blue";
 
   const hostEvents = events.filter((e) => e.listRole === "HOST");
+  const managedEvents = events.filter((e) => e.listRole === "MANAGER");
   const exhibitorEvents = events.filter((e) => e.listRole === "EXHIBITOR");
   const currentRoleLabel = currentEvent
     ? getEventListRoleLabel(currentEvent)
@@ -135,6 +136,11 @@ export function SidebarEventSwitcher({ role }: SidebarEventSwitcherProps) {
               {hostEvents.length > 0 ? (
                 <CommandGroup heading="主办">
                   {hostEvents.map(renderEventItem)}
+                </CommandGroup>
+              ) : null}
+              {managedEvents.length > 0 ? (
+                <CommandGroup heading="管理">
+                  {managedEvents.map(renderEventItem)}
                 </CommandGroup>
               ) : null}
               {exhibitorEvents.length > 0 ? (

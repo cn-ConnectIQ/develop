@@ -151,17 +151,39 @@ export async function requireEventAccessCheck(
 
   if (session.user.userType === "PLATFORM_ADMIN") {
     const event = await loadEvent(id);
-    if (!event) return { error: forbidden("活动不存在") };
+    if (!event) return { error: notFoundEvent() };
     return { session, event, orgId: null };
   }
 
+  const event = await loadEvent(id);
+  if (!event) return { error: notFoundEvent() };
+
+  // 创建者始终可访问（避免刚创建后因 org 会话态偶发不一致误报无权限）
+  if (event.organizerId && event.organizerId === session.user.id) {
+    return { session, event, orgId: event.orgId };
+  }
+
   const adminResult = await requireAccountAdmin();
-  if ("error" in adminResult) return adminResult;
+  if ("error" in adminResult) {
+    // 非账号管理员 / 组织不可用时，仍允许 orgStaff 成员访问
+    const viaStaff = await findEventViaOrgStaff(id, session.user.id);
+    if (viaStaff) return { session, event: viaStaff, orgId: viaStaff.orgId };
+    return adminResult;
+  }
 
   const { orgId } = adminResult;
-  const event = await findAccessibleEvent(id, session, orgId);
-  if (!event) return { error: forbidden("你没有权限访问此活动") };
-  return { session, event, orgId: event.orgId ?? orgId };
+  const accessible = await findAccessibleEvent(id, session, orgId);
+  if (!accessible) {
+    return { error: forbidden("你没有权限访问此活动") };
+  }
+  return { session, event: accessible, orgId: accessible.orgId ?? orgId };
+}
+
+function notFoundEvent() {
+  return NextResponse.json(
+    { error: "活动不存在", code: "NOT_FOUND" },
+    { status: 404 },
+  );
 }
 
 // ?? ????????? ??
@@ -248,32 +270,14 @@ async function loadEvent(eventId: string) {
   return prisma.event.findUnique({ where: { id: eventId } });
 }
 
-/** 当前活动 org 不匹配时，仍允许体验账号绑定活动或 orgStaff 成员访问 */
-async function findAccessibleEvent(
-  eventId: string,
-  session: Session,
-  activeOrgId: string,
-) {
-  const byActiveOrg = await prisma.event.findFirst({
-    where: { id: eventId, orgId: activeOrgId },
-  });
-  if (byActiveOrg) return byActiveOrg;
-
-  const experience = await getActiveExperienceAccount(session.user.id);
-  if (
-    experience?.status === ExperienceAccountStatus.ACTIVE &&
-    experience.eventId === eventId
-  ) {
-    return loadEvent(eventId);
-  }
-
+async function findEventViaOrgStaff(eventId: string, userId: string) {
   return prisma.event.findFirst({
     where: {
       id: eventId,
       org: {
         staff: {
           some: {
-            userId: session.user.id,
+            userId,
             status: InviteStatus.ACCEPTED,
             role: {
               in: [
@@ -289,6 +293,33 @@ async function findAccessibleEvent(
   });
 }
 
+/** 当前活动 org 不匹配时，仍允许体验账号绑定活动或 orgStaff 成员访问 */
+async function findAccessibleEvent(
+  eventId: string,
+  session: Session,
+  activeOrgId: string,
+) {
+  const byActiveOrg = await prisma.event.findFirst({
+    where: { id: eventId, orgId: activeOrgId },
+  });
+  if (byActiveOrg) return byActiveOrg;
+
+  const byOrganizer = await prisma.event.findFirst({
+    where: { id: eventId, organizerId: session.user.id },
+  });
+  if (byOrganizer) return byOrganizer;
+
+  const experience = await getActiveExperienceAccount(session.user.id);
+  if (
+    experience?.status === ExperienceAccountStatus.ACTIVE &&
+    experience.eventId === eventId
+  ) {
+    return loadEvent(eventId);
+  }
+
+  return findEventViaOrgStaff(eventId, session.user.id);
+}
+
 async function loadBooth(boothId: string) {
   return prisma.exhibitorBooth.findUnique({
     where: { id: boothId },
@@ -298,15 +329,28 @@ async function loadBooth(boothId: string) {
   });
 }
 
-function responseToApiError(response: NextResponse, fallback: string): ApiError {
+async function responseToApiError(
+  response: NextResponse,
+  fallback: string,
+): Promise<ApiError> {
   const status = response.status;
+  let message = fallback;
+  try {
+    const cloned = response.clone();
+    const body = (await cloned.json()) as { error?: string };
+    if (typeof body.error === "string" && body.error.trim()) {
+      message = body.error;
+    }
+  } catch {
+    // keep fallback
+  }
   if (status === 401) {
-    return new ApiError("未登录", ErrorCode.UNAUTHORIZED, 401);
+    return new ApiError(message === fallback ? "未登录" : message, ErrorCode.UNAUTHORIZED, 401);
   }
   if (status === 404) {
-    return new ApiError(fallback, ErrorCode.NOT_FOUND, 404);
+    return new ApiError(message, ErrorCode.NOT_FOUND, 404);
   }
-  return new ApiError(fallback, ErrorCode.FORBIDDEN, 403);
+  return new ApiError(message, ErrorCode.FORBIDDEN, 403);
 }
 
 // ??????????????????????????????????????????????????????????????
@@ -409,7 +453,7 @@ export async function requireAuth(
 export async function requirePlatformAdmin(): Promise<AuthResult> {
   const result = await requirePlatformAdminAccess();
   if ("error" in result) {
-    throw responseToApiError(result.error, "无权访问");
+    throw await responseToApiError(result.error, "无权访问");
   }
   return { session: result.session, user: result.session.user };
 }
@@ -433,7 +477,7 @@ export async function requireEventAccess(
 
   const result = await requireEventAccessCheck(id);
   if ("error" in result) {
-    throw responseToApiError(result.error, "无权访问该活动");
+    throw await responseToApiError(result.error, "无权访问该活动");
   }
 
   return { session: result.session, event: result.event };
@@ -458,7 +502,7 @@ export async function requireBoothAccess(
 
   const result = await requireBoothAccessCheck(id);
   if ("error" in result) {
-    throw responseToApiError(result.error, "无权访问该展位");
+    throw await responseToApiError(result.error, "无权访问该展位");
   }
 
   return { session: result.session, booth: result.booth };

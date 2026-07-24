@@ -719,6 +719,14 @@ export function Sidebar({
               <p className="truncate text-sm font-medium text-text-primary">
                 {user.name}
               </p>
+              {session?.user?.email ? (
+                <p
+                  className="truncate text-[11px] text-text-tertiary"
+                  title={session.user.email}
+                >
+                  {session.user.email}
+                </p>
+              ) : null}
               <p className="truncate text-xs text-text-tertiary">
                 {userType === "ACCOUNT_ADMIN"
                   ? "账号管理员"

@@ -198,6 +198,17 @@ export const POST = withErrorHandler(async (request, context) => {
   const winnerCount =
     parsed.data.winner_count ?? (prizeTotal > 0 ? prizeTotal : 1);
 
+  if (
+    parsed.data.draw_type === "SCHEDULED" &&
+    !parsed.data.draw_at
+  ) {
+    return createErrorResponse(
+      "定时开奖需设置开奖时间",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
   const leadFormConfig = parsed.data.lead_form_config
     ? (serializeLeadFormConfig(
         normalizeLeadFormConfig(parsed.data.lead_form_config),
@@ -220,6 +231,8 @@ export const POST = withErrorHandler(async (request, context) => {
       winnerCount,
       allowReenter: parsed.data.allow_reenter ?? false,
       requireLeadCapture: parsed.data.require_lead_capture ?? true,
+      drawType: parsed.data.draw_type ?? undefined,
+      drawAt: parsed.data.draw_at ? new Date(parsed.data.draw_at) : null,
       ...(leadFormConfig ? { leadFormConfig } : {}),
     },
     include: {

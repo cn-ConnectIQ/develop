@@ -28,7 +28,7 @@ export type EventListItem = {
   startDate: string | null;
   endDate: string | null;
   createdAt?: string;
-  listRole?: "HOST" | "EXHIBITOR";
+  listRole?: "HOST" | "MANAGER" | "EXHIBITOR";
   boothId?: string | null;
   boothCode?: string | null;
   readiness: { completed: number; total: number };

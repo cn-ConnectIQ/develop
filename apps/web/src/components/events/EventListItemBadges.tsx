@@ -9,10 +9,21 @@ type EventBadgeSource = Pick<
 
 export function getEventListRoleLabel(
   event: Pick<EventListItem, "listRole">,
-): "参展" | "主办" | null {
+): "参展" | "主办" | "管理" | null {
   if (event.listRole === "EXHIBITOR") return "参展";
+  if (event.listRole === "MANAGER") return "管理";
   if (event.listRole === "HOST") return "主办";
   return null;
+}
+
+function roleBadgeClass(listRole: EventListItem["listRole"]) {
+  if (listRole === "EXHIBITOR") {
+    return "bg-brand-blue-light text-brand-blue";
+  }
+  if (listRole === "MANAGER") {
+    return "bg-amber-50 text-amber-700";
+  }
+  return "bg-brand-green-light text-brand-green";
 }
 
 export function EventListItemBadges({
@@ -36,9 +47,7 @@ export function EventListItemBadges({
         <span
           className={cn(
             "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-            event.listRole === "EXHIBITOR"
-              ? "bg-brand-blue-light text-brand-blue"
-              : "bg-brand-green-light text-brand-green",
+            roleBadgeClass(event.listRole),
           )}
         >
           {roleLabel}

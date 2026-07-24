@@ -20,6 +20,7 @@ import { AdminPageBody } from "@/components/layout/AdminLayout";
 import { PageHead } from "@/components/admin/page-head";
 import { buttonVariants } from "@/components/ui/button";
 import type { OrgAccountCenter } from "@/lib/org-account-center-service";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type TrialOnboarding = {
@@ -28,14 +29,14 @@ type TrialOnboarding = {
 };
 
 async function fetchAccountCenter() {
-  const res = await fetch("/api/me/account-center");
+  const res = await fetch(withPublicPath("/api/me/account-center"));
   if (res.status === 403) {
     const json = await res.json().catch(() => ({}));
     if (
       json.code === "ADMIN_NOT_APPROVED" ||
       json.code === "ADMIN_NOT_USABLE"
     ) {
-      window.location.href = "/register/pending";
+      window.location.href = withPublicPath("/register/pending");
       throw new Error("账号尚未审核通过");
     }
   }
@@ -47,7 +48,7 @@ async function fetchAccountCenter() {
 }
 
 async function fetchTrialOnboarding(): Promise<TrialOnboarding | null> {
-  const res = await fetch("/api/me/trial-profile");
+  const res = await fetch(withPublicPath("/api/me/trial-profile"));
   if (!res.ok) return null;
   const data = (await res.json()).data;
   return {

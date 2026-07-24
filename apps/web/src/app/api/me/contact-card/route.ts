@@ -16,7 +16,12 @@ const patchBodySchema = z.object({
   wechat_id: z.string().max(64).optional().nullable(),
   show_phone: z.boolean().optional(),
   show_email: z.boolean().optional(),
-  email: z.string().email().optional().nullable(),
+  // 空字符串按未填处理，避免 show_email=true 且未填邮箱时整包 PATCH 失败
+  email: z
+    .union([z.string().email(), z.literal('')])
+    .optional()
+    .nullable()
+    .transform((v) => (v === '' ? null : v)),
   allow_exchange: z.boolean().optional(),
   auto_accept_at_event: z.boolean().optional(),
   headline: z.string().max(200).optional().nullable(),

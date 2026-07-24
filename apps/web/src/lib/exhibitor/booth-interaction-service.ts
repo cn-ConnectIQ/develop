@@ -1,4 +1,5 @@
 import {
+  LotteryDrawType,
   LotteryStatus,
   LotteryType,
   PollStatus,
@@ -220,6 +221,13 @@ export async function createBoothInteraction(
 
   await assertExhibitorCanCreateLottery(session, booth.eventId, booth.id);
 
+  if (
+    input.draw_type === LotteryDrawType.SCHEDULED &&
+    !input.draw_at
+  ) {
+    throw new ApiError("定时开奖需设置开奖时间", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
   const prizes = input.prizes ?? [];
   const prizeTotal = prizes.reduce((sum, p) => sum + (p.count ?? 1), 0);
   const winnerCount = input.winner_count ?? (prizeTotal > 0 ? prizeTotal : 1);
@@ -241,6 +249,11 @@ export async function createBoothInteraction(
       status: lotteryStatus,
       prizes,
       winnerCount,
+      drawType: input.draw_type ?? LotteryDrawType.INSTANT,
+      drawAt:
+        input.draw_type === LotteryDrawType.SCHEDULED && input.draw_at
+          ? new Date(input.draw_at)
+          : null,
     },
   });
 

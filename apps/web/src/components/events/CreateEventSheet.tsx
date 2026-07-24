@@ -34,6 +34,7 @@ import {
   type EventCategory,
 } from "@/lib/event-utils";
 import { useEventsMutationRefetch, type EventListItem } from "@/hooks/useEvents";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 const categoryIcons: Record<
@@ -156,7 +157,7 @@ export function CreateEventSheet({
     async function loadEvent() {
       setLoadingEdit(true);
       try {
-        const res = await fetch(`/api/events/${editEvent!.id}`);
+        const res = await fetch(withPublicPath(`/api/events/${editEvent!.id}`));
         const json = await res.json();
         if (!res.ok || cancelled) return;
         const data = json.data;
@@ -220,7 +221,7 @@ export function CreateEventSheet({
     const payload = buildPayload(step1Data, description);
 
     if (isEdit && editEvent) {
-      const res = await fetch(`/api/events/${editEvent.id}`, {
+      const res = await fetch(withPublicPath(`/api/events/${editEvent.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -233,7 +234,7 @@ export function CreateEventSheet({
       return editEvent.id;
     }
 
-    const res = await fetch("/api/events", {
+    const res = await fetch(withPublicPath("/api/events"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -274,7 +275,7 @@ export function CreateEventSheet({
       const eventId = await saveEventDraft();
       if (!eventId) return;
 
-      const res = await fetch(`/api/events/${eventId}/publish`, {
+      const res = await fetch(withPublicPath(`/api/events/${eventId}/publish`), {
         method: "POST",
       });
       const json = await res.json();
@@ -283,7 +284,7 @@ export function CreateEventSheet({
         toast.error(msg);
         if (res.status === 402 || String(msg).includes("办会套餐")) {
           window.setTimeout(() => {
-            window.location.href = "/organizer/billing";
+            window.location.href = withPublicPath("/organizer/billing");
           }, 1200);
         }
         return;

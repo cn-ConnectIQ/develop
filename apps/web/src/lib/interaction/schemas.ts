@@ -1,4 +1,4 @@
-import { LotteryStatus, LotteryType } from "@connectiq/database";
+import { LotteryDrawType, LotteryStatus, LotteryType } from "@connectiq/database";
 import { z } from "zod";
 
 const leadFormFieldSchema = z.object({
@@ -47,6 +47,8 @@ export const createLotterySchema = z.object({
   booth_id: z.string().cuid().optional().nullable(),
   require_lead_capture: z.boolean().optional(),
   lead_form_config: z.union([leadFormConfigSchema, z.array(leadFormFieldSchema)]).optional(),
+  draw_type: z.nativeEnum(LotteryDrawType).optional(),
+  draw_at: z.string().datetime().optional().nullable(),
 });
 
 export const patchLotterySchema = z.object({
@@ -131,6 +133,8 @@ export const createBoothInteractionSchema = z.discriminatedUnion("kind", [
     winner_count: z.number().int().positive().optional(),
     publish_immediately: z.boolean().default(false),
     require_lead_capture: z.boolean().optional(),
+    draw_type: z.nativeEnum(LotteryDrawType).optional(),
+    draw_at: z.string().datetime().optional().nullable(),
   }),
 ]);
 

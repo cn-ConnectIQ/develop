@@ -77,6 +77,7 @@ type RawEvent = {
     rejectionReason: string | null;
   } | null;
   orgId: string | null;
+  organizerId: string;
   id: string;
   name: string;
   slug: string;
@@ -140,6 +141,7 @@ export function buildOrganizerWhere(session: Session) {
 export function serializeEventListItem(
   event: RawEvent,
   activeOrgId?: string | null,
+  userId?: string | null,
 ): EventListItem {
   const categorySetting = event.settings.find(
     (s) => s.key === "event_category",
@@ -159,9 +161,18 @@ export function serializeEventListItem(
     _count: event._count,
   });
 
-  const isHost = !activeOrgId || event.orgId === activeOrgId;
   const participatingBooth = event.booths?.[0] ?? null;
-  const listRole = isHost ? "HOST" : "EXHIBITOR";
+  const belongsToActiveOrg = !activeOrgId || event.orgId === activeOrgId;
+
+  let listRole: EventListItem["listRole"] = "HOST";
+  if (!belongsToActiveOrg) {
+    listRole = "EXHIBITOR";
+  } else if (userId && event.organizerId && event.organizerId !== userId) {
+    // 同组织但非创建者 → 管理人员
+    listRole = "MANAGER";
+  } else {
+    listRole = "HOST";
+  }
 
   return {
     id: event.id,
@@ -239,7 +250,9 @@ export async function listAccountAdminEvents(
   ]);
 
   return {
-    events: events.map((event) => serializeEventListItem(event, activeOrgId)),
+    events: events.map((event) =>
+      serializeEventListItem(event, activeOrgId, session.user.id),
+    ),
     stats: computeEventStats(allForStats),
   };
 }

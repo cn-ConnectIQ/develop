@@ -36,6 +36,7 @@ import {
   type EventCategory,
 } from "@/lib/event-utils";
 import { useEventsMutationRefetch } from "@/hooks/useEvents";
+import { withPublicPath } from "@/lib/public-path";
 import { cn } from "@/lib/utils";
 
 type EventSource = "manual" | "excel" | "baige";
@@ -124,7 +125,7 @@ function validateForReview(step1: Step1Values, description: string) {
 }
 
 async function fetchBaigeStatus() {
-  const res = await fetch("/api/integrations/baige/status");
+  const res = await fetch(withPublicPath("/api/integrations/baige/status"));
   if (!res.ok) return { connected: false, source: null };
   return (await res.json()).data as {
     connected: boolean;
@@ -196,7 +197,7 @@ export function CreateEventPageClient() {
     const description = step2Form.getValues("description") ?? "";
     const payload = buildPayload(step1Data, description, source);
 
-    const res = await fetch("/api/events", {
+    const res = await fetch(withPublicPath("/api/events"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -247,7 +248,7 @@ export function CreateEventPageClient() {
       const eventId = await saveEventDraft();
       if (!eventId) return;
 
-      const res = await fetch(`/api/events/${eventId}/publish`, {
+      const res = await fetch(withPublicPath(`/api/events/${eventId}/publish`), {
         method: "POST",
       });
       const json = await res.json();
@@ -256,7 +257,7 @@ export function CreateEventPageClient() {
         toast.error(msg);
         if (res.status === 402 || String(msg).includes("办会套餐")) {
           window.setTimeout(() => {
-            window.location.href = "/organizer/billing";
+            window.location.href = withPublicPath("/organizer/billing");
           }, 1200);
         }
         return;

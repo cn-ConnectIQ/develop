@@ -95,8 +95,8 @@ function getEventHomeHref(
   if (event.listRole === "EXHIBITOR" && event.boothId) {
     return `/exhibitor/booths/${event.boothId}`;
   }
-  // 主办活动：统一账号管理员进 /events/ 工作台（含 EXPO 类型）
-  if (event.listRole === "HOST") {
+  // 主办 / 管理：统一进活动工作台
+  if (event.listRole === "HOST" || event.listRole === "MANAGER") {
     return `/events/${event.id}`;
   }
   return `/events/${event.id}`;
@@ -214,9 +214,14 @@ export function EventCard({ event, onEdit }: EventCardProps) {
             >
               {event.name}
             </Link>
-            {event.listRole === "HOST" && event.type === "EXPO" && (
+            {event.listRole === "HOST" && (
               <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green">
                 主办
+              </span>
+            )}
+            {event.listRole === "MANAGER" && (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                管理
               </span>
             )}
             {isExhibitorListItem && (

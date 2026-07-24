@@ -24,14 +24,24 @@ const EXT_TO_MIME: Record<string, string> = {
   gif: "image/gif",
 };
 
-/** 微信小程序 uploadFile 常把 Content-Type 标成 octet-stream / 空，需按扩展名或魔数回退 */
-function resolveImageContentType(file: File, buffer: Buffer): string | null {
-  const rawType = (file.type || "").toLowerCase().trim();
-  if (ALLOWED_TYPES.has(rawType)) {
-    return rawType === "image/jpg" ? "image/jpeg" : rawType;
+function normalizeMime(raw: string | null | undefined): string | null {
+  const type = (raw || "").toLowerCase().trim();
+  if (!type) return null;
+  if (ALLOWED_TYPES.has(type)) {
+    return type === "image/jpg" ? "image/jpeg" : type;
   }
+  return null;
+}
 
-  const ext = (file.name || "").split(".").pop()?.toLowerCase() ?? "";
+/** 微信小程序 uploadFile 常把 Content-Type 标成 octet-stream / 空，需按扩展名或魔数回退 */
+function resolveImageContentType(
+  buffer: Buffer,
+  opts?: { mime?: string | null; filename?: string | null },
+): string | null {
+  const fromMime = normalizeMime(opts?.mime ?? undefined);
+  if (fromMime) return fromMime;
+
+  const ext = (opts?.filename || "").split(".").pop()?.toLowerCase() ?? "";
   if (ext && EXT_TO_MIME[ext]) return EXT_TO_MIME[ext];
 
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
@@ -65,39 +75,25 @@ function resolveImageContentType(file: File, buffer: Buffer): string | null {
   return null;
 }
 
-export const POST = withErrorHandler(async (request) => {
-  await resolveMobileUserId(request);
-
-  const form = await request.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return createErrorResponse("请上传文件", ErrorCode.VALIDATION_ERROR, 400);
+function stripDataUrlPrefix(raw: string): string {
+  const trimmed = raw.trim();
+  const comma = trimmed.indexOf(",");
+  if (trimmed.startsWith("data:") && comma >= 0) {
+    return trimmed.slice(comma + 1);
   }
+  return trimmed;
+}
 
-  if (file.size > MAX_BYTES) {
-    return createErrorResponse("图片不能超过 5MB", ErrorCode.VALIDATION_ERROR, 400);
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const contentType = resolveImageContentType(file, buffer);
-  if (!contentType) {
-    return createErrorResponse(
-      "仅支持 PNG、JPG、WebP、GIF 图片",
-      ErrorCode.VALIDATION_ERROR,
-      400,
-    );
-  }
-
-  const filename =
-    file.name && /\.[a-z0-9]+$/i.test(file.name)
-      ? file.name
-      : `upload.${contentType.split("/")[1]?.replace("jpeg", "jpg") || "jpg"}`;
-
+async function storeAndRespond(input: {
+  buffer: Buffer;
+  contentType: string;
+  filename: string;
+}) {
   try {
     const stored = await storeUploadBuffer({
-      buffer,
-      contentType,
-      filename,
+      buffer: input.buffer,
+      contentType: input.contentType,
+      filename: input.filename,
       prefix: "uploads",
     });
     return createSuccessResponse({
@@ -113,4 +109,123 @@ export const POST = withErrorHandler(async (request) => {
       500,
     );
   }
+}
+
+/** JSON：小程序读本地文件转 base64 后走 request，避开 uploadFile multipart 兼容问题 */
+async function handleJsonUpload(request: Request) {
+  const body = (await request.json().catch(() => null)) as {
+    image_base64?: unknown;
+    data?: unknown;
+    filename?: unknown;
+    content_type?: unknown;
+    contentType?: unknown;
+  } | null;
+
+  const rawBase64 =
+    typeof body?.image_base64 === "string"
+      ? body.image_base64
+      : typeof body?.data === "string"
+        ? body.data
+        : "";
+  if (!rawBase64.trim()) {
+    return createErrorResponse("请上传图片数据", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(stripDataUrlPrefix(rawBase64), "base64");
+  } catch {
+    return createErrorResponse("图片数据无效", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  if (!buffer.length) {
+    return createErrorResponse("图片数据无效", ErrorCode.VALIDATION_ERROR, 400);
+  }
+  if (buffer.length > MAX_BYTES) {
+    return createErrorResponse("图片不能超过 5MB", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const filename =
+    typeof body?.filename === "string" && body.filename.trim()
+      ? body.filename.trim()
+      : "upload.jpg";
+  const mimeHint =
+    typeof body?.content_type === "string"
+      ? body.content_type
+      : typeof body?.contentType === "string"
+        ? body.contentType
+        : null;
+
+  const contentType = resolveImageContentType(buffer, {
+    mime: mimeHint,
+    filename,
+  });
+  if (!contentType) {
+    return createErrorResponse(
+      "仅支持 PNG、JPG、WebP、GIF 图片",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
+  const safeName = /\.[a-z0-9]+$/i.test(filename)
+    ? filename
+    : `upload.${contentType.split("/")[1]?.replace("jpeg", "jpg") || "jpg"}`;
+
+  return storeAndRespond({
+    buffer,
+    contentType,
+    filename: safeName,
+  });
+}
+
+/** multipart：兼容 File / Blob（微信 uploadFile 在部分运行时不是 File） */
+async function handleMultipartUpload(request: Request) {
+  const form = await request.formData();
+  const file = form.get("file");
+
+  // 微信 → Next 时常见：是 Blob 但 instanceof File === false
+  const isBlob =
+    file != null &&
+    typeof file === "object" &&
+    typeof (file as Blob).arrayBuffer === "function";
+  if (typeof file === "string" || !isBlob) {
+    return createErrorResponse("请上传文件", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const blob = file as Blob & { name?: string; type?: string };
+  if (blob.size > MAX_BYTES) {
+    return createErrorResponse("图片不能超过 5MB", ErrorCode.VALIDATION_ERROR, 400);
+  }
+
+  const buffer = Buffer.from(await blob.arrayBuffer());
+  const filenameHint =
+    typeof blob.name === "string" && blob.name.trim() ? blob.name : "upload.jpg";
+  const contentType = resolveImageContentType(buffer, {
+    mime: blob.type,
+    filename: filenameHint,
+  });
+  if (!contentType) {
+    return createErrorResponse(
+      "仅支持 PNG、JPG、WebP、GIF 图片",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
+  }
+
+  const filename = /\.[a-z0-9]+$/i.test(filenameHint)
+    ? filenameHint
+    : `upload.${contentType.split("/")[1]?.replace("jpeg", "jpg") || "jpg"}`;
+
+  return storeAndRespond({ buffer, contentType, filename });
+}
+
+export const POST = withErrorHandler(async (request) => {
+  await resolveMobileUserId(request);
+
+  const contentType = (request.headers.get("content-type") || "").toLowerCase();
+  if (contentType.includes("application/json")) {
+    return handleJsonUpload(request);
+  }
+  return handleMultipartUpload(request);
 });
