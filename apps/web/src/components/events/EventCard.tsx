@@ -114,6 +114,12 @@ export function EventCard({ event, onEdit }: EventCardProps) {
   const isPendingReview = reviewStatus === "PENDING_REVIEW";
   const isRevisionRequired = reviewStatus === "REVISION_REQUIRED";
   const isRejected = reviewStatus === "REJECTED";
+  const isDraftReview = reviewStatus === "DRAFT" || event.status === "DRAFT";
+  /** 未发布/未过审：展示状态，禁止进入运营工作台 */
+  const isUnaudited =
+    !isExhibitorListItem &&
+    (isDraftReview || isPendingReview || isRevisionRequired || isRejected);
+  const canEnterWorkspace = !isUnaudited;
 
   const phase = getEventPhase({
     status: event.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
@@ -208,12 +214,18 @@ export function EventCard({ event, onEdit }: EventCardProps) {
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={eventHomeHref}
-              className="text-base font-semibold text-[var(--admin-ink)] hover:text-brand-blue"
-            >
-              {event.name}
-            </Link>
+            {canEnterWorkspace ? (
+              <Link
+                href={eventHomeHref}
+                className="text-base font-semibold text-[var(--admin-ink)] hover:text-brand-blue"
+              >
+                {event.name}
+              </Link>
+            ) : (
+              <span className="text-base font-semibold text-[var(--admin-ink)]">
+                {event.name}
+              </span>
+            )}
             {event.listRole === "HOST" && (
               <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green">
                 主办
@@ -234,8 +246,21 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                 来源百格
               </span>
             )}
-            {(isPendingReview || isRevisionRequired || isRejected) && (
-              <ReviewStatusBadge status={reviewStatus} />
+            {(isDraftReview ||
+              isPendingReview ||
+              isRevisionRequired ||
+              isRejected) && (
+              <ReviewStatusBadge
+                status={
+                  isPendingReview
+                    ? "PENDING_REVIEW"
+                    : isRevisionRequired
+                      ? "REVISION_REQUIRED"
+                      : isRejected
+                        ? "REJECTED"
+                        : "DRAFT"
+                }
+              />
             )}
           </div>
 
@@ -256,7 +281,13 @@ export function EventCard({ event, onEdit }: EventCardProps) {
 
           {isPendingReview && (
             <p className="mt-1 text-xs text-text-muted">
-              已提交审核，等待平台审核（1-3 个工作日）
+              已提交审核，等待平台审核（1-3 个工作日）；审核通过前不可进入工作台
+            </p>
+          )}
+
+          {isDraftReview && !isPendingReview && !isRevisionRequired && !isRejected && (
+            <p className="mt-1 text-xs text-text-muted">
+              草稿未发布，完善信息并发布后可进入工作台
             </p>
           )}
 
@@ -358,7 +389,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
           )}
 
           <div className="flex items-center gap-2">
-            {phase === "live" && !isPendingReview && (
+            {phase === "live" && canEnterWorkspace && (
               <Link
                 href={eventHomeHref}
                 className="text-sm font-medium text-brand-blue hover:underline"
@@ -374,9 +405,8 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                 查看报告 →
               </Link>
             )}
-            {(phase === "draft" || phase === "upcoming" || phase === "today") &&
-              !isPendingReview &&
-              !isRevisionRequired && (
+            {(phase === "upcoming" || phase === "today") &&
+              canEnterWorkspace && (
                 <Link
                   href={eventHomeHref}
                   className="hidden text-sm font-medium text-brand-blue hover:underline sm:inline"
@@ -384,24 +414,52 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                   进入 →
                 </Link>
               )}
+            {isDraftReview &&
+              !isPendingReview &&
+              !isRevisionRequired &&
+              !isRejected &&
+              onEdit && (
+                <button
+                  type="button"
+                  className="hidden text-sm font-medium text-brand-blue hover:underline sm:inline"
+                  onClick={() => onEdit(event)}
+                >
+                  完善设置 →
+                </button>
+              )}
+            {isPendingReview && (
+              <span className="hidden text-sm text-text-muted sm:inline">
+                审核中
+              </span>
+            )}
 
             <DropdownMenu>
               <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg text-text-muted hover:bg-content">
                 <MoreHorizontal className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => {
-                    window.location.href = eventHomeHref;
-                  }}
-                >
-                  <Pencil className="size-4" />
-                  {isExhibitorListItem ? "进入展位工作台" : "进入工作台"}
-                </DropdownMenuItem>
-                {!isExhibitorListItem && phase === "draft" && !isPendingReview && (
+                {canEnterWorkspace ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      window.location.href = eventHomeHref;
+                    }}
+                  >
+                    <Pencil className="size-4" />
+                    {isExhibitorListItem ? "进入展位工作台" : "进入工作台"}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled>
+                    <Pencil className="size-4" />
+                    {isPendingReview
+                      ? "审核通过后可进入工作台"
+                      : "发布后可进入工作台"}
+                  </DropdownMenuItem>
+                )}
+                {!isExhibitorListItem &&
+                  (isDraftReview || isRevisionRequired || isRejected) &&
+                  !isPendingReview && (
                   <>
                     <DropdownMenuItem
-                      disabled={isPendingReview}
                       onClick={() => onEdit?.(event)}
                     >
                       <Pencil className="size-4" />
@@ -425,7 +483,7 @@ export function EventCard({ event, onEdit }: EventCardProps) {
                     </DropdownMenuItem>
                   </>
                 )}
-                {phase !== "draft" && !isExhibitorListItem && (
+                {canEnterWorkspace && !isExhibitorListItem && (
                   <DropdownMenuItem
                     onClick={() => {
                       window.location.href = `/events/${event.id}/participants`;

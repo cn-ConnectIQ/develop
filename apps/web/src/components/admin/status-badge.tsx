@@ -61,8 +61,8 @@ function StatusBadge({ label, className }: StatusBadgeProps) {
 }
 
 const reviewStatusLabel: Record<string, string> = {
+  PENDING_REVIEW: "待审核",
   DRAFT: "草稿",
-  PENDING_REVIEW: "审核中",
   REVISION_REQUIRED: "需要修改",
   REJECTED: "已拒绝",
   APPROVED: "已通过",
