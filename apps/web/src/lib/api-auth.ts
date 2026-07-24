@@ -95,39 +95,64 @@ export async function requireAccountAdmin(
     };
   }
 
-  if (!isOrgAdminUsable(session.user.activeAdminStatus)) {
+  // 以数据库为准解析可用组织，避免组织切换后 JWT 仍指向旧 org
+  const [staffRoles, dbUser] = await Promise.all([
+    prisma.orgStaff.findMany({
+      where: {
+        userId: session.user.id,
+        status: InviteStatus.ACCEPTED,
+        role: {
+          in: [
+            OrgStaffRole.OWNER,
+            OrgStaffRole.ADMIN,
+            OrgStaffRole.OPERATOR,
+          ],
+        },
+      },
+      include: {
+        org: { select: { id: true, adminStatus: true } },
+      },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { orgId: true },
+    }),
+  ]);
+
+  const usableStaff = staffRoles.filter((s) =>
+    isOrgAdminUsable(s.org.adminStatus),
+  );
+  const activeStaff =
+    usableStaff.find((s) => s.orgId === dbUser?.orgId) ||
+    usableStaff.find((s) => s.orgId === session.user.activeOrgId) ||
+    usableStaff[0] ||
+    null;
+
+  if (!activeStaff) {
+    const adminStatus =
+      session.user.activeAdminStatus ??
+      staffRoles[0]?.org.adminStatus ??
+      null;
+    const pendingReview =
+      adminStatus === "PENDING_REVIEW" ||
+      !adminStatus ||
+      staffRoles.length === 0;
     return {
       error: NextResponse.json(
         {
-          error:
-            session.user.activeAdminStatus === "PENDING_REVIEW" ||
-            !session.user.activeAdminStatus
-              ? "账号尚未审核通过"
-              : "账号暂不可用",
-          code:
-            session.user.activeAdminStatus === "PENDING_REVIEW" ||
-            !session.user.activeAdminStatus
-              ? "ADMIN_NOT_APPROVED"
-              : "ADMIN_NOT_USABLE",
-          adminStatus: session.user.activeAdminStatus,
-          hint:
-            session.user.activeAdminStatus === "PENDING_REVIEW" ||
-            !session.user.activeAdminStatus
-              ? (session.user.ownedOrgs || []).some(
-                  (o) => o.admin_status === "APPROVED" || o.admin_status === "TRIAL",
-                )
-                ? "您已有其他可用组织，请切换到该组织"
-                : "请等待平台审核通过后再登录管理端"
-              : null,
+          error: pendingReview ? "账号尚未审核通过" : "账号暂不可用",
+          code: pendingReview ? "ADMIN_NOT_APPROVED" : "ADMIN_NOT_USABLE",
+          adminStatus,
+          hint: pendingReview
+            ? "请等待平台审核通过后再登录管理端"
+            : null,
         },
         { status: 403 },
       ),
     };
   }
-  if (!session.user.activeOrgId) {
-    return { error: forbidden("账号未关联组织") };
-  }
-  return { session, orgId: session.user.activeOrgId };
+
+  return { session, orgId: activeStaff.orgId };
 }
 
 // ?? ???????????????????????????

@@ -129,39 +129,55 @@ export async function getOrgAccountCenter(orgId: string): Promise<OrgAccountCent
   }> = [];
 
   try {
-    [organizedEvents, exhibitorBooths] = await Promise.all([
-      prisma.event.findMany({
-        where: { orgId },
-        orderBy: { startDate: "desc" },
-        include: {
-          _count: { select: { participants: true, checkIns: true } },
-        },
-      }),
-      prisma.exhibitorBooth.findMany({
-        where: { companyOrgId: orgId },
-        orderBy: { createdAt: "desc" },
-        include: {
-          event: {
-            select: {
-              id: true,
-              name: true,
-              startDate: true,
-              endDate: true,
-              status: true,
-              activityType: true,
-            },
-          },
-          _count: { select: { leads: true } },
-        },
-      }),
-    ]);
+    organizedEvents = await prisma.event.findMany({
+      where: { orgId },
+      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        activityType: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        _count: { select: { participants: true, checkIns: true } },
+      },
+    });
   } catch (error) {
-    console.error("[account-center] load events/booths failed:", error);
+    console.error("[account-center] load events failed:", error);
     throw new Error(
       error instanceof Error
         ? `加载活动历史失败：${error.message}`
         : "加载活动历史失败",
     );
+  }
+
+  try {
+    exhibitorBooths = await prisma.exhibitorBooth.findMany({
+      where: { companyOrgId: orgId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        status: true,
+        eventId: true,
+        event: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            activityType: true,
+          },
+        },
+        _count: { select: { leads: true } },
+      },
+    });
+  } catch (error) {
+    // 参展历史失败不阻断主办活动列表
+    console.error("[account-center] load booths failed:", error);
+    exhibitorBooths = [];
   }
 
   const organizedEventIds = organizedEvents.map((e) => e.id);

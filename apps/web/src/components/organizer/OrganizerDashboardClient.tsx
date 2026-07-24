@@ -29,22 +29,36 @@ type TrialOnboarding = {
 };
 
 async function fetchAccountCenter() {
-  const res = await fetch(withPublicPath("/api/me/account-center"));
-  if (res.status === 403) {
-    const json = await res.json().catch(() => ({}));
-    if (
-      json.code === "ADMIN_NOT_APPROVED" ||
-      json.code === "ADMIN_NOT_USABLE"
-    ) {
-      window.location.href = withPublicPath("/register/pending");
-      throw new Error("账号尚未审核通过");
-    }
+  const res = await fetch(withPublicPath("/api/me/account-center"), {
+    cache: "no-store",
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: OrgAccountCenter;
+    error?: string;
+    code?: string;
+  };
+
+  if (
+    res.status === 403 &&
+    (json.code === "ADMIN_NOT_APPROVED" || json.code === "ADMIN_NOT_USABLE")
+  ) {
+    window.location.href = withPublicPath("/register/pending");
+    throw new Error("账号尚未审核通过");
   }
+
   if (!res.ok) {
-    const json = await res.json().catch(() => ({}));
-    throw new Error(json.error ?? "加载失败");
+    throw new Error(
+      typeof json.error === "string" && json.error
+        ? json.error
+        : `加载失败 (${res.status})`,
+    );
   }
-  return (await res.json()).data as OrgAccountCenter;
+
+  if (!json.data) {
+    throw new Error("加载失败：接口未返回数据");
+  }
+
+  return json.data;
 }
 
 async function fetchTrialOnboarding(): Promise<TrialOnboarding | null> {
