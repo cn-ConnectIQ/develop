@@ -117,8 +117,19 @@ function HeatChangeBadge({ change }: { change: number }) {
 }
 async function fetchBooths(eventId: string): Promise<BoothMapData> {
   const res = await fetch(withPublicPath(`/api/events/${eventId}/booths`));
-  if (!res.ok) throw new Error("加载失败");
-  return (await res.json()).data as BoothMapData;
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: BoothMapData;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(
+      typeof json.error === "string" && json.error
+        ? json.error
+        : `加载失败 (${res.status})`,
+    );
+  }
+  if (!json.data) throw new Error("加载失败：接口未返回数据");
+  return json.data;
 }
 
 async function fetchExpoBoothTypes(eventId: string): Promise<ExpoBoothType[]> {
@@ -205,7 +216,7 @@ export function ExpoBoothsPageClient({
     }
   }, [showRanking, searchParams]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["expo-booths", eventId],
     queryFn: () => fetchBooths(eventId),
   });
@@ -613,6 +624,22 @@ export function ExpoBoothsPageClient({
 
           {isLoading ? (
             <p className="py-12 text-center text-sm text-text-secondary">加载中…</p>
+          ) : isError ? (
+            <div className="py-12 text-center">
+              <p className="text-sm text-brand-red">
+                展位列表加载失败
+                {error instanceof Error && error.message
+                  ? `：${error.message}`
+                  : ""}
+              </p>
+              <button
+                type="button"
+                className="mt-3 text-xs text-brand-blue hover:underline"
+                onClick={() => void refetch()}
+              >
+                点击重试
+              </button>
+            </div>
           ) : visibleBooths.length === 0 ? (
             <p className="py-12 text-center text-sm text-text-secondary">
               {booths.length === 0

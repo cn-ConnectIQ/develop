@@ -229,25 +229,31 @@ export async function listAssignableExhibitorsForEvent(
   hostOrgId: string,
   eventId: string,
 ) {
-  await syncHostExhibitorDirectoryFromHistory(hostOrgId);
-
-  const [directory, boothOrgs] = await Promise.all([
-    prisma.hostExhibitorDirectory.findMany({
+  // 不在此强制历史回填：避免企业库约束/同步异常拖垮展位列表接口
+  let directory: Array<{
+    companyOrgId: string | null;
+    companyName: string;
+  }> = [];
+  try {
+    directory = await prisma.hostExhibitorDirectory.findMany({
       where: { hostOrgId },
       select: {
         companyOrgId: true,
         companyName: true,
       },
       orderBy: { companyName: "asc" },
-    }),
-    prisma.exhibitorBooth.findMany({
-      where: { eventId },
-      select: {
-        companyOrgId: true,
-        companyOrg: { select: { id: true, name: true, slug: true } },
-      },
-    }),
-  ]);
+    });
+  } catch (error) {
+    console.error("[host-exhibitor-directory] list for assign failed:", error);
+  }
+
+  const boothOrgs = await prisma.exhibitorBooth.findMany({
+    where: { eventId },
+    select: {
+      companyOrgId: true,
+      companyOrg: { select: { id: true, name: true, slug: true } },
+    },
+  });
 
   const map = new Map<
     string,

@@ -144,7 +144,10 @@ export const GET = withErrorHandler(async (request, context) => {
         key: { in: ["floor_plan_url", "floor_plan_pois", "floor_plan_labels"] },
       },
     }),
-    listAssignableExhibitorsForEvent(event.orgId, eventId),
+    listAssignableExhibitorsForEvent(event.orgId, eventId).catch((error) => {
+      console.error("[booths] listAssignableExhibitors failed:", error);
+      return [] as Awaited<ReturnType<typeof listAssignableExhibitorsForEvent>>;
+    }),
     getBoothStats(eventId),
     countBoothStaffByEvent(eventId),
   ]);
