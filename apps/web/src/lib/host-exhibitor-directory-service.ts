@@ -51,7 +51,7 @@ export async function syncHostExhibitorDirectoryFromHistory(hostOrgId: string) {
 
   const byName = new Map<string, { companyOrgId: string; companyName: string }>();
   for (const booth of booths) {
-    const name = booth.companyOrg.name.trim();
+    const name = booth.companyOrg?.name?.trim();
     if (!name || byName.has(name)) continue;
     byName.set(name, {
       companyOrgId: booth.companyOrg.id,
@@ -60,19 +60,23 @@ export async function syncHostExhibitorDirectoryFromHistory(hostOrgId: string) {
   }
 
   for (const item of byName.values()) {
-    await prisma.hostExhibitorDirectory.upsert({
-      where: {
-        hostOrgId_companyName: {
-          hostOrgId,
-          companyName: item.companyName,
-        },
-      },
-      create: {
+    const existing = await prisma.hostExhibitorDirectory.findFirst({
+      where: { hostOrgId, companyName: item.companyName },
+      select: { id: true, companyOrgId: true },
+    });
+    if (existing) {
+      if (!existing.companyOrgId) {
+        await prisma.hostExhibitorDirectory.update({
+          where: { id: existing.id },
+          data: { companyOrgId: item.companyOrgId },
+        });
+      }
+      continue;
+    }
+    await prisma.hostExhibitorDirectory.create({
+      data: {
         hostOrgId,
         companyName: item.companyName,
-        companyOrgId: item.companyOrgId,
-      },
-      update: {
         companyOrgId: item.companyOrgId,
       },
     });
@@ -80,7 +84,12 @@ export async function syncHostExhibitorDirectoryFromHistory(hostOrgId: string) {
 }
 
 export async function listHostExhibitorDirectory(hostOrgId: string) {
-  await syncHostExhibitorDirectoryFromHistory(hostOrgId);
+  try {
+    await syncHostExhibitorDirectoryFromHistory(hostOrgId);
+  } catch (error) {
+    // 历史回填失败不阻断列表（例如缺唯一约束时的瞬时错误）
+    console.error("[host-exhibitor-directory] sync failed:", error);
+  }
   const rows = await prisma.hostExhibitorDirectory.findMany({
     where: { hostOrgId },
     orderBy: { companyName: "asc" },
