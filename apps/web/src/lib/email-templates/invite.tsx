@@ -39,28 +39,32 @@ export function InviteEmail({
       <Heading style={heading}>诚邀您参加本次活动</Heading>
       <Text style={greeting}>您好，{participantName}：</Text>
       <Text style={paragraph}>
-        请使用微信扫描下方小程序码，或点击按钮打开玖莅，完成入场激活。激活后即可使用现场互动、扫码连接与活动服务。
+        请使用微信扫描下方小程序码（含专属邀请 Token），或点击按钮直接打开玖莅小程序，完成入场激活。激活后即可使用现场互动、扫码连接与活动服务。
       </Text>
 
       {wxacodeImageUrl ? (
         <>
-          <Text style={qrHint}>微信扫码 · 直接进入活动</Text>
+          <Text style={qrHint}>微信扫一扫 · 带 Token 直达小程序</Text>
           <Img
             src={wxacodeImageUrl}
             width={180}
             height={180}
-            alt="玖莅小程序码"
+            alt="玖莅邀请小程序码"
             style={qrImage}
           />
         </>
-      ) : null}
+      ) : (
+        <Text style={qrMissing}>
+          （小程序码生成中，请先点击下方按钮用微信打开链接完成激活）
+        </Text>
+      )}
 
-      <EmailCtaButton href={activationLink} label="打开玖莅，完成激活" />
+      <EmailCtaButton href={activationLink} label="打开玖莅小程序，完成激活" />
       <Text style={linkFallback}>
-        若按钮无法点击，请复制以下链接到浏览器打开：
+        若按钮无法点击，请复制以下链接到微信中打开（可直达小程序）：
       </Text>
       <Text style={linkBox}>{activationLink}</Text>
-      <Text style={footnote}>此链接仅限您本人使用，请勿转发他人。</Text>
+      <Text style={footnote}>此邀请仅限您本人使用，请勿转发他人。</Text>
     </BrandEmailLayout>
   );
 }
@@ -100,6 +104,13 @@ const qrImage = {
   margin: "0 auto 18px",
   borderRadius: "12px",
   border: "1px solid #E6EAF0",
+};
+
+const qrMissing = {
+  color: "#8A93A0",
+  fontSize: "12px",
+  textAlign: "center" as const,
+  margin: "16px 0",
 };
 
 const linkFallback = {

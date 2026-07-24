@@ -7,7 +7,8 @@ import { isEventFeatureEnabled } from "@/lib/event-feature-flags-server";
 const FEATURE_DISABLED_MESSAGES: Partial<Record<EventFeatureFlagKey, string>> =
   {
     lottery: "现场抽奖未开启",
-    inviteSystem: "邀请体系未开启",
+    inviteSystem:
+      "邀请体系未开启：请到本场「活动设置 → 功能开关 → 会前会后」打开「邀请体系」后再发送",
     aiReferral: "AI 引荐未开启",
     aiBoothRoute: "AI 展位路线未开启",
     highValueBuyerPush: "高价值买家推送未开启",

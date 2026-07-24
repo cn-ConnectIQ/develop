@@ -39,5 +39,13 @@ export function toastInviteSendError(error: unknown, fallback = "发送失败") 
     return;
   }
 
+  if (message.includes("邀请体系未开启")) {
+    toast.error(message, {
+      duration: 14000,
+      description: "默认关闭；在活动设置的功能开关里打开即可发送邀请",
+    });
+    return;
+  }
+
   toast.error(message || fallback);
 }

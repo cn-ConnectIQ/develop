@@ -164,27 +164,40 @@ export async function sendEmail(
   plainText: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const ctx = buildMessageContext(record);
+  const shortLink = ctx.link;
 
-  let wxacodeImageUrl: string | null = null;
+  let entryToken: string | null = null;
+  let mpUrlLink: string | null = null;
   try {
-    const { createOrReuseInviteEntry } = await import(
-      "@/lib/invite/entry-service"
-    );
-    const { resolveInviteWxacodeImageUrl } = await import(
-      "@/lib/wechat/wxacode-image"
-    );
+    const { prepareInviteMiniLaunch } = await import("@/lib/invite/mp-launch");
     const phone =
       record.participant.phone?.trim() ||
       (record.channel === InviteChannel.SMS ? record.destination : null);
-    const entry = await createOrReuseInviteEntry({
+    const launch = await prepareInviteMiniLaunch({
       eventId: record.campaign.eventId,
+      participantId: record.participantId,
       phone,
       name: record.participant.name,
-      participantId: record.participantId,
     });
-    wxacodeImageUrl = await resolveInviteWxacodeImageUrl(entry.token);
+    entryToken = launch.entryToken;
+    mpUrlLink = launch.mpUrlLink;
+    if (launch.error) {
+      console.warn("[invite-email] mp url link unavailable:", launch.error);
+    }
   } catch (err) {
-    console.warn("[invite-email] wxacode skipped:", err);
+    console.warn("[invite-email] prepareInviteMiniLaunch failed:", err);
+  }
+
+  // 邮件 CTA：优先微信 URL Link（可直达小程序）；短链作兜底文案
+  const activationLink =
+    mpUrlLink?.startsWith("http") ? mpUrlLink : shortLink;
+
+  // 邮件客户端普遍屏蔽 data: 图，使用可公网访问的 HTTPS 小程序码
+  let wxacodeImageUrl: string | null = null;
+  if (entryToken) {
+    const appBase =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://9li.co/uc";
+    wxacodeImageUrl = `${appBase}/api/public/invite-wxacode/${encodeURIComponent(entryToken)}`;
   }
 
   const { sendInviteEmail } = await import("@/lib/email");
@@ -196,13 +209,14 @@ export async function sendEmail(
     eventDate: ctx.eventDate,
     eventLocation: ctx.location,
     organizerName: ctx.organizer,
-    activationLink: ctx.link,
+    activationLink,
     plainText,
     wxacodeImageUrl,
     variables: {
       invite_record_id: record.id,
       campaign_id: record.campaignId,
-      activation_link: ctx.link,
+      activation_link: activationLink,
+      short_link: shortLink,
       participant_name: ctx.name,
       event_name: ctx.eventName,
       event_date: ctx.eventDate,
@@ -262,6 +276,20 @@ async function dispatchRecord(record: RecordWithRelations) {
         })
       ) {
         return { success: false, error: "已退订或在黑名单中" };
+      }
+      // 预热微信 URL Link：用户点开 https://9li.co/a/{token} 时可立刻 302 进小程序
+      try {
+        const { prepareInviteMiniLaunch } = await import(
+          "@/lib/invite/mp-launch"
+        );
+        await prepareInviteMiniLaunch({
+          eventId: record.campaign.eventId,
+          participantId: record.participantId,
+          phone: record.participant.phone ?? record.destination,
+          name: record.participant.name,
+        });
+      } catch (err) {
+        console.warn("[invite-sms] prepareInviteMiniLaunch failed:", err);
       }
       message = appendMarketingSmsSuffix(message);
       return sendSMS(
