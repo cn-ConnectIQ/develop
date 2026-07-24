@@ -117,13 +117,24 @@ export async function listMyExchangeRequests(
   options: {
     status?: ExchangeStatus;
     direction?: "sent" | "received";
+    /** 本场筛选：仅返回该活动下的请求（无 eventId 的历史行不会归因到本场） */
+    eventId?: string;
   },
 ): Promise<ApiExchangeRequestItem[]> {
   const direction = options.direction ?? "received";
+  const eventId = options.eventId?.trim() || undefined;
   const where =
     direction === "sent"
-      ? { fromUserId: viewerId, ...(options.status ? { status: options.status } : {}) }
-      : { toUserId: viewerId, ...(options.status ? { status: options.status } : {}) };
+      ? {
+          fromUserId: viewerId,
+          ...(options.status ? { status: options.status } : {}),
+          ...(eventId ? { eventId } : {}),
+        }
+      : {
+          toUserId: viewerId,
+          ...(options.status ? { status: options.status } : {}),
+          ...(eventId ? { eventId } : {}),
+        };
 
   const rows = await prisma.exchangeRequest.findMany({
     where,

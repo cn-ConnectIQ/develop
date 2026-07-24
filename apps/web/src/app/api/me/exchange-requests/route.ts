@@ -13,6 +13,10 @@ export const GET = withErrorHandler(async (request) => {
   const { searchParams } = new URL(request.url);
   const statusParam = searchParams.get("status");
   const directionParam = searchParams.get("direction");
+  const eventIdParam =
+    searchParams.get("event_id")?.trim() ||
+    searchParams.get("eventId")?.trim() ||
+    undefined;
 
   const status =
     statusParam &&
@@ -25,7 +29,11 @@ export const GET = withErrorHandler(async (request) => {
       ? directionParam
       : "received";
 
-  const items = await listMyExchangeRequests(viewerId, { status, direction });
+  const items = await listMyExchangeRequests(viewerId, {
+    status,
+    direction,
+    eventId: eventIdParam,
+  });
 
   return createSuccessResponse({ items });
 });

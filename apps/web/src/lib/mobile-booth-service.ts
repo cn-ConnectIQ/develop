@@ -3,6 +3,7 @@ import {
   LotteryStatus,
   OrgStaffRole,
   StampRallyStatus,
+  SystemRole,
   prisma,
 } from "@connectiq/database";
 import { ErrorCode } from "@connectiq/types";
@@ -71,7 +72,12 @@ type StaffUser = {
 };
 
 type BoothStaffSource = {
-  companyOrg: { name: string; logoUrl: string | null; owner: StaffUser | null; staff: Array<{ role: OrgStaffRole; status: InviteStatus; user: StaffUser }> };
+  companyOrg: {
+    name: string;
+    logoUrl: string | null;
+    owner: StaffUser | null;
+    staff: Array<{ role: OrgStaffRole; status: InviteStatus; user: StaffUser }>;
+  };
   operator: StaffUser | null;
 };
 
@@ -107,9 +113,133 @@ export function resolveBoothStaffMembers(booth: BoothStaffSource): ApiBoothStaff
   return members;
 }
 
+function mergeBoothStaffLists(
+  preferred: ApiBoothStaffMember[],
+  fallback: ApiBoothStaffMember[],
+): ApiBoothStaffMember[] {
+  const seen = new Set<string>();
+  const members: ApiBoothStaffMember[] = [];
+  for (const member of [...preferred, ...fallback]) {
+    if (!member.user_id || seen.has(member.user_id)) continue;
+    seen.add(member.user_id);
+    members.push(member);
+  }
+  return members;
+}
+
+function withPrimaryContact(item: ApiPublicBoothItem): ApiPublicBoothItem {
+  const primary = item.staff[0];
+  return {
+    ...item,
+    contact_user_id: primary?.user_id ?? null,
+    contact_name: primary?.name ?? null,
+    contact_title: primary?.title ?? null,
+  };
+}
+
+/**
+ * 展位「添加工作人员」写入的是 Participant(EXHIBITOR+boothId)，
+ * 与 OrgStaff 不同；公开详情必须合并，否则「与展商连接」为空。
+ */
+async function loadBoothTeamStaffByBoothIds(
+  boothIds: string[],
+  companyByBoothId: Map<string, string>,
+): Promise<Map<string, ApiBoothStaffMember[]>> {
+  const result = new Map<string, ApiBoothStaffMember[]>();
+  if (boothIds.length === 0) return result;
+
+  const participants = await prisma.participant.findMany({
+    where: {
+      boothId: { in: boothIds },
+      systemRole: SystemRole.EXHIBITOR,
+    },
+    select: {
+      boothId: true,
+      name: true,
+      phone: true,
+      jobTitle: true,
+      isBoothOwner: true,
+      createdAt: true,
+    },
+    orderBy: [{ isBoothOwner: "desc" }, { createdAt: "asc" }],
+  });
+
+  const phones = [
+    ...new Set(
+      participants
+        .map((row) => row.phone?.trim())
+        .filter((phone): phone is string => Boolean(phone)),
+    ),
+  ];
+  if (phones.length === 0) return result;
+
+  const usersWithPhone = await prisma.user.findMany({
+    where: { phone: { in: phones } },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      profile: { select: { company: true, valueProposition: true } },
+    },
+  });
+  const userByPhone = new Map(
+    usersWithPhone
+      .filter((u) => u.phone)
+      .map((u) => [u.phone as string, u] as const),
+  );
+
+  for (const row of participants) {
+    if (!row.boothId || !row.phone) continue;
+    const user = userByPhone.get(row.phone.trim());
+    if (!user) continue;
+    const company =
+      user.profile?.company?.trim() ||
+      companyByBoothId.get(row.boothId) ||
+      "";
+    const list = result.get(row.boothId) ?? [];
+    if (list.some((m) => m.user_id === user.id)) continue;
+    list.push({
+      user_id: user.id,
+      name: row.name?.trim() || user.name,
+      title: row.jobTitle?.trim() || user.profile?.valueProposition || null,
+      company,
+      avatar_url: null,
+    });
+    result.set(row.boothId, list);
+  }
+
+  return result;
+}
+
+async function attachBoothTeamStaff(
+  items: ApiPublicBoothItem[],
+): Promise<ApiPublicBoothItem[]> {
+  if (items.length === 0) return items;
+  const companyByBoothId = new Map(
+    items.map((item) => [item.id, item.company_name || item.company] as const),
+  );
+  const teamMap = await loadBoothTeamStaffByBoothIds(
+    items.map((item) => item.id),
+    companyByBoothId,
+  );
+
+  return items.map((item) => {
+    const team = teamMap.get(item.id) ?? [];
+    if (team.length === 0) return item;
+    return withPrimaryContact({
+      ...item,
+      // 优先展示展位团队（主办/展商显式添加的工作人员）
+      staff: mergeBoothStaffLists(team, item.staff),
+    });
+  });
+}
+
 function attachStaffFields(
   booth: BoothStaffSource,
-  base: Omit<ApiPublicBoothItem, "staff" | "contact_user_id" | "contact_name" | "contact_title">,
+  base: Omit<
+    ApiPublicBoothItem,
+    "staff" | "contact_user_id" | "contact_name" | "contact_title"
+  >,
 ): ApiPublicBoothItem {
   const staff = resolveBoothStaffMembers(booth);
   const primary = staff[0];
@@ -231,7 +361,8 @@ export async function listPublicEventBooths(
     loadBoothInteractionFlags(eventId),
   ]);
 
-  return booths.map((booth) => mapPublicBoothFields(booth, flags));
+  const items = booths.map((booth) => mapPublicBoothFields(booth, flags));
+  return attachBoothTeamStaff(items);
 }
 
 export async function getPublicBoothDetail(
@@ -249,7 +380,7 @@ export async function getPublicBoothDetail(
   }
 
   const flags = await loadBoothInteractionFlags(booth.eventId);
-  const base = mapPublicBoothFields(booth, flags);
+  const [base] = await attachBoothTeamStaff([mapPublicBoothFields(booth, flags)]);
 
   return {
     ...base,
