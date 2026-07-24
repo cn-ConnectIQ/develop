@@ -82,21 +82,8 @@ export async function requireAccountAdmin(
     return { error: forbidden("仅账号管理员可访问") };
   }
 
-  const experience = await getActiveExperienceAccount(session.user.id);
-  if (experience?.status === ExperienceAccountStatus.EXPIRED) {
-    return {
-      error: NextResponse.json(
-        {
-          error: "体验账号已过期，请联系平台管理员延期或转为正式账号",
-          code: "EXPERIENCE_EXPIRED",
-        },
-        { status: 403 },
-      ),
-    };
-  }
-
   // 以数据库为准解析可用组织，避免组织切换后 JWT 仍指向旧 org
-  const [staffRoles, dbUser] = await Promise.all([
+  const [staffRoles, dbUser, experience] = await Promise.all([
     prisma.orgStaff.findMany({
       where: {
         userId: session.user.id,
@@ -117,6 +104,7 @@ export async function requireAccountAdmin(
       where: { id: session.user.id },
       select: { orgId: true },
     }),
+    getActiveExperienceAccount(session.user.id),
   ]);
 
   const usableStaff = staffRoles.filter((s) =>
@@ -127,6 +115,22 @@ export async function requireAccountAdmin(
     usableStaff.find((s) => s.orgId === session.user.activeOrgId) ||
     usableStaff[0] ||
     null;
+
+  // 已有正式/试用可用组织时，忽略历史体验账号过期（转正后常见）
+  if (
+    experience?.status === ExperienceAccountStatus.EXPIRED &&
+    !activeStaff
+  ) {
+    return {
+      error: NextResponse.json(
+        {
+          error: "体验账号已过期，请联系平台管理员延期或转为正式账号",
+          code: "EXPERIENCE_EXPIRED",
+        },
+        { status: 403 },
+      ),
+    };
+  }
 
   if (!activeStaff) {
     const adminStatus =
