@@ -754,12 +754,40 @@ model Organization {
 
   partnerConnections PartnerConnection[]
 
+  /// 主办方维护的可复用参展企业库
+  hostExhibitorDirectory HostExhibitorDirectory[] @relation("HostExhibitorDirectoryHost")
+  /// 作为参展企业被写入主办方企业库
+  listedInHostDirectories HostExhibitorDirectory[] @relation("HostExhibitorDirectoryCompany")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([adminStatus])
   @@index([slug])
   @@map("organizations")
+}
+
+/// 主办账号下的参展企业通讯录（跨活动复用）
+model HostExhibitorDirectory {
+  id           String  @id @default(cuid())
+  hostOrgId    String  @map("host_org_id")
+  companyOrgId String? @map("company_org_id")
+  companyName  String  @map("company_name")
+  contactName  String? @map("contact_name")
+  contactPhone String? @map("contact_phone")
+  contactEmail String? @map("contact_email")
+  notes        String?
+
+  hostOrg    Organization  @relation("HostExhibitorDirectoryHost", fields: [hostOrgId], references: [id], onDelete: Cascade)
+  companyOrg Organization? @relation("HostExhibitorDirectoryCompany", fields: [companyOrgId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([hostOrgId, companyName])
+  @@index([hostOrgId])
+  @@index([companyOrgId])
+  @@map("host_exhibitor_directory")
 }
 
 model OrgMember {

@@ -11,10 +11,12 @@ import { assertAndDebitInteractionPoint } from "@/lib/billing/billing-guards";
 import { creditOrgWallet } from "@/lib/billing/wallet-service";
 import { classifyLeadGrade } from "@/lib/booth-map";
 import {
-  listEventExhibitorOrgs,
-  resolveOrCreateExhibitorOrg,
   withLegacyExhibitor,
 } from "@/lib/exhibitor-booth-utils";
+import {
+  listAssignableExhibitorsForEvent,
+  resolveExhibitorForHostBooth,
+} from "@/lib/host-exhibitor-directory-service";
 import {
   countBoothStaffByEvent,
   resolveBoothStaffMaxCount,
@@ -118,6 +120,14 @@ export const GET = withErrorHandler(async (request, context) => {
 
   await requireEventAccessMobileOrWeb(request, eventId);
 
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { orgId: true },
+  });
+  if (!event?.orgId) {
+    return createErrorResponse("活动未关联组织", ErrorCode.NOT_FOUND, 404);
+  }
+
   const [booths, settings, exhibitors, statsByBooth, staffCountByBooth] =
     await Promise.all([
     prisma.exhibitorBooth.findMany({
@@ -134,7 +144,7 @@ export const GET = withErrorHandler(async (request, context) => {
         key: { in: ["floor_plan_url", "floor_plan_pois", "floor_plan_labels"] },
       },
     }),
-    listEventExhibitorOrgs(eventId),
+    listAssignableExhibitorsForEvent(event.orgId, eventId),
     getBoothStats(eventId),
     countBoothStaffByEvent(eventId),
   ]);
@@ -177,7 +187,10 @@ export const GET = withErrorHandler(async (request, context) => {
     exhibitors: exhibitors.map((org) => ({
       id: org.id,
       name: org.name,
-      email: `${org.slug}@org.connectiq.local`,
+      email: org.slug
+        ? `${org.slug}@org.connectiq.local`
+        : `${org.id}@org.connectiq.local`,
+      source: org.source,
     })),
   });
 });
@@ -202,7 +215,11 @@ export const POST = withErrorHandler(async (request, context) => {
 
   let companyOrgId: string;
   try {
-    companyOrgId = await resolveOrCreateExhibitorOrg({
+    if (!event.orgId) {
+      return createErrorResponse("活动未关联组织", ErrorCode.VALIDATION_ERROR, 400);
+    }
+    companyOrgId = await resolveExhibitorForHostBooth({
+      hostOrgId: event.orgId,
       exhibitorId: parsed.data.exhibitorId,
       exhibitorName: parsed.data.exhibitorName,
     });

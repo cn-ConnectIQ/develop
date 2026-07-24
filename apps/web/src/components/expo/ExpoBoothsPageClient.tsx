@@ -260,13 +260,13 @@ export function ExpoBoothsPageClient({
       : exhibitors;
     return [
       ...base,
-      { id: NEW_EXHIBITOR_VALUE, name: "＋ 新建展商企业" },
+                  { id: NEW_EXHIBITOR_VALUE, name: "＋ 新建并加入企业库" },
     ];
   }, [exhibitors, editing]);
 
   const selectedExhibitorName =
     form.exhibitorId === NEW_EXHIBITOR_VALUE
-      ? "＋ 新建展商企业"
+      ? "＋ 新建并加入企业库"
       : (exhibitorOptions.find((ex) => ex.id === form.exhibitorId)?.name ?? "");
 
   const canSaveExhibitor =
@@ -729,14 +729,28 @@ export function ExpoBoothsPageClient({
                       <TableCell>
                         <div className="flex justify-end gap-1">
                           <Link
-                            href={`/events/${eventId}/exhibitors/form-config?boothId=${booth.id}`}
-                            title="采集表单配置"
+                            href={withPublicPath(
+                              `/events/${eventId}/exhibitors/booths/${booth.id}/info`,
+                            )}
+                            title="信息管理"
                             className={cn(
                               buttonVariants({ variant: "ghost", size: "icon" }),
                               "size-8",
                             )}
                           >
                             <ClipboardList className="size-3.5" />
+                          </Link>
+                          <Link
+                            href={withPublicPath(
+                              `/events/${eventId}/exhibitors/booths/${booth.id}/staff`,
+                            )}
+                            title="工作人员"
+                            className={cn(
+                              buttonVariants({ variant: "ghost", size: "icon" }),
+                              "size-8",
+                            )}
+                          >
+                            <Users className="size-3.5" />
                           </Link>
                           <Button
                             variant="ghost"
@@ -836,7 +850,7 @@ export function ExpoBoothsPageClient({
                 />
               )}
               <p className="mt-1.5 text-xs text-text-muted">
-                仅显示本场已有展商；新活动请选择「新建展商企业」
+                优先从账号「参展企业库」选择；也可新建并加入企业库以便下次复用
               </p>
             </div>
             <div>

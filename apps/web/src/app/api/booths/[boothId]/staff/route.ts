@@ -30,7 +30,8 @@ export const GET = withErrorHandler(async (request, context) => {
 
   return createSuccessResponse({
     ...data,
-    viewerIsOwner: ctx.viewerParticipant?.isBoothOwner ?? false,
+    viewerIsOwner:
+      Boolean(ctx.viewerParticipant?.isBoothOwner) || Boolean(ctx.asHostAdmin),
   });
 });
 

@@ -136,6 +136,30 @@ export function OrganizerDashboardClient() {
           "玖莅「连接完交给微信、不留存」仅适用于参会者。主办方/展商账号保留活动历史与跨活动累计数据。"}
       </div>
 
+      <div className="mb-6 rounded-xl border border-border-light bg-content px-4 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--admin-ink)]">
+              <Store className="size-4 text-brand-blue" />
+              参展企业库
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              跨活动复用展商企业；新建展位时可直接从企业库分配
+            </p>
+          </div>
+          <Link
+            href={withPublicPath("/organizer/exhibitors")}
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "shrink-0",
+            )}
+          >
+            管理参展企业
+            <ArrowRight className="ml-1 size-3.5" />
+          </Link>
+        </div>
+      </div>
+
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricTile
           label="累计活动"

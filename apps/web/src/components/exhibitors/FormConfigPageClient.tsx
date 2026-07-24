@@ -21,6 +21,7 @@ import {
   type LeadFormConfig,
 } from "@/types/booth";
 import { cn } from "@/lib/utils";
+import { withPublicPath } from "@/lib/public-path";
 
 type BoothOption = {
   id: string;
@@ -43,7 +44,9 @@ type FormConfigData = {
 const ALL_BOOTHS = "__all__";
 
 async function fetchFormConfig(eventId: string, boothId: string) {
-  const res = await fetch(`/api/events/${eventId}/booths/${boothId}/form-config`);
+  const res = await fetch(
+    withPublicPath(`/api/events/${eventId}/booths/${boothId}/form-config`),
+  );
   if (!res.ok) throw new Error("加载失败");
   const json = await res.json();
   return json.data as FormConfigData;
@@ -92,7 +95,9 @@ export function FormConfigPageClient({
   const saveTemplate = useMutation({
     mutationFn: async () => {
       const res = await fetch(
-        `/api/events/${eventId}/booths/${activeBoothId}/form-config`,
+        withPublicPath(
+          `/api/events/${eventId}/booths/${activeBoothId}/form-config`,
+        ),
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -112,7 +117,9 @@ export function FormConfigPageClient({
     setSaving(true);
     try {
       const res = await fetch(
-        `/api/events/${eventId}/booths/${activeBoothId}/form-config`,
+        withPublicPath(
+          `/api/events/${eventId}/booths/${activeBoothId}/form-config`,
+        ),
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

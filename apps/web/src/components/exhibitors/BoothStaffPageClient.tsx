@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { withPublicPath } from "@/lib/public-path";
 
 type BoothStaffMember = {
   id: string;
@@ -45,7 +46,7 @@ function maskPhone(phone: string | null) {
 }
 
 async function fetchStaff(boothId: string): Promise<BoothStaffPayload> {
-  const res = await fetch(`/api/booths/${boothId}/staff`);
+  const res = await fetch(withPublicPath(`/api/booths/${boothId}/staff`));
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     throw new Error(json.error ?? "加载失败");
@@ -58,9 +59,17 @@ type Props = {
   boothId: string;
   boothCode: string;
   eventName: string;
+  breadcrumb?: string[];
+  titlePrefix?: string;
 };
 
-export function BoothStaffPageClient({ boothId, boothCode, eventName }: Props) {
+export function BoothStaffPageClient({
+  boothId,
+  boothCode,
+  eventName,
+  breadcrumb = ["展位设置", "团队成员"],
+  titlePrefix = "展位团队成员",
+}: Props) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [phone, setPhone] = useState("");
@@ -78,7 +87,7 @@ export function BoothStaffPageClient({ boothId, boothCode, eventName }: Props) {
 
   const addMember = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/booths/${boothId}/staff`, {
+      const res = await fetch(withPublicPath(`/api/booths/${boothId}/staff`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: phone.trim(), name: name.trim() || undefined }),
@@ -100,9 +109,12 @@ export function BoothStaffPageClient({ boothId, boothCode, eventName }: Props) {
 
   const removeMember = useMutation({
     mutationFn: async (participantId: string) => {
-      const res = await fetch(`/api/booths/${boothId}/staff/${participantId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        withPublicPath(`/api/booths/${boothId}/staff/${participantId}`),
+        {
+          method: "DELETE",
+        },
+      );
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         throw new Error(json.error ?? "移除失败");
@@ -125,9 +137,9 @@ export function BoothStaffPageClient({ boothId, boothCode, eventName }: Props) {
   return (
     <AdminPage>
       <AdminHeader
-        title="展位团队成员"
+        title={`${titlePrefix}${titlePrefix.includes(boothCode) ? "" : ` · ${boothCode}`}`}
         description={`${eventName} · ${boothCode}`}
-        breadcrumb={["展位设置", "团队成员"]}
+        breadcrumb={breadcrumb}
         actions={
           isOwner ? (
             <Button

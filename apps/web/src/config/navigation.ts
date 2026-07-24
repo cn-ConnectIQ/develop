@@ -158,6 +158,7 @@ export function getPlatformNavigation(role: UserRole): NavGroup[] {
         label: "PLATFORM",
         items: [
           { label: "账号管理中心", href: "/organizer/dashboard", icon: LayoutDashboard },
+          { label: "参展企业", href: "/organizer/exhibitors", icon: Store },
           { label: "活动列表", href: "/events", icon: CalendarDays },
           { label: "计费与充值", href: "/organizer/billing", icon: Coins },
           { label: "用户池", href: "/members", icon: Users },

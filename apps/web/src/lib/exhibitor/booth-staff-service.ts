@@ -48,6 +48,7 @@ type BoothStaffContext = {
     | "companyOrgId"
   >;
   viewerParticipant: Participant | null;
+  asHostAdmin?: boolean;
 };
 
 type BoothOperatorBooth = Pick<
@@ -164,6 +165,32 @@ async function isUserBoothOperator(
   return Boolean(orgAccess);
 }
 
+/** 活动主办方工作人员（可代管展位团队） */
+async function isEventHostStaff(
+  userId: string,
+  eventId: string,
+): Promise<boolean> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { orgId: true, organizerId: true },
+  });
+  if (!event) return false;
+  if (event.organizerId === userId) return true;
+
+  const staff = await prisma.orgStaff.findFirst({
+    where: {
+      orgId: event.orgId,
+      userId,
+      status: InviteStatus.ACCEPTED,
+      role: {
+        in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN, OrgStaffRole.OPERATOR],
+      },
+    },
+    select: { id: true },
+  });
+  return Boolean(staff);
+}
+
 /** 将展位操作员同步为 is_booth_owner 的 Participant（兼容历史数据） */
 async function ensureBoothOwnerParticipant(
   eventId: string,
@@ -273,6 +300,10 @@ export async function requireBoothStaffViewer(
     return { userId, booth, viewerParticipant: ownerParticipant };
   }
 
+  if (await isEventHostStaff(userId, booth.eventId)) {
+    return { userId, booth, viewerParticipant: null, asHostAdmin: true };
+  }
+
   try {
     await resolveMobileExhibitorBoothAccess(request, boothId);
     return { userId, booth, viewerParticipant: null };
@@ -281,13 +312,28 @@ export async function requireBoothStaffViewer(
   }
 }
 
-/** POST/DELETE：仅 is_booth_owner=true 的主账号 */
+/** POST/DELETE：展位主账号，或活动主办方可代管 */
 export async function requireBoothStaffOwner(
   request: Request,
   boothId: string,
-): Promise<BoothStaffContext & { ownerParticipant: Participant }> {
+): Promise<
+  BoothStaffContext & {
+    ownerParticipant: Participant | null;
+    asHostAdmin: boolean;
+  }
+> {
   const booth = await loadBoothOrThrow(boothId);
   const userId = await resolveMobileUserId(request);
+
+  if (await isEventHostStaff(userId, booth.eventId)) {
+    return {
+      userId,
+      booth,
+      viewerParticipant: null,
+      ownerParticipant: null,
+      asHostAdmin: true,
+    };
+  }
 
   let ownerParticipant = await findBoothExhibitorParticipantForUser(
     booth.eventId,
@@ -316,6 +362,7 @@ export async function requireBoothStaffOwner(
     booth,
     viewerParticipant: ownerParticipant,
     ownerParticipant,
+    asHostAdmin: false,
   };
 }
 
