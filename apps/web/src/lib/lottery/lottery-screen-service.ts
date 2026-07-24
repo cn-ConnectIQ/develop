@@ -862,6 +862,8 @@ export async function getLotteryScreenState(eventId: string, lotteryId: string) 
       prize_name: w.prizeName,
       prize_rank: w.prizeRank,
       verification_code: w.verificationCode,
+      verified: w.verified,
+      verified_at: w.verifiedAt?.toISOString() ?? null,
       pickup_note: "请凭核销码至领奖台领取奖品",
       avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${resolveAvatarSeed(w.user.name)}`,
       drawn_at: w.drawnAt.toISOString(),
