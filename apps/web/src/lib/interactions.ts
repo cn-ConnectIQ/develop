@@ -11,6 +11,12 @@ export type PollListItem = {
   updatedAt: string;
   options: Array<{ id: string; text: string }>;
   _count: { responses: number };
+  /** 展商发起时关联的展位 */
+  booth_id?: string | null;
+  boothId?: string | null;
+  /** 展商名称（公司名优先） */
+  exhibitor_name?: string | null;
+  exhibitorName?: string | null;
 };
 
 export type SessionOption = {

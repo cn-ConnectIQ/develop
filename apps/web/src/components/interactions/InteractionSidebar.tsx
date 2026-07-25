@@ -222,6 +222,10 @@ function InteractionListItem({
         : (POLL_TYPE_BADGE[item.type] ?? "bg-gray-100 text-text-muted");
 
   const count = getInteractionResponseCount(item);
+  const exhibitorName =
+    item.kind === "poll"
+      ? (item.exhibitor_name ?? item.exhibitorName)?.trim() || null
+      : null;
 
   const statusLabel = item.kind === "announcement"
     ? item.isPinned
@@ -261,7 +265,9 @@ function InteractionListItem({
           ? item.isPinned
             ? "置顶公告"
             : "已发布"
-          : `${count} 人参与`
+          : exhibitorName
+            ? `${exhibitorName} · ${count} 人参与`
+            : `${count} 人参与`
       }
       statusLabel={statusLabel}
       statusVariant={statusVariant}

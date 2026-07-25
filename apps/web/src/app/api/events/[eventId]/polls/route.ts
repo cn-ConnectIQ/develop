@@ -16,6 +16,7 @@ import {
   resolvePollListStatusFilter,
   serializePollForMobile,
 } from "@/lib/poll-mobile-api";
+import { mapPollIdsToExhibitorNames } from "@/lib/exhibitor/booth-interaction-service";
 
 const createPollSchema = z
   .object({
@@ -122,12 +123,20 @@ export const GET = withErrorHandler(async (request, context) => {
     }
   }
 
+  const exhibitorByPollId = await mapPollIdsToExhibitorNames(
+    eventId,
+    polls.map((p) => p.id),
+  );
+
   return createSuccessResponse({
-    polls: polls.map((poll) =>
-      serializePollForMobile(poll, eventId, {
+    polls: polls.map((poll) => {
+      const exhibitor = exhibitorByPollId.get(poll.id);
+      return serializePollForMobile(poll, eventId, {
         myParticipated: participatedPollIds.has(poll.id),
-      }),
-    ),
+        boothId: exhibitor?.booth_id ?? null,
+        exhibitorName: exhibitor?.exhibitor_name ?? null,
+      });
+    }),
     sessions,
   }, { total: polls.length });
 });

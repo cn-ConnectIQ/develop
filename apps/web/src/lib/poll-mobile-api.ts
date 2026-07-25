@@ -77,11 +77,17 @@ export function buildPollBigscreenUrl(eventId: string, pollId?: string) {
 export function serializePollForMobile(
   poll: PollWithMeta,
   eventId: string,
-  extras?: { myParticipated?: boolean },
+  extras?: {
+    myParticipated?: boolean;
+    boothId?: string | null;
+    exhibitorName?: string | null;
+  },
 ) {
   const participantCount = poll._count?.responses ?? 0;
   const endsAt = poll.closesAt?.toISOString() ?? null;
   const myParticipated = Boolean(extras?.myParticipated);
+  const boothId = extras?.boothId ?? null;
+  const exhibitorName = extras?.exhibitorName?.trim() || null;
 
   return {
     id: poll.id,
@@ -100,6 +106,10 @@ export function serializePollForMobile(
     participantCount,
     my_participated: myParticipated,
     myParticipated,
+    booth_id: boothId,
+    boothId,
+    exhibitor_name: exhibitorName,
+    exhibitorName,
     _count: { responses: participantCount },
     options: poll.options ?? [],
     bigscreen_url: buildPollBigscreenUrl(eventId, poll.id),

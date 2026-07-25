@@ -28,6 +28,59 @@ import {
 export type { BoothInteractionItem };
 export { boothInteractionGroupStatus };
 
+/** 展商互动会话里关联的投票 → 展商名称（公司名优先，否则展位名） */
+export async function mapPollIdsToExhibitorNames(
+  eventId: string,
+  pollIds: string[],
+): Promise<Map<string, { booth_id: string; exhibitor_name: string }>> {
+  const result = new Map<string, { booth_id: string; exhibitor_name: string }>();
+  if (pollIds.length === 0) return result;
+
+  const wanted = new Set(pollIds);
+  const sessions = await prisma.interactionSession.findMany({
+    where: {
+      eventId,
+      boothId: { not: null },
+      ownerType: "EXHIBITOR",
+    },
+    select: {
+      boothId: true,
+      interactions: true,
+      booth: {
+        select: {
+          name: true,
+          companyOrg: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  for (const session of sessions) {
+    if (!session.boothId || !session.booth) continue;
+    const exhibitorName =
+      session.booth.companyOrg?.name?.trim() ||
+      session.booth.name?.trim() ||
+      "";
+    if (!exhibitorName) continue;
+
+    if (!Array.isArray(session.interactions)) continue;
+    for (const item of session.interactions) {
+      if (!item || typeof item !== "object") continue;
+      const ref = item as { type?: unknown; id?: unknown };
+      const type =
+        typeof ref.type === "string" ? ref.type.toLowerCase() : "";
+      const id = typeof ref.id === "string" ? ref.id : "";
+      if (type !== "poll" || !id || !wanted.has(id) || result.has(id)) continue;
+      result.set(id, {
+        booth_id: session.boothId,
+        exhibitor_name: exhibitorName,
+      });
+    }
+  }
+
+  return result;
+}
+
 function buildScanUrl(sessionCode: string) {
   return `${getAppBaseUrl()}/i/${sessionCode}`;
 }
