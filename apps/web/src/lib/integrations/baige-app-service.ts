@@ -28,7 +28,7 @@ import {
   type EventFeatureFlagKey,
 } from "@/lib/event-feature-flags";
 import { withPublicPath } from "@/lib/public-path";
-import { linkBaigeIdentityToOrg } from "@/lib/integrations/baige-identity-link";
+import { linkBaigeIdentityToOrg, provisionBaigeOrgAndOwner } from "@/lib/integrations/baige-identity-link";
 import type { BaigeIdentityInput } from "@/lib/integrations/baige-identity-link";
 import { cacheSet } from "@/lib/redis";
 import { randomBytes } from "crypto";
@@ -218,13 +218,14 @@ export async function revokeBaigeAppConnection(baigeOrgId: string) {
   return revokeBaigeConnection(row.orgId);
 }
 
-/** 伙伴侧发起授权：写入 pending state，返回玖莅确认页 URL */
+/** 伙伴侧发起授权：优先一键绑定；无组织时按邮箱/手机自动创建账号与组织 */
 export async function startBaigeAppAuthorize(input: {
   baigeOrgId: string;
   baigeUserId?: string;
   email?: string;
   phone?: string;
   name?: string;
+  orgName?: string;
   scopes?: string[];
   redirectUri?: string;
   /** 若已知玖莅组织且允许直连，可一键绑定 */
@@ -236,11 +237,16 @@ export async function startBaigeAppAuthorize(input: {
     email: input.email,
     phone: input.phone,
     name: input.name,
+    orgName: input.orgName,
   };
 
-  if (input.jiuliOrgId?.trim()) {
+  const hasIdentity = Boolean(
+    identity.email || identity.phone || identity.baigeUserId,
+  );
+
+  async function bindToOrg(orgId: string) {
     const connection = await upsertBaigeConnection({
-      orgId: input.jiuliOrgId.trim(),
+      orgId,
       externalOrgId: input.baigeOrgId.trim(),
       scopes,
       metadata: {
@@ -248,10 +254,11 @@ export async function startBaigeAppAuthorize(input: {
         baigeUserId: input.baigeUserId ?? null,
         email: input.email ?? null,
         phone: input.phone ?? null,
+        orgName: input.orgName ?? null,
       },
     });
     let linkedUserId: string | null = null;
-    if (identity.email || identity.phone || identity.baigeUserId) {
+    if (hasIdentity) {
       linkedUserId = await linkBaigeIdentityToOrg({
         orgId: connection.orgId,
         identity,
@@ -261,26 +268,44 @@ export async function startBaigeAppAuthorize(input: {
       mode: "linked" as const,
       connection: await formatBaigeAppConnection(connection.externalOrgId),
       linkedUserId,
+      orgCreated: false as boolean,
     };
+  }
+
+  if (input.jiuliOrgId?.trim()) {
+    return bindToOrg(input.jiuliOrgId.trim());
   }
 
   const existing = await getBaigeConnectionByExternalOrgId(input.baigeOrgId);
   if (existing?.status === PartnerConnectionStatus.ACTIVE) {
-    await prisma.partnerConnection.update({
-      where: { id: existing.id },
-      data: { scopes },
+    const result = await bindToOrg(existing.orgId);
+    return result;
+  }
+
+  // 首次授权：有邮箱/手机则自动开户+建组织，无需人工确认页
+  if (hasIdentity && (identity.email || identity.phone)) {
+    const provisioned = await provisionBaigeOrgAndOwner({
+      baigeOrgId: input.baigeOrgId,
+      identity,
     });
-    let linkedUserId: string | null = null;
-    if (identity.email || identity.phone || identity.baigeUserId) {
-      linkedUserId = await linkBaigeIdentityToOrg({
-        orgId: existing.orgId,
-        identity,
-      });
-    }
+    const connection = await upsertBaigeConnection({
+      orgId: provisioned.orgId,
+      externalOrgId: input.baigeOrgId.trim(),
+      linkedByUserId: provisioned.userId,
+      scopes,
+      metadata: {
+        source: "baige_app_auto_provision",
+        baigeUserId: input.baigeUserId ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        orgName: input.orgName ?? null,
+      },
+    });
     return {
       mode: "linked" as const,
-      connection: await formatBaigeAppConnection(existing.externalOrgId),
-      linkedUserId,
+      connection: await formatBaigeAppConnection(connection.externalOrgId),
+      linkedUserId: provisioned.userId,
+      orgCreated: provisioned.orgCreated,
     };
   }
 
@@ -293,6 +318,7 @@ export async function startBaigeAppAuthorize(input: {
       email: input.email ?? null,
       phone: input.phone ?? null,
       name: input.name ?? null,
+      orgName: input.orgName ?? null,
       scopes,
       redirectUri: input.redirectUri ?? null,
     }),

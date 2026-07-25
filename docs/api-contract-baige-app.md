@@ -65,10 +65,11 @@ App 识别 `bagevent://jiuli/qr-login` deep link 后调 confirm；PC 轮询到 c
 
 ### POST `/connection/authorize`
 
-Body：`baigeOrgId`、可选 `baigeUserId` / `email` / `phone` / `name` / `scopes` / `redirectUri` / `jiuliOrgId`。
+Body：`baigeOrgId`、可选 `baigeUserId` / `email` / `phone` / `name` / `orgName` / `scopes` / `redirectUri` / `jiuliOrgId`。
 
-- 传 `jiuliOrgId` 或已绑定 → 直接 `{ linked: true, ..., linkedUserId }`，并打通身份  
-- 否则 → `{ authorizeUrl, state }`（打开玖莅 `/integrations/baige?partner_state=`；管理员登录后自动调用 confirm）
+- **首次授权且带 email 或 phone**：自动创建玖莅 User + Organization（`adminStatus=TRIAL`），组织名默认取邮箱 `@` 前或手机号；直接返回 `{ linked: true, linkedUserId, orgCreated }`
+- 传 `jiuliOrgId` 或已绑定 → 绑定到已有组织
+- 无邮箱/手机时 → `{ authorizeUrl, state }`（需玖莅管理员确认页）
 
 默认 scopes：`org.profile` | `event.basic` | `attendee.read` | `collection_point.read`
 

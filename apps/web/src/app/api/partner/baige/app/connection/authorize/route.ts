@@ -15,6 +15,7 @@ const authorizeSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().regex(/^1[3-9]\d{9}$/).optional(),
   name: z.string().max(80).optional(),
+  orgName: z.string().max(64).optional(),
   scopes: z.array(z.string()).optional(),
   redirectUri: z.string().optional(),
   /** 联调/已明确映射时一键绑定 */
@@ -48,6 +49,7 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
       return createSuccessResponse({
         ...result.connection,
         linkedUserId: result.linkedUserId ?? null,
+        orgCreated: result.orgCreated ?? false,
       });
     }
     return createSuccessResponse({

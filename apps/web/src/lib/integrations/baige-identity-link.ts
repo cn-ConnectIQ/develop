@@ -1,4 +1,5 @@
 import {
+  AdminStatus,
   InviteStatus,
   OrgStaffRole,
   PrismaUserType,
@@ -7,6 +8,7 @@ import {
 import bcrypt from "bcryptjs";
 import { grantOrgAdminRoles } from "@/lib/org-admin-roles";
 import { BaigeConnectionError } from "@/lib/integrations/baige-connection-service";
+import { slugify } from "@/lib/event-utils";
 
 export const BAIGE_IDENTITY_PROVIDER = "baige";
 
@@ -15,6 +17,8 @@ export type BaigeIdentityInput = {
   email?: string | null;
   phone?: string | null;
   name?: string | null;
+  /** 组织显示名；缺省用邮箱 @ 前 / 手机号 */
+  orgName?: string | null;
 };
 
 function phoneToEmail(phone: string) {
@@ -29,6 +33,45 @@ function normalizeEmail(email?: string | null) {
 function normalizePhone(phone?: string | null) {
   const v = phone?.trim();
   return v && /^1[3-9]\d{9}$/.test(v) ? v : null;
+}
+
+/** 组织名：显式 orgName → 邮箱 @ 前 → 手机号 → 联系人姓名 → 百格组织后缀 */
+export function deriveBaigeOrgDisplayName(input: {
+  orgName?: string | null;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  baigeOrgId: string;
+}): string {
+  const explicit = input.orgName?.trim();
+  if (explicit) return explicit.slice(0, 64);
+
+  const email = normalizeEmail(input.email);
+  if (email) {
+    const local = email.split("@")[0]?.trim();
+    if (local) return local.slice(0, 64);
+  }
+
+  const phone = normalizePhone(input.phone);
+  if (phone) return phone;
+
+  const person = input.name?.trim();
+  if (person) return person.slice(0, 64);
+
+  return `百格组织-${input.baigeOrgId.trim().slice(-8)}`;
+}
+
+async function resolveUniqueOrgSlug(baseName: string): Promise<string> {
+  let slug = slugify(baseName).slice(0, 48) || `baige-${Date.now().toString(36)}`;
+  for (let i = 0; i < 12; i++) {
+    const exists = await prisma.organization.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (!exists) return slug;
+    slug = `${slugify(baseName).slice(0, 40)}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+  return `baige-${Date.now().toString(36)}`;
 }
 
 /**
@@ -240,4 +283,111 @@ export async function linkBaigeIdentityToOrg(input: {
     invitedByUserId: input.invitedByUserId,
   });
   return userId;
+}
+
+/**
+ * 百格首次授权：无玖莅组织时自动创建 User + Organization（TRIAL，可进管理端）
+ * 组织名默认 = 邮箱 @ 前 / 手机号。
+ */
+export async function provisionBaigeOrgAndOwner(input: {
+  baigeOrgId: string;
+  identity: BaigeIdentityInput;
+}): Promise<{ orgId: string; userId: string; orgCreated: boolean }> {
+  const email = normalizeEmail(input.identity.email);
+  const phone = normalizePhone(input.identity.phone);
+  if (!email && !phone && !input.identity.baigeUserId?.trim()) {
+    throw new BaigeConnectionError(
+      "首次授权请提供邮箱或手机号，以便自动创建玖莅账号与组织",
+      "VALIDATION",
+    );
+  }
+
+  const userId = await resolveOrCreateUserFromBaigeIdentity(input.identity);
+
+  // 用户已有可用组织：复用（仍会在外层写 PartnerConnection）
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      orgId: true,
+      email: true,
+      phone: true,
+      name: true,
+      ownedOrg: { select: { id: true, adminStatus: true } },
+    },
+  });
+
+  if (user?.orgId) {
+    const staff = await prisma.orgStaff.findFirst({
+      where: {
+        userId,
+        orgId: user.orgId,
+        status: InviteStatus.ACCEPTED,
+      },
+      select: { id: true },
+    });
+    if (staff) {
+      await ensureBaigeUserOrgAdminAccess({ userId, orgId: user.orgId });
+      return { orgId: user.orgId, userId, orgCreated: false };
+    }
+  }
+
+  if (user?.ownedOrg?.id) {
+    await ensureBaigeUserOrgAdminAccess({
+      userId,
+      orgId: user.ownedOrg.id,
+    });
+    return { orgId: user.ownedOrg.id, userId, orgCreated: false };
+  }
+
+  const orgName = deriveBaigeOrgDisplayName({
+    orgName: input.identity.orgName,
+    name: input.identity.name,
+    email: input.identity.email,
+    phone: input.identity.phone,
+    baigeOrgId: input.baigeOrgId,
+  });
+  const slug = await resolveUniqueOrgSlug(orgName);
+  const contactEmail =
+    email ?? (phone ? phoneToEmail(phone) : null);
+
+  const org = await prisma.$transaction(async (tx) => {
+    const existingOwnerOrg = await tx.organization.findFirst({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+
+    const created = await tx.organization.create({
+      data: {
+        name: orgName,
+        slug,
+        contactEmail,
+        adminStatus: AdminStatus.TRIAL,
+        isVerified: false,
+        ownerId: existingOwnerOrg ? undefined : userId,
+      },
+    });
+
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        userType: PrismaUserType.ACCOUNT_ADMIN,
+        orgId: created.id,
+      },
+    });
+
+    await tx.orgStaff.create({
+      data: {
+        orgId: created.id,
+        userId,
+        role: OrgStaffRole.OWNER,
+        status: InviteStatus.ACCEPTED,
+        acceptedAt: new Date(),
+      },
+    });
+
+    await grantOrgAdminRoles(tx, userId);
+    return created;
+  });
+
+  return { orgId: org.id, userId, orgCreated: true };
 }
