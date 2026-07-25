@@ -47,6 +47,43 @@ export function BaigeIntegrationClient() {
     else toast.error(`百格授权失败：${searchParams.get("reason") ?? "unknown"}`);
   }, [searchParams]);
 
+  const partnerState = searchParams.get("partner_state")?.trim() || "";
+
+  const confirmPartner = useMutation({
+    mutationFn: async (state: string) => {
+      const res = await fetch("/api/partner/baige/app/connection/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "确认授权失败");
+      return json.data as {
+        linked: boolean;
+        redirectUri?: string | null;
+      };
+    },
+    onSuccess: async (payload) => {
+      toast.success("已确认百格 App 授权绑定");
+      await queryClient.invalidateQueries({
+        queryKey: ["baige-partner-connection"],
+      });
+      if (payload.redirectUri?.startsWith("bagevent://")) {
+        window.location.href = payload.redirectUri;
+      }
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  useEffect(() => {
+    if (!partnerState || confirmPartner.isPending || confirmPartner.isSuccess) {
+      return;
+    }
+    confirmPartner.mutate(partnerState);
+    // 仅在进入页带 partner_state 时自动确认一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerState]);
+
   const startOAuth = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/partner/baige/oauth/start");
