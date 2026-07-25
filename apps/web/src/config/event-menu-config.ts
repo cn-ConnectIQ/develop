@@ -9,7 +9,6 @@ export const EVENT_MENU_VISIBILITY: Record<string, EventActivityKind[]> = {
   premeet: ["CONFERENCE", "EXPO", "EXHIBITION"],
   "intent-results": ["CONFERENCE", "EXPO", "EXHIBITION"],
   invite: ["CONFERENCE", "EXPO", "EXHIBITION"],
-  "meeting-config": ["CONFERENCE", "EXPO"],
   "meeting-schedule": ["CONFERENCE", "EXPO"],
   "expo-config": ["EXPO"],
   "exhibitor-review": ["EXPO"],

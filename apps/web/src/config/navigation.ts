@@ -238,13 +238,6 @@ function getEventNavigationGroups(
                 menuKey: "notifications",
               },
               {
-                label: "会面配置",
-                href: `/events/${eventId}/meetings/setup`,
-                icon: CalendarDays,
-                isNew: true,
-                menuKey: "meeting-config",
-              },
-              {
                 label: "会面调度",
                 href: `/events/${eventId}/meetings/schedule`,
                 icon: LayoutGrid,

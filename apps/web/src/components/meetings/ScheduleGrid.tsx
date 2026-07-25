@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ApiScheduleGrid } from "@/lib/meetings/schedule-service";
 import { cn } from "@/lib/utils";
 
@@ -9,13 +10,32 @@ function abbrev(name: string): string {
   return trimmed.slice(0, 2);
 }
 
+function SetupLink({ href }: { href?: string }) {
+  if (!href) return <>会面配置</>;
+  return (
+    <Link
+      href={href}
+      className="font-medium text-primary underline-offset-2 hover:underline"
+    >
+      会面配置
+    </Link>
+  );
+}
+
 type ScheduleGridProps = {
   grid: ApiScheduleGrid | null;
   loading: boolean;
+  /** 空状态文案中「会面配置」跳转地址 */
+  setupHref?: string;
   onCellClick?: (meetingId: string) => void;
 };
 
-export function ScheduleGrid({ grid, loading, onCellClick }: ScheduleGridProps) {
+export function ScheduleGrid({
+  grid,
+  loading,
+  setupHref,
+  onCellClick,
+}: ScheduleGridProps) {
   if (loading && !grid) {
     return (
       <div className="rounded-lg border border-border p-8 text-center text-sm text-text-muted">
@@ -27,7 +47,9 @@ export function ScheduleGrid({ grid, loading, onCellClick }: ScheduleGridProps) 
   if (!grid || grid.rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-text-muted">
-        尚未配置会面桌，请先在「会面配置」中添加桌位
+        尚未配置会面桌，请先在「
+        <SetupLink href={setupHref} />
+        」中添加桌位
       </div>
     );
   }
@@ -35,7 +57,9 @@ export function ScheduleGrid({ grid, loading, onCellClick }: ScheduleGridProps) 
   if (grid.slots.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-text-muted">
-        未设置可约时段，请在「会面配置」中配置开放时间段
+        未设置可约时段，请在「
+        <SetupLink href={setupHref} />
+        」中配置开放时间段
       </div>
     );
   }

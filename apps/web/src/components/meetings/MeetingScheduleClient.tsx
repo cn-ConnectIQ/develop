@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bot, Calendar, LayoutGrid, Users } from "lucide-react";
+import { Bot, Calendar, LayoutGrid, Settings2, Users } from "lucide-react";
 import {
   AdminContent,
   AdminHeader,
@@ -12,7 +13,8 @@ import {
 } from "@/components/admin/admin-header";
 import { DataTable } from "@/components/admin/data-table";
 import { ScheduleGrid } from "@/components/meetings/ScheduleGrid";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -178,9 +180,18 @@ export function MeetingScheduleClient({
         description={eventName}
         breadcrumb={["活动", "会面调度"]}
         actions={
-          <Button variant="outline" size="sm" onClick={() => void refetch()}>
-            刷新
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/events/${eventId}/meetings/setup`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <Settings2 className="mr-1.5 size-4" />
+              会面配置
+            </Link>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              刷新
+            </Button>
+          </div>
         }
       />
       <AdminContent>
@@ -222,6 +233,7 @@ export function MeetingScheduleClient({
           <ScheduleGrid
             grid={grid ?? null}
             loading={gridLoading}
+            setupHref={`/events/${eventId}/meetings/setup`}
             onCellClick={handleCellClick}
           />
         </SectionCard>
