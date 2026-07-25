@@ -2,7 +2,7 @@ import {
   AdminStatus,
   InviteStatus,
   OrgStaffRole,
-  PrismaUserType,
+  UserType as PrismaUserType,
   prisma,
 } from "@connectiq/database";
 import bcrypt from "bcryptjs";
