@@ -10,6 +10,7 @@ import { ErrorCode } from "@connectiq/types";
 import { upsertBaigeConnection } from "@/lib/integrations/baige-connection-service";
 import { formatBaigeAppConnection } from "@/lib/integrations/baige-app-service";
 import { BaigeConnectionError } from "@/lib/integrations/baige-connection-service";
+import { linkBaigeIdentityToOrg } from "@/lib/integrations/baige-identity-link";
 import { mapBaigeAppError } from "@/lib/integrations/baige-partner-http";
 import { cacheDel, cacheGet } from "@/lib/redis";
 
@@ -44,6 +45,9 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
   let payload: {
     baigeOrgId?: string;
     baigeUserId?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    name?: string | null;
     scopes?: string[];
     redirectUri?: string | null;
   };
@@ -54,7 +58,11 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
   }
 
   if (!payload.baigeOrgId) {
-    return createErrorResponse("授权状态缺少 baigeOrgId", ErrorCode.VALIDATION_ERROR, 400);
+    return createErrorResponse(
+      "授权状态缺少 baigeOrgId",
+      ErrorCode.VALIDATION_ERROR,
+      400,
+    );
   }
 
   try {
@@ -66,14 +74,32 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
       metadata: {
         source: "baige_app",
         baigeUserId: payload.baigeUserId ?? null,
+        email: payload.email ?? null,
+        phone: payload.phone ?? null,
         redirectUri: payload.redirectUri ?? null,
       },
     });
+
+    let linkedUserId: string | null = null;
+    if (payload.email || payload.phone || payload.baigeUserId) {
+      linkedUserId = await linkBaigeIdentityToOrg({
+        orgId: result.orgId,
+        identity: {
+          baigeUserId: payload.baigeUserId,
+          email: payload.email,
+          phone: payload.phone,
+          name: payload.name,
+        },
+        invitedByUserId: result.session.user.id,
+      });
+    }
+
     await cacheDel(`baige-app-authorize:${parsed.data.state}`);
 
     const connection = await formatBaigeAppConnection(payload.baigeOrgId);
     return createSuccessResponse({
       ...connection,
+      linkedUserId,
       redirectUri: payload.redirectUri ?? null,
     });
   } catch (error) {

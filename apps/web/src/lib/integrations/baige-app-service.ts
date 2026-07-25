@@ -28,6 +28,8 @@ import {
   type EventFeatureFlagKey,
 } from "@/lib/event-feature-flags";
 import { withPublicPath } from "@/lib/public-path";
+import { linkBaigeIdentityToOrg } from "@/lib/integrations/baige-identity-link";
+import type { BaigeIdentityInput } from "@/lib/integrations/baige-identity-link";
 import { cacheSet } from "@/lib/redis";
 import { randomBytes } from "crypto";
 
@@ -220,12 +222,21 @@ export async function revokeBaigeAppConnection(baigeOrgId: string) {
 export async function startBaigeAppAuthorize(input: {
   baigeOrgId: string;
   baigeUserId?: string;
+  email?: string;
+  phone?: string;
+  name?: string;
   scopes?: string[];
   redirectUri?: string;
   /** 若已知玖莅组织且允许直连，可一键绑定 */
   jiuliOrgId?: string;
 }) {
   const scopes = normalizeBaigeAppScopes(input.scopes);
+  const identity: BaigeIdentityInput = {
+    baigeUserId: input.baigeUserId,
+    email: input.email,
+    phone: input.phone,
+    name: input.name,
+  };
 
   if (input.jiuliOrgId?.trim()) {
     const connection = await upsertBaigeConnection({
@@ -235,24 +246,41 @@ export async function startBaigeAppAuthorize(input: {
       metadata: {
         source: "baige_app",
         baigeUserId: input.baigeUserId ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
       },
     });
+    let linkedUserId: string | null = null;
+    if (identity.email || identity.phone || identity.baigeUserId) {
+      linkedUserId = await linkBaigeIdentityToOrg({
+        orgId: connection.orgId,
+        identity,
+      });
+    }
     return {
       mode: "linked" as const,
       connection: await formatBaigeAppConnection(connection.externalOrgId),
+      linkedUserId,
     };
   }
 
   const existing = await getBaigeConnectionByExternalOrgId(input.baigeOrgId);
   if (existing?.status === PartnerConnectionStatus.ACTIVE) {
-    // 已绑定：刷新 scopes
     await prisma.partnerConnection.update({
       where: { id: existing.id },
       data: { scopes },
     });
+    let linkedUserId: string | null = null;
+    if (identity.email || identity.phone || identity.baigeUserId) {
+      linkedUserId = await linkBaigeIdentityToOrg({
+        orgId: existing.orgId,
+        identity,
+      });
+    }
     return {
       mode: "linked" as const,
       connection: await formatBaigeAppConnection(existing.externalOrgId),
+      linkedUserId,
     };
   }
 
@@ -262,6 +290,9 @@ export async function startBaigeAppAuthorize(input: {
     JSON.stringify({
       baigeOrgId: input.baigeOrgId.trim(),
       baigeUserId: input.baigeUserId ?? null,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      name: input.name ?? null,
       scopes,
       redirectUri: input.redirectUri ?? null,
     }),

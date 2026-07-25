@@ -38,6 +38,7 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
+import { QrLoginPanel } from "@/components/auth/QrLoginPanel";
 
 const phoneSchema = z.object({
   phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效手机号"),
@@ -275,11 +276,14 @@ export function LoginForm() {
         <CardTitle className="text-2xl font-bold text-brand-green">
           玖莅
         </CardTitle>
-        <CardDescription>管理后台</CardDescription>
+        <CardDescription>
+          管理后台 · 可用百格 App 扫码，或同手机号 / 邮箱登录
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <Tabs defaultValue="email-code">
-          <TabsList className="mb-4 grid w-full grid-cols-3">
+        <Tabs defaultValue="qr">
+          <TabsList className="mb-4 grid w-full grid-cols-4">
+            <TabsTrigger value="qr">扫码</TabsTrigger>
             <TabsTrigger value="email-code">邮箱验证码</TabsTrigger>
             <TabsTrigger value="email">账号密码</TabsTrigger>
             <TabsTrigger value="phone">手机号</TabsTrigger>
@@ -310,6 +314,13 @@ export function LoginForm() {
               </p>
             </div>
           )}
+
+          <TabsContent value="qr">
+            <QrLoginPanel
+              onLoggedIn={redirectAfterLogin}
+              onError={(msg) => setError(msg || null)}
+            />
+          </TabsContent>
 
           <TabsContent value="email-code">
             <form onSubmit={onEmailCodeSubmit} className="space-y-4">

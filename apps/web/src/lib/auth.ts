@@ -14,6 +14,7 @@ import { smsVerifyKey } from "@/lib/sms";
 import { resolveExhibitorBooth } from "@/lib/exhibitor/exhibitor-auth";
 import { organizerSignupLoginKey } from "@/lib/organizer-signup-service";
 import { experienceSignupLoginKey } from "@/lib/experience/experience-account-service";
+import { consumeBaigeLoginTicket } from "@/lib/integrations/baige-login-ticket";
 
 type OwnedOrgSummary = NonNullable<Session["user"]["ownedOrgs"]>[number];
 
@@ -374,6 +375,29 @@ export const authOptions: NextAuthOptions = {
         if (!userId) return null;
 
         await cacheDel(experienceSignupLoginKey(loginToken));
+
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { roleAssignments: true },
+        });
+        if (!user) return null;
+
+        const userType = resolveUserType(user.userType, user.roleAssignments);
+        return toSessionUser(user, userType);
+      },
+    }),
+    CredentialsProvider({
+      id: "baige-sso",
+      name: "baige-sso",
+      credentials: {
+        loginToken: { label: "loginToken", type: "text" },
+      },
+      async authorize(credentials) {
+        const loginToken = credentials?.loginToken?.trim();
+        if (!loginToken) return null;
+
+        const userId = await consumeBaigeLoginTicket(loginToken);
+        if (!userId) return null;
 
         const user = await prisma.user.findUnique({
           where: { id: userId },

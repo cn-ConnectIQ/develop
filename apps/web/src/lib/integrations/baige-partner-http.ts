@@ -39,7 +39,7 @@ export function mapBaigeAppError(error: unknown) {
         ? 404
         : error.code === "FORBIDDEN"
           ? 403
-          : error.code === "MODULE_BUSY"
+          : error.code === "MODULE_BUSY" || error.code === "QR_EXPIRED"
             ? 409
             : error.code === "EVENT_NOT_AUTHORIZED"
               ? 404

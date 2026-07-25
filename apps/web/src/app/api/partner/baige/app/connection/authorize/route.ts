@@ -12,6 +12,9 @@ import {
 const authorizeSchema = z.object({
   baigeOrgId: z.string().min(1),
   baigeUserId: z.string().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().regex(/^1[3-9]\d{9}$/).optional(),
+  name: z.string().max(80).optional(),
   scopes: z.array(z.string()).optional(),
   redirectUri: z.string().optional(),
   /** 联调/已明确映射时一键绑定 */
@@ -42,7 +45,10 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
     });
 
     if (result.mode === "linked") {
-      return createSuccessResponse(result.connection);
+      return createSuccessResponse({
+        ...result.connection,
+        linkedUserId: result.linkedUserId ?? null,
+      });
     }
     return createSuccessResponse({
       authorizeUrl: result.authorizeUrl,

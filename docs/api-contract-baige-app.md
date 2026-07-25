@@ -15,9 +15,45 @@
 | EVENT_NOT_AUTHORIZED | 404 | 活动未开通互动 |
 | FORBIDDEN | 403 | 无权限 |
 | MODULE_BUSY | 409 | 模块进行中不可关 |
+| QR_EXPIRED | 409 | 扫码会话过期 |
 | VALIDATION | 400 | 参数错误 |
 | UNAUTHORIZED | 401 | API Key 无效 |
 | NOT_CONFIGURED | 503 | 未配置 Key |
+
+## 登录打通（邮箱 / 手机 / App 扫码）
+
+授权时请带上百格用户的 `email` 和/或 `phone`（及可选 `name`、`baigeUserId`）。玖莅会：
+
+1. 按邮箱/手机查找或创建 User  
+2. 写入 `UserIdentity(provider=baige)`  
+3. 授予该组织 `OrgStaff.ADMIN` + `userType=ACCOUNT_ADMIN`  
+
+之后可用：
+
+- 玖莅登录页 **同一手机号验证码** / **同一邮箱验证码**  
+- 或 **百格 App 扫码**（见下）
+
+### POST `/connection/authorize`（补充字段）
+
+Body 增加可选：`email`、`phone`、`name`（与 `baigeUserId`）。绑定成功时会身份打通。
+
+### POST `/auth/login-ticket`
+
+Body：`{ baigeOrgId, email?, phone?, baigeUserId?, name? }`（至少一种身份）
+
+响应：`{ loginToken, expiresIn, jiuliOrgId, signInHint: { provider: "baige-sso", loginToken } }`
+
+浏览器：`signIn("baige-sso", { loginToken, redirect: false })`。
+
+### 扫码登录
+
+| 端 | 接口 |
+|----|------|
+| 浏览器 | `POST /api/auth/qr-login` → `sessionId` + `qrPayload`（`bagevent://jiuli/qr-login?sessionId=`） |
+| 浏览器 | `GET /api/auth/qr-login/{sessionId}` 轮询 → `confirmed` + `loginToken` |
+| 百格 App | `POST /api/partner/baige/app/auth/qr-login/confirm` Body：`{ sessionId, baigeOrgId, email?, phone?, baigeUserId?, name? }` |
+
+App 识别 `bagevent://jiuli/qr-login` deep link 后调 confirm；PC 轮询到 confirmed 后 `signIn("baige-sso")`。
 
 ## 接口
 
@@ -29,16 +65,16 @@
 
 ### POST `/connection/authorize`
 
-Body：`baigeOrgId`、可选 `baigeUserId` / `scopes` / `redirectUri` / `jiuliOrgId`。
+Body：`baigeOrgId`、可选 `baigeUserId` / `email` / `phone` / `name` / `scopes` / `redirectUri` / `jiuliOrgId`。
 
-- 传 `jiuliOrgId` 或已绑定 → 直接 `{ linked: true, ... }`
+- 传 `jiuliOrgId` 或已绑定 → 直接 `{ linked: true, ..., linkedUserId }`，并打通身份  
 - 否则 → `{ authorizeUrl, state }`（打开玖莅 `/integrations/baige?partner_state=`；管理员登录后自动调用 confirm）
 
 默认 scopes：`org.profile` | `event.basic` | `attendee.read` | `collection_point.read`
 
 ### POST `/connection/confirm`（玖莅登录态）
 
-Body：`{ "state" }`。管理员确认 App 发起的 pending 授权，写入 `PartnerConnection`。若有 `bagevent://` redirectUri 则前端跳回 App。
+Body：`{ "state" }`。管理员确认 App 发起的 pending 授权，写入 `PartnerConnection`，并对 pending 中的 email/phone 打通身份。若有 `bagevent://` redirectUri 则前端跳回 App。
 
 ### DELETE `/connection`
 
