@@ -16,7 +16,8 @@ import {
   resolveOrgIdForBaigeAuthorize,
 } from "@/lib/integrations/baige-event-authorize";
 import { BaigeConnectionError } from "@/lib/integrations/baige-connection-service";
-import { prisma } from "@connectiq/database";
+import { BAIGE_PROVIDER } from "@/lib/integrations/baige-partner-constants";
+import { InviteStatus, OrgStaffRole, prisma } from "@connectiq/database";
 
 const eventSchema = z.object({
   baigeEventId: z.string().min(1),
@@ -72,16 +73,13 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
       externalOrgId: parsed.data.baigeOrgId,
     });
 
-    if (!actorUserId) {
-      const org = await prisma.organization.findUnique({
-        where: { id: orgId },
-        select: { ownerId: true },
-      });
-      actorUserId = org?.ownerId ?? null;
-    }
+    actorUserId = await resolveValidEventOrganizerUserId({
+      orgId,
+      preferredUserId: actorUserId,
+    });
     if (!actorUserId) {
       return createErrorResponse(
-        "无法确定操作人，请传 actorUserId 或确保组织有 owner",
+        "无法确定操作人：请传有效的玖莅 actorUserId，或确保组织有 owner",
         ErrorCode.VALIDATION_ERROR,
         400,
       );
@@ -100,3 +98,50 @@ export const POST = withErrorHandler(async (request): Promise<NextResponse> => {
     throw error;
   }
 });
+
+/**
+ * 开通活动时 organizer_id 必须是玖莅 users.id。
+ * 百格常误传 baigeUserId → 外键失败 INTERNAL_ERROR；无效则回退组织 owner / 绑定人 / 管理员。
+ */
+async function resolveValidEventOrganizerUserId(input: {
+  orgId: string;
+  preferredUserId: string | null;
+}): Promise<string | null> {
+  async function ifExistingUser(id: string | null | undefined) {
+    const trimmed = id?.trim();
+    if (!trimmed) return null;
+    const row = await prisma.user.findUnique({
+      where: { id: trimmed },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  }
+
+  const preferred = await ifExistingUser(input.preferredUserId);
+  if (preferred) return preferred;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: input.orgId },
+    select: { ownerId: true },
+  });
+  const owner = await ifExistingUser(org?.ownerId);
+  if (owner) return owner;
+
+  const linked = await prisma.partnerConnection.findFirst({
+    where: { orgId: input.orgId, provider: BAIGE_PROVIDER },
+    select: { linkedByUserId: true },
+  });
+  const linker = await ifExistingUser(linked?.linkedByUserId);
+  if (linker) return linker;
+
+  const staff = await prisma.orgStaff.findFirst({
+    where: {
+      orgId: input.orgId,
+      status: InviteStatus.ACCEPTED,
+      role: { in: [OrgStaffRole.OWNER, OrgStaffRole.ADMIN] },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { userId: true },
+  });
+  return ifExistingUser(staff?.userId);
+}

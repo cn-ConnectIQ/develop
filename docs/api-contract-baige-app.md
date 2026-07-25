@@ -95,7 +95,11 @@ J2 总览。可选 `knownBaigeEventIds=1001,1002`（百格侧活动全集），�
 
 ### POST `/api/partner/baige/events/authorize`（已有）
 
-开通活动互动后会出现在 overview 的 `enabledEvents`。
+Body：`baigeOrgId`（或 `orgId`）、`events[]`；可选 `actorUserId`（**必须是玖莅 User.id**，不要传百格用户 ID）。
+
+未传或传了无效 ID 时，服务端会回退到组织 `owner` / 绑定人 / 管理员，避免 `events_organizer_id_fkey` → `INTERNAL_ERROR`。
+
+开通成功后会出现在 overview 的 `enabledEvents`。
 
 ### GET `/events/{baigeEventId}/interaction?baigeOrgId=`
 
