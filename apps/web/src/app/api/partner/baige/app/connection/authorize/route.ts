@@ -2,6 +2,7 @@ import type { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSuccessResponse, withErrorHandler } from "@/lib/api-auth";
 import { startBaigeAppAuthorize } from "@/lib/integrations/baige-app-service";
+import { normalizePhone } from "@/lib/integrations/baige-identity-link";
 import { BAIGE_APP_SCOPES } from "@/lib/integrations/baige-partner-constants";
 import {
   createBaigePartnerErrorResponse,
@@ -9,16 +10,27 @@ import {
   mapBaigeAppError,
 } from "@/lib/integrations/baige-partner-http";
 
+/** 无效邮箱不拖垮整单：丢掉后若仍有 phone+baigeUserId 可自动开户，否则走 authorizeUrl */
+function softEmail(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const t = value.trim();
+  if (!t) return undefined;
+  return z.string().email().safeParse(t).success ? t : undefined;
+}
+
 const authorizeSchema = z.object({
   baigeOrgId: z.string().min(1),
   baigeUserId: z.string().optional(),
-  email: z.string().email().optional(),
-  phone: z.string().regex(/^1[3-9]\d{9}$/).optional(),
+  email: z.preprocess(softEmail, z.string().email().optional()),
+  phone: z.preprocess(
+    (v) => (typeof v === "string" ? normalizePhone(v) ?? undefined : undefined),
+    z.string().regex(/^1[3-9]\d{9}$/).optional(),
+  ),
   name: z.string().max(80).optional(),
   orgName: z.string().max(64).optional(),
   scopes: z.array(z.string()).optional(),
   redirectUri: z.string().optional(),
-  /** 联调/已明确映射时一键绑定 */
+  /** 联调/已明确映射时一键绑定（跳过确认页） */
   jiuliOrgId: z.string().optional(),
 });
 

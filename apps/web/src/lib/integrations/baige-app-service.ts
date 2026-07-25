@@ -240,9 +240,11 @@ export async function startBaigeAppAuthorize(input: {
     orgName: input.orgName,
   };
 
-  const hasIdentity = Boolean(
-    identity.email || identity.phone || identity.baigeUserId,
-  );
+  const baigeUserId = identity.baigeUserId?.trim() || null;
+  const hasContact = Boolean(identity.email || identity.phone);
+  /** 自动开户：必须 (email|phone) + baigeUserId；仅 baigeUserId 不够 */
+  const canAutoProvision = Boolean(baigeUserId && hasContact);
+  const hasIdentity = Boolean(hasContact || baigeUserId);
 
   async function bindToOrg(orgId: string) {
     const connection = await upsertBaigeConnection({
@@ -282,8 +284,8 @@ export async function startBaigeAppAuthorize(input: {
     return result;
   }
 
-  // 首次授权：有邮箱/手机则自动开户+建组织，无需人工确认页
-  if (hasIdentity && (identity.email || identity.phone)) {
+  // 首次授权：仅 (email|phone) + baigeUserId 自动开户；缺联系方式 → authorizeUrl
+  if (canAutoProvision) {
     const provisioned = await provisionBaigeOrgAndOwner({
       baigeOrgId: input.baigeOrgId,
       identity,
@@ -309,6 +311,7 @@ export async function startBaigeAppAuthorize(input: {
     };
   }
 
+  // 缺 email 且缺 phone（或无 baigeUserId）→ 管理员确认页
   const state = randomBytes(24).toString("hex");
   await cacheSet(
     `baige-app-authorize:${state}`,

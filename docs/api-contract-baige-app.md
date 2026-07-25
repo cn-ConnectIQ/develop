@@ -67,9 +67,13 @@ App 识别 `bagevent://jiuli/qr-login` deep link 后调 confirm；PC 轮询到 c
 
 Body：`baigeOrgId`、可选 `baigeUserId` / `email` / `phone` / `name` / `orgName` / `scopes` / `redirectUri` / `jiuliOrgId`。
 
-- **首次授权且带 email 或 phone**：自动创建玖莅 User + Organization（`adminStatus=TRIAL`），组织名默认取邮箱 `@` 前或手机号；直接返回 `{ linked: true, linkedUserId, orgCreated }`
-- 传 `jiuliOrgId` 或已绑定 → 绑定到已有组织
-- 无邮箱/手机时 → `{ authorizeUrl, state }`（需玖莅管理员确认页）
+- **首次自动开户**（返回 `{ linked: true, linkedUserId, orgCreated }`）**仅当**：
+  - `email` + `baigeUserId`，或
+  - `phone` + `baigeUserId`  
+  组织名默认取邮箱 `@` 前或手机号。**不可以**仅有 `baigeUserId` 就自动开户。
+- 传 `jiuliOrgId` 或已绑定 → 绑定到已有组织（跳过确认页）
+- **缺 email 且缺 phone**（即使有 baigeUserId）→ `{ authorizeUrl, state }`（需玖莅管理员确认页）
+- `phone` 支持 `+86` / `0086` / 空格横线，服务端会归一化为 `1[3-9]\\d{9}`；非法邮箱会被忽略（不整单 400），若仍有合法 phone+baigeUserId 可自动开户，否则走 authorizeUrl
 
 默认 scopes：`org.profile` | `event.basic` | `attendee.read` | `collection_point.read`
 

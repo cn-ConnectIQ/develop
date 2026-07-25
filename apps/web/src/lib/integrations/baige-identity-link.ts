@@ -30,9 +30,14 @@ function normalizeEmail(email?: string | null) {
   return v && v.includes("@") ? v : null;
 }
 
-function normalizePhone(phone?: string | null) {
-  const v = phone?.trim();
-  return v && /^1[3-9]\d{9}$/.test(v) ? v : null;
+/** 归一化中国大陆手机号：去空格/横线，剥 +86 / 0086 / 86 前缀 */
+export function normalizePhone(phone?: string | null) {
+  if (!phone) return null;
+  let v = phone.trim().replace(/[\s-]/g, "");
+  if (v.startsWith("+86")) v = v.slice(3);
+  else if (v.startsWith("0086")) v = v.slice(4);
+  else if (/^86[1][3-9]\d{9}$/.test(v)) v = v.slice(2);
+  return /^1[3-9]\d{9}$/.test(v) ? v : null;
 }
 
 /** 组织名：显式 orgName → 邮箱 @ 前 → 手机号 → 联系人姓名 → 百格组织后缀 */
@@ -295,9 +300,11 @@ export async function provisionBaigeOrgAndOwner(input: {
 }): Promise<{ orgId: string; userId: string; orgCreated: boolean }> {
   const email = normalizeEmail(input.identity.email);
   const phone = normalizePhone(input.identity.phone);
-  if (!email && !phone && !input.identity.baigeUserId?.trim()) {
+  const baigeUserId = input.identity.baigeUserId?.trim() || null;
+  // 自动开户严格要求：(email|phone) + baigeUserId
+  if (!baigeUserId || (!email && !phone)) {
     throw new BaigeConnectionError(
-      "首次授权请提供邮箱或手机号，以便自动创建玖莅账号与组织",
+      "首次自动开户需提供 baigeUserId，以及邮箱或手机号之一",
       "VALIDATION",
     );
   }
