@@ -232,6 +232,12 @@ export async function ensureBaigeUserOrgAdminAccess(input: {
       },
     });
 
+    // 历史上通过百格自动开户、仍停留在试用状态的组织，在此顺带修正为正式账号
+    await tx.organization.updateMany({
+      where: { id: input.orgId, adminStatus: AdminStatus.TRIAL },
+      data: { adminStatus: AdminStatus.APPROVED },
+    });
+
     const existing = await tx.orgStaff.findUnique({
       where: {
         orgId_userId: { orgId: input.orgId, userId: input.userId },
@@ -368,7 +374,8 @@ export async function provisionBaigeOrgAndOwner(input: {
         name: orgName,
         slug,
         contactEmail,
-        adminStatus: AdminStatus.TRIAL,
+        // 百格伙伴渠道来源账号直接视为正式账号，不走自助试用流程
+        adminStatus: AdminStatus.APPROVED,
         isVerified: false,
         ownerId: existingOwnerOrg ? undefined : userId,
       },
