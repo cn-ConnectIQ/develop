@@ -237,6 +237,11 @@ export async function ensureBaigeUserOrgAdminAccess(input: {
       where: { id: input.orgId, adminStatus: AdminStatus.TRIAL },
       data: { adminStatus: AdminStatus.APPROVED },
     });
+    // 百格渠道账号默认每场活动 100 个采集点上限；仅在尚未设置时回填，不覆盖已有自定义额度
+    await tx.organization.updateMany({
+      where: { id: input.orgId, stampPointLimitPerEvent: null },
+      data: { stampPointLimitPerEvent: 100 },
+    });
 
     const existing = await tx.orgStaff.findUnique({
       where: {
@@ -377,6 +382,8 @@ export async function provisionBaigeOrgAndOwner(input: {
         // 百格伙伴渠道来源账号直接视为正式账号，不走自助试用流程
         adminStatus: AdminStatus.APPROVED,
         isVerified: false,
+        // 百格渠道账号默认每场活动 100 个采集点上限
+        stampPointLimitPerEvent: 100,
         ownerId: existingOwnerOrg ? undefined : userId,
       },
     });

@@ -15,6 +15,7 @@ import {
   generateStampQR,
   getStampScanUrl,
 } from "@/lib/stamp/stamp-qrcode";
+import { assertStampPointQuota } from "@/lib/stamp/stamp-quota";
 
 const metaKey = (rallyId: string) => `booth_stamp_rally_meta_${rallyId}`;
 
@@ -281,6 +282,9 @@ export async function upsertBoothStampRally(
   const status = input.publish
     ? StampRallyStatus.ACTIVE
     : StampRallyStatus.DRAFT;
+
+  const newCheckpointCount = input.checkpoints.filter((c) => !c.id).length;
+  await assertStampPointQuota(booth.eventId, newCheckpointCount);
 
   let rallyId = input.id;
 

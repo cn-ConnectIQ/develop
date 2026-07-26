@@ -11,6 +11,7 @@ import {
   BAIGE_STAMP_MAP_KEY,
   BAIGE_STAMP_RALLY_NAME,
 } from "@/lib/integrations/baige-partner-constants";
+import { assertStampPointQuota } from "@/lib/stamp/stamp-quota";
 
 export class BaigeStampSyncError extends Error {
   constructor(
@@ -136,6 +137,13 @@ export async function syncBaigeCollectionPoints(input: {
 
   const rally = await ensureBaigeStampRally(eventId, createdById);
   const map = await loadStampMap(eventId);
+
+  const newPointCount = input.points.filter((point) => {
+    const pointId = point.pointId.trim();
+    return pointId && point.name.trim() && !map[pointId];
+  }).length;
+  await assertStampPointQuota(eventId, newPointCount);
+
   let created = 0;
   let updated = 0;
 

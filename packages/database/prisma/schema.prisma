@@ -751,6 +751,8 @@ model Organization {
   billingLedgers  BillingLedger[]
   /// 互动点透支额度（默认 0 = 耗尽即停）
   overdraftLimit  Int @default(0) @map("overdraft_limit")
+  /// 每场活动采集点（Stamp）数量上限，null = 不限（如百格伙伴渠道账号默认 100）
+  stampPointLimitPerEvent Int? @map("stamp_point_limit_per_event")
 
   partnerConnections PartnerConnection[]
 

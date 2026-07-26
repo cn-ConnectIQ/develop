@@ -16,6 +16,7 @@ import {
   isBoothStampPoint,
   normalizeStampPoints,
 } from "@/lib/stamp/stamp-rally-config";
+import { assertStampPointQuota } from "@/lib/stamp/stamp-quota";
 
 export const stampRallyMetaKey = (rallyId: string) =>
   `stamp_rally_meta_${rallyId}`;
@@ -117,6 +118,17 @@ export async function syncRallyStampRecords(
       customName: true,
     },
   });
+
+  const newPointCount = normalized.filter(
+    (cfg) => !findExistingStampRow(existing, cfg),
+  ).length;
+  const rally = await prisma.stampRally.findUnique({
+    where: { id: rallyId },
+    select: { eventId: true },
+  });
+  if (rally) {
+    await assertStampPointQuota(rally.eventId, newPointCount);
+  }
 
   const matchedExistingIds = new Set<string>();
 

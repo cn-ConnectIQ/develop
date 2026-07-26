@@ -76,6 +76,8 @@ export const POST = withErrorHandler(async () => {
     `CREATE INDEX IF NOT EXISTS partner_sync_runs_event_id_provider_started_at_idx ON partner_sync_runs(event_id, provider, started_at)`,
     `CREATE INDEX IF NOT EXISTS partner_sync_runs_provider_status_started_at_idx ON partner_sync_runs(provider, status, started_at)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS participant_registrations_provider_external_id_key ON participant_registrations(provider, external_id)`,
+    // 每场活动采集点数量上限（如百格渠道账号默认 100）
+    `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS stamp_point_limit_per_event INT`,
   ];
 
   const applied: string[] = [];
@@ -156,11 +158,26 @@ export const POST = withErrorHandler(async () => {
     );
   }
 
+  // 采集点配额字段探测确认
+  try {
+    await prisma.organization.findFirst({
+      select: { stampPointLimitPerEvent: true },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return createErrorResponse(
+      `DDL 已执行，但采集点配额字段探测仍失败: ${message}`,
+      ErrorCode.INTERNAL_ERROR,
+      500,
+    );
+  }
+
   return createSuccessResponse({
     applied,
     notificationEnumAlterSkipped: notificationSync.enumAlterSkipped,
     eventsListProbe: "ok",
     notificationProbe: "ok",
     partnerSyncProbe: "ok",
+    stampQuotaProbe: "ok",
   });
 });
