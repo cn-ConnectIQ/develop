@@ -1,5 +1,5 @@
-import { prisma, PartnerSyncTrigger } from "@connectiq/database";
-import { getBaigeConnectionStatus } from "@/lib/integrations/baige-connection";
+import { prisma, PartnerConnectionStatus, PartnerSyncTrigger } from "@connectiq/database";
+import { getBaigeConnectionByOrgId } from "@/lib/integrations/baige-connection-service";
 import { BAIGE_PROVIDER } from "@/lib/integrations/baige-partner-constants";
 import { runPartnerParticipantSync } from "@/lib/partner-sync/orchestrator";
 
@@ -15,18 +15,22 @@ export type BaigeSyncResult = {
 };
 
 export async function getBaigeEventSyncStatus(eventId: string) {
-  const [lastSync, event, connection] = await Promise.all([
+  const [lastSync, event] = await Promise.all([
     prisma.eventSetting.findUnique({
       where: { eventId_key: { eventId, key: `${BAIGE_PROVIDER}_last_sync_at` } },
     }),
-    prisma.event.findUnique({ where: { id: eventId }, select: { externalRefId: true } }),
-    getBaigeConnectionStatus(),
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { externalRefId: true, orgId: true },
+    }),
   ]);
+
+  const connection = event ? await getBaigeConnectionByOrgId(event.orgId) : null;
 
   return {
     lastSyncAt: typeof lastSync?.value === "string" ? lastSync.value : null,
     baigeEventId: event?.externalRefId ?? null,
-    platformConnected: connection.connected,
+    platformConnected: connection?.status === PartnerConnectionStatus.ACTIVE,
   };
 }
 
