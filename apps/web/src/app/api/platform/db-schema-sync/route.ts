@@ -45,6 +45,37 @@ export const POST = withErrorHandler(async () => {
     `CREATE INDEX IF NOT EXISTS invite_entries_event_phone_status_idx ON invite_entries(event_id, phone, status)`,
     `CREATE INDEX IF NOT EXISTS invite_entries_event_status_idx ON invite_entries(event_id, status)`,
     `CREATE INDEX IF NOT EXISTS invite_entries_status_expires_idx ON invite_entries(status, expires_at)`,
+    // 通用伙伴参会人员同步（partner-sync）：ParticipantRegistration 外部 ID 字段 + PartnerSyncRun 运行记录表
+    `DO $$ BEGIN
+       CREATE TYPE "PartnerSyncTrigger" AS ENUM ('WEBHOOK', 'MANUAL', 'CRON', 'AUTHORIZE');
+     EXCEPTION WHEN duplicate_object THEN NULL;
+     END $$`,
+    `DO $$ BEGIN
+       CREATE TYPE "PartnerSyncStatus" AS ENUM ('RUNNING', 'SUCCEEDED', 'FAILED', 'SKIPPED');
+     EXCEPTION WHEN duplicate_object THEN NULL;
+     END $$`,
+    `ALTER TABLE participant_registrations ADD COLUMN IF NOT EXISTS provider TEXT`,
+    `ALTER TABLE participant_registrations ADD COLUMN IF NOT EXISTS external_id TEXT`,
+    `ALTER TABLE participant_registrations ADD COLUMN IF NOT EXISTS external_status TEXT`,
+    `ALTER TABLE participant_registrations ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ`,
+    `CREATE TABLE IF NOT EXISTS partner_sync_runs (
+       id TEXT PRIMARY KEY,
+       event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+       provider TEXT NOT NULL,
+       trigger "PartnerSyncTrigger" NOT NULL DEFAULT 'MANUAL',
+       status "PartnerSyncStatus" NOT NULL DEFAULT 'RUNNING',
+       fetched INT NOT NULL DEFAULT 0,
+       created INT NOT NULL DEFAULT 0,
+       updated INT NOT NULL DEFAULT 0,
+       cancelled INT NOT NULL DEFAULT 0,
+       skipped INT NOT NULL DEFAULT 0,
+       error_message TEXT,
+       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+       finished_at TIMESTAMPTZ
+     )`,
+    `CREATE INDEX IF NOT EXISTS partner_sync_runs_event_id_provider_started_at_idx ON partner_sync_runs(event_id, provider, started_at)`,
+    `CREATE INDEX IF NOT EXISTS partner_sync_runs_provider_status_started_at_idx ON partner_sync_runs(provider, status, started_at)`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS participant_registrations_provider_external_id_key ON participant_registrations(provider, external_id)`,
   ];
 
   const applied: string[] = [];
@@ -110,10 +141,26 @@ export const POST = withErrorHandler(async () => {
     );
   }
 
+  // partner-sync 新增字段/表的探测确认
+  try {
+    await prisma.participantRegistration.findFirst({
+      select: { provider: true, externalId: true, externalStatus: true, syncedAt: true },
+    });
+    await prisma.partnerSyncRun.findFirst();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return createErrorResponse(
+      `DDL 已执行，但 partner-sync 探测仍失败: ${message}`,
+      ErrorCode.INTERNAL_ERROR,
+      500,
+    );
+  }
+
   return createSuccessResponse({
     applied,
     notificationEnumAlterSkipped: notificationSync.enumAlterSkipped,
     eventsListProbe: "ok",
     notificationProbe: "ok",
+    partnerSyncProbe: "ok",
   });
 });
