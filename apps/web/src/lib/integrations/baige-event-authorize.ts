@@ -3,6 +3,7 @@ import {
   DataSource,
   EventType,
   PartnerConnectionStatus,
+  PartnerSyncTrigger,
   prisma,
   type Prisma,
 } from "@connectiq/database";
@@ -86,7 +87,7 @@ export async function authorizeBaigeEvents(input: {
     baigeEventId: string;
     eventId: string;
     created: boolean;
-    sync?: { fetched: number; created: number; updated: number; skipped: number };
+    sync?: { fetched: number; created: number; updated: number; skippedRows: number };
     syncError?: string;
   }> = [];
 
@@ -170,17 +171,20 @@ export async function authorizeBaigeEvents(input: {
     });
 
     let sync:
-      | { fetched: number; created: number; updated: number; skipped: number }
+      | { fetched: number; created: number; updated: number; skippedRows: number }
       | undefined;
     let syncError: string | undefined;
     if (item.syncParticipants !== false) {
       try {
-        const result = await syncBaigeParticipants(event.id);
+        const result = await syncBaigeParticipants(
+          event.id,
+          PartnerSyncTrigger.AUTHORIZE,
+        );
         sync = {
           fetched: result.fetched,
           created: result.created,
           updated: result.updated,
-          skipped: result.skipped,
+          skippedRows: result.skippedRows,
         };
       } catch (err) {
         syncError = err instanceof Error ? err.message : "报名同步失败";

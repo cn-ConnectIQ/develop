@@ -58,6 +58,8 @@ export {
   ExperienceAccountStatus,
   ExperienceAccountRole,
   PartnerConnectionStatus,
+  PartnerSyncStatus,
+  PartnerSyncTrigger,
   AiFeedbackType,
   MatchFeedbackSignal,
   AiGenerationType,

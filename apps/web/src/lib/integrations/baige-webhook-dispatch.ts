@@ -1,4 +1,4 @@
-import { prisma, WebhookStatus, type Prisma } from "@connectiq/database";
+import { prisma, WebhookStatus, PartnerSyncTrigger, type Prisma } from "@connectiq/database";
 import { ingestBaigeCheckin } from "@/lib/integrations/baige-checkin-sync";
 import { syncBaigeCollectionPoints } from "@/lib/integrations/baige-stamp-sync";
 import { syncBaigeParticipants } from "@/lib/integrations/baige-sync";
@@ -75,7 +75,7 @@ export async function dispatchBaigeWebhook(input: {
     ) {
       const eventId = await resolveEventIdFromPayload(payload);
       if (!eventId) throw new Error("webhook 缺少可解析的活动 ID");
-      result = await syncBaigeParticipants(eventId);
+      result = await syncBaigeParticipants(eventId, PartnerSyncTrigger.WEBHOOK);
     } else if (type === "checkin.created" || type === "checkin.updated") {
       result = await ingestBaigeCheckin({
         eventId: pickString(payload, ["eventId", "event_id"]),

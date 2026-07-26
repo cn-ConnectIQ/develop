@@ -1085,6 +1085,7 @@ model Event {
   polls               Poll[]
   externalSyncs       ExternalSync[]
   crmSyncJobs         CrmSyncJob[]
+  partnerSyncRuns     PartnerSyncRun[]
   aiMatchResults      AiMatchResult[]
   businessConnections BusinessConnection[]
   businessReferrals   BusinessReferral[]
@@ -1207,6 +1208,43 @@ model CrmSyncJob {
   @@map("crm_sync_jobs")
 }
 
+enum PartnerSyncTrigger {
+  WEBHOOK
+  MANUAL
+  CRON
+  AUTHORIZE
+}
+
+enum PartnerSyncStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+/// 通用的伙伴参会人员拉取同步运行记录（跨 provider 复用，兼作并发锁）
+model PartnerSyncRun {
+  id           String             @id @default(cuid())
+  eventId      String             @map("event_id")
+  provider     String
+  trigger      PartnerSyncTrigger @default(MANUAL)
+  status       PartnerSyncStatus  @default(RUNNING)
+  fetched      Int                @default(0)
+  created      Int                @default(0)
+  updated      Int                @default(0)
+  cancelled    Int                @default(0)
+  skipped      Int                @default(0)
+  errorMessage String?            @map("error_message")
+  startedAt    DateTime           @default(now()) @map("started_at")
+  finishedAt   DateTime?          @map("finished_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, provider, startedAt])
+  @@index([provider, status, startedAt])
+  @@map("partner_sync_runs")
+}
+
 model EventSetting {
   id        String   @id @default(cuid())
   eventId   String   @map("event_id")
@@ -1324,15 +1362,20 @@ model Participant {
 }
 
 model ParticipantRegistration {
-  id            String             @id @default(cuid())
-  participantId String             @map("participant_id")
-  ticketTypeId  String?            @map("ticket_type_id")
-  status        RegistrationStatus @default(PENDING)
-  registeredAt  DateTime           @default(now()) @map("registered_at")
+  id             String             @id @default(cuid())
+  participantId  String             @map("participant_id")
+  ticketTypeId   String?            @map("ticket_type_id")
+  status         RegistrationStatus @default(PENDING)
+  registeredAt   DateTime           @default(now()) @map("registered_at")
+  provider       String?            @map("provider")
+  externalId     String?            @map("external_id")
+  externalStatus String?            @map("external_status")
+  syncedAt       DateTime?          @map("synced_at")
 
   participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   ticketType  TicketType? @relation(fields: [ticketTypeId], references: [id])
 
+  @@unique([provider, externalId])
   @@map("participant_registrations")
 }
 

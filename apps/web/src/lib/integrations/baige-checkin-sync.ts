@@ -55,6 +55,17 @@ async function resolveParticipantId(input: {
     if (row) return row.id;
   }
 
+  const registrationId = input.registrationId?.trim();
+  if (registrationId) {
+    const registration = await prisma.participantRegistration.findUnique({
+      where: {
+        provider_externalId: { provider: BAIGE_PROVIDER, externalId: registrationId },
+      },
+      select: { participantId: true },
+    });
+    if (registration) return registration.participantId;
+  }
+
   const phone = input.phone?.trim();
   if (phone) {
     const row = await prisma.participant.findFirst({
@@ -64,8 +75,7 @@ async function resolveParticipantId(input: {
     if (row) return row.id;
   }
 
-  // registrationId 暂存于 tags：baige_reg:<id>
-  const registrationId = input.registrationId?.trim();
+  // 兼容迁移期未回填的历史数据：registrationId 曾暂存于 tags：baige_reg:<id>
   if (registrationId) {
     const row = await prisma.participant.findFirst({
       where: {
