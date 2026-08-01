@@ -39,6 +39,15 @@ const PUBLIC_PATHS = [
   "/optout",
 ] as const;
 
+/** 静态营销页：/expo/*.html（与主办端 /expo 前缀区分，免登录） */
+function isPublicExpoStaticHtml(pathname: string) {
+  return (
+    pathname.startsWith("/expo/") &&
+    pathname.toLowerCase().endsWith(".html") &&
+    !pathname.slice("/expo/".length).includes("/")
+  );
+}
+
 /** 现场投影配对唯一短链入口 https://9li.co/s */
 function isScreenPairingEntry(pathname: string) {
   return pathname === "/s" || pathname === "/s/";
@@ -55,6 +64,7 @@ function isPublicScreenPath(pathname: string) {
 function isPublicPath(pathname: string) {
   if (isPublicScreenPath(pathname)) return true;
   if (isScreenPairingEntry(pathname)) return true;
+  if (isPublicExpoStaticHtml(pathname)) return true;
   return PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
